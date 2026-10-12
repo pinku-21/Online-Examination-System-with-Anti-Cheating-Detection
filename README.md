@@ -89,7 +89,3 @@ python run.py
 
 ---
 
-## 🎓 Viva / Examiner Defense Points
-- **Why Flask + SQLite?** Lightweight, self-contained, zero cloud database configuration required for localhost demonstrations.
-- **How does the anti-cheating work without installing a heavy agent?** Uses modern web APIs (`Page Visibility API`, `Fullscreen API`, `Window Focus events`) capable of client-side lockdown inside standard modern browsers.
-- **How does AI multimodal work?** Gemini's API supports base64 image encoding directly in prompt payloads, enabling textbook photos to be ingested alongside PDF text.
