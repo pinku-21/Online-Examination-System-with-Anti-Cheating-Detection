@@ -508,6 +508,104 @@
     </div>
 </div>
 
+<!-- ===== MANAGE EXAM ACCESS & SCHEDULE MODAL ===== -->
+<div id="manage-access-modal" class="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-50 flex items-center justify-center p-4 hidden">
+    <div class="bg-white rounded-2xl max-w-lg w-full p-6 shadow-2xl border border-slate-200">
+        <div class="flex items-center justify-between mb-4">
+            <div class="flex items-center space-x-2.5">
+                <div class="w-9 h-9 rounded-xl bg-indigo-100 text-indigo-600 flex items-center justify-center">
+                    <i data-lucide="calendar-clock" class="w-4 h-4"></i>
+                </div>
+                <div>
+                    <h3 class="font-bold text-slate-900 text-base">Manage Access & Schedule</h3>
+                    <p class="text-xs text-slate-500 line-clamp-1" id="ma-exam-title">Exam Title</p>
+                </div>
+            </div>
+            <button type="button" onclick="closeManageAccessModal()" class="text-slate-400 hover:text-slate-600 p-1">
+                <i data-lucide="x" class="w-5 h-5"></i>
+            </button>
+        </div>
+
+        <input type="hidden" id="ma-exam-id">
+
+        <div class="space-y-4">
+            <!-- Access Targeting -->
+            <div class="p-3.5 bg-slate-50 border border-slate-200 rounded-xl space-y-2">
+                <label class="block text-xs font-bold text-slate-800">
+                    <i data-lucide="users" class="w-3.5 h-3.5 inline mr-1 text-indigo-600"></i>Student Access Permission:
+                </label>
+                <div class="grid grid-cols-3 gap-1.5 p-1 bg-white rounded-lg border border-slate-200 text-xs font-semibold">
+                    <label class="p-1.5 rounded-md cursor-pointer text-center ma-acc-tab bg-indigo-50 text-indigo-700 font-bold" id="ma-tab-all">
+                        <input type="radio" name="ma_access_type" value="all" onchange="maSwitchAccess('all')" class="hidden">
+                        <span>All Students</span>
+                    </label>
+                    <label class="p-1.5 rounded-md cursor-pointer text-center ma-acc-tab text-slate-600 hover:text-slate-900" id="ma-tab-class">
+                        <input type="radio" name="ma_access_type" value="class" onchange="maSwitchAccess('class')" class="hidden">
+                        <span>By Class</span>
+                    </label>
+                    <label class="p-1.5 rounded-md cursor-pointer text-center ma-acc-tab text-slate-600 hover:text-slate-900" id="ma-tab-selected">
+                        <input type="radio" name="ma_access_type" value="selected" onchange="maSwitchAccess('selected')" class="hidden">
+                        <span>Select Names</span>
+                    </label>
+                </div>
+
+                <div id="ma-class-block" class="hidden pt-1 space-y-1">
+                    <label class="block text-[11px] font-semibold text-slate-600">Target Class / Batch Name:</label>
+                    <input type="text" id="ma-target-class" placeholder="e.g. Class 10-A, Grade 12" class="w-full px-3 py-1.5 text-xs border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500">
+                </div>
+
+                <div id="ma-selected-block" class="hidden pt-1 space-y-1.5">
+                    <label class="text-[11px] font-semibold text-slate-600">Select Enrolled Students:</label>
+                    <div class="max-h-36 overflow-y-auto space-y-1 border border-slate-200 bg-white rounded-lg p-2" id="ma-students-list">
+                        {% for s in students %}
+                        <label class="flex items-center space-x-2 p-1 hover:bg-slate-50 rounded text-xs cursor-pointer">
+                            <input type="checkbox" value="{{ s.id }}" class="ma-student-cb rounded text-indigo-600 focus:ring-indigo-500">
+                            <span class="font-medium text-slate-800">{{ s.full_name }}</span>
+                            {% if s.roll_number %}<span class="text-[10px] font-mono text-slate-400">({{ s.roll_number }})</span>{% endif %}
+                            {% if s.class_name %}<span class="text-[10px] bg-purple-50 text-purple-700 px-1.5 py-0.5 rounded ml-auto font-semibold">{{ s.class_name }}</span>{% endif %}
+                        </label>
+                        {% endfor %}
+                    </div>
+                </div>
+            </div>
+
+            <!-- Schedule Timing -->
+            <div class="p-3.5 bg-slate-50 border border-slate-200 rounded-xl space-y-2">
+                <label class="block text-xs font-bold text-slate-800">
+                    <i data-lucide="calendar" class="w-3.5 h-3.5 inline mr-1 text-sky-600"></i>Exam Timing & Availability:
+                </label>
+                <div class="grid grid-cols-2 gap-1.5 p-1 bg-white rounded-lg border border-slate-200 text-xs font-semibold">
+                    <label class="p-1.5 rounded-md cursor-pointer text-center ma-sched-tab bg-sky-50 text-sky-700 font-bold" id="ma-tab-anytime">
+                        <input type="radio" name="ma_schedule_type" value="anytime" onchange="maSwitchSched('anytime')" class="hidden">
+                        <span>Anytime (Flexible)</span>
+                    </label>
+                    <label class="p-1.5 rounded-md cursor-pointer text-center ma-sched-tab text-slate-600 hover:text-slate-900" id="ma-tab-scheduled">
+                        <input type="radio" name="ma_schedule_type" value="scheduled" onchange="maSwitchSched('scheduled')" class="hidden">
+                        <span>Specific Window</span>
+                    </label>
+                </div>
+
+                <div id="ma-sched-inputs" class="hidden pt-1 space-y-2">
+                    <div>
+                        <label class="block text-[11px] font-semibold text-slate-600 mb-0.5">Start Date & Time:</label>
+                        <input type="datetime-local" id="ma-start-time" class="w-full px-2.5 py-1.5 text-xs border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-sky-500">
+                    </div>
+                    <div>
+                        <label class="block text-[11px] font-semibold text-slate-600 mb-0.5">End Date & Time (Deadline):</label>
+                        <input type="datetime-local" id="ma-end-time" class="w-full px-2.5 py-1.5 text-xs border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-sky-500">
+                    </div>
+                    <p class="text-[10px] text-slate-400">Students cannot enter before Start Time and cannot start after End Time.</p>
+                </div>
+            </div>
+        </div>
+
+        <div class="flex gap-3 mt-5">
+            <button type="button" onclick="closeManageAccessModal()" class="flex-1 py-2.5 text-xs font-semibold text-slate-600 hover:bg-slate-100 rounded-xl transition border border-slate-200">Cancel</button>
+            <button type="button" onclick="saveExamAccessSchedule()" id="ma-save-btn" class="flex-1 py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-bold rounded-xl transition shadow-sm">Save Changes</button>
+        </div>
+    </div>
+</div>
+
 </div>
 {% endblock %}
 
