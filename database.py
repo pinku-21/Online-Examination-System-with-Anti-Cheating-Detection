@@ -1,22 +1,221 @@
-import sqlite3
-import json
+"""Database layer for ExamGuard.
+
+Uses PostgreSQL when DATABASE_URL is configured (e.g. Neon on Render).
+Falls back to SQLite for local development when DATABASE_URL is absent.
+"""
 import os
-from datetime import datetime
+import re
+import sqlite3
+from pathlib import Path
 
 DB_PATH = os.path.join(os.path.dirname(__file__), "examguard.db")
+DATABASE_URL = os.environ.get("DATABASE_URL", "").strip()
+
+try:
+    import psycopg
+    from psycopg.rows import dict_row
+    DB_INTEGRITY_ERRORS = (sqlite3.IntegrityError, psycopg.IntegrityError)
+except ImportError:
+    psycopg = None
+    dict_row = None
+    DB_INTEGRITY_ERRORS = (sqlite3.IntegrityError,)
+
+
+class PostgresCursor:
+    """Small compatibility wrapper for the SQLite-style cursor API used by app.py."""
+    _ID_TABLES = {"users", "exams", "questions", "submissions", "violations"}
+
+    def __init__(self, cursor):
+        self._cursor = cursor
+        self._lastrowid = None
+
+    @staticmethod
+    def _translate(sql):
+        # Convert the SQLite qmark placeholders to psycopg placeholders.
+        sql = sql.replace("?", "%s")
+        # Translate SQLite conflict helpers before changing their prefixes.
+        if re.match(r"(?is)^\s*INSERT\s+OR\s+REPLACE\s+INTO\s+settings", sql):
+            sql = re.sub(r"(?is)^\s*INSERT\s+OR\s+REPLACE\s+INTO\s+settings", "INSERT INTO settings", sql, count=1)
+            sql = sql.rstrip().rstrip(";") + " ON CONFLICT (key) DO UPDATE SET value = EXCLUDED.value"
+        elif re.match(r"(?is)^\s*INSERT\s+OR\s+IGNORE\s+INTO", sql):
+            sql = re.sub(r"(?is)^\s*INSERT\s+OR\s+IGNORE\s+INTO", "INSERT INTO", sql, count=1)
+            sql = sql.rstrip().rstrip(";") + " ON CONFLICT DO NOTHING"
+        return sql
+
+    def execute(self, sql, params=None):
+        self._lastrowid = None
+        translated = self._translate(sql)
+        match = re.match(r"(?is)^\s*INSERT\s+INTO\s+([a-z_][a-z0-9_]*)", translated)
+        table = match.group(1).lower() if match else None
+        # Return the generated ID for inserts whose IDs are consumed by app.py.
+        if table in self._ID_TABLES and not re.search(r"(?is)\bRETURNING\b", translated):
+            translated = translated.rstrip().rstrip(";") + " RETURNING id"
+            self._cursor.execute(translated, params)
+            row = self._cursor.fetchone()
+            if row:
+                self._lastrowid = row["id"]
+            return self
+        self._cursor.execute(translated, params)
+        return self
+
+    @property
+    def lastrowid(self):
+        return self._lastrowid
+
+    def fetchone(self):
+        return self._cursor.fetchone()
+
+    def fetchall(self):
+        return self._cursor.fetchall()
+
+    @property
+    def rowcount(self):
+        return self._cursor.rowcount
+
+    def close(self):
+        self._cursor.close()
+
+
+class PostgresConnection:
+    def __init__(self, connection):
+        self._connection = connection
+
+    def cursor(self):
+        return PostgresCursor(self._connection.cursor())
+
+    def commit(self):
+        self._connection.commit()
+
+    def rollback(self):
+        self._connection.rollback()
+
+    def close(self):
+        self._connection.close()
+
 
 def get_connection():
+    if DATABASE_URL:
+        if psycopg is None:
+            raise RuntimeError("PostgreSQL is configured but psycopg is not installed. Add psycopg[binary] to requirements.txt.")
+        # Neon recommends SSL; its connection string normally includes sslmode=require.
+        raw = psycopg.connect(DATABASE_URL, row_factory=dict_row)
+        return PostgresConnection(raw)
     conn = sqlite3.connect(DB_PATH)
     conn.row_factory = sqlite3.Row
+    conn.execute("PRAGMA foreign_keys = ON")
     return conn
+
 
 def init_db():
     conn = get_connection()
     cursor = conn.cursor()
-    
-    # Exams table
-    cursor.execute('''
-        CREATE TABLE IF NOT EXISTS exams (
+    is_postgres = bool(DATABASE_URL)
+
+    if is_postgres:
+        # Create referenced tables before tables that have foreign keys to them.
+        id_type = "SERIAL PRIMARY KEY"
+        cursor.execute("""CREATE TABLE IF NOT EXISTS users (
+            id SERIAL PRIMARY KEY,
+            username TEXT UNIQUE NOT NULL,
+            email TEXT UNIQUE,
+            password_hash TEXT NOT NULL,
+            full_name TEXT NOT NULL,
+            role TEXT NOT NULL DEFAULT 'student',
+            roll_number TEXT,
+            class_name TEXT DEFAULT '',
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        )""")
+        cursor.execute("""CREATE TABLE IF NOT EXISTS exams (
+            id SERIAL PRIMARY KEY,
+            exam_code TEXT UNIQUE NOT NULL,
+            title TEXT NOT NULL,
+            description TEXT,
+            duration_minutes INTEGER NOT NULL DEFAULT 30,
+            max_warnings INTEGER NOT NULL DEFAULT 3,
+            passing_percentage DOUBLE PRECISION NOT NULL DEFAULT 40.0,
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            is_active INTEGER DEFAULT 1,
+            enable_audio_detection INTEGER DEFAULT 1,
+            access_type TEXT DEFAULT 'all',
+            assigned_class TEXT DEFAULT '',
+            schedule_type TEXT DEFAULT 'anytime',
+            start_time TEXT,
+            end_time TEXT
+        )""")
+        cursor.execute("""CREATE TABLE IF NOT EXISTS questions (
+            id SERIAL PRIMARY KEY,
+            exam_id INTEGER NOT NULL REFERENCES exams(id) ON DELETE CASCADE,
+            question_text TEXT NOT NULL,
+            question_type TEXT NOT NULL DEFAULT 'mcq',
+            options_json TEXT,
+            correct_answer TEXT NOT NULL,
+            explanation TEXT,
+            points DOUBLE PRECISION NOT NULL DEFAULT 1.0,
+            figure_svg TEXT,
+            figure_url TEXT
+        )""")
+        cursor.execute("""CREATE TABLE IF NOT EXISTS exam_assignments (
+            id SERIAL PRIMARY KEY,
+            exam_id INTEGER NOT NULL REFERENCES exams(id) ON DELETE CASCADE,
+            user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+            assigned_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            UNIQUE (exam_id, user_id)
+        )""")
+        cursor.execute("""CREATE TABLE IF NOT EXISTS submissions (
+            id SERIAL PRIMARY KEY,
+            exam_id INTEGER NOT NULL REFERENCES exams(id) ON DELETE CASCADE,
+            student_name TEXT NOT NULL,
+            roll_number TEXT NOT NULL,
+            answers_json TEXT,
+            score DOUBLE PRECISION DEFAULT 0.0,
+            total_points DOUBLE PRECISION DEFAULT 0.0,
+            percentage DOUBLE PRECISION DEFAULT 0.0,
+            warnings_count INTEGER DEFAULT 0,
+            status TEXT NOT NULL DEFAULT 'in_progress',
+            termination_reason TEXT,
+            started_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            submitted_at TIMESTAMP,
+            user_id INTEGER
+        )""")
+        cursor.execute("""CREATE TABLE IF NOT EXISTS violations (
+            id SERIAL PRIMARY KEY,
+            submission_id INTEGER NOT NULL REFERENCES submissions(id) ON DELETE CASCADE,
+            violation_type TEXT NOT NULL,
+            details TEXT,
+            timestamp TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        )""")
+        cursor.execute("""CREATE TABLE IF NOT EXISTS settings (
+            key TEXT PRIMARY KEY,
+            value TEXT
+        )""")
+        # Safe, repeatable migrations for databases created by an earlier version.
+        migrations = [
+            "ALTER TABLE users ADD COLUMN IF NOT EXISTS class_name TEXT DEFAULT ''",
+            "ALTER TABLE exams ADD COLUMN IF NOT EXISTS enable_audio_detection INTEGER DEFAULT 1",
+            "ALTER TABLE exams ADD COLUMN IF NOT EXISTS access_type TEXT DEFAULT 'all'",
+            "ALTER TABLE exams ADD COLUMN IF NOT EXISTS assigned_class TEXT DEFAULT ''",
+            "ALTER TABLE exams ADD COLUMN IF NOT EXISTS schedule_type TEXT DEFAULT 'anytime'",
+            "ALTER TABLE exams ADD COLUMN IF NOT EXISTS start_time TEXT",
+            "ALTER TABLE exams ADD COLUMN IF NOT EXISTS end_time TEXT",
+            "ALTER TABLE questions ADD COLUMN IF NOT EXISTS figure_svg TEXT",
+            "ALTER TABLE questions ADD COLUMN IF NOT EXISTS figure_url TEXT",
+            "ALTER TABLE submissions ADD COLUMN IF NOT EXISTS user_id INTEGER",
+        ]
+        for statement in migrations:
+            cursor.execute(statement)
+    else:
+        cursor.execute("""CREATE TABLE IF NOT EXISTS users (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            username TEXT UNIQUE NOT NULL,
+            email TEXT UNIQUE,
+            password_hash TEXT NOT NULL,
+            full_name TEXT NOT NULL,
+            role TEXT NOT NULL DEFAULT 'student',
+            roll_number TEXT,
+            class_name TEXT DEFAULT '',
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        )""")
+        cursor.execute("""CREATE TABLE IF NOT EXISTS exams (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
             exam_code TEXT UNIQUE NOT NULL,
             title TEXT NOT NULL,
@@ -25,141 +224,93 @@ def init_db():
             max_warnings INTEGER NOT NULL DEFAULT 3,
             passing_percentage REAL NOT NULL DEFAULT 40.0,
             created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-            is_active INTEGER DEFAULT 1
-        )
-    ''')
-    
-    # Questions table
-    cursor.execute('''
-        CREATE TABLE IF NOT EXISTS questions (
+            is_active INTEGER DEFAULT 1,
+            enable_audio_detection INTEGER DEFAULT 1,
+            access_type TEXT DEFAULT 'all',
+            assigned_class TEXT DEFAULT '',
+            schedule_type TEXT DEFAULT 'anytime',
+            start_time TEXT,
+            end_time TEXT
+        )""")
+        cursor.execute("""CREATE TABLE IF NOT EXISTS questions (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
             exam_id INTEGER NOT NULL,
             question_text TEXT NOT NULL,
-            question_type TEXT NOT NULL DEFAULT 'mcq', -- mcq, tf, short, descriptive
-            options_json TEXT, -- JSON array of strings for MCQ
+            question_type TEXT NOT NULL DEFAULT 'mcq',
+            options_json TEXT,
             correct_answer TEXT NOT NULL,
             explanation TEXT,
             points REAL NOT NULL DEFAULT 1.0,
             figure_svg TEXT,
             figure_url TEXT,
-            FOREIGN KEY (exam_id) REFERENCES exams (id) ON DELETE CASCADE
-        )
-    ''')
-
-    # Schema migrations for existing databases
-    try:
-        cursor.execute("ALTER TABLE questions ADD COLUMN figure_svg TEXT")
-    except Exception:
-        pass
-    try:
-        cursor.execute("ALTER TABLE questions ADD COLUMN figure_url TEXT")
-    except Exception:
-        pass
-    try:
-        cursor.execute("ALTER TABLE exams ADD COLUMN enable_audio_detection INTEGER DEFAULT 1")
-    except Exception:
-        pass
-
-    # Exam access targeting & schedule migrations
-    for col, c_type in [
-        ("access_type", "TEXT DEFAULT 'all'"),
-        ("assigned_class", "TEXT DEFAULT ''"),
-        ("schedule_type", "TEXT DEFAULT 'anytime'"),
-        ("start_time", "TEXT"),
-        ("end_time", "TEXT")
-    ]:
-        try:
-            cursor.execute(f"ALTER TABLE exams ADD COLUMN {col} {c_type}")
-        except Exception:
-            pass
-
-    try:
-        cursor.execute("ALTER TABLE users ADD COLUMN class_name TEXT DEFAULT ''")
-    except Exception:
-        pass
-
-    # Exam Assignments table (for assigning exams to specific students)
-    cursor.execute('''
-        CREATE TABLE IF NOT EXISTS exam_assignments (
+            FOREIGN KEY (exam_id) REFERENCES exams(id) ON DELETE CASCADE
+        )""")
+        cursor.execute("""CREATE TABLE IF NOT EXISTS exam_assignments (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
             exam_id INTEGER NOT NULL,
             user_id INTEGER NOT NULL,
             assigned_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-            FOREIGN KEY (exam_id) REFERENCES exams (id) ON DELETE CASCADE,
-            FOREIGN KEY (user_id) REFERENCES users (id) ON DELETE CASCADE,
+            FOREIGN KEY (exam_id) REFERENCES exams(id) ON DELETE CASCADE,
+            FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
             UNIQUE (exam_id, user_id)
-        )
-    ''')
-    
-    # Student Submissions table
-    cursor.execute('''
-        CREATE TABLE IF NOT EXISTS submissions (
+        )""")
+        cursor.execute("""CREATE TABLE IF NOT EXISTS submissions (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
             exam_id INTEGER NOT NULL,
             student_name TEXT NOT NULL,
             roll_number TEXT NOT NULL,
-            answers_json TEXT, -- JSON object of {question_id: answer}
+            answers_json TEXT,
             score REAL DEFAULT 0.0,
             total_points REAL DEFAULT 0.0,
             percentage REAL DEFAULT 0.0,
             warnings_count INTEGER DEFAULT 0,
-            status TEXT NOT NULL DEFAULT 'in_progress', -- in_progress, submitted, terminated
+            status TEXT NOT NULL DEFAULT 'in_progress',
             termination_reason TEXT,
             started_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
             submitted_at TIMESTAMP,
-            FOREIGN KEY (exam_id) REFERENCES exams (id) ON DELETE CASCADE
-        )
-    ''')
-    
-    # Violations / Proctoring audit log
-    cursor.execute('''
-        CREATE TABLE IF NOT EXISTS violations (
+            user_id INTEGER,
+            FOREIGN KEY (exam_id) REFERENCES exams(id) ON DELETE CASCADE
+        )""")
+        cursor.execute("""CREATE TABLE IF NOT EXISTS violations (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
             submission_id INTEGER NOT NULL,
-            violation_type TEXT NOT NULL, -- tab_switch, blur, fullscreen_exit, copy_paste, devtools
+            violation_type TEXT NOT NULL,
             details TEXT,
             timestamp TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-            FOREIGN KEY (submission_id) REFERENCES submissions (id) ON DELETE CASCADE
-        )
-    ''')
+            FOREIGN KEY (submission_id) REFERENCES submissions(id) ON DELETE CASCADE
+        )""")
+        cursor.execute("""CREATE TABLE IF NOT EXISTS settings (key TEXT PRIMARY KEY, value TEXT)""")
+        # Repair older SQLite databases using the same idempotent migration style.
+        for table, column, definition in [
+            ("users", "class_name", "TEXT DEFAULT ''"),
+            ("exams", "enable_audio_detection", "INTEGER DEFAULT 1"),
+            ("exams", "access_type", "TEXT DEFAULT 'all'"),
+            ("exams", "assigned_class", "TEXT DEFAULT ''"),
+            ("exams", "schedule_type", "TEXT DEFAULT 'anytime'"),
+            ("exams", "start_time", "TEXT"),
+            ("exams", "end_time", "TEXT"),
+            ("questions", "figure_svg", "TEXT"),
+            ("questions", "figure_url", "TEXT"),
+            ("submissions", "user_id", "INTEGER"),
+        ]:
+            columns = {row["name"] for row in cursor.execute(f"PRAGMA table_info({table})").fetchall()}
+            if column not in columns:
+                cursor.execute(f"ALTER TABLE {table} ADD COLUMN {column} {definition}")
 
-    # Settings table (for storing tutor's Gemini API key locally)
-    cursor.execute('''
-        CREATE TABLE IF NOT EXISTS settings (
-            key TEXT PRIMARY KEY,
-            value TEXT
-        )
-    ''')
-    
-    # Users table (Role-based authentication: Admin vs Student)
-    cursor.execute('''
-        CREATE TABLE IF NOT EXISTS users (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            username TEXT UNIQUE NOT NULL,
-            email TEXT UNIQUE,
-            password_hash TEXT NOT NULL,
-            full_name TEXT NOT NULL,
-            role TEXT NOT NULL DEFAULT 'student', -- 'admin' or 'student'
-            roll_number TEXT,
-            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-        )
-    ''')
-
-    # Add user_id column to submissions if not exists
-    try:
-        cursor.execute("ALTER TABLE submissions ADD COLUMN user_id INTEGER")
-    except Exception:
-        pass
-
-    # Seed default Admin account if no admin exists
-    from werkzeug.security import generate_password_hash
+    # Seed an admin only when an initial password is explicitly configured.
     cursor.execute("SELECT id FROM users WHERE role = 'admin' LIMIT 1")
     if not cursor.fetchone():
-        cursor.execute("""
-            INSERT INTO users (username, email, password_hash, full_name, role)
-            VALUES (?, ?, ?, ?, ?)
-        """, ('PrashantaDas2005', 'prashantadas2005@examguard.ai', generate_password_hash('Prashanta@130504'), 'Prashanta Das', 'admin'))
-
+        initial_password = os.environ.get("ADMIN_INITIAL_PASSWORD", "").strip()
+        if initial_password:
+            from werkzeug.security import generate_password_hash
+            if is_postgres:
+                cursor.execute("INSERT INTO users (username, email, password_hash, full_name, role) VALUES (?, ?, ?, ?, ?)",
+                               ("admin", "", generate_password_hash(initial_password), "ExamGuard Administrator", "admin"))
+            else:
+                cursor.execute("INSERT INTO users (username, email, password_hash, full_name, role) VALUES (?, ?, ?, ?, ?)",
+                               ("admin", "", generate_password_hash(initial_password), "ExamGuard Administrator", "admin"))
+        else:
+            print("WARNING: No admin account exists. Set ADMIN_INITIAL_PASSWORD and restart to create the initial admin account.")
     conn.commit()
     conn.close()
 
@@ -181,7 +332,7 @@ def create_user(username, email, password, full_name, role="student", roll_numbe
         user_id = cursor.lastrowid
         conn.commit()
         return {"success": True, "user_id": user_id, "username": clean_user, "role": role, "full_name": clean_name, "roll_number": clean_roll, "class_name": clean_class}
-    except sqlite3.IntegrityError:
+    except DB_INTEGRITY_ERRORS:
         return {"success": False, "error": "Username or email is already registered."}
     except Exception as e:
         return {"success": False, "error": str(e)}

@@ -25,3 +25,7 @@ scratch/
 
 # Editor settings
 .vscode/
+# Local database backups
+database_backup.py
+database_before_neon.py
+database_before_neon.py.py
