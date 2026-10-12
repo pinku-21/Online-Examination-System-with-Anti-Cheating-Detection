@@ -264,7 +264,7 @@ def tutor_dashboard():
         public_url=public_url
     )
 
-@app.route("/tutor/settings", methods=["POST"])
+@app.route("/tutor/settings", methods=["GET", "POST"])
 @admin_required
 def tutor_save_settings():
     gemini_key = request.form.get("gemini_api_key", "").strip()

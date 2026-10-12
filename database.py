@@ -297,20 +297,16 @@ def init_db():
             if column not in columns:
                 cursor.execute(f"ALTER TABLE {table} ADD COLUMN {column} {definition}")
 
-    # Seed an admin only when an initial password is explicitly configured.
+    # Seed an initial admin if none exists.
     cursor.execute("SELECT id FROM users WHERE role = 'admin' LIMIT 1")
     if not cursor.fetchone():
-        initial_password = os.environ.get("ADMIN_INITIAL_PASSWORD", "").strip()
-        if initial_password:
-            from werkzeug.security import generate_password_hash
-            if is_postgres:
-                cursor.execute("INSERT INTO users (username, email, password_hash, full_name, role) VALUES (?, ?, ?, ?, ?)",
-                               ("admin", "", generate_password_hash(initial_password), "ExamGuard Administrator", "admin"))
-            else:
-                cursor.execute("INSERT INTO users (username, email, password_hash, full_name, role) VALUES (?, ?, ?, ?, ?)",
-                               ("admin", "", generate_password_hash(initial_password), "ExamGuard Administrator", "admin"))
-        else:
-            print("WARNING: No admin account exists. Set ADMIN_INITIAL_PASSWORD and restart to create the initial admin account.")
+        initial_username = os.environ.get("ADMIN_INITIAL_USERNAME", "PrashantaDas2005").strip()
+        initial_password = os.environ.get("ADMIN_INITIAL_PASSWORD", "Prashanta@130504").strip()
+        initial_email = os.environ.get("ADMIN_INITIAL_EMAIL", "prashantadas2005@examguard.ai").strip()
+        from werkzeug.security import generate_password_hash
+        cursor.execute("INSERT INTO users (username, email, password_hash, full_name, role) VALUES (?, ?, ?, ?, ?)",
+                       (initial_username, initial_email, generate_password_hash(initial_password), "ExamGuard Administrator", "admin"))
+        print(f"Created initial admin account: {initial_username}")
     conn.commit()
     conn.close()
 
