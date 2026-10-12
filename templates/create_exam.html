@@ -580,6 +580,24 @@
                 method: 'POST',
                 body: formData
             });
+            if (!resp.ok) {
+                let errorMsg = `Server error (${resp.status})`;
+                if (resp.status === 504 || resp.status === 502) {
+                    errorMsg = 'AI generation took longer than the server timeout. Try requesting fewer questions at a time (e.g., 5-10 questions).';
+                } else {
+                    try {
+                        const errData = await resp.json();
+                        if (errData && errData.error) errorMsg = errData.error;
+                    } catch (e) {}
+                }
+                Swal.fire({
+                    icon: 'error',
+                    title: 'Generation Failed',
+                    text: errorMsg
+                });
+                return;
+            }
+
             const data = await resp.json();
 
             if (data.success && data.questions) {
@@ -615,8 +633,8 @@
         } catch (err) {
             Swal.fire({
                 icon: 'error',
-                title: 'Error',
-                text: 'Network error communicating with the server.'
+                title: 'Request Failed',
+                text: err.message || 'Unable to communicate with the server. Please check your connection.'
             });
         } finally {
             btn.disabled = false;
