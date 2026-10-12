@@ -54,6 +54,15 @@ As an online tutor or educator, two major challenges exist in remote education:
 
 ---
 
+---
+
+## 🌐 Live Production Deployment
+- **Live URL**: [https://online-examination-system-with-anti.onrender.com/](https://online-examination-system-with-anti.onrender.com/)
+- **Live Tutor Portal**: [https://online-examination-system-with-anti.onrender.com/tutor](https://online-examination-system-with-anti.onrender.com/tutor)
+- **Live Student Exam Portal**: [https://online-examination-system-with-anti.onrender.com/student](https://online-examination-system-with-anti.onrender.com/student)
+
+---
+
 ## 💻 How to Run Locally
 
 ### 1. Install Dependencies
@@ -67,19 +76,19 @@ python run.py
 ```
 
 ### 3. Access in Browser
-- **Home / Landing Page**: [http://127.0.0.1:5000](http://127.0.0.1:5000)
-- **Tutor Portal**: [http://127.0.0.1:5000/tutor](http://127.0.0.1:5000/tutor)
-- **Student Exam Portal**: [http://127.0.0.1:5000/student](http://127.0.0.1:5000/student)
+- **Home / Landing Page**: [http://127.0.0.1:5000](http://127.0.0.1:5000) (or [https://online-examination-system-with-anti.onrender.com/](https://online-examination-system-with-anti.onrender.com/))
+- **Tutor Portal**: [http://127.0.0.1:5000/tutor](http://127.0.0.1:5000/tutor) (or [https://online-examination-system-with-anti.onrender.com/tutor](https://online-examination-system-with-anti.onrender.com/tutor))
+- **Student Exam Portal**: [http://127.0.0.1:5000/student](http://127.0.0.1:5000/student) (or [https://online-examination-system-with-anti.onrender.com/student](https://online-examination-system-with-anti.onrender.com/student))
 
 ---
 
 ## 🧪 Testing the Complete Workflow
 
-1. Go to `http://127.0.0.1:5000/tutor` and click **"Create Exam with AI"**.
+1. Go to the Tutor Portal (`https://online-examination-system-with-anti.onrender.com/tutor` or `http://127.0.0.1:5000/tutor`) and click **"Create Exam with AI"**.
 2. Upload a PDF file or enter a topic (e.g. *"Computer Networks - OSI Model and Routing"*), then click **"Generate Questions with AI"**.
 3. Review the generated MCQs, set Duration and Max Strikes (e.g., 3 strikes), and click **"Publish Exam"**.
 4. Copy the 6-character **Exam Access Code** (e.g. `6D8A92`).
-5. Open an Incognito/New tab at `http://127.0.0.1:5000/student`, enter the code and student details.
+5. Open an Incognito/New tab at `https://online-examination-system-with-anti.onrender.com/student` (or local), enter the code and student details.
 6. Click **"Agree & Enter Fullscreen Exam"**.
 7. **Test Anti-Cheating**:
    - Press `Alt+Tab` or switch to another browser tab: **Strike 1 Warning** will appear.
