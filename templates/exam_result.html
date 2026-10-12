@@ -82,7 +82,7 @@
                     {% for v in violations %}
                         <div class="text-[11px] text-slate-600 flex justify-between items-center bg-white p-2 rounded-lg border border-rose-100">
                             <span class="font-semibold text-rose-700 uppercase">{{ v.violation_type.replace('_', ' ') }}</span>
-                            <span class="text-slate-400 font-mono text-[10px]">{{ v.timestamp[-8:] }}</span>
+                            <span class="text-slate-400 font-mono text-[10px]">{{ v.timestamp | format_time_12h }}</span>
                         </div>
                     {% endfor %}
                 </div>

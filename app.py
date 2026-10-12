@@ -76,6 +76,8 @@ def format_time_12h_filter(val):
     if not val:
         return '—'
     try:
+        if isinstance(val, datetime):
+            return val.strftime("%I:%M %p")
         val_str = str(val).strip().replace('T', ' ')
         if '.' in val_str:
             val_str = val_str.split('.')[0]
