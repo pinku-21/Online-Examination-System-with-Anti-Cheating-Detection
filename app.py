@@ -549,10 +549,15 @@ def api_exam_access_schedule(exam_id):
         
         cursor.execute("SELECT user_id FROM exam_assignments WHERE exam_id = ?", (exam_id,))
         assigned_ids = [r["user_id"] for r in cursor.fetchall()]
-        conn.close()
+        ex_dict = dict(exam)
         return jsonify({
             "success": True,
-            "exam": dict(exam),
+            "exam": ex_dict,
+            "access_type": ex_dict.get("access_type") or "all",
+            "assigned_class": ex_dict.get("assigned_class") or "",
+            "schedule_type": ex_dict.get("schedule_type") or "anytime",
+            "start_time": ex_dict.get("start_time") or "",
+            "end_time": ex_dict.get("end_time") or "",
             "assigned_student_ids": assigned_ids
         })
 
