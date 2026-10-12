@@ -1,0 +1,27 @@
+# Python cache files
+__pycache__/
+*.py[cod]
+
+# Virtual environments
+venv/
+.venv/
+env/
+
+# Environment variables and secrets
+.env
+.env.*
+
+# Local database
+examguard.db
+*.db
+
+# Temporary files
+scratch/
+*.tmp
+*.log
+
+# Python test cache
+.pytest_cache/
+
+# Editor settings
+.vscode/

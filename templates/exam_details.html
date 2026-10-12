@@ -1,0 +1,329 @@
+{% extends "base.html" %}
+
+{% block title %}{{ exam.title }} - Exam Details & Proctoring{% endblock %}
+
+{% block content %}
+<div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+    
+    <!-- Breadcrumb & Nav -->
+    <div class="flex items-center justify-between mb-6">
+        <div class="flex items-center space-x-2 text-sm text-slate-500">
+            <a href="/tutor" class="hover:text-sky-600">Tutor Portal</a>
+            <span>/</span>
+            <span class="text-slate-900 font-medium">Exam Management</span>
+        </div>
+        <a href="/tutor" class="text-sm text-slate-600 hover:text-slate-900 font-medium flex items-center space-x-1">
+            <i data-lucide="arrow-left" class="w-4 h-4"></i>
+            <span>Back to Dashboard</span>
+        </a>
+    </div>
+
+    <!-- Exam Hero Card -->
+    <div class="bg-white rounded-2xl border border-slate-200 p-6 sm:p-8 shadow-sm mb-8">
+        <div class="flex flex-col md:flex-row md:items-center justify-between gap-6">
+            <div class="space-y-2">
+                <div class="flex items-center space-x-3">
+                    <h1 class="text-2xl sm:text-3xl font-extrabold text-slate-900">{{ exam.title }}</h1>
+                    <span class="px-2.5 py-1 bg-emerald-100 text-emerald-800 text-xs font-bold rounded-full">Active</span>
+                </div>
+                <p class="text-slate-600 text-sm max-w-2xl">{{ exam.description or 'No extra description.' }}</p>
+                <div class="flex flex-wrap items-center gap-4 text-xs text-slate-500 pt-2">
+                    <span class="flex items-center"><i data-lucide="clock" class="w-4 h-4 mr-1 text-sky-600"></i> {{ exam.duration_minutes }} Minutes</span>
+                    <span class="flex items-center"><i data-lucide="shield-alert" class="w-4 h-4 mr-1 text-rose-600"></i> Max {{ exam.max_warnings }} Strikes Before Termination</span>
+                    <span class="flex items-center"><i data-lucide="award" class="w-4 h-4 mr-1 text-amber-600"></i> {{ exam.passing_percentage }}% Passing Mark</span>
+                    <span class="flex items-center"><i data-lucide="calendar" class="w-4 h-4 mr-1 text-slate-400"></i> Created: {{ exam.created_at[:10] }}</span>
+                </div>
+            </div>
+
+            <!-- Student Access Code Box -->
+            <div class="bg-gradient-to-br from-sky-50 to-indigo-50 border border-sky-200 rounded-2xl p-5 text-center flex-shrink-0 min-w-[260px]">
+                <span class="text-[11px] font-bold tracking-wider text-sky-700 uppercase block mb-1">Student Access Code</span>
+                <span class="text-3xl font-mono font-extrabold text-slate-900 tracking-wider block mb-3">{{ exam.exam_code }}</span>
+                <div class="flex items-center justify-center space-x-2">
+                    <button onclick="copyDirectLink('{{ exam.exam_code }}')" class="px-3.5 py-1.5 bg-sky-600 hover:bg-sky-700 text-white text-xs font-semibold rounded-lg shadow-sm transition flex items-center space-x-1">
+                        <i data-lucide="copy" class="w-3.5 h-3.5"></i>
+                        <span>Copy Link</span>
+                    </button>
+                    <button onclick="openRemoteShareModal('{{ exam.exam_code }}')" class="px-2.5 py-1.5 bg-white border border-indigo-200 hover:bg-indigo-50 text-indigo-700 text-xs font-semibold rounded-lg transition flex items-center space-x-1" title="Share with Remote Students">
+                        <i data-lucide="globe" class="w-3.5 h-3.5 text-indigo-600"></i>
+                        <span>Remote Access</span>
+                    </button>
+                    <a href="/student?code={{ exam.exam_code }}" target="_blank" class="px-2.5 py-1.5 bg-white border border-slate-300 hover:bg-slate-50 text-slate-700 text-xs font-semibold rounded-lg transition" title="Test as Student">
+                        <i data-lucide="external-link" class="w-3.5 h-3.5"></i>
+                    </a>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Submissions & Proctoring Audits -->
+    <div class="space-y-8">
+        
+        <!-- Student Attempts Table -->
+        <div class="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
+            <div class="p-6 border-b border-slate-200 flex items-center justify-between">
+                <div class="flex items-center space-x-2">
+                    <i data-lucide="users" class="w-5 h-5 text-sky-600"></i>
+                    <h2 class="text-lg font-bold text-slate-900">Student Attempts & Anti-Cheat Status</h2>
+                </div>
+                <span class="text-xs font-semibold px-2.5 py-1 bg-slate-100 text-slate-700 rounded-full">{{ submissions|length }} Attempts</span>
+            </div>
+
+            {% if submissions %}
+                <div class="overflow-x-auto">
+                    <table class="w-full text-left text-sm text-slate-600">
+                        <thead class="bg-slate-50 text-xs font-bold text-slate-500 uppercase tracking-wider border-b border-slate-200">
+                            <tr>
+                                <th class="px-6 py-4">Student</th>
+                                <th class="px-6 py-4">Roll Number</th>
+                                <th class="px-6 py-4">Score</th>
+                                <th class="px-6 py-4">Cheating Strikes</th>
+                                <th class="px-6 py-4">Status</th>
+                                <th class="px-6 py-4">Started At</th>
+                                <th class="px-6 py-4 text-right">Actions</th>
+                            </tr>
+                        </thead>
+                        <tbody class="divide-y divide-slate-100">
+                            {% for sub in submissions %}
+                                <tr class="hover:bg-slate-50/80 transition">
+                                    <td class="px-6 py-4 font-semibold text-slate-900">{{ sub.student_name }}</td>
+                                    <td class="px-6 py-4 font-mono text-xs text-slate-600">{{ sub.roll_number }}</td>
+                                    <td class="px-6 py-4">
+                                        <div class="font-bold text-slate-900">{{ sub.score }} / {{ sub.total_points }}</div>
+                                        <span class="text-xs text-slate-400">({{ sub.percentage }}%)</span>
+                                    </td>
+                                    <td class="px-6 py-4">
+                                        <div class="flex items-center space-x-1.5">
+                                            <span class="font-bold {% if sub.warnings_count >= exam.max_warnings %}text-rose-600{% elif sub.warnings_count > 0 %}text-amber-600{% else %}text-emerald-600{% endif %}">
+                                                {{ sub.warnings_count }} / {{ exam.max_warnings }}
+                                            </span>
+                                            {% if sub.warnings_count >= exam.max_warnings %}
+                                                <i data-lucide="alert-octagon" class="w-4 h-4 text-rose-600"></i>
+                                            {% endif %}
+                                        </div>
+                                    </td>
+                                    <td class="px-6 py-4">
+                                        {% if sub.status == 'terminated' %}
+                                            <span class="inline-flex items-center px-2.5 py-1 rounded-full text-xs font-bold bg-rose-100 text-rose-800">
+                                                <i data-lucide="shield-x" class="w-3.5 h-3.5 mr-1"></i> TERMINATED
+                                            </span>
+                                        {% elif sub.status == 'submitted' %}
+                                            <span class="inline-flex items-center px-2.5 py-1 rounded-full text-xs font-bold bg-emerald-100 text-emerald-800">
+                                                <i data-lucide="check-circle" class="w-3.5 h-3.5 mr-1"></i> Submitted
+                                            </span>
+                                        {% else %}
+                                            <span class="inline-flex items-center px-2.5 py-1 rounded-full text-xs font-bold bg-amber-100 text-amber-800 animate-pulse">
+                                                <i data-lucide="loader" class="w-3.5 h-3.5 mr-1"></i> In Progress
+                                            </span>
+                                        {% endif %}
+                                    </td>
+                                    <td class="px-6 py-4 text-xs text-slate-400">{{ sub.started_at[:16] }}</td>
+                                    <td class="px-6 py-4 text-right">
+                                        <a href="/tutor/submission/{{ sub.id }}" class="px-3 py-1.5 bg-slate-100 hover:bg-sky-50 hover:text-sky-700 text-slate-700 text-xs font-semibold rounded-lg transition inline-flex items-center space-x-1">
+                                            <i data-lucide="eye" class="w-3.5 h-3.5"></i>
+                                            <span>Audit Report</span>
+                                        </a>
+                                    </td>
+                                </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+            {% else %}
+                <div class="py-12 text-center">
+                    <p class="text-sm text-slate-500">No students have taken this exam yet. Share the code <strong>{{ exam.exam_code }}</strong> to begin!</p>
+                </div>
+            {% endif %}
+        </div>
+
+        <!-- Exam Questions List -->
+        <div class="bg-white rounded-2xl border border-slate-200 shadow-sm p-6 sm:p-8">
+            <div class="flex items-center justify-between border-b border-slate-100 pb-4 mb-6">
+                <div class="flex items-center space-x-2">
+                    <i data-lucide="help-circle" class="w-5 h-5 text-indigo-600"></i>
+                    <h2 class="text-lg font-bold text-slate-900">Exam Questions ({{ questions|length }})</h2>
+                </div>
+            </div>
+
+            <div class="space-y-6">
+                {% for q in questions %}
+                    <div class="p-5 rounded-xl border border-slate-200 bg-slate-50/50 space-y-3">
+                        <div class="flex items-start justify-between gap-4">
+                            <span class="font-semibold text-slate-900 text-sm">
+                                <span class="text-sky-600 font-bold mr-1">Q{{ loop.index }}.</span> {{ q.question_text }}
+                            </span>
+                            <span class="text-xs font-bold text-slate-400 flex-shrink-0">{{ q.points }} pt</span>
+                        </div>
+
+                        {% if q.figure_svg %}
+                            <div class="my-3 p-3 bg-white border border-slate-200 rounded-xl max-w-sm flex flex-col items-center shadow-xs">
+                                <span class="text-[9px] font-bold text-sky-800 uppercase tracking-wider mb-1">Figure / Diagram</span>
+                                <div class="w-full max-w-xs flex justify-center">
+                                    {{ q.figure_svg | safe }}
+                                </div>
+                            </div>
+                        {% elif q.figure_url %}
+                            <div class="my-3 p-3 bg-white border border-slate-200 rounded-xl max-w-sm flex flex-col items-center shadow-xs">
+                                <span class="text-[9px] font-bold text-indigo-800 uppercase tracking-wider mb-1">Figure / Diagram</span>
+                                <img src="{{ q.figure_url }}" alt="Figure" class="max-h-48 object-contain rounded-lg">
+                            </div>
+                        {% endif %}
+
+                        {% if q.options %}
+                            <div class="grid grid-cols-1 sm:grid-cols-2 gap-2 pt-2">
+                                {% for opt in q.options %}
+                                    <div class="px-3 py-2 rounded-lg text-xs font-medium border {% if opt == q.correct_answer %}bg-emerald-50 border-emerald-300 text-emerald-800 font-bold{% else %}bg-white border-slate-200 text-slate-700{% endif %} flex items-center justify-between">
+                                        <span>{{ opt }}</span>
+                                        {% if opt == q.correct_answer %}
+                                            <i data-lucide="check" class="w-4 h-4 text-emerald-600"></i>
+                                        {% endif %}
+                                    </div>
+                                {% endfor %}
+                            </div>
+                        {% endif %}
+
+                        {% if q.explanation %}
+                            <p class="text-xs text-slate-500 italic pt-1"><span class="font-semibold text-slate-600">Explanation:</span> {{ q.explanation }}</p>
+                        {% endif %}
+                    </div>
+                {% endfor %}
+            </div>
+        </div>
+
+    </div>
+
+    <!-- Remote Share Modal -->
+    <div id="remote-share-modal" class="fixed inset-0 bg-slate-900/60 backdrop-blur-xs z-50 flex items-center justify-center p-4 hidden">
+        <div class="bg-white rounded-3xl max-w-xl w-full p-6 sm:p-8 shadow-2xl border border-slate-200">
+            <div class="flex items-center justify-between border-b border-slate-100 pb-4 mb-5">
+                <div class="flex items-center space-x-2.5">
+                    <div class="w-10 h-10 rounded-xl bg-indigo-50 text-indigo-600 flex items-center justify-center">
+                        <i data-lucide="globe" class="w-5 h-5"></i>
+                    </div>
+                    <div>
+                        <h3 class="font-bold text-slate-900 text-base">Share with Remote Students (Free)</h3>
+                        <p class="text-xs text-slate-500">Allow students anywhere in the world to access your exam link for free.</p>
+                    </div>
+                </div>
+                <button onclick="document.getElementById('remote-share-modal').classList.add('hidden')" class="text-slate-400 hover:text-slate-600 p-1">
+                    <i data-lucide="x" class="w-5 h-5"></i>
+                </button>
+            </div>
+
+            <!-- Public Tunnel URL Input -->
+            <div class="mb-5 p-4 rounded-2xl bg-indigo-50/50 border border-indigo-100 space-y-2">
+                <label class="block text-xs font-bold text-slate-800">Your Free Public Tunnel URL:</label>
+                <div class="flex items-center space-x-2">
+                    <input type="url" id="modal-public-url" value="{{ public_url }}" placeholder="e.g. https://xyz.free.pinggy.link or https://exam.trycloudflare.com" class="w-full px-3 py-2 text-xs border border-indigo-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-indigo-500 bg-white font-mono">
+                    <button onclick="savePublicUrl()" class="px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-bold rounded-xl transition flex-shrink-0">
+                        Save URL
+                    </button>
+                </div>
+                <p class="text-[11px] text-slate-500">Once saved, all "Copy Student Link" buttons will automatically use this public address!</p>
+            </div>
+
+            <!-- Easy 1-2-3 Guide -->
+            <div class="space-y-3 text-xs text-slate-600">
+                <div class="p-3.5 rounded-xl border border-slate-200 bg-slate-50 space-y-1.5">
+                    <div class="flex items-center justify-between">
+                        <span class="font-bold text-slate-900 flex items-center">
+                            <span class="w-5 h-5 rounded-full bg-sky-100 text-sky-700 font-bold flex items-center justify-center mr-2 text-[10px]">1</span>
+                            Option A: Instant 1-Click Free Tunnel (No Sign-up)
+                        </span>
+                        <span class="text-[10px] px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-800 font-bold">Fastest</span>
+                    </div>
+                    <p class="text-slate-500 text-[11px]">In your project folder, double-click <strong class="text-slate-700">share_exam_with_students.bat</strong> (or run this in PowerShell):</p>
+                    <div class="p-2 bg-slate-900 text-emerald-400 font-mono text-[11px] rounded-lg flex items-center justify-between">
+                        <span>ssh -p 443 -R0:localhost:5000 a.pinggy.io</span>
+                        <button onclick="copyCommandText('ssh -p 443 -R0:localhost:5000 a.pinggy.io')" class="text-slate-400 hover:text-white ml-2 text-[10px] underline">Copy</button>
+                    </div>
+                    <p class="text-[11px] text-slate-500">Copy the public <code class="text-indigo-600 font-bold">https://....free.pinggy.link</code> URL it gives you, paste it into the box above, and click <strong>Save URL</strong>.</p>
+                </div>
+
+                <div class="p-3.5 rounded-xl border border-slate-200 bg-slate-50 space-y-1.5">
+                    <span class="font-bold text-slate-900 flex items-center">
+                        <span class="w-5 h-5 rounded-full bg-amber-100 text-amber-700 font-bold flex items-center justify-center mr-2 text-[10px]">2</span>
+                        Option B: Cloudflare Tunnel or Ngrok (100% Free)
+                    </span>
+                    <p class="text-slate-500 text-[11px]">If you have Cloudflare or ngrok installed:</p>
+                    <div class="p-2 bg-slate-900 text-amber-300 font-mono text-[11px] rounded-lg">
+                        cloudflared tunnel --url http://localhost:5000
+                    </div>
+                </div>
+
+                <div class="p-3.5 rounded-xl border border-slate-200 bg-slate-50 space-y-1.5">
+                    <span class="font-bold text-slate-900 flex items-center">
+                        <span class="w-5 h-5 rounded-full bg-purple-100 text-purple-700 font-bold flex items-center justify-center mr-2 text-[10px]">3</span>
+                        Option C: Free 24/7 Cloud Hosting (Render.com)
+                    </span>
+                    <p class="text-slate-500 text-[11px]">Upload this project to a free GitHub repository and link it to <strong class="text-slate-700">Render.com</strong> (Free Web Service) for a permanent 24/7 web link without needing your laptop powered on.</p>
+                </div>
+            </div>
+
+            <div class="mt-6 flex justify-end">
+                <button onclick="document.getElementById('remote-share-modal').classList.add('hidden')" class="px-5 py-2.5 bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-bold rounded-xl transition">
+                    Close
+                </button>
+            </div>
+        </div>
+    </div>
+
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+    let currentPublicUrl = "{{ public_url }}";
+
+    function copyDirectLink(code) {
+        const base = currentPublicUrl ? currentPublicUrl : window.location.origin;
+        const url = `${base}/student?code=${code}`;
+        navigator.clipboard.writeText(url).then(() => {
+            Swal.fire({
+                icon: 'success',
+                title: 'Student Link Copied!',
+                html: `
+                    <p class="text-xs text-slate-500 mb-2">Send this link to your students:</p>
+                    <code class="block p-2.5 bg-slate-100 rounded-xl text-sky-700 text-xs break-all font-mono font-bold">${url}</code>
+                    ${!currentPublicUrl ? '<p class="text-[11px] text-amber-600 font-semibold mt-2.5">⚠️ Note: Since this is localhost, remote students outside your home/office network cannot open it. Click "Remote Access" to get a free public link!</p>' : '<p class="text-[11px] text-emerald-600 font-semibold mt-2">✓ Public Internet Link Active - Ready for remote students!</p>'}
+                `,
+                confirmButtonColor: '#0284c7'
+            });
+        });
+    }
+
+    function openRemoteShareModal(code) {
+        document.getElementById('remote-share-modal').classList.remove('hidden');
+    }
+
+    function copyCommandText(cmd) {
+        navigator.clipboard.writeText(cmd).then(() => {
+            Swal.fire({ icon: 'success', title: 'Command Copied!', text: cmd, timer: 1200, showConfirmButton: false });
+        });
+    }
+
+    async function savePublicUrl() {
+        const url = document.getElementById('modal-public-url').value.trim();
+        try {
+            const resp = await fetch('/api/tutor/set-public-url', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ public_url: url })
+            });
+            const res = await resp.json();
+            if (res.success) {
+                currentPublicUrl = res.public_url;
+                Swal.fire({
+                    icon: 'success',
+                    title: 'Public URL Saved!',
+                    text: 'Your exam link will now automatically use this public tunnel URL.',
+                    timer: 1600,
+                    showConfirmButton: false
+                });
+            }
+        } catch (err) {
+            Swal.fire({ icon: 'error', title: 'Error', text: 'Failed to save URL.' });
+        }
+    }
+</script>
+{% endblock %}

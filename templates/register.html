@@ -1,0 +1,80 @@
+{% extends "base.html" %}
+
+{% block title %}Student Registration - ExamGuard AI{% endblock %}
+
+{% block content %}
+<div class="min-h-[82vh] flex items-center justify-center px-4 py-12">
+    <div class="max-w-md w-full bg-white rounded-3xl border border-slate-200/80 p-8 shadow-xl">
+        
+        <div class="text-center mb-6">
+            <div class="w-14 h-14 rounded-2xl bg-sky-100 text-sky-600 flex items-center justify-center mx-auto mb-3 shadow-sm">
+                <i data-lucide="user-plus" class="w-8 h-8"></i>
+            </div>
+            <h1 class="text-2xl font-black text-slate-900 tracking-tight">Student Registration</h1>
+            <p class="text-xs text-slate-500 mt-1">Create your personal exam account to take tests & view results.</p>
+        </div>
+
+        {% with messages = get_flashed_messages(with_categories=true) %}
+            {% if messages %}
+                {% for category, message in messages %}
+                    <div class="mb-5 p-3.5 rounded-xl text-xs font-semibold flex items-center space-x-2 {% if category == 'success' %}bg-emerald-50 text-emerald-800 border border-emerald-200{% else %}bg-rose-50 text-rose-800 border border-rose-200{% endif %}">
+                        <i data-lucide="info" class="w-4 h-4 flex-shrink-0"></i>
+                        <span>{{ message }}</span>
+                    </div>
+                {% endfor %}
+            {% endif %}
+        {% endwith %}
+
+        <form action="/register" method="POST" class="space-y-4">
+            <div>
+                <label class="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1.5">Full Name *</label>
+                <div class="relative">
+                    <input type="text" name="full_name" required placeholder="e.g. Rahul Sharma" class="w-full pl-10 pr-4 py-2.5 bg-slate-50 border border-slate-300 rounded-xl text-sm focus:bg-white focus:outline-none focus:ring-2 focus:ring-sky-500">
+                    <i data-lucide="user" class="w-4 h-4 text-slate-400 absolute left-3.5 top-3"></i>
+                </div>
+            </div>
+
+            <div class="grid grid-cols-2 gap-3">
+                <div>
+                    <label class="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1.5">Roll Number *</label>
+                    <input type="text" name="roll_number" required placeholder="e.g. 21CS042" class="w-full px-3 py-2.5 bg-slate-50 border border-slate-300 rounded-xl text-sm font-mono focus:bg-white focus:outline-none focus:ring-2 focus:ring-sky-500">
+                </div>
+                <div>
+                    <label class="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1.5">Username *</label>
+                    <input type="text" name="username" required placeholder="e.g. rahul21" class="w-full px-3 py-2.5 bg-slate-50 border border-slate-300 rounded-xl text-sm focus:bg-white focus:outline-none focus:ring-2 focus:ring-sky-500">
+                </div>
+            </div>
+
+            <div class="grid grid-cols-2 gap-3">
+                <div>
+                    <label class="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1.5">Class / Batch (Optional)</label>
+                    <input type="text" name="class_name" placeholder="e.g. Class 10-A" class="w-full px-3 py-2.5 bg-slate-50 border border-slate-300 rounded-xl text-sm focus:bg-white focus:outline-none focus:ring-2 focus:ring-sky-500">
+                </div>
+                <div>
+                    <label class="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1.5">Email Address (Optional)</label>
+                    <input type="email" name="email" placeholder="e.g. student@school.com" class="w-full px-3 py-2.5 bg-slate-50 border border-slate-300 rounded-xl text-sm focus:bg-white focus:outline-none focus:ring-2 focus:ring-sky-500">
+                </div>
+            </div>
+
+            <div>
+                <label class="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1.5">Create Password *</label>
+                <div class="relative">
+                    <input type="password" name="password" required minlength="4" placeholder="••••••••" class="w-full pl-10 pr-4 py-2.5 bg-slate-50 border border-slate-300 rounded-xl text-sm focus:bg-white focus:outline-none focus:ring-2 focus:ring-sky-500 font-mono">
+                    <i data-lucide="lock" class="w-4 h-4 text-slate-400 absolute left-3.5 top-3"></i>
+                </div>
+            </div>
+
+            <button type="submit" class="w-full py-3.5 bg-sky-600 hover:bg-sky-700 text-white font-bold rounded-xl shadow-lg shadow-sky-600/20 transition flex items-center justify-center space-x-2 text-sm mt-5">
+                <span>Create Student Account</span>
+                <i data-lucide="arrow-right" class="w-4 h-4"></i>
+            </button>
+        </form>
+
+        <div class="mt-6 pt-5 border-t border-slate-100 text-center text-xs text-slate-500">
+            <span>Already have an account?</span>
+            <a href="/login" class="font-bold text-sky-600 hover:text-sky-800 ml-1 underline">Sign In Here</a>
+        </div>
+
+    </div>
+</div>
+{% endblock %}

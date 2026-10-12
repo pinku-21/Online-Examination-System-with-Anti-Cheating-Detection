@@ -1,0 +1,1187 @@
+{% extends "base.html" %}
+
+{% block title %}Create Exam with AI - ExamGuard AI{% endblock %}
+
+{% block content %}
+<div class="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+    
+    <!-- Header -->
+    <div class="flex items-center justify-between mb-8">
+        <div>
+            <div class="flex items-center space-x-2 text-sm text-slate-500 mb-1">
+                <a href="/tutor" class="hover:text-sky-600">Tutor Portal</a>
+                <span>/</span>
+                <span class="text-slate-900 font-medium">New Exam</span>
+            </div>
+            <h1 class="text-2xl sm:text-3xl font-bold text-slate-900 tracking-tight">AI Exam & Question Studio</h1>
+            <p class="text-slate-500 text-sm mt-1">Upload study material, generate questions via Gemini AI, and configure anti-cheating rules.</p>
+        </div>
+        <a href="/tutor" class="text-sm text-slate-600 hover:text-slate-900 font-medium flex items-center space-x-1">
+            <i data-lucide="arrow-left" class="w-4 h-4"></i>
+            <span>Back to Dashboard</span>
+        </a>
+    </div>
+
+    <div class="grid grid-cols-1 lg:grid-cols-12 gap-8">
+        
+        <!-- Left: Upload & AI Controls (5 cols) -->
+        <div class="lg:col-span-5 space-y-6">
+            
+            <div class="bg-white rounded-2xl p-6 border border-slate-200 shadow-sm space-y-5">
+                <div class="flex items-center justify-between border-b border-slate-100 pb-3">
+                    <h3 class="font-bold text-slate-900 flex items-center space-x-2">
+                        <i data-lucide="file-up" class="w-4 h-4 text-sky-600"></i>
+                        <span>1. Upload Study Material</span>
+                    </h3>
+                    <span class="text-xs text-sky-700 bg-sky-50 px-2 py-0.5 rounded-full font-medium">PDF or Photos</span>
+                </div>
+
+                <!-- Drag & Drop File Upload Area -->
+                <div>
+                    <label class="block text-xs font-semibold text-slate-700 mb-2">Chapter PDF or Textbook Photos</label>
+                    <div id="drop-zone" class="border-2 border-dashed border-slate-300 hover:border-sky-500 rounded-xl p-6 text-center cursor-pointer transition bg-slate-50 hover:bg-sky-50/50" onclick="document.getElementById('file-input').click()">
+                        <i data-lucide="upload-cloud" class="w-10 h-10 text-slate-400 mx-auto mb-2"></i>
+                        <p class="text-sm font-semibold text-slate-700">Click or Drag & Drop Files</p>
+                        <p class="text-xs text-slate-400 mt-1">Supports PDF notes, PNG, JPG, WEBP photos</p>
+                        <input type="file" id="file-input" multiple accept=".pdf,image/*" class="hidden" onchange="handleFileSelect(event)">
+                    </div>
+                    <!-- Selected files list -->
+                    <div id="file-list" class="mt-3 space-y-2"></div>
+
+                    <!-- Extracted PDF Figures Gallery -->
+                    <div id="pdf-figures-panel" class="hidden mt-3 p-3 bg-indigo-50/70 border border-indigo-200 rounded-xl space-y-2">
+                        <div class="flex items-center justify-between">
+                            <span class="text-xs font-bold text-indigo-900 flex items-center space-x-1.5">
+                                <i data-lucide="image" class="w-4 h-4 text-indigo-600"></i>
+                                <span id="pdf-figures-count-text">Extracted PDF Diagrams (0)</span>
+                            </span>
+                            <span class="text-[10px] text-indigo-700 bg-white px-2 py-0.5 rounded-full border border-indigo-200 font-bold">Auto-Detected</span>
+                        </div>
+                        <div id="pdf-figures-thumbnails" class="grid grid-cols-4 gap-2 max-h-36 overflow-y-auto p-1.5 bg-white rounded-lg border border-indigo-100"></div>
+                        <p class="text-[10px] text-indigo-600 italic">Click "+ Attach PDF Figure" on any question to link one of these diagrams.</p>
+                    </div>
+                </div>
+
+                <!-- AI Custom Prompt Studio & Blueprints -->
+                <div class="space-y-3 pt-2">
+                    <div class="flex items-center justify-between">
+                        <label class="block text-xs font-bold text-slate-800 flex items-center space-x-1.5">
+                            <i data-lucide="sparkles" class="w-4 h-4 text-amber-500"></i>
+                            <span>AI Custom Prompt & Blueprint (Instruct the AI)</span>
+                        </label>
+                        <span class="text-[10px] text-sky-600 bg-sky-50 px-2 py-0.5 rounded-full font-bold">Custom Control</span>
+                    </div>
+
+                    <!-- Quick 1-Click Blueprint Chips -->
+                    <div class="flex flex-wrap gap-1.5 text-[11px]">
+                        <button type="button" onclick="applyBlueprintPreset('80_marks')" class="px-2.5 py-1 rounded-lg bg-amber-50 hover:bg-amber-100 text-amber-900 border border-amber-200 font-bold transition flex items-center space-x-1">
+                            <span>🎓 80-Mark University Paper</span>
+                        </button>
+                        <button type="button" onclick="applyBlueprintPreset('50_marks')" class="px-2.5 py-1 rounded-lg bg-indigo-50 hover:bg-indigo-100 text-indigo-900 border border-indigo-200 font-bold transition flex items-center space-x-1">
+                            <span>⚡ 50-Mark Midterm Paper</span>
+                        </button>
+                        <button type="button" onclick="applyBlueprintPreset('20_marks')" class="px-2.5 py-1 rounded-lg bg-emerald-50 hover:bg-emerald-100 text-emerald-900 border border-emerald-200 font-bold transition flex items-center space-x-1">
+                            <span>📝 20-Mark Quick Quiz</span>
+                        </button>
+                        <button type="button" onclick="applyBlueprintPreset('coding')" class="px-2.5 py-1 rounded-lg bg-purple-50 hover:bg-purple-100 text-purple-900 border border-purple-200 font-bold transition flex items-center space-x-1">
+                            <span>💻 Coding & Analysis</span>
+                        </button>
+                    </div>
+
+                    <textarea id="custom-prompt" rows="3" placeholder="Instruct the AI exactly how to build your exam... e.g. 'Create an 80-mark university paper with Section A (10 MCQs x 1 mk), Section B (10 short questions x 3 mks), Section C (4 long questions x 10 mks) with in-depth technical rubrics.'" class="w-full px-3 py-2 text-xs border border-slate-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-sky-500 font-sans leading-relaxed"></textarea>
+                </div>
+
+                <!-- Topic & Notes Context -->
+                <div>
+                    <label class="block text-xs font-semibold text-slate-700 mb-1">Topic / Subject Context (Optional)</label>
+                    <input type="text" id="topic-text" placeholder="e.g. Computer Networks - OSI Model, TCP/IP, Routing & Subnetting" class="w-full px-3 py-2 text-xs border border-slate-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-sky-500">
+                </div>
+
+                <!-- AI Parameters Grid -->
+                <div class="grid grid-cols-2 gap-3">
+                    <div>
+                        <label class="block text-xs font-semibold text-slate-700 mb-1">Target Total Marks</label>
+                        <input type="number" id="total-marks" value="80" min="5" max="200" placeholder="e.g. 80" class="w-full px-3 py-2 text-xs border border-slate-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-sky-500 font-bold text-sky-700 bg-white">
+                    </div>
+                    <div>
+                        <label class="block text-xs font-semibold text-slate-700 mb-1">Question Count</label>
+                        <select id="num-questions" onchange="handleQuestionCountChange(this.value)" class="w-full px-3 py-2 text-xs border border-slate-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-sky-500 bg-white font-medium">
+                            <option value="24" selected>24 Questions (80-Mark Paper)</option>
+                            <option value="17">17 Questions (50-Mark Paper)</option>
+                            <option value="5">5 Questions (Quick)</option>
+                            <option value="10">10 Questions</option>
+                            <option value="15">15 Questions</option>
+                            <option value="20">20 Questions</option>
+                            <option value="30">30 Questions</option>
+                            <option value="custom">✏️ Custom Count (Specify Any Number)...</option>
+                        </select>
+                        <div id="custom-num-questions-wrapper" class="hidden mt-1.5">
+                            <div class="flex items-center space-x-1.5 bg-sky-50 border border-sky-300 rounded-xl p-1.5 shadow-2xs">
+                                <span class="text-[11px] font-bold text-sky-800 whitespace-nowrap pl-1">Count:</span>
+                                <input type="number" id="custom-num-questions" min="1" max="100" placeholder="e.g. 7" class="w-full px-2 py-0.5 text-xs font-extrabold text-sky-900 bg-white border border-sky-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-sky-500">
+                                <span class="text-[10px] text-slate-500 font-semibold pr-1">Questions</span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="grid grid-cols-2 gap-3">
+                    <div>
+                        <label class="block text-xs font-semibold text-slate-700 mb-1">Question Format</label>
+                        <select id="question-type" onchange="handleQuestionFormatChange(this.value)" class="w-full px-3 py-2 text-xs border border-slate-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-sky-500 bg-white font-medium">
+                            <option value="blueprint_80" selected>80-Mark Multi-Section Exam</option>
+                            <option value="blueprint_50">50-Mark Midterm Blueprint</option>
+                            <option value="mixed">Mixed (MCQs, Short & Long)</option>
+                            <option value="mcq">Multiple Choice Only (MCQ)</option>
+                            <option value="short">Short Answer Questions (2–4 Marks)</option>
+                            <option value="descriptive">Long Descriptive / Essay (5–10 Marks)</option>
+                            <option value="tf">True / False</option>
+                            <option value="custom">✏️ Custom Format (Mix Your Choices)...</option>
+                        </select>
+                    </div>
+                    <div>
+                        <label class="block text-xs font-semibold text-slate-700 mb-1">Difficulty</label>
+                        <select id="difficulty" class="w-full px-3 py-2 text-xs border border-slate-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-sky-500 bg-white">
+                            <option value="Medium" selected>Medium (Standard)</option>
+                            <option value="Hard">Hard / Advanced</option>
+                            <option value="Easy">Easy (Foundation)</option>
+                            <option value="Mixed">Mixed Difficulty</option>
+                        </select>
+                    </div>
+                </div>
+
+                <!-- Custom Format Interactive Picker Panel -->
+                <div id="custom-format-wrapper" class="hidden p-3.5 bg-gradient-to-br from-indigo-50/70 to-sky-50/70 border border-indigo-200 rounded-xl space-y-2.5">
+                    <div class="flex items-center justify-between">
+                        <span class="text-xs font-bold text-indigo-950 flex items-center space-x-1.5">
+                            <i data-lucide="sliders" class="w-3.5 h-3.5 text-indigo-600"></i>
+                            <span>Customize Question Types & Layout</span>
+                        </span>
+                        <span class="text-[10px] text-indigo-700 bg-white border border-indigo-200 px-2 py-0.5 rounded-full font-bold">Select Choices</span>
+                    </div>
+
+                    <!-- Checkboxes Grid -->
+                    <div class="grid grid-cols-2 gap-2 text-xs">
+                        <label class="flex items-center space-x-2 p-2 bg-white rounded-lg border border-slate-200 hover:border-indigo-400 cursor-pointer transition">
+                            <input type="checkbox" id="fmt-mcq" checked class="w-3.5 h-3.5 text-indigo-600 rounded">
+                            <span class="font-semibold text-slate-800">Multiple Choice (MCQs)</span>
+                        </label>
+                        <label class="flex items-center space-x-2 p-2 bg-white rounded-lg border border-slate-200 hover:border-indigo-400 cursor-pointer transition">
+                            <input type="checkbox" id="fmt-short" checked class="w-3.5 h-3.5 text-indigo-600 rounded">
+                            <span class="font-semibold text-slate-800">Short Answer (2–4 Mks)</span>
+                        </label>
+                        <label class="flex items-center space-x-2 p-2 bg-white rounded-lg border border-slate-200 hover:border-indigo-400 cursor-pointer transition">
+                            <input type="checkbox" id="fmt-descriptive" checked class="w-3.5 h-3.5 text-indigo-600 rounded">
+                            <span class="font-semibold text-slate-800">Long / Essay (5–10 Mks)</span>
+                        </label>
+                        <label class="flex items-center space-x-2 p-2 bg-white rounded-lg border border-slate-200 hover:border-indigo-400 cursor-pointer transition">
+                            <input type="checkbox" id="fmt-tf" class="w-3.5 h-3.5 text-indigo-600 rounded">
+                            <span class="font-semibold text-slate-800">True / False</span>
+                        </label>
+                        <label class="flex items-center space-x-2 p-2 bg-white rounded-lg border border-slate-200 hover:border-indigo-400 cursor-pointer transition">
+                            <input type="checkbox" id="fmt-diagram" checked class="w-3.5 h-3.5 text-indigo-600 rounded">
+                            <span class="font-semibold text-slate-800">Figures & Diagrams</span>
+                        </label>
+                        <label class="flex items-center space-x-2 p-2 bg-white rounded-lg border border-slate-200 hover:border-indigo-400 cursor-pointer transition">
+                            <input type="checkbox" id="fmt-numerical" class="w-3.5 h-3.5 text-indigo-600 rounded">
+                            <span class="font-semibold text-slate-800">Numerical / Problems</span>
+                        </label>
+                    </div>
+
+                    <!-- Custom Instructions / Breakdown -->
+                    <div>
+                        <label class="block text-[11px] font-semibold text-slate-600 mb-1">Custom Section/Breakdown Specification (Optional):</label>
+                        <input type="text" id="custom-format-details" placeholder="e.g. 5 questions of 4 marks each with diagrams" class="w-full px-3 py-1.5 text-xs bg-white border border-indigo-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500 font-sans">
+                    </div>
+                </div>
+
+                <!-- Generate Button -->
+                <button id="btn-generate" onclick="generateQuestions()" class="w-full py-3.5 bg-gradient-to-r from-sky-600 to-indigo-600 hover:from-sky-700 hover:to-indigo-700 text-white font-bold rounded-xl shadow-md transition flex items-center justify-center space-x-2">
+                    <i data-lucide="sparkles" class="w-5 h-5 text-amber-300"></i>
+                    <span>Generate Complete Exam with AI</span>
+                </button>
+            </div>
+
+            <!-- Exam Parameters Card -->
+            <div class="bg-white rounded-2xl p-6 border border-slate-200 shadow-sm space-y-4">
+                <div class="flex items-center justify-between border-b border-slate-100 pb-3">
+                    <h3 class="font-bold text-slate-900 flex items-center space-x-2">
+                        <i data-lucide="sliders" class="w-4 h-4 text-sky-600"></i>
+                        <span>2. Exam & Anti-Cheat Settings</span>
+                    </h3>
+                </div>
+
+                <div>
+                    <label class="block text-xs font-semibold text-slate-700 mb-1">Exam Title *</label>
+                    <input type="text" id="exam-title" placeholder="e.g. Computer Networks - Midterm 2026" class="w-full px-3 py-2 text-sm border border-slate-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-sky-500 font-medium">
+                </div>
+
+                <div>
+                    <label class="block text-xs font-semibold text-slate-700 mb-1">Description / Guidelines</label>
+                    <input type="text" id="exam-desc" placeholder="e.g. All questions are compulsory. 3 anti-cheating warnings allowed." class="w-full px-3 py-2 text-sm border border-slate-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-sky-500">
+                </div>
+
+                <div class="grid grid-cols-2 gap-4">
+                    <div>
+                        <label class="block text-xs font-semibold text-slate-700 mb-1">Duration (Minutes)</label>
+                        <input type="number" id="exam-duration" value="15" min="1" max="180" class="w-full px-3 py-2 text-sm border border-slate-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-sky-500">
+                    </div>
+                    <div>
+                        <label class="block text-xs font-semibold text-rose-700 mb-1">
+                            <i data-lucide="shield-alert" class="w-3.5 h-3.5 inline mr-1"></i>Max Strikes (Warnings)
+                        </label>
+                        <select id="max-warnings" class="w-full px-3 py-2 text-sm border border-rose-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-rose-500 bg-rose-50/50 font-bold text-rose-800">
+                            <option value="2">2 Strikes (Strict)</option>
+                            <option value="3">3 Strikes (Standard)</option>
+                            <option value="5">5 Strikes (Moderate)</option>
+                            <option value="8">8 Strikes (Lenient)</option>
+                            <option value="10" selected>10 Strikes (Recommended - High Tolerance)</option>
+                            <option value="15">15 Strikes (Maximum Tolerance)</option>
+                        </select>
+                    </div>
+                </div>
+
+                <div>
+                    <label class="block text-xs font-semibold text-slate-700 mb-1">Passing Score (%)</label>
+                    <input type="number" id="passing-score" value="40" min="1" max="100" class="w-full px-3 py-2 text-sm border border-slate-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-sky-500">
+                </div>
+
+                <!-- Student Access Permission -->
+                <div class="p-3.5 bg-slate-50 border border-slate-200 rounded-2xl space-y-2">
+                    <label class="block text-xs font-bold text-slate-800">
+                        <i data-lucide="users" class="w-3.5 h-3.5 inline mr-1 text-indigo-600"></i>Student Access
+                    </label>
+                    <div class="grid grid-cols-3 gap-1.5 p-1 bg-white rounded-xl border border-slate-200 text-xs font-semibold">
+                        <label class="flex items-center justify-center p-1.5 rounded-lg cursor-pointer transition text-center access-tab-label bg-indigo-50 text-indigo-700 font-bold" id="lbl-access-all">
+                            <input type="radio" name="access_type" value="all" checked onchange="switchAccessType('all')" class="hidden">
+                            <span>All Students</span>
+                        </label>
+                        <label class="flex items-center justify-center p-1.5 rounded-lg cursor-pointer transition text-center access-tab-label text-slate-600 hover:text-slate-900" id="lbl-access-class">
+                            <input type="radio" name="access_type" value="class" onchange="switchAccessType('class')" class="hidden">
+                            <span>By Class</span>
+                        </label>
+                        <label class="flex items-center justify-center p-1.5 rounded-lg cursor-pointer transition text-center access-tab-label text-slate-600 hover:text-slate-900" id="lbl-access-selected">
+                            <input type="radio" name="access_type" value="selected" onchange="switchAccessType('selected')" class="hidden">
+                            <span>Select Names</span>
+                        </label>
+                    </div>
+
+                    <!-- Class selector block -->
+                    <div id="block-access-class" class="hidden pt-1.5 space-y-1">
+                        <label class="block text-[11px] font-semibold text-slate-600">Target Class / Batch:</label>
+                        <div class="flex gap-2">
+                            <input type="text" id="target-class-input" list="classes-datalist" placeholder="e.g. Class 10-A, Grade 12" class="w-full px-3 py-1.5 text-xs border border-slate-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-indigo-500">
+                            <datalist id="classes-datalist">
+                                {% for c in classes %}
+                                <option value="{{ c }}"></option>
+                                {% endfor %}
+                            </datalist>
+                        </div>
+                    </div>
+
+                    <!-- Specific students checklist block -->
+                    <div id="block-access-selected" class="hidden pt-1.5 space-y-2">
+                        <div class="flex items-center justify-between">
+                            <label class="text-[11px] font-semibold text-slate-600">Select Students:</label>
+                            <button type="button" onclick="toggleSelectAllStudents()" id="btn-toggle-select-all" class="text-[10px] text-indigo-600 font-bold hover:underline">Select All</button>
+                        </div>
+                        <input type="text" id="student-search-input" onkeyup="filterStudentChecklist()" placeholder="Search by name or roll..." class="w-full px-2.5 py-1 text-xs border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500">
+                        <div class="max-h-36 overflow-y-auto space-y-1 border border-slate-200 bg-white rounded-xl p-2" id="students-checklist-container">
+                            {% if students %}
+                                {% for s in students %}
+                                <label class="student-check-item flex items-center space-x-2 p-1 hover:bg-slate-50 rounded-lg text-xs cursor-pointer" data-search="{{ s.full_name|lower }} {{ s.roll_number|lower }} {{ s.class_name|lower }}">
+                                    <input type="checkbox" value="{{ s.id }}" class="student-select-cb rounded text-indigo-600 focus:ring-indigo-500">
+                                    <span class="font-medium text-slate-800">{{ s.full_name }}</span>
+                                    {% if s.roll_number %}<span class="text-[10px] font-mono text-slate-400">({{ s.roll_number }})</span>{% endif %}
+                                    {% if s.class_name %}<span class="text-[10px] bg-slate-100 text-slate-600 px-1.5 py-0.5 rounded font-semibold ml-auto">{{ s.class_name }}</span>{% endif %}
+                                </label>
+                                {% endfor %}
+                            {% else %}
+                                <p class="text-[11px] text-slate-400 text-center py-2">No students registered yet.</p>
+                            {% endif %}
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Exam Schedule & Timing -->
+                <div class="p-3.5 bg-slate-50 border border-slate-200 rounded-2xl space-y-2">
+                    <label class="block text-xs font-bold text-slate-800">
+                        <i data-lucide="calendar" class="w-3.5 h-3.5 inline mr-1 text-sky-600"></i>Exam Schedule
+                    </label>
+                    <div class="grid grid-cols-2 gap-1.5 p-1 bg-white rounded-xl border border-slate-200 text-xs font-semibold">
+                        <label class="flex items-center justify-center p-1.5 rounded-lg cursor-pointer transition text-center schedule-tab-label bg-sky-50 text-sky-700 font-bold" id="lbl-sched-anytime">
+                            <input type="radio" name="schedule_type" value="anytime" checked onchange="switchScheduleType('anytime')" class="hidden">
+                            <span>Anytime (Flexible)</span>
+                        </label>
+                        <label class="flex items-center justify-center p-1.5 rounded-lg cursor-pointer transition text-center schedule-tab-label text-slate-600 hover:text-slate-900" id="lbl-sched-window">
+                            <input type="radio" name="schedule_type" value="scheduled" onchange="switchScheduleType('scheduled')" class="hidden">
+                            <span>Specific Window</span>
+                        </label>
+                    </div>
+
+                    <!-- Date/Time Inputs -->
+                    <div id="block-sched-inputs" class="hidden pt-1.5 space-y-2">
+                        <div>
+                            <label class="block text-[11px] font-semibold text-slate-600 mb-0.5">Start Date & Time:</label>
+                            <input type="datetime-local" id="sched-start-time" class="w-full px-2.5 py-1.5 text-xs border border-slate-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-sky-500">
+                        </div>
+                        <div>
+                            <label class="block text-[11px] font-semibold text-slate-600 mb-0.5">End Date & Time (Deadline):</label>
+                            <input type="datetime-local" id="sched-end-time" class="w-full px-2.5 py-1.5 text-xs border border-slate-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-sky-500">
+                        </div>
+                        <p class="text-[10px] text-slate-400">Students cannot enter before Start Time and cannot start after End Time.</p>
+                    </div>
+                </div>
+
+                <!-- Voice / Audio AI Proctoring Option (Optional Toggle) -->
+                <div class="p-3.5 bg-slate-50 border border-slate-200 rounded-2xl space-y-1.5">
+                    <div class="flex items-center justify-between">
+                        <label for="enable-audio-detection" class="text-xs font-bold text-slate-900 flex items-center cursor-pointer">
+                            <i data-lucide="mic" class="w-4 h-4 mr-1.5 text-sky-600"></i>
+                            <span>Voice / Audio AI Proctoring</span>
+                        </label>
+                        <input type="checkbox" id="enable-audio-detection" class="w-4 h-4 text-sky-600 rounded border-slate-300 focus:ring-sky-500 cursor-pointer">
+                    </div>
+                    <p class="text-[11px] text-slate-500 leading-tight">
+                        <strong>Default: Off (Recommended)</strong> to prevent accidental strikes from room noise, ceiling fans, or traffic. Turn on only if strict quiet environment is required.
+                    </p>
+                </div>
+
+                <button id="btn-save-exam" onclick="saveAndPublishExam()" class="w-full py-3.5 bg-emerald-600 hover:bg-emerald-700 text-white font-bold rounded-xl shadow-lg shadow-emerald-600/20 transition flex items-center justify-center space-x-2 mt-4">
+                    <i data-lucide="check-circle" class="w-5 h-5"></i>
+                    <span>Publish Exam & Generate Code</span>
+                </button>
+            </div>
+
+        </div>
+
+        <!-- Right: Question Preview & Editor (7 cols) -->
+        <div class="lg:col-span-7 space-y-4">
+            <div class="bg-white rounded-2xl p-6 border border-slate-200 shadow-sm min-h-[500px]">
+                <div class="flex items-center justify-between border-b border-slate-100 pb-4 mb-4">
+                    <div>
+                        <h3 class="font-bold text-slate-900 text-base">Question Workspace</h3>
+                        <p class="text-xs text-slate-500">Review AI-generated questions or add custom questions.</p>
+                    </div>
+                    <div class="flex items-center space-x-2">
+                        <span id="question-count-badge" class="px-2.5 py-1 bg-sky-100 text-sky-800 text-xs font-bold rounded-full">0 Questions</span>
+                        <button onclick="addManualQuestion()" class="px-3 py-1.5 bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-semibold rounded-lg transition flex items-center space-x-1">
+                            <i data-lucide="plus" class="w-3.5 h-3.5"></i>
+                            <span>Add Manual Question</span>
+                        </button>
+                    </div>
+                </div>
+
+                <!-- Empty State -->
+                <div id="questions-empty" class="py-16 text-center">
+                    <div class="w-16 h-16 rounded-2xl bg-sky-50 text-sky-500 flex items-center justify-center mx-auto mb-4">
+                        <i data-lucide="brain-circuit" class="w-8 h-8"></i>
+                    </div>
+                    <h4 class="font-bold text-slate-800 text-base mb-1">No Questions Generated Yet</h4>
+                    <p class="text-xs text-slate-500 max-w-sm mx-auto mb-4">
+                        Upload your PDF or notes on the left, then click <strong>"Generate Questions with AI"</strong>. You can inspect and edit every question before publishing!
+                    </p>
+                </div>
+
+                <!-- Questions Container -->
+                <div id="questions-container" class="space-y-4 hidden"></div>
+            </div>
+        </div>
+
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+    let selectedFiles = [];
+    let questionsData = [];
+    let extractedFiguresList = [];
+
+    function handleFileSelect(e) {
+        const files = Array.from(e.target.files);
+        selectedFiles = selectedFiles.concat(files);
+        renderFileList();
+    }
+
+    function removeFile(index) {
+        selectedFiles.splice(index, 1);
+        renderFileList();
+    }
+
+    function renderFileList() {
+        const listEl = document.getElementById('file-list');
+        listEl.innerHTML = '';
+        selectedFiles.forEach((file, index) => {
+            const item = document.createElement('div');
+            item.className = 'flex items-center justify-between p-2.5 bg-slate-50 border border-slate-200 rounded-lg text-xs';
+            item.innerHTML = `
+                <div class="flex items-center space-x-2 truncate">
+                    <i data-lucide="file" class="w-4 h-4 text-sky-600 flex-shrink-0"></i>
+                    <span class="truncate font-medium text-slate-700">${file.name}</span>
+                    <span class="text-slate-400">(${(file.size / 1024).toFixed(0)} KB)</span>
+                </div>
+                <button type="button" onclick="removeFile(${index})" class="text-rose-500 hover:text-rose-700 ml-2">
+                    <i data-lucide="trash-2" class="w-3.5 h-3.5"></i>
+                </button>
+            `;
+            listEl.appendChild(item);
+        });
+        lucide.createIcons();
+    }
+
+    function renderPdfFiguresGallery() {
+        const panel = document.getElementById('pdf-figures-panel');
+        const thumbs = document.getElementById('pdf-figures-thumbnails');
+        const countText = document.getElementById('pdf-figures-count-text');
+        if (!panel || !thumbs) return;
+
+        if (!extractedFiguresList || extractedFiguresList.length === 0) {
+            panel.classList.add('hidden');
+            return;
+        }
+
+        panel.classList.remove('hidden');
+        countText.innerText = `Extracted PDF Diagrams (${extractedFiguresList.length})`;
+        thumbs.innerHTML = '';
+
+        extractedFiguresList.slice(0, 16).forEach((fig, idx) => {
+            const item = document.createElement('div');
+            item.className = 'border border-slate-200 rounded-md p-1 bg-white hover:border-indigo-400 cursor-pointer text-center group transition shadow-2xs';
+            item.title = `Page ${fig.page}: Click to preview`;
+            item.innerHTML = `
+                <img src="${fig.url}" class="h-14 w-full object-contain rounded mb-0.5" alt="Fig">
+                <span class="text-[9px] font-bold text-slate-500 group-hover:text-indigo-600 block">P.${fig.page}</span>
+            `;
+            item.onclick = () => {
+                Swal.fire({
+                    title: `PDF Diagram (Page ${fig.page})`,
+                    imageUrl: fig.url,
+                    imageAlt: 'PDF Diagram',
+                    confirmButtonText: 'Close',
+                    confirmButtonColor: '#4f46e5'
+                });
+            };
+            thumbs.appendChild(item);
+        });
+    }
+
+    function handleQuestionCountChange(val) {
+        const wrapper = document.getElementById('custom-num-questions-wrapper');
+        const input = document.getElementById('custom-num-questions');
+        if (val === 'custom') {
+            wrapper.classList.remove('hidden');
+            if (!input.value) {
+                input.value = 5;
+            }
+            input.focus();
+            input.select();
+        } else {
+            wrapper.classList.add('hidden');
+        }
+    }
+
+    function handleQuestionFormatChange(val) {
+        const wrapper = document.getElementById('custom-format-wrapper');
+        if (val === 'custom') {
+            wrapper.classList.remove('hidden');
+            lucide.createIcons();
+        } else {
+            wrapper.classList.add('hidden');
+        }
+    }
+
+    function applyBlueprintPreset(preset) {
+        const customWrapper = document.getElementById('custom-num-questions-wrapper');
+        if (customWrapper) customWrapper.classList.add('hidden');
+        const customFmtWrapper = document.getElementById('custom-format-wrapper');
+        if (customFmtWrapper) customFmtWrapper.classList.add('hidden');
+
+        if (preset === '80_marks') {
+            document.getElementById('custom-prompt').value = "Generate a comprehensive 80-mark university examination paper. Section A: 10 MCQs worth 1.0 mark each (10 marks total). Section B: 10 Short conceptual/technical questions worth 3.0 marks each (30 marks total). Section C: 4 Long in-depth descriptive/architectural questions worth 10.0 marks each (40 marks total). Total = exactly 80 marks. Provide figures/diagrams for any geometry or visual questions.";
+            document.getElementById('total-marks').value = 80;
+            document.getElementById('num-questions').value = "24";
+            document.getElementById('question-type').value = "blueprint_80";
+            document.getElementById('exam-duration').value = 180;
+        } else if (preset === '50_marks') {
+            document.getElementById('custom-prompt').value = "Generate a 50-mark midterm examination paper. Section A: 10 MCQs worth 1.0 mark each (10 marks). Section B: 5 Short conceptual questions worth 4.0 marks each (20 marks). Section C: 2 Long descriptive questions worth 10.0 marks each (20 marks). Total = exactly 50 marks. Include diagrams where relevant.";
+            document.getElementById('total-marks').value = 50;
+            document.getElementById('num-questions').value = "17";
+            document.getElementById('question-type').value = "blueprint_50";
+            document.getElementById('exam-duration').value = 90;
+        } else if (preset === '20_marks') {
+            document.getElementById('custom-prompt').value = "Generate a 20-mark assessment test: 5 questions worth 4.0 marks each (total 20 marks). If mathematical, geometrical, or scientific, include proper figures/diagrams for each question.";
+            document.getElementById('total-marks').value = 20;
+            document.getElementById('num-questions').value = "5";
+            document.getElementById('question-type').value = "short";
+            document.getElementById('exam-duration').value = 45;
+        } else if (preset === 'coding') {
+            document.getElementById('custom-prompt').value = "Generate a coding and technical assessment: 5 MCQs on syntax and algorithmic complexity (2 marks each = 10 marks), 3 code snippet output/debugging questions (5 marks each = 15 marks), and 2 algorithm design / coding problems (10 marks each = 20 marks). Total = 45 marks.";
+            document.getElementById('total-marks').value = 45;
+            document.getElementById('num-questions').value = "10";
+            document.getElementById('question-type').value = "mixed";
+            document.getElementById('exam-duration').value = 60;
+        }
+        
+        Swal.fire({
+            icon: 'info',
+            title: 'Blueprint Applied!',
+            text: 'Custom instructions, question count, and marks have been configured. You can edit them or click "Generate Complete Exam with AI".',
+            timer: 2200,
+            showConfirmButton: false
+        });
+    }
+
+    async function generateQuestions() {
+        const btn = document.getElementById('btn-generate');
+        const originalHtml = btn.innerHTML;
+        btn.disabled = true;
+        btn.innerHTML = `<i data-lucide="loader" class="w-5 h-5 animate-spin"></i><span>Analyzing & Generating Exam...</span>`;
+        lucide.createIcons();
+
+        let numQVal = document.getElementById('num-questions').value;
+        if (numQVal === 'custom') {
+            const customNum = parseInt(document.getElementById('custom-num-questions').value);
+            numQVal = (customNum && customNum > 0) ? customNum : 5;
+        }
+
+        let questionTypeVal = document.getElementById('question-type').value;
+        let customFormatPrompt = '';
+        if (questionTypeVal === 'custom') {
+            const selectedTypes = [];
+            if (document.getElementById('fmt-mcq').checked) selectedTypes.push('Multiple Choice (MCQ)');
+            if (document.getElementById('fmt-short').checked) selectedTypes.push('Short Answer (2–4 Marks)');
+            if (document.getElementById('fmt-descriptive').checked) selectedTypes.push('Long Descriptive / Essay (5–10 Marks)');
+            if (document.getElementById('fmt-tf').checked) selectedTypes.push('True / False');
+            if (document.getElementById('fmt-diagram').checked) selectedTypes.push('Questions with Visual SVG Figures / Diagrams');
+            if (document.getElementById('fmt-numerical').checked) selectedTypes.push('Numerical / Problem Solving');
+
+            const details = document.getElementById('custom-format-details').value.trim();
+            customFormatPrompt = `CUSTOM QUESTION FORMAT DIRECTIVE:\nYou MUST generate questions conforming strictly to these user-selected types: ${selectedTypes.join(', ')}.`;
+            if (details) {
+                customFormatPrompt += ` Breakdown specifications: ${details}`;
+            }
+        }
+
+        const formData = new FormData();
+        selectedFiles.forEach(f => formData.append('files', f));
+        formData.append('topic_text', document.getElementById('topic-text').value);
+        formData.append('custom_prompt', document.getElementById('custom-prompt').value);
+        if (customFormatPrompt) {
+            formData.append('custom_format_instruction', customFormatPrompt);
+        }
+        formData.append('total_marks', document.getElementById('total-marks').value);
+        formData.append('num_questions', numQVal);
+        formData.append('difficulty', document.getElementById('difficulty').value);
+        formData.append('question_type', questionTypeVal);
+
+        try {
+            const resp = await fetch('/api/generate-questions', {
+                method: 'POST',
+                body: formData
+            });
+            const data = await resp.json();
+
+            if (data.success && data.questions) {
+                questionsData = data.questions;
+                if (data.extracted_figures) {
+                    extractedFiguresList = data.extracted_figures;
+                    renderPdfFiguresGallery();
+                }
+                renderQuestions();
+                
+                if (!document.getElementById('exam-title').value.trim()) {
+                    const topicSnippet = document.getElementById('topic-text').value.slice(0, 30) || 'Study Notes';
+                    document.getElementById('exam-title').value = `Exam on ${topicSnippet} - ${new Date().toLocaleDateString()}`;
+                }
+
+                const totalMarks = questionsData.reduce((sum, q) => sum + (parseFloat(q.points) || 1.0), 0);
+                const figCount = questionsData.filter(q => q.figure_svg || q.figure_url).length;
+
+                Swal.fire({
+                    icon: 'success',
+                    title: 'Exam Paper Ready!',
+                    text: `Generated ${questionsData.length} questions totaling ${totalMarks} Marks (${figCount} with figures) via ${data.model_used || 'AI'}. You can review and adjust marks or choices below!`,
+                    timer: 3000,
+                    showConfirmButton: false
+                });
+            } else {
+                Swal.fire({
+                    icon: 'error',
+                    title: 'Generation Failed',
+                    text: data.error || 'Could not generate questions. Please check your API key or upload valid text/PDF.'
+                });
+            }
+        } catch (err) {
+            Swal.fire({
+                icon: 'error',
+                title: 'Error',
+                text: 'Network error communicating with the server.'
+            });
+        } finally {
+            btn.disabled = false;
+            btn.innerHTML = originalHtml;
+            lucide.createIcons();
+        }
+    }
+
+    function renderQuestions() {
+        const container = document.getElementById('questions-container');
+        const emptyState = document.getElementById('questions-empty');
+        const badge = document.getElementById('question-count-badge');
+
+        const totalMarks = questionsData.reduce((sum, q) => sum + (parseFloat(q.points) || 1.0), 0);
+        badge.innerHTML = `<span class="font-bold">${questionsData.length} Questions</span> • <span class="text-emerald-700 font-extrabold">${totalMarks} Marks</span>`;
+
+        if (questionsData.length === 0) {
+            container.classList.add('hidden');
+            emptyState.classList.remove('hidden');
+            return;
+        }
+
+        emptyState.classList.add('hidden');
+        container.classList.remove('hidden');
+        container.innerHTML = '';
+
+        questionsData.forEach((q, qIndex) => {
+            const card = document.createElement('div');
+            card.className = 'border border-slate-200 rounded-xl p-5 bg-slate-50/50 hover:bg-white transition relative space-y-3';
+
+            const qType = q.question_type || 'mcq';
+            const isObjective = (qType === 'mcq' || qType === 'tf' || (q.options && q.options.length > 0));
+
+            // Options or Subjective model answer
+            let bodyHtml = '';
+            if (isObjective && q.options && q.options.length > 0) {
+                bodyHtml = `
+                    <div class="space-y-2">
+                        <label class="block text-xs font-semibold text-slate-500">Choices (Select radio button for Correct Answer):</label>
+                        ${q.options.map((opt, optIndex) => `
+                            <div class="flex items-center space-x-2">
+                                <input type="radio" name="correct_q_${qIndex}" value="${optIndex}" ${opt === q.correct_answer ? 'checked' : ''} onchange="setCorrectAnswer(${qIndex}, ${optIndex})" class="w-4 h-4 text-emerald-600 focus:ring-emerald-500">
+                                <input type="text" value="${opt.replace(/"/g, '&quot;')}" oninput="updateOptionText(${qIndex}, ${optIndex}, this.value)" class="flex-1 px-3 py-1.5 text-xs bg-white border border-slate-300 rounded-lg focus:outline-none focus:ring-1 focus:ring-sky-500">
+                                <button type="button" onclick="deleteOption(${qIndex}, ${optIndex})" class="text-slate-400 hover:text-rose-500 text-xs px-1">✕</button>
+                            </div>
+                        `).join('')}
+                        <button type="button" onclick="addOption(${qIndex})" class="text-xs text-sky-600 hover:text-sky-800 font-semibold flex items-center space-x-1 pt-1">
+                            <span>+ Add Option</span>
+                        </button>
+                    </div>
+                `;
+            } else {
+                bodyHtml = `
+                    <div class="space-y-1">
+                        <label class="block text-xs font-semibold text-slate-600">Model Answer / Key Points for Grading:</label>
+                        <textarea oninput="questionsData[${qIndex}].correct_answer = this.value" rows="2" class="w-full px-3 py-2 text-xs bg-white border border-slate-300 rounded-lg focus:outline-none focus:ring-1 focus:ring-sky-500 font-mono text-slate-800" placeholder="Enter key grading points or reference answer">${q.correct_answer || ''}</textarea>
+                    </div>
+                `;
+            }
+
+            // Figure & Diagram block
+            let figureHtml = '';
+            if (q.figure_svg) {
+                figureHtml = `
+                    <div class="border border-sky-200 bg-sky-50/50 rounded-xl p-3 space-y-2">
+                        <div class="flex items-center justify-between">
+                            <span class="text-[11px] font-bold text-sky-800 flex items-center space-x-1.5">
+                                <i data-lucide="compass" class="w-3.5 h-3.5 text-sky-600"></i>
+                                <span>📐 Vector SVG Geometry Figure</span>
+                            </span>
+                            <div class="flex items-center space-x-1.5">
+                                <button type="button" onclick="editSvgFigure(${qIndex})" class="px-2 py-0.5 text-[11px] bg-white border border-sky-300 text-sky-700 font-bold rounded-lg hover:bg-sky-50 shadow-2xs">Edit SVG</button>
+                                <button type="button" onclick="openFigurePickerModal(${qIndex})" class="px-2 py-0.5 text-[11px] bg-white border border-indigo-200 text-indigo-700 font-bold rounded-lg hover:bg-indigo-50 shadow-2xs">Change to PDF Image</button>
+                                <button type="button" onclick="removeFigure(${qIndex})" class="px-2 py-0.5 text-[11px] bg-white border border-rose-200 text-rose-600 font-bold rounded-lg hover:bg-rose-50 shadow-2xs">Remove</button>
+                            </div>
+                        </div>
+                        <div class="bg-white p-3 rounded-lg border border-slate-200 flex justify-center max-w-md mx-auto overflow-hidden shadow-2xs">
+                            ${q.figure_svg}
+                        </div>
+                    </div>
+                `;
+            } else if (q.figure_url) {
+                figureHtml = `
+                    <div class="border border-indigo-200 bg-indigo-50/50 rounded-xl p-3 space-y-2">
+                        <div class="flex items-center justify-between">
+                            <span class="text-[11px] font-bold text-indigo-800 flex items-center space-x-1.5">
+                                <i data-lucide="image" class="w-3.5 h-3.5 text-indigo-600"></i>
+                                <span>🖼️ PDF Figure / Attached Diagram</span>
+                            </span>
+                            <div class="flex items-center space-x-1.5">
+                                <button type="button" onclick="openFigurePickerModal(${qIndex})" class="px-2 py-0.5 text-[11px] bg-white border border-indigo-300 text-indigo-700 font-bold rounded-lg hover:bg-indigo-50 shadow-2xs">Change Image</button>
+                                <button type="button" onclick="createSvgFigure(${qIndex})" class="px-2 py-0.5 text-[11px] bg-white border border-sky-200 text-sky-700 font-bold rounded-lg hover:bg-sky-50 shadow-2xs">Convert to SVG</button>
+                                <button type="button" onclick="removeFigure(${qIndex})" class="px-2 py-0.5 text-[11px] bg-white border border-rose-200 text-rose-600 font-bold rounded-lg hover:bg-rose-50 shadow-2xs">Remove</button>
+                            </div>
+                        </div>
+                        <div class="bg-white p-2 rounded-lg border border-slate-200 flex justify-center max-w-md mx-auto overflow-hidden shadow-2xs">
+                            <img src="${q.figure_url}" class="max-h-48 object-contain rounded" alt="Question Figure">
+                        </div>
+                    </div>
+                `;
+            } else {
+                figureHtml = `
+                    <div class="flex items-center space-x-3 pt-1 text-xs">
+                        <button type="button" onclick="openFigurePickerModal(${qIndex})" class="text-sky-600 hover:text-sky-800 font-semibold flex items-center space-x-1">
+                            <i data-lucide="image" class="w-3.5 h-3.5"></i>
+                            <span>+ Attach PDF Figure</span>
+                        </button>
+                        <span class="text-slate-300">•</span>
+                        <button type="button" onclick="createSvgFigure(${qIndex})" class="text-indigo-600 hover:text-indigo-800 font-semibold flex items-center space-x-1">
+                            <i data-lucide="pen-tool" class="w-3.5 h-3.5"></i>
+                            <span>+ Add SVG Diagram</span>
+                        </button>
+                    </div>
+                `;
+            }
+
+            card.innerHTML = `
+                <div class="flex items-start justify-between gap-3">
+                    <div class="flex items-center space-x-2">
+                        <span class="w-7 h-7 rounded-lg bg-sky-100 text-sky-800 font-extrabold text-xs flex items-center justify-center flex-shrink-0">
+                            ${qIndex + 1}
+                        </span>
+                        <!-- Question Type Dropdown -->
+                        <select onchange="updateQuestionType(${qIndex}, this.value)" class="text-xs px-2.5 py-1 rounded-lg border border-slate-300 bg-white font-bold text-slate-700">
+                            <option value="mcq" ${qType === 'mcq' ? 'selected' : ''}>MCQ (Multiple Choice)</option>
+                            <option value="short" ${qType === 'short' ? 'selected' : ''}>Short Answer</option>
+                            <option value="descriptive" ${qType === 'descriptive' ? 'selected' : ''}>Long Descriptive</option>
+                            <option value="tf" ${qType === 'tf' ? 'selected' : ''}>True / False</option>
+                        </select>
+                        <!-- Marks Input -->
+                        <div class="flex items-center space-x-1 bg-white border border-slate-300 px-2 py-0.5 rounded-lg">
+                            <span class="text-[11px] font-bold text-slate-500">Marks:</span>
+                            <input type="number" min="0.5" step="0.5" value="${q.points || 1.0}" onchange="updateQuestionPoints(${qIndex}, this.value)" class="w-12 text-xs font-extrabold text-sky-700 focus:outline-none">
+                        </div>
+                    </div>
+
+                    <button onclick="deleteQuestion(${qIndex})" class="text-rose-400 hover:text-rose-600 p-1 flex-shrink-0" title="Delete Question">
+                        <i data-lucide="trash-2" class="w-4 h-4"></i>
+                    </button>
+                </div>
+
+                <div>
+                    <textarea oninput="questionsData[${qIndex}].question_text = this.value" rows="2" class="w-full px-3 py-2 text-sm font-semibold text-slate-900 bg-white border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-sky-500" placeholder="Question Text">${q.question_text}</textarea>
+                </div>
+
+                ${figureHtml}
+
+                ${bodyHtml}
+
+                <div>
+                    <input type="text" value="${(q.explanation || '').replace(/"/g, '&quot;')}" oninput="questionsData[${qIndex}].explanation = this.value" placeholder="Brief explanation or grading criteria (optional)" class="w-full px-3 py-1.5 text-xs text-slate-500 bg-white border border-slate-200 rounded-lg focus:outline-none italic">
+                </div>
+            `;
+            container.appendChild(card);
+        });
+        lucide.createIcons();
+    }
+
+    function openFigurePickerModal(qIndex) {
+        let pdfGrid = '';
+        if (extractedFiguresList && extractedFiguresList.length > 0) {
+            pdfGrid = `
+                <p class="text-xs text-slate-500 mb-2 text-left font-medium">Click any diagram extracted from your uploaded PDF:</p>
+                <div class="grid grid-cols-3 gap-2.5 max-h-56 overflow-y-auto p-2 border border-slate-200 rounded-xl bg-slate-50 mb-3.5">
+                    ${extractedFiguresList.map(fig => `
+                        <div onclick="selectFigureForQuestion(${qIndex}, '${fig.url}')" class="cursor-pointer border border-slate-200 hover:border-sky-500 bg-white rounded-lg p-1.5 flex flex-col items-center hover:shadow-md transition">
+                            <img src="${fig.url}" class="h-16 object-contain rounded mb-1" alt="Fig">
+                            <span class="text-[10px] font-bold text-slate-600">Page ${fig.page}</span>
+                        </div>
+                    `).join('')}
+                </div>
+            `;
+        }
+
+        let modalHtml = `
+            ${pdfGrid}
+
+            <!-- Upload / Browse from Local Computer -->
+            <div class="p-4 bg-sky-50/80 border border-sky-200 rounded-2xl text-left space-y-2 mb-3.5">
+                <div class="flex items-center justify-between">
+                    <span class="text-xs font-bold text-sky-900 flex items-center space-x-1.5">
+                        <i data-lucide="upload" class="w-4 h-4 text-sky-600"></i>
+                        <span>Upload Image File from Your Computer</span>
+                    </span>
+                    <span class="text-[10px] text-sky-700 bg-white border border-sky-200 px-2 py-0.5 rounded-full font-bold">Local File</span>
+                </div>
+                
+                <input type="file" id="modal-browse-figure-input" accept="image/*" class="hidden" onchange="uploadLocalFigure(${qIndex}, this.files[0])">
+                
+                <button type="button" onclick="document.getElementById('modal-browse-figure-input').click()" class="w-full py-3 px-4 bg-white hover:bg-sky-100 text-sky-700 border-2 border-dashed border-sky-300 hover:border-sky-500 rounded-xl font-bold text-xs flex items-center justify-center space-x-2 transition cursor-pointer shadow-xs">
+                    <i data-lucide="folder-open" class="w-4 h-4 text-sky-600"></i>
+                    <span>📁 Click to Browse & Choose Image (PNG, JPG, SVG, WEBP)...</span>
+                </button>
+                <p class="text-[10px] text-sky-600 italic">Upload textbook screenshots, geometry diagrams, graphs, or handwritten figures from your PC.</p>
+            </div>
+
+            <!-- Paste Image URL -->
+            <div class="pt-1 text-left">
+                <label class="block text-[11px] font-semibold text-slate-600 mb-1">Or paste web image URL:</label>
+                <div class="flex space-x-2">
+                    <input type="text" id="custom-fig-url" placeholder="https://... or /static/..." class="flex-1 px-3 py-1.5 text-xs border border-slate-300 rounded-lg">
+                    <button type="button" onclick="selectFigureForQuestion(${qIndex}, document.getElementById('custom-fig-url').value)" class="px-3.5 py-1.5 bg-sky-600 hover:bg-sky-700 text-white text-xs font-bold rounded-lg shadow-xs transition">Apply</button>
+                </div>
+            </div>
+        `;
+
+        Swal.fire({
+            title: 'Choose or Upload Diagram',
+            html: modalHtml,
+            showConfirmButton: false,
+            showCloseButton: true,
+            width: '600px',
+            didOpen: () => {
+                lucide.createIcons();
+            }
+        });
+    }
+
+    async function uploadLocalFigure(qIndex, file) {
+        if (!file) return;
+
+        Swal.fire({
+            title: 'Uploading Diagram...',
+            text: file.name,
+            allowOutsideClick: false,
+            didOpen: () => {
+                Swal.showLoading();
+            }
+        });
+
+        const formData = new FormData();
+        formData.append('figure_file', file);
+
+        try {
+            const resp = await fetch('/api/upload-figure', {
+                method: 'POST',
+                body: formData
+            });
+            const data = await resp.json();
+
+            if (data.success && data.figure_url) {
+                selectFigureForQuestion(qIndex, data.figure_url);
+                Swal.fire({
+                    icon: 'success',
+                    title: 'Diagram Uploaded!',
+                    text: 'Your image has been attached to this question.',
+                    timer: 1800,
+                    showConfirmButton: false
+                });
+            } else {
+                Swal.fire({
+                    icon: 'error',
+                    title: 'Upload Failed',
+                    text: data.error || 'Could not upload image.'
+                });
+            }
+        } catch (e) {
+            Swal.fire({
+                icon: 'error',
+                title: 'Error',
+                text: 'Network error uploading image from your computer.'
+            });
+        }
+    }
+
+    function selectFigureForQuestion(qIndex, url) {
+        if (!url || !url.trim()) return;
+        questionsData[qIndex].figure_url = url.trim();
+        questionsData[qIndex].figure_svg = null;
+        Swal.close();
+        renderQuestions();
+    }
+
+    function removeFigure(qIndex) {
+        questionsData[qIndex].figure_url = null;
+        questionsData[qIndex].figure_svg = null;
+        renderQuestions();
+    }
+
+    function editSvgFigure(qIndex) {
+        const currentSvg = questionsData[qIndex].figure_svg || '';
+        Swal.fire({
+            title: 'Edit SVG Diagram Code',
+            html: `
+                <p class="text-xs text-slate-500 mb-2 text-left">Modify SVG coordinates, vertex labels (A, B, C, D, E), colors, or lines:</p>
+                <textarea id="svg-editor-input" rows="8" class="w-full p-2.5 font-mono text-xs border border-slate-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-sky-500">${currentSvg.replace(/</g, '&lt;').replace(/>/g, '&gt;')}</textarea>
+            `,
+            showCancelButton: true,
+            confirmButtonText: 'Save SVG',
+            confirmButtonColor: '#0284c7',
+            width: '640px',
+            preConfirm: () => {
+                return document.getElementById('svg-editor-input').value;
+            }
+        }).then((res) => {
+            if (res.isConfirmed && res.value) {
+                questionsData[qIndex].figure_svg = res.value.trim();
+                questionsData[qIndex].figure_url = null;
+                renderQuestions();
+            }
+        });
+    }
+
+    function createSvgFigure(qIndex) {
+        const defaultSvg = `<svg viewBox="0 0 350 220" xmlns="http://www.w3.org/2000/svg">
+  <polygon points="175,25 40,195 310,195" fill="#f0f9ff" stroke="#0284c7" stroke-width="2.5"/>
+  <line x1="95" y1="125" x2="255" y2="125" stroke="#e11d48" stroke-width="2.5" stroke-dasharray="4,4"/>
+  <text x="175" y="18" font-family="sans-serif" font-size="14" font-weight="bold" fill="#0f172a" text-anchor="middle">A</text>
+  <text x="25" y="205" font-family="sans-serif" font-size="14" font-weight="bold" fill="#0f172a">B</text>
+  <text x="320" y="205" font-family="sans-serif" font-size="14" font-weight="bold" fill="#0f172a">C</text>
+  <text x="75" y="125" font-family="sans-serif" font-size="13" font-weight="bold" fill="#e11d48">D</text>
+  <text x="268" y="125" font-family="sans-serif" font-size="13" font-weight="bold" fill="#e11d48">E</text>
+</svg>`;
+
+        questionsData[qIndex].figure_svg = defaultSvg;
+        questionsData[qIndex].figure_url = null;
+        renderQuestions();
+    }
+
+    function updateQuestionPoints(qIndex, newPoints) {
+        questionsData[qIndex].points = parseFloat(newPoints) || 1.0;
+        const totalMarks = questionsData.reduce((sum, q) => sum + (parseFloat(q.points) || 1.0), 0);
+        document.getElementById('question-count-badge').innerHTML = `<span class="font-bold">${questionsData.length} Questions</span> • <span class="text-emerald-700 font-extrabold">${totalMarks} Marks</span>`;
+    }
+
+    function updateQuestionType(qIndex, newType) {
+        questionsData[qIndex].question_type = newType;
+        if (newType === 'mcq' && (!questionsData[qIndex].options || questionsData[qIndex].options.length === 0)) {
+            questionsData[qIndex].options = ["Option A", "Option B", "Option C", "Option D"];
+            questionsData[qIndex].correct_answer = "Option A";
+        } else if (newType === 'tf') {
+            questionsData[qIndex].options = ["True", "False"];
+            questionsData[qIndex].correct_answer = "True";
+        } else if (newType === 'short' || newType === 'descriptive') {
+            questionsData[qIndex].options = [];
+        }
+        renderQuestions();
+    }
+
+    function addOption(qIndex) {
+        if (!questionsData[qIndex].options) questionsData[qIndex].options = [];
+        questionsData[qIndex].options.push(`New Option ${questionsData[qIndex].options.length + 1}`);
+        renderQuestions();
+    }
+
+    function deleteOption(qIndex, optIndex) {
+        if (questionsData[qIndex].options && questionsData[qIndex].options.length > 1) {
+            questionsData[qIndex].options.splice(optIndex, 1);
+            renderQuestions();
+        }
+    }
+
+    function setCorrectAnswer(qIndex, optIndex) {
+        questionsData[qIndex].correct_answer = questionsData[qIndex].options[optIndex];
+    }
+
+    function updateOptionText(qIndex, optIndex, newText) {
+        const oldText = questionsData[qIndex].options[optIndex];
+        questionsData[qIndex].options[optIndex] = newText;
+        if (questionsData[qIndex].correct_answer === oldText) {
+            questionsData[qIndex].correct_answer = newText;
+        }
+    }
+
+    function deleteQuestion(index) {
+        questionsData.splice(index, 1);
+        renderQuestions();
+    }
+
+    function addManualQuestion() {
+        questionsData.push({
+            question_text: "New Question",
+            question_type: "mcq",
+            options: ["Option A", "Option B", "Option C", "Option D"],
+            correct_answer: "Option A",
+            explanation: "",
+            points: 1.0,
+            figure_svg: null,
+            figure_url: null
+        });
+        renderQuestions();
+    }
+
+    let currentAccessType = 'all';
+    let currentScheduleType = 'anytime';
+
+    function switchAccessType(type) {
+        currentAccessType = type;
+        const labels = {
+            'all': document.getElementById('lbl-access-all'),
+            'class': document.getElementById('lbl-access-class'),
+            'selected': document.getElementById('lbl-access-selected')
+        };
+        const blocks = {
+            'class': document.getElementById('block-access-class'),
+            'selected': document.getElementById('block-access-selected')
+        };
+
+        ['all', 'class', 'selected'].forEach(t => {
+            if (labels[t]) {
+                if (t === type) {
+                    labels[t].className = 'flex items-center justify-center p-1.5 rounded-lg cursor-pointer transition text-center access-tab-label bg-indigo-50 text-indigo-700 font-bold';
+                } else {
+                    labels[t].className = 'flex items-center justify-center p-1.5 rounded-lg cursor-pointer transition text-center access-tab-label text-slate-600 hover:text-slate-900';
+                }
+            }
+        });
+
+        if (blocks['class'] && blocks['selected']) {
+            if (type === 'class') {
+                blocks['class'].classList.remove('hidden');
+                blocks['selected'].classList.add('hidden');
+            } else if (type === 'selected') {
+                blocks['class'].classList.add('hidden');
+                blocks['selected'].classList.remove('hidden');
+            } else {
+                blocks['class'].classList.add('hidden');
+                blocks['selected'].classList.add('hidden');
+            }
+        }
+    }
+
+    function switchScheduleType(type) {
+        currentScheduleType = type;
+        const lblAnytime = document.getElementById('lbl-sched-anytime');
+        const lblWindow = document.getElementById('lbl-sched-window');
+        const blockInputs = document.getElementById('block-sched-inputs');
+
+        if (type === 'scheduled') {
+            if (lblWindow) lblWindow.className = 'flex items-center justify-center p-1.5 rounded-lg cursor-pointer transition text-center schedule-tab-label bg-sky-50 text-sky-700 font-bold';
+            if (lblAnytime) lblAnytime.className = 'flex items-center justify-center p-1.5 rounded-lg cursor-pointer transition text-center schedule-tab-label text-slate-600 hover:text-slate-900';
+            if (blockInputs) blockInputs.classList.remove('hidden');
+        } else {
+            if (lblAnytime) lblAnytime.className = 'flex items-center justify-center p-1.5 rounded-lg cursor-pointer transition text-center schedule-tab-label bg-sky-50 text-sky-700 font-bold';
+            if (lblWindow) lblWindow.className = 'flex items-center justify-center p-1.5 rounded-lg cursor-pointer transition text-center schedule-tab-label text-slate-600 hover:text-slate-900';
+            if (blockInputs) blockInputs.classList.add('hidden');
+        }
+    }
+
+    let allStudentsSelected = false;
+    function toggleSelectAllStudents() {
+        allStudentsSelected = !allStudentsSelected;
+        const cbs = document.querySelectorAll('.student-select-cb');
+        cbs.forEach(cb => {
+            const item = cb.closest('.student-check-item');
+            if (item && !item.classList.contains('hidden')) {
+                cb.checked = allStudentsSelected;
+            }
+        });
+        const btn = document.getElementById('btn-toggle-select-all');
+        if (btn) btn.textContent = allStudentsSelected ? 'Deselect All' : 'Select All';
+    }
+
+    function filterStudentChecklist() {
+        const q = (document.getElementById('student-search-input').value || '').toLowerCase().trim();
+        const items = document.querySelectorAll('.student-check-item');
+        items.forEach(item => {
+            const str = item.dataset.search || '';
+            if (!q || str.includes(q)) {
+                item.classList.remove('hidden');
+            } else {
+                item.classList.add('hidden');
+            }
+        });
+    }
+
+    async function saveAndPublishExam() {
+        const title = document.getElementById('exam-title').value.trim();
+        if (!title) {
+            Swal.fire({ icon: 'warning', title: 'Missing Title', text: 'Please provide an Exam Title.' });
+            return;
+        }
+
+        if (questionsData.length === 0) {
+            Swal.fire({ icon: 'warning', title: 'No Questions', text: 'Generate or add at least 1 question to the exam.' });
+            return;
+        }
+
+        const assignedStudents = [];
+        if (currentAccessType === 'selected') {
+            document.querySelectorAll('.student-select-cb:checked').forEach(cb => {
+                assignedStudents.push(parseInt(cb.value));
+            });
+            if (assignedStudents.length === 0) {
+                Swal.fire({ icon: 'warning', title: 'No Students Selected', text: 'Please select at least 1 student or change access to "All Students".' });
+                return;
+            }
+        }
+
+        const assignedClass = currentAccessType === 'class' ? (document.getElementById('target-class-input').value || '').trim() : '';
+        if (currentAccessType === 'class' && !assignedClass) {
+            Swal.fire({ icon: 'warning', title: 'Missing Class', text: 'Please specify the target class/batch name.' });
+            return;
+        }
+
+        let startTime = '';
+        let endTime = '';
+        if (currentScheduleType === 'scheduled') {
+            startTime = document.getElementById('sched-start-time').value;
+            endTime = document.getElementById('sched-end-time').value;
+            if (!startTime || !endTime) {
+                Swal.fire({ icon: 'warning', title: 'Schedule Incomplete', text: 'Please provide both Start and End date/time for the scheduled exam window.' });
+                return;
+            }
+            if (new Date(startTime) >= new Date(endTime)) {
+                Swal.fire({ icon: 'warning', title: 'Invalid Time', text: 'End Time must be after Start Time.' });
+                return;
+            }
+        }
+
+        const payload = {
+            title: title,
+            description: document.getElementById('exam-desc').value.trim(),
+            duration_minutes: parseInt(document.getElementById('exam-duration').value) || 15,
+            max_warnings: parseInt(document.getElementById('max-warnings').value) || 3,
+            passing_percentage: parseFloat(document.getElementById('passing-score').value) || 40.0,
+            enable_audio_detection: document.getElementById('enable-audio-detection').checked ? 1 : 0,
+            access_type: currentAccessType,
+            assigned_class: assignedClass,
+            assigned_students: assignedStudents,
+            schedule_type: currentScheduleType,
+            start_time: startTime,
+            end_time: endTime,
+            questions: questionsData
+        };
+
+        const btn = document.getElementById('btn-save-exam');
+        btn.disabled = true;
+        btn.innerHTML = `<i data-lucide="loader" class="w-5 h-5 animate-spin"></i><span>Publishing Exam...</span>`;
+        lucide.createIcons();
+
+        try {
+            const resp = await fetch('/api/save-exam', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(payload)
+            });
+            const res = await resp.json();
+
+            if (res.success) {
+                Swal.fire({
+                    icon: 'success',
+                    title: 'Exam Published!',
+                    html: `
+                        <p class="text-sm text-slate-600 mb-3">Your exam is live and ready for students.</p>
+                        <div class="p-3 bg-sky-50 border border-sky-200 rounded-xl text-center">
+                            <span class="text-xs text-sky-800 font-bold block mb-1">EXAM ACCESS CODE</span>
+                            <span class="text-2xl font-mono font-extrabold text-sky-900 tracking-wider">${res.exam_code}</span>
+                        </div>
+                    `,
+                    confirmButtonText: 'View Exam Dashboard',
+                    confirmButtonColor: '#0284c7'
+                }).then(() => {
+                    window.location.href = `/tutor/exam/${res.exam_id}`;
+                });
+            } else {
+                Swal.fire({ icon: 'error', title: 'Error', text: res.error || 'Failed to publish exam.' });
+            }
+        } catch (e) {
+            Swal.fire({ icon: 'error', title: 'Network Error', text: 'Failed to communicate with server.' });
+        } finally {
+            btn.disabled = false;
+            btn.innerHTML = `<i data-lucide="check-circle" class="w-5 h-5"></i><span>Publish Exam & Generate Code</span>`;
+            lucide.createIcons();
+        }
+    }
+</script>
+{% endblock %}

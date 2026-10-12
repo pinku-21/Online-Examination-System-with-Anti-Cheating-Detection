@@ -1,0 +1,59 @@
+{% extends "base.html" %}
+
+{% block title %}Join Examination - ExamGuard AI{% endblock %}
+
+{% block content %}
+<div class="min-h-[80vh] flex items-center justify-center px-4 py-12">
+    <div class="max-w-md w-full bg-white rounded-3xl border border-slate-200/80 p-8 shadow-xl">
+        
+        <div class="text-center mb-8">
+            <div class="w-14 h-14 rounded-2xl bg-sky-100 text-sky-600 flex items-center justify-center mx-auto mb-4 shadow-sm">
+                <i data-lucide="shield-check" class="w-8 h-8"></i>
+            </div>
+            <h2 class="text-2xl font-extrabold text-slate-900 tracking-tight">Student Exam Portal</h2>
+            <p class="text-slate-500 text-sm mt-1">Enter your details and access code to start your proctored exam.</p>
+        </div>
+
+        {% with messages = get_flashed_messages(with_categories=true) %}
+            {% if messages %}
+                {% for category, message in messages %}
+                    <div class="mb-5 p-3.5 rounded-xl text-xs font-semibold bg-rose-50 text-rose-800 border border-rose-200 flex items-center space-x-2">
+                        <i data-lucide="alert-circle" class="w-4 h-4 text-rose-600 flex-shrink-0"></i>
+                        <span>{{ message }}</span>
+                    </div>
+                {% endfor %}
+            {% endif %}
+        {% endwith %}
+
+        <form action="/student/start" method="POST" class="space-y-4">
+            <div>
+                <label class="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1.5">Exam Access Code</label>
+                <input type="text" name="exam_code" value="{{ prefill_code }}" required placeholder="e.g. 6D8A92" class="w-full px-4 py-3 bg-slate-50 border border-slate-300 rounded-xl font-mono text-center text-lg tracking-widest font-bold text-sky-700 uppercase focus:bg-white focus:outline-none focus:ring-2 focus:ring-sky-500">
+            </div>
+
+            <div>
+                <label class="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1.5">Full Name</label>
+                <input type="text" name="student_name" value="{{ student.user_name if student else '' }}" required placeholder="e.g. John Doe" class="w-full px-4 py-2.5 bg-slate-50 border border-slate-300 rounded-xl text-sm focus:bg-white focus:outline-none focus:ring-2 focus:ring-sky-500 font-medium">
+            </div>
+
+            <div>
+                <label class="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1.5">Roll Number / Student ID</label>
+                <input type="text" name="roll_number" value="{{ student.roll_number if student else '' }}" required placeholder="e.g. 21CS042" class="w-full px-4 py-2.5 bg-slate-50 border border-slate-300 rounded-xl text-sm font-mono focus:bg-white focus:outline-none focus:ring-2 focus:ring-sky-500 font-medium">
+            </div>
+
+            <div class="p-3.5 bg-amber-50 rounded-xl border border-amber-200 text-amber-900 text-xs flex items-start space-x-2.5">
+                <i data-lucide="alert-triangle" class="w-4 h-4 text-amber-600 flex-shrink-0 mt-0.5"></i>
+                <div class="leading-relaxed">
+                    <strong>Anti-Cheating Policy:</strong> Fullscreen mode, tab switching, and window focus are strictly monitored. Multiple warnings will lead to permanent auto-termination.
+                </div>
+            </div>
+
+            <button type="submit" class="w-full py-3.5 bg-sky-600 hover:bg-sky-700 text-white font-bold rounded-xl shadow-lg shadow-sky-600/20 transition flex items-center justify-center space-x-2 mt-4">
+                <span>Proceed to System Check</span>
+                <i data-lucide="arrow-right" class="w-4 h-4"></i>
+            </button>
+        </form>
+
+    </div>
+</div>
+{% endblock %}
