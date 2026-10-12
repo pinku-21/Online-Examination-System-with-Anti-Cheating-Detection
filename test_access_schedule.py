@@ -5,10 +5,12 @@ BASE_URL = "http://127.0.0.1:5000"
 
 def run_tests():
     session_admin = requests.Session()
-    # 1. Login Admin
+    import os
+    admin_id = os.environ.get("ADMIN_INITIAL_USERNAME", "admin")
+    admin_pw = os.environ.get("ADMIN_INITIAL_PASSWORD", "admin123")
     res = session_admin.post(f"{BASE_URL}/login", data={
-        "identifier": "PrashantaDas2005",
-        "password": "Prashanta@130504",
+        "identifier": admin_id,
+        "password": admin_pw,
         "role": "admin"
     }, allow_redirects=True)
     assert res.status_code == 200, f"Admin login failed: {res.status_code}"
