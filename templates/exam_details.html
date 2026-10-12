@@ -31,7 +31,7 @@
                     <span class="flex items-center"><i data-lucide="clock" class="w-4 h-4 mr-1 text-sky-600"></i> {{ exam.duration_minutes }} Minutes</span>
                     <span class="flex items-center"><i data-lucide="shield-alert" class="w-4 h-4 mr-1 text-rose-600"></i> Max {{ exam.max_warnings }} Strikes Before Termination</span>
                     <span class="flex items-center"><i data-lucide="award" class="w-4 h-4 mr-1 text-amber-600"></i> {{ exam.passing_percentage }}% Passing Mark</span>
-                    <span class="flex items-center"><i data-lucide="calendar" class="w-4 h-4 mr-1 text-slate-400"></i> Created: {{ exam.created_at[:10] }}</span>
+                    <span class="flex items-center"><i data-lucide="calendar" class="w-4 h-4 mr-1 text-slate-400"></i> Created: {{ exam.created_at | format_date }}</span>
                 </div>
             </div>
 

@@ -215,7 +215,7 @@
                         </td>
                         <td class="px-6 py-4 text-slate-600 font-mono text-xs">@{{ s.username }}</td>
                         <td class="px-6 py-4 text-slate-500 text-xs">{{ s.email if s.email else '&mdash;' }}</td>
-                        <td class="px-6 py-4 text-slate-400 text-xs">{{ s.created_at[:10] if s.created_at else '&mdash;' }}</td>
+                        <td class="px-6 py-4 text-slate-400 text-xs">{{ s.created_at | format_date }}</td>
                         <td class="px-6 py-4">
                             <div class="flex items-center justify-center gap-2">
                                 <button data-student-id="{{ s.id }}" data-student-name="{{ s.full_name }}" onclick="openResetPassword(this.dataset.studentId, this.dataset.studentName)"

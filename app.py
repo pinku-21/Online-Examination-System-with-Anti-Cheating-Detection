@@ -40,6 +40,8 @@ def format_datetime_12h_filter(val):
     if not val:
         return '—'
     try:
+        if isinstance(val, datetime):
+            return val.strftime("%b %d, %Y, %I:%M %p")
         val_str = str(val).strip()
         # Handle SQLite CURRENT_TIMESTAMP (YYYY-MM-DD HH:MM:SS) or ISO (YYYY-MM-DDTHH:MM)
         clean = val_str.replace('T', ' ')
@@ -52,6 +54,20 @@ def format_datetime_12h_filter(val):
         else:
             return val_str
         return dt.strftime("%b %d, %Y, %I:%M %p")
+    except Exception:
+        return str(val)
+
+@app.template_filter('format_date')
+def format_date_filter(val):
+    if not val:
+        return '—'
+    try:
+        if isinstance(val, datetime):
+            return val.strftime("%Y-%m-%d")
+        val_str = str(val).strip()
+        if len(val_str) >= 10:
+            return val_str[:10]
+        return val_str
     except Exception:
         return str(val)
 
