@@ -262,6 +262,8 @@
          data-duration-minutes="{{ submission.duration_minutes }}"
          data-warnings-count="{{ submission.warnings_count }}"
          data-enable-audio="{{ 1 if submission.enable_audio_detection in [1, True, '1'] else 0 }}"
+         data-schedule-type="{{ submission.schedule_type or 'anytime' }}"
+         data-end-time="{{ submission.end_time or '' }}"
          class="hidden"></div>
     <script id="exam-questions-json" type="application/json">
         {{ questions|tojson }}
@@ -273,6 +275,8 @@
         const MAX_WARNINGS = Number(metaEl.dataset.maxWarnings);
         const DURATION_MINUTES = Number(metaEl.dataset.durationMinutes);
         const ENABLE_AUDIO = Number(metaEl.dataset.enableAudio) === 1;
+        const SCHEDULE_TYPE = metaEl.dataset.scheduleType || 'anytime';
+        const END_TIME_STR = metaEl.dataset.endTime || '';
         const QUESTIONS = JSON.parse(document.getElementById('exam-questions-json').textContent);
 
         let currentQuestionIndex = 0;
@@ -282,6 +286,19 @@
         let isExamActive = false;
         let isTerminated = false;
         let timeRemainingSeconds = DURATION_MINUTES * 60;
+
+        // If exam has a strict scheduled end time, cap the timer so it ends exactly at the scheduled time
+        if (SCHEDULE_TYPE === 'scheduled' && END_TIME_STR) {
+            try {
+                const deadlineMs = new Date(END_TIME_STR).getTime();
+                const nowMs = Date.now();
+                const secondsUntilDeadline = Math.max(0, Math.floor((deadlineMs - nowMs) / 1000));
+                timeRemainingSeconds = Math.min(timeRemainingSeconds, secondsUntilDeadline);
+            } catch (e) {
+                console.warn("Could not parse schedule end time:", e);
+            }
+        }
+
         let timerInterval = null;
         let violationCooldown = false;
 

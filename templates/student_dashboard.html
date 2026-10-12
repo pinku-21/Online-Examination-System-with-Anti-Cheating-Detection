@@ -257,7 +257,7 @@
                                         </span>
                                     {% endif %}
                                 </td>
-                                <td class="px-6 py-4 text-xs text-slate-400 font-mono">{{ sub.started_at[:10] }}</td>
+                                <td class="px-6 py-4 text-xs text-slate-500 font-medium">{{ sub.started_at | format_datetime_12h }}</td>
                                 <td class="px-6 py-4 text-right">
                                     <a href="/student/result/{{ sub.id }}" class="px-3 py-1.5 bg-sky-50 hover:bg-sky-100 text-sky-700 text-xs font-bold rounded-lg border border-sky-200 transition inline-flex items-center space-x-1">
                                         <span>View Result</span>

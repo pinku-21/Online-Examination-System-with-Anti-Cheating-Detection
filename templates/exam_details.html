@@ -44,10 +44,6 @@
                         <i data-lucide="copy" class="w-3.5 h-3.5"></i>
                         <span>Copy Link</span>
                     </button>
-                    <button onclick="openRemoteShareModal('{{ exam.exam_code }}')" class="px-2.5 py-1.5 bg-white border border-indigo-200 hover:bg-indigo-50 text-indigo-700 text-xs font-semibold rounded-lg transition flex items-center space-x-1" title="Share with Remote Students">
-                        <i data-lucide="globe" class="w-3.5 h-3.5 text-indigo-600"></i>
-                        <span>Remote Access</span>
-                    </button>
                     <a href="/student?code={{ exam.exam_code }}" target="_blank" class="px-2.5 py-1.5 bg-white border border-slate-300 hover:bg-slate-50 text-slate-700 text-xs font-semibold rounded-lg transition" title="Test as Student">
                         <i data-lucide="external-link" class="w-3.5 h-3.5"></i>
                     </a>
@@ -117,7 +113,7 @@
                                             </span>
                                         {% endif %}
                                     </td>
-                                    <td class="px-6 py-4 text-xs text-slate-400">{{ sub.started_at[:16] }}</td>
+                                    <td class="px-6 py-4 text-xs text-slate-500 font-medium">{{ sub.started_at | format_datetime_12h }}</td>
                                     <td class="px-6 py-4 text-right">
                                         <a href="/tutor/submission/{{ sub.id }}" class="px-3 py-1.5 bg-slate-100 hover:bg-sky-50 hover:text-sky-700 text-slate-700 text-xs font-semibold rounded-lg transition inline-flex items-center space-x-1">
                                             <i data-lucide="eye" class="w-3.5 h-3.5"></i>
@@ -192,92 +188,13 @@
 
     </div>
 
-    <!-- Remote Share Modal -->
-    <div id="remote-share-modal" class="fixed inset-0 bg-slate-900/60 backdrop-blur-xs z-50 flex items-center justify-center p-4 hidden">
-        <div class="bg-white rounded-3xl max-w-xl w-full p-6 sm:p-8 shadow-2xl border border-slate-200">
-            <div class="flex items-center justify-between border-b border-slate-100 pb-4 mb-5">
-                <div class="flex items-center space-x-2.5">
-                    <div class="w-10 h-10 rounded-xl bg-indigo-50 text-indigo-600 flex items-center justify-center">
-                        <i data-lucide="globe" class="w-5 h-5"></i>
-                    </div>
-                    <div>
-                        <h3 class="font-bold text-slate-900 text-base">Share with Remote Students (Free)</h3>
-                        <p class="text-xs text-slate-500">Allow students anywhere in the world to access your exam link for free.</p>
-                    </div>
-                </div>
-                <button onclick="document.getElementById('remote-share-modal').classList.add('hidden')" class="text-slate-400 hover:text-slate-600 p-1">
-                    <i data-lucide="x" class="w-5 h-5"></i>
-                </button>
-            </div>
-
-            <!-- Public Tunnel URL Input -->
-            <div class="mb-5 p-4 rounded-2xl bg-indigo-50/50 border border-indigo-100 space-y-2">
-                <label class="block text-xs font-bold text-slate-800">Your Free Public Tunnel URL:</label>
-                <div class="flex items-center space-x-2">
-                    <input type="url" id="modal-public-url" value="{{ public_url }}" placeholder="e.g. https://xyz.free.pinggy.link or https://exam.trycloudflare.com" class="w-full px-3 py-2 text-xs border border-indigo-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-indigo-500 bg-white font-mono">
-                    <button onclick="savePublicUrl()" class="px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-bold rounded-xl transition flex-shrink-0">
-                        Save URL
-                    </button>
-                </div>
-                <p class="text-[11px] text-slate-500">Once saved, all "Copy Student Link" buttons will automatically use this public address!</p>
-            </div>
-
-            <!-- Easy 1-2-3 Guide -->
-            <div class="space-y-3 text-xs text-slate-600">
-                <div class="p-3.5 rounded-xl border border-slate-200 bg-slate-50 space-y-1.5">
-                    <div class="flex items-center justify-between">
-                        <span class="font-bold text-slate-900 flex items-center">
-                            <span class="w-5 h-5 rounded-full bg-sky-100 text-sky-700 font-bold flex items-center justify-center mr-2 text-[10px]">1</span>
-                            Option A: Instant 1-Click Free Tunnel (No Sign-up)
-                        </span>
-                        <span class="text-[10px] px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-800 font-bold">Fastest</span>
-                    </div>
-                    <p class="text-slate-500 text-[11px]">In your project folder, double-click <strong class="text-slate-700">share_exam_with_students.bat</strong> (or run this in PowerShell):</p>
-                    <div class="p-2 bg-slate-900 text-emerald-400 font-mono text-[11px] rounded-lg flex items-center justify-between">
-                        <span>ssh -p 443 -R0:localhost:5000 a.pinggy.io</span>
-                        <button onclick="copyCommandText('ssh -p 443 -R0:localhost:5000 a.pinggy.io')" class="text-slate-400 hover:text-white ml-2 text-[10px] underline">Copy</button>
-                    </div>
-                    <p class="text-[11px] text-slate-500">Copy the public <code class="text-indigo-600 font-bold">https://....free.pinggy.link</code> URL it gives you, paste it into the box above, and click <strong>Save URL</strong>.</p>
-                </div>
-
-                <div class="p-3.5 rounded-xl border border-slate-200 bg-slate-50 space-y-1.5">
-                    <span class="font-bold text-slate-900 flex items-center">
-                        <span class="w-5 h-5 rounded-full bg-amber-100 text-amber-700 font-bold flex items-center justify-center mr-2 text-[10px]">2</span>
-                        Option B: Cloudflare Tunnel or Ngrok (100% Free)
-                    </span>
-                    <p class="text-slate-500 text-[11px]">If you have Cloudflare or ngrok installed:</p>
-                    <div class="p-2 bg-slate-900 text-amber-300 font-mono text-[11px] rounded-lg">
-                        cloudflared tunnel --url http://localhost:5000
-                    </div>
-                </div>
-
-                <div class="p-3.5 rounded-xl border border-slate-200 bg-slate-50 space-y-1.5">
-                    <span class="font-bold text-slate-900 flex items-center">
-                        <span class="w-5 h-5 rounded-full bg-purple-100 text-purple-700 font-bold flex items-center justify-center mr-2 text-[10px]">3</span>
-                        Option C: Free 24/7 Cloud Hosting (Render.com)
-                    </span>
-                    <p class="text-slate-500 text-[11px]">Upload this project to a free GitHub repository and link it to <strong class="text-slate-700">Render.com</strong> (Free Web Service) for a permanent 24/7 web link without needing your laptop powered on.</p>
-                </div>
-            </div>
-
-            <div class="mt-6 flex justify-end">
-                <button onclick="document.getElementById('remote-share-modal').classList.add('hidden')" class="px-5 py-2.5 bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-bold rounded-xl transition">
-                    Close
-                </button>
-            </div>
-        </div>
-    </div>
-
 </div>
 {% endblock %}
 
 {% block scripts %}
 <script>
-    let currentPublicUrl = "{{ public_url }}";
-
     function copyDirectLink(code) {
-        const base = currentPublicUrl ? currentPublicUrl : window.location.origin;
-        const url = `${base}/student?code=${code}`;
+        const url = `${window.location.origin}/student?code=${code}`;
         navigator.clipboard.writeText(url).then(() => {
             Swal.fire({
                 icon: 'success',
@@ -285,45 +202,10 @@
                 html: `
                     <p class="text-xs text-slate-500 mb-2">Send this link to your students:</p>
                     <code class="block p-2.5 bg-slate-100 rounded-xl text-sky-700 text-xs break-all font-mono font-bold">${url}</code>
-                    ${!currentPublicUrl ? '<p class="text-[11px] text-amber-600 font-semibold mt-2.5">⚠️ Note: Since this is localhost, remote students outside your home/office network cannot open it. Click "Remote Access" to get a free public link!</p>' : '<p class="text-[11px] text-emerald-600 font-semibold mt-2">✓ Public Internet Link Active - Ready for remote students!</p>'}
                 `,
                 confirmButtonColor: '#0284c7'
             });
         });
-    }
-
-    function openRemoteShareModal(code) {
-        document.getElementById('remote-share-modal').classList.remove('hidden');
-    }
-
-    function copyCommandText(cmd) {
-        navigator.clipboard.writeText(cmd).then(() => {
-            Swal.fire({ icon: 'success', title: 'Command Copied!', text: cmd, timer: 1200, showConfirmButton: false });
-        });
-    }
-
-    async function savePublicUrl() {
-        const url = document.getElementById('modal-public-url').value.trim();
-        try {
-            const resp = await fetch('/api/tutor/set-public-url', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ public_url: url })
-            });
-            const res = await resp.json();
-            if (res.success) {
-                currentPublicUrl = res.public_url;
-                Swal.fire({
-                    icon: 'success',
-                    title: 'Public URL Saved!',
-                    text: 'Your exam link will now automatically use this public tunnel URL.',
-                    timer: 1600,
-                    showConfirmButton: false
-                });
-            }
-        } catch (err) {
-            Swal.fire({ icon: 'error', title: 'Error', text: 'Failed to save URL.' });
-        }
     }
 </script>
 {% endblock %}

@@ -3,7 +3,7 @@ import json
 import random
 import string
 from functools import wraps
-from datetime import datetime
+from datetime import datetime, timezone, timedelta
 from flask import Flask, render_template, request, jsonify, redirect, url_for, flash, session
 from werkzeug.utils import secure_filename
 
@@ -26,8 +26,52 @@ from ai_service import (
     generate_mock_questions
 )
 
+IST = timezone(timedelta(hours=5, minutes=30))
+
+def get_current_time():
+    """Returns the current datetime in IST (Indian Standard Time, UTC+5:30) naive representation for comparison."""
+    return datetime.now(IST).replace(tzinfo=None)
+
 app = Flask(__name__)
 app.secret_key = os.environ.get("SECRET_KEY", "examguard-super-secret-key-2026")
+
+@app.template_filter('format_datetime_12h')
+def format_datetime_12h_filter(val):
+    if not val:
+        return '—'
+    try:
+        val_str = str(val).strip()
+        # Handle SQLite CURRENT_TIMESTAMP (YYYY-MM-DD HH:MM:SS) or ISO (YYYY-MM-DDTHH:MM)
+        clean = val_str.replace('T', ' ')
+        if '.' in clean:
+            clean = clean.split('.')[0]
+        if len(clean) == 16:
+            dt = datetime.strptime(clean, "%Y-%m-%d %H:%M")
+        elif len(clean) >= 19:
+            dt = datetime.strptime(clean[:19], "%Y-%m-%d %H:%M:%S")
+        else:
+            return val_str
+        return dt.strftime("%b %d, %Y, %I:%M %p")
+    except Exception:
+        return str(val)
+
+@app.template_filter('format_time_12h')
+def format_time_12h_filter(val):
+    if not val:
+        return '—'
+    try:
+        val_str = str(val).strip().replace('T', ' ')
+        if '.' in val_str:
+            val_str = val_str.split('.')[0]
+        if len(val_str) == 16:
+            dt = datetime.strptime(val_str, "%Y-%m-%d %H:%M")
+        elif len(val_str) >= 19:
+            dt = datetime.strptime(val_str[:19], "%Y-%m-%d %H:%M:%S")
+        else:
+            return val_str
+        return dt.strftime("%I:%M %p")
+    except Exception:
+        return str(val)
 
 UPLOAD_FOLDER = os.path.join(os.path.dirname(__file__), "uploads")
 os.makedirs(UPLOAD_FOLDER, exist_ok=True)
@@ -40,6 +84,7 @@ init_db()
 def generate_exam_code(length=6):
     chars = string.ascii_uppercase + string.digits
     return "".join(random.choice(chars) for _ in range(length))
+
 
 # --- AUTHENTICATION & ACCESS CONTROL HELPERS ---
 
@@ -711,7 +756,7 @@ def student_dashboard():
     conn.close()
 
     accessible_exams = []
-    now = datetime.now()
+    now = get_current_time()
     for ex in all_exams:
         ex_dict = dict(ex)
         acc_type = ex_dict.get("access_type") or "all"
@@ -809,7 +854,7 @@ def student_start():
     # 2. Schedule Timing Check
     schedule_type = exam["schedule_type"] or "anytime"
     if schedule_type == "scheduled":
-        now = datetime.now()
+        now = get_current_time()
         start_time_str = exam["start_time"]
         end_time_str = exam["end_time"]
         
@@ -851,7 +896,8 @@ def student_exam_room(submission_id):
     cursor = conn.cursor()
     
     cursor.execute("""
-        SELECT s.*, e.title, e.duration_minutes, e.max_warnings, e.exam_code, e.enable_audio_detection
+        SELECT s.*, e.title, e.duration_minutes, e.max_warnings, e.exam_code, e.enable_audio_detection,
+               e.schedule_type, e.start_time, e.end_time
         FROM submissions s
         JOIN exams e ON s.exam_id = e.id
         WHERE s.id = ?

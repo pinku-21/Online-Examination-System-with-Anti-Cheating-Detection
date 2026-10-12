@@ -30,9 +30,9 @@
                 <p class="text-sm text-slate-500 mt-1">Exam: <strong class="text-slate-800">{{ submission.exam_title }}</strong></p>
                 
                 <div class="flex flex-wrap items-center gap-4 text-xs text-slate-500 pt-3">
-                    <span><i data-lucide="calendar" class="w-3.5 h-3.5 inline mr-1 text-slate-400"></i> Started: {{ submission.started_at }}</span>
+                    <span><i data-lucide="calendar" class="w-3.5 h-3.5 inline mr-1 text-slate-400"></i> Started: {{ submission.started_at | format_datetime_12h }}</span>
                     {% if submission.submitted_at %}
-                        <span><i data-lucide="check" class="w-3.5 h-3.5 inline mr-1 text-slate-400"></i> Ended: {{ submission.submitted_at }}</span>
+                        <span><i data-lucide="check" class="w-3.5 h-3.5 inline mr-1 text-slate-400"></i> Ended: {{ submission.submitted_at | format_datetime_12h }}</span>
                     {% endif %}
                 </div>
             </div>
