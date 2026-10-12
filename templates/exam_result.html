@@ -1,0 +1,100 @@
+{% extends "base.html" %}
+
+{% block title %}Exam Results - ExamGuard AI{% endblock %}
+
+{% block content %}
+<div class="min-h-[80vh] flex items-center justify-center px-4 py-12">
+    <div class="max-w-xl w-full bg-white rounded-3xl border border-slate-200/80 p-8 sm:p-10 shadow-xl">
+        
+        <!-- Status Icon & Banner -->
+        <div class="text-center mb-8">
+            {% if submission.status == 'terminated' %}
+                <div class="w-20 h-20 rounded-3xl bg-rose-100 text-rose-600 flex items-center justify-center mx-auto mb-4 shadow-lg shadow-rose-200">
+                    <i data-lucide="shield-x" class="w-10 h-10"></i>
+                </div>
+                <span class="inline-block px-3 py-1 bg-rose-100 text-rose-800 text-xs font-extrabold uppercase tracking-wider rounded-full mb-2">
+                    Cheating Violation Detected
+                </span>
+                <h1 class="text-2xl sm:text-3xl font-extrabold text-slate-900">Exam Terminated by System</h1>
+                <p class="text-xs text-rose-600 mt-2 font-semibold max-w-md mx-auto">
+                    {{ submission.termination_reason or 'Exceeded the maximum allowed anti-cheating warnings.' }}
+                </p>
+            {% elif passed %}
+                <div class="w-20 h-20 rounded-3xl bg-emerald-100 text-emerald-600 flex items-center justify-center mx-auto mb-4 shadow-lg shadow-emerald-200">
+                    <i data-lucide="award" class="w-10 h-10"></i>
+                </div>
+                <span class="inline-block px-3 py-1 bg-emerald-100 text-emerald-800 text-xs font-extrabold uppercase tracking-wider rounded-full mb-2">
+                    Exam Completed
+                </span>
+                <h1 class="text-2xl sm:text-3xl font-extrabold text-slate-900">Congratulations! You Passed</h1>
+                <p class="text-sm text-slate-500 mt-1">Your responses have been recorded and graded.</p>
+            {% else %}
+                <div class="w-20 h-20 rounded-3xl bg-amber-100 text-amber-600 flex items-center justify-center mx-auto mb-4 shadow-lg shadow-amber-200">
+                    <i data-lucide="clipboard-check" class="w-10 h-10"></i>
+                </div>
+                <span class="inline-block px-3 py-1 bg-amber-100 text-amber-800 text-xs font-extrabold uppercase tracking-wider rounded-full mb-2">
+                    Exam Completed
+                </span>
+                <h1 class="text-2xl sm:text-3xl font-extrabold text-slate-900">Exam Submitted</h1>
+                <p class="text-sm text-slate-500 mt-1">Your exam is submitted. Score did not reach passing criteria.</p>
+            {% endif %}
+        </div>
+
+        <!-- Student Info Card -->
+        <div class="bg-slate-50 rounded-2xl p-5 border border-slate-200 mb-6 space-y-2 text-xs">
+            <div class="flex justify-between items-center text-slate-600">
+                <span>Student Name:</span>
+                <strong class="text-slate-900 text-sm">{{ submission.student_name }}</strong>
+            </div>
+            <div class="flex justify-between items-center text-slate-600">
+                <span>Roll Number:</span>
+                <strong class="text-slate-900 font-mono">{{ submission.roll_number }}</strong>
+            </div>
+            <div class="flex justify-between items-center text-slate-600">
+                <span>Exam Title:</span>
+                <strong class="text-slate-900">{{ submission.title }}</strong>
+            </div>
+        </div>
+
+        <!-- Score Breakdown Cards -->
+        <div class="grid grid-cols-2 gap-4 mb-6">
+            <div class="p-4 rounded-2xl bg-sky-50 border border-sky-100 text-center">
+                <span class="text-xs font-semibold text-sky-700 block mb-1">Final Score</span>
+                <span class="text-3xl font-black text-sky-900">{{ submission.score }}</span>
+                <span class="text-xs text-sky-600 font-bold block mt-1">out of {{ submission.total_points }} ({{ submission.percentage }}%)</span>
+            </div>
+
+            <div class="p-4 rounded-2xl {% if submission.status == 'terminated' or submission.warnings_count >= submission.max_warnings %}bg-rose-50 border-rose-100 text-rose-900{% else %}bg-slate-50 border-slate-200 text-slate-700{% endif %} text-center">
+                <span class="text-xs font-semibold block mb-1">Cheating Strikes Incurred</span>
+                <span class="text-3xl font-black {% if submission.warnings_count > 0 %}text-rose-600{% else %}text-emerald-600{% endif %}">{{ submission.warnings_count }}</span>
+                <span class="text-xs font-bold block mt-1">Max Allowed: {{ submission.max_warnings }}</span>
+            </div>
+        </div>
+
+        <!-- Violations Summary if any -->
+        {% if violations %}
+            <div class="border border-rose-200 bg-rose-50/50 rounded-2xl p-4 mb-6">
+                <h4 class="text-xs font-bold text-rose-800 uppercase tracking-wider mb-2 flex items-center">
+                    <i data-lucide="alert-triangle" class="w-4 h-4 mr-1 text-rose-600"></i>
+                    Recorded Anti-Cheat Incidents ({{ violations|length }})
+                </h4>
+                <div class="space-y-1.5 max-h-32 overflow-y-auto pr-1">
+                    {% for v in violations %}
+                        <div class="text-[11px] text-slate-600 flex justify-between items-center bg-white p-2 rounded-lg border border-rose-100">
+                            <span class="font-semibold text-rose-700 uppercase">{{ v.violation_type.replace('_', ' ') }}</span>
+                            <span class="text-slate-400 font-mono text-[10px]">{{ v.timestamp[-8:] }}</span>
+                        </div>
+                    {% endfor %}
+                </div>
+            </div>
+        {% endif %}
+
+        <!-- Return button -->
+        <a href="/" class="w-full py-3.5 bg-slate-900 hover:bg-black text-white font-bold rounded-xl shadow-md transition flex items-center justify-center space-x-2 text-sm">
+            <i data-lucide="home" class="w-4 h-4"></i>
+            <span>Return to Home</span>
+        </a>
+
+    </div>
+</div>
+{% endblock %}

@@ -1,0 +1,908 @@
+{% extends "base.html" %}
+
+{% block title %}Tutor Dashboard - ExamGuard AI{% endblock %}
+
+{% block content %}
+<div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+    
+    <!-- Top Action Bar -->
+    <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-8">
+        <div>
+            <h1 class="text-2xl sm:text-3xl font-bold text-slate-900 tracking-tight">Tutor Command Center</h1>
+            <p class="text-slate-500 text-sm mt-1">Manage AI question generation, exams, and anti-cheating proctoring reports.</p>
+        </div>
+        <div class="flex flex-wrap items-center gap-3">
+            <button onclick="document.getElementById('remote-share-modal').classList.remove('hidden')" class="px-4 py-2.5 bg-indigo-50 border border-indigo-200 hover:bg-indigo-100 text-indigo-700 text-sm font-semibold rounded-xl shadow-xs transition flex items-center space-x-2">
+                <i data-lucide="globe" class="w-4 h-4 text-indigo-600"></i>
+                <span>Remote Students Link</span>
+            </button>
+            <button onclick="document.getElementById('api-key-modal').classList.remove('hidden')" class="px-4 py-2.5 bg-white border border-slate-300 hover:border-slate-400 text-slate-700 text-sm font-medium rounded-xl shadow-sm transition flex items-center space-x-2">
+                <i data-lucide="key" class="w-4 h-4 text-amber-500"></i>
+                <span>AI Keys {% if has_api_key %}<span class="text-xs text-emerald-600 font-semibold">✓ Active</span>{% else %}<span class="text-xs text-rose-500 font-semibold">! Needs Setup</span>{% endif %}</span>
+            </button>
+            <a href="/tutor/exam/new" class="px-5 py-2.5 bg-sky-600 hover:bg-sky-700 text-white text-sm font-semibold rounded-xl shadow-md shadow-sky-600/20 transition flex items-center space-x-2">
+                <i data-lucide="plus-circle" class="w-4 h-4"></i>
+                <span>Create Exam with AI</span>
+            </a>
+        </div>
+    </div>
+
+    <!-- Quick Stats Cards -->
+    <div class="grid grid-cols-1 sm:grid-cols-3 gap-5 mb-8">
+        <div class="bg-white rounded-2xl p-6 border border-slate-200/80 shadow-sm flex items-center space-x-4">
+            <div class="w-12 h-12 rounded-xl bg-sky-100 text-sky-600 flex items-center justify-center">
+                <i data-lucide="file-text" class="w-6 h-6"></i>
+            </div>
+            <div>
+                <p class="text-xs font-medium text-slate-500 uppercase tracking-wider">Total Exams</p>
+                <h3 class="text-2xl font-bold text-slate-900 mt-0.5">{{ exams|length }}</h3>
+            </div>
+        </div>
+
+        <div class="bg-white rounded-2xl p-6 border border-slate-200/80 shadow-sm flex items-center space-x-4">
+            <div class="w-12 h-12 rounded-xl bg-indigo-100 text-indigo-600 flex items-center justify-center">
+                <i data-lucide="users" class="w-6 h-6"></i>
+            </div>
+            <div>
+                <p class="text-xs font-medium text-slate-500 uppercase tracking-wider">Student Attempts</p>
+                <h3 class="text-2xl font-bold text-slate-900 mt-0.5">
+                    {{ exams|sum(attribute='submission_count') if exams else 0 }}
+                </h3>
+            </div>
+        </div>
+
+        <div class="bg-white rounded-2xl p-6 border border-slate-200/80 shadow-sm flex items-center space-x-4">
+            <div class="w-12 h-12 rounded-xl bg-rose-100 text-rose-600 flex items-center justify-center">
+                <i data-lucide="shield-alert" class="w-6 h-6"></i>
+            </div>
+            <div>
+                <p class="text-xs font-medium text-slate-500 uppercase tracking-wider">Cheating Terminations</p>
+                <h3 class="text-2xl font-bold text-slate-900 mt-0.5">
+                    {{ exams|sum(attribute='terminated_count') if exams else 0 }}
+                </h3>
+            </div>
+        </div>
+    </div>
+
+    <!-- Flash message notice if any -->
+    {% with messages = get_flashed_messages(with_categories=true) %}
+        {% if messages %}
+            {% for category, message in messages %}
+                <div class="mb-6 p-4 rounded-xl text-sm font-medium bg-emerald-50 text-emerald-800 border border-emerald-200 flex items-center space-x-2">
+                    <i data-lucide="check-circle" class="w-5 h-5 text-emerald-600"></i>
+                    <span>{{ message }}</span>
+                </div>
+            {% endfor %}
+        {% endif %}
+    {% endwith %}
+
+    <!-- Exam List Section -->
+    <div class="bg-white rounded-2xl border border-slate-200 overflow-hidden shadow-sm">
+        <div class="p-6 border-b border-slate-200 flex items-center justify-between">
+            <div class="flex items-center space-x-2">
+                <i data-lucide="layers" class="w-5 h-5 text-slate-600"></i>
+                <h2 class="text-lg font-bold text-slate-900">Your Created Exams</h2>
+            </div>
+            <span class="text-xs text-slate-500">Live Exams Ready for Students</span>
+        </div>
+
+        {% if exams %}
+            <div class="divide-y divide-slate-200">
+                {% for exam in exams %}
+                    <div class="p-6 hover:bg-slate-50 transition flex flex-col md:flex-row md:items-center justify-between gap-4">
+                        <div class="space-y-1">
+                            <div class="flex items-center space-x-3">
+                                <h3 class="font-bold text-slate-900 text-base">{{ exam.title }}</h3>
+                                <span class="px-2.5 py-0.5 bg-sky-100 text-sky-800 font-mono text-xs font-bold rounded-md">Code: {{ exam.exam_code }}</span>
+                            </div>
+                            <p class="text-sm text-slate-500 line-clamp-1">{{ exam.description or 'No additional description provided.' }}</p>
+                            <div class="flex flex-wrap items-center gap-3 text-xs text-slate-500 pt-1.5">
+                                <span class="flex items-center"><i data-lucide="clock" class="w-3.5 h-3.5 mr-1 text-slate-400"></i> {{ exam.duration_minutes }} Mins</span>
+                                <span class="flex items-center"><i data-lucide="help-circle" class="w-3.5 h-3.5 mr-1 text-slate-400"></i> {{ exam.question_count }} Questions</span>
+                                <span class="flex items-center"><i data-lucide="alert-octagon" class="w-3.5 h-3.5 mr-1 text-amber-500"></i> Max {{ exam.max_warnings }} Strikes</span>
+                                <span class="flex items-center"><i data-lucide="users" class="w-3.5 h-3.5 mr-1 text-slate-400"></i> {{ exam.submission_count }} Attempts</span>
+                                
+                                {% if exam.schedule_type == 'scheduled' %}
+                                    <span class="flex items-center text-amber-700 font-semibold bg-amber-50 px-2.5 py-0.5 rounded-full border border-amber-200 text-[11px]">
+                                        <i data-lucide="calendar" class="w-3 h-3 mr-1 text-amber-600"></i>
+                                        {{ exam.start_time[:16].replace('T', ' ') if exam.start_time else 'Scheduled Window' }}
+                                    </span>
+                                {% else %}
+                                    <span class="flex items-center text-emerald-700 font-semibold bg-emerald-50 px-2.5 py-0.5 rounded-full border border-emerald-200 text-[11px]">
+                                        <i data-lucide="clock" class="w-3 h-3 mr-1 text-emerald-600"></i> Anytime
+                                    </span>
+                                {% endif %}
+
+                                {% if exam.access_type == 'class' %}
+                                    <span class="flex items-center text-purple-700 font-semibold bg-purple-50 px-2.5 py-0.5 rounded-full border border-purple-200 text-[11px]">
+                                        <i data-lucide="graduation-cap" class="w-3 h-3 mr-1 text-purple-600"></i> Class: {{ exam.assigned_class }}
+                                    </span>
+                                {% elif exam.access_type == 'selected' %}
+                                    <span class="flex items-center text-indigo-700 font-semibold bg-indigo-50 px-2.5 py-0.5 rounded-full border border-indigo-200 text-[11px]">
+                                        <i data-lucide="user-check" class="w-3 h-3 mr-1 text-indigo-600"></i> {{ exam.assigned_student_count }} Selected Students
+                                    </span>
+                                {% else %}
+                                    <span class="flex items-center text-slate-600 font-semibold bg-slate-100 px-2.5 py-0.5 rounded-full text-[11px]">
+                                        <i data-lucide="globe" class="w-3 h-3 mr-1 text-slate-500"></i> All Students
+                                    </span>
+                                {% endif %}
+
+                                {% if exam.terminated_count > 0 %}
+                                    <span class="flex items-center text-rose-600 font-semibold"><i data-lucide="shield-x" class="w-3.5 h-3.5 mr-1"></i> {{ exam.terminated_count }} Terminated</span>
+                                {% endif %}
+                            </div>
+                        </div>
+
+                        <div class="flex items-center space-x-2 self-start md:self-center">
+                            <button data-exam-id="{{ exam.id }}" data-exam-title="{{ exam.title }}" onclick="openManageAccessModal(this.dataset.examId, this.dataset.examTitle)" class="px-3 py-2 bg-indigo-50 hover:bg-indigo-100 text-indigo-700 text-xs font-semibold rounded-lg transition flex items-center space-x-1.5 border border-indigo-200" title="Manage who can access and exam timing">
+                                <i data-lucide="calendar-clock" class="w-3.5 h-3.5 text-indigo-600"></i>
+                                <span>Access & Timing</span>
+                            </button>
+                            <button data-exam-code="{{ exam.exam_code }}" onclick="copyExamLink(this.dataset.examCode)" class="px-3 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-semibold rounded-lg transition flex items-center space-x-1.5" title="Copy Student Link">
+                                <i data-lucide="link" class="w-3.5 h-3.5"></i>
+                                <span>Copy Link</span>
+                            </button>
+                            <a href="/tutor/exam/{{ exam.id }}" class="px-4 py-2 bg-sky-50 hover:bg-sky-100 text-sky-700 text-xs font-semibold rounded-lg transition flex items-center space-x-1.5">
+                                <i data-lucide="bar-chart-3" class="w-3.5 h-3.5"></i>
+                                <span>View Results</span>
+                            </a>
+                        </div>
+                    </div>
+                {% endfor %}
+            </div>
+        {% else %}
+            <div class="p-12 text-center">
+                <div class="w-16 h-16 rounded-2xl bg-slate-100 text-slate-400 flex items-center justify-center mx-auto mb-4">
+                    <i data-lucide="file-question" class="w-8 h-8"></i>
+                </div>
+                <h3 class="font-bold text-slate-800 text-lg mb-1">No Exams Created Yet</h3>
+                <p class="text-slate-500 text-sm max-w-sm mx-auto mb-6">
+                    Upload your first chapter PDF, textbook photos, or notes to automatically generate MCQs and launch your anti-cheating exam!
+                </p>
+                <a href="/tutor/exam/new" class="inline-flex items-center space-x-2 px-5 py-2.5 bg-sky-600 hover:bg-sky-700 text-white text-sm font-semibold rounded-xl shadow-md">
+                    <i data-lucide="sparkles" class="w-4 h-4"></i>
+                    <span>Generate First Exam with AI</span>
+                </a>
+            </div>
+        {% endif %}
+    </div>
+
+    <!-- ===== STUDENT MANAGEMENT SECTION ===== -->
+    <div class="bg-white rounded-2xl border border-slate-200 overflow-hidden shadow-sm mt-8">
+        <div class="p-6 border-b border-slate-200 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+            <div class="flex items-center space-x-2">
+                <i data-lucide="users" class="w-5 h-5 text-indigo-600"></i>
+                <h2 class="text-lg font-bold text-slate-900">Student Accounts</h2>
+                <span class="ml-2 px-2 py-0.5 bg-indigo-100 text-indigo-700 rounded-full text-xs font-bold">{{ students|length }} registered</span>
+            </div>
+            <button onclick="document.getElementById('add-student-modal').classList.remove('hidden')"
+                class="px-4 py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white text-sm font-semibold rounded-xl shadow-sm transition flex items-center space-x-2 self-start">
+                <i data-lucide="user-plus" class="w-4 h-4"></i>
+                <span>Add New Student</span>
+            </button>
+        </div>
+
+        {% if students %}
+        <div class="overflow-x-auto">
+            <table class="w-full text-sm">
+                <thead>
+                    <tr class="bg-slate-50 text-xs font-semibold text-slate-500 uppercase tracking-wider">
+                        <th class="px-6 py-3 text-left">#</th>
+                        <th class="px-6 py-3 text-left">Full Name</th>
+                        <th class="px-6 py-3 text-left">Roll Number</th>
+                        <th class="px-6 py-3 text-left">Class / Batch</th>
+                        <th class="px-6 py-3 text-left">Username</th>
+                        <th class="px-6 py-3 text-left">Email</th>
+                        <th class="px-6 py-3 text-left">Registered</th>
+                        <th class="px-6 py-3 text-center">Actions</th>
+                    </tr>
+                </thead>
+                <tbody class="divide-y divide-slate-100" id="students-table-body">
+                    {% for s in students %}
+                    <tr class="hover:bg-slate-50 transition" id="student-row-{{ s.id }}">
+                        <td class="px-6 py-4 text-slate-400 text-xs font-mono">{{ loop.index }}</td>
+                        <td class="px-6 py-4 font-semibold text-slate-900">{{ s.full_name }}</td>
+                        <td class="px-6 py-4"><span class="px-2 py-0.5 bg-sky-100 text-sky-800 rounded-md font-mono text-xs font-bold">{{ s.roll_number }}</span></td>
+                        <td class="px-6 py-4">
+                            {% if s.class_name %}
+                                <span class="px-2 py-0.5 bg-purple-50 text-purple-700 border border-purple-200 rounded-md text-xs font-semibold">{{ s.class_name }}</span>
+                            {% else %}
+                                <span class="text-slate-400 text-xs">&mdash;</span>
+                            {% endif %}
+                        </td>
+                        <td class="px-6 py-4 text-slate-600 font-mono text-xs">@{{ s.username }}</td>
+                        <td class="px-6 py-4 text-slate-500 text-xs">{{ s.email if s.email else '&mdash;' }}</td>
+                        <td class="px-6 py-4 text-slate-400 text-xs">{{ s.created_at[:10] if s.created_at else '&mdash;' }}</td>
+                        <td class="px-6 py-4">
+                            <div class="flex items-center justify-center gap-2">
+                                <button data-student-id="{{ s.id }}" data-student-name="{{ s.full_name }}" onclick="openResetPassword(this.dataset.studentId, this.dataset.studentName)"
+                                    class="px-2.5 py-1.5 text-xs font-semibold text-amber-700 bg-amber-50 hover:bg-amber-100 rounded-lg transition flex items-center gap-1 border border-amber-200">
+                                    <i data-lucide="key" class="w-3 h-3"></i> Reset PW
+                                </button>
+                                <button data-student-id="{{ s.id }}" data-student-name="{{ s.full_name }}" onclick="deleteStudent(this.dataset.studentId, this.dataset.studentName)"
+                                    class="px-2.5 py-1.5 text-xs font-semibold text-rose-700 bg-rose-50 hover:bg-rose-100 rounded-lg transition flex items-center gap-1 border border-rose-200">
+                                    <i data-lucide="trash-2" class="w-3 h-3"></i> Delete
+                                </button>
+                            </div>
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+        {% else %}
+        <div class="p-10 text-center" id="no-students-msg">
+            <div class="w-14 h-14 rounded-2xl bg-indigo-50 text-indigo-400 flex items-center justify-center mx-auto mb-3">
+                <i data-lucide="user-x" class="w-7 h-7"></i>
+            </div>
+            <h3 class="font-bold text-slate-700 mb-1">No Student Accounts Yet</h3>
+            <p class="text-slate-500 text-sm mb-4">Manage your students here. Students can register themselves on the sign-up page, or you can create their credentials directly using the button below.</p>
+            <button onclick="document.getElementById('add-student-modal').classList.remove('hidden')"
+                class="px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white text-sm font-semibold rounded-xl transition">
+                Add First Student
+            </button>
+        </div>
+        {% endif %}
+    </div>
+
+<!-- ===== ADD STUDENT MODAL ===== -->
+<div id="add-student-modal" class="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-50 flex items-center justify-center p-4 hidden">
+    <div class="bg-white rounded-2xl max-w-lg w-full p-6 shadow-2xl border border-slate-200">
+        <div class="flex items-center justify-between mb-5">
+            <div class="flex items-center space-x-2.5">
+                <div class="w-9 h-9 rounded-xl bg-indigo-100 text-indigo-600 flex items-center justify-center">
+                    <i data-lucide="user-plus" class="w-4 h-4"></i>
+                </div>
+                <div>
+                    <h3 class="font-bold text-slate-900">Create Student Account</h3>
+                    <p class="text-xs text-slate-500">Set the username and password for this student</p>
+                </div>
+            </div>
+            <button onclick="document.getElementById('add-student-modal').classList.add('hidden')" class="text-slate-400 hover:text-slate-600 p-1">
+                <i data-lucide="x" class="w-5 h-5"></i>
+            </button>
+        </div>
+        <div class="space-y-3.5">
+            <div class="grid grid-cols-2 gap-3">
+                <div>
+                    <label class="block text-xs font-semibold text-slate-700 mb-1">Full Name <span class="text-rose-500">*</span></label>
+                    <input type="text" id="ns-name" placeholder="e.g. Rahul Kumar"
+                        class="w-full px-3 py-2.5 text-sm border border-slate-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-indigo-500">
+                </div>
+                <div>
+                    <label class="block text-xs font-semibold text-slate-700 mb-1">Roll Number <span class="text-rose-500">*</span></label>
+                    <input type="text" id="ns-roll" placeholder="e.g. CS-2024-01"
+                        class="w-full px-3 py-2.5 text-sm border border-slate-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-indigo-500">
+                </div>
+            </div>
+            <div>
+                <label class="block text-xs font-semibold text-slate-700 mb-1">Username <span class="text-rose-500">*</span></label>
+                <input type="text" id="ns-username" placeholder="e.g. rahul2024  (no spaces, lowercase)"
+                    class="w-full px-3 py-2.5 text-sm border border-slate-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-indigo-500 font-mono">
+            </div>
+            <div class="grid grid-cols-2 gap-3">
+                <div>
+            <div>
+                <label class="block text-xs font-semibold text-slate-700 mb-1">Password <span class="text-rose-500">*</span></label>
+                <input type="text" id="ns-password" placeholder="Min. 4 characters"
+                    class="w-full px-3 py-2.5 text-sm border border-slate-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-indigo-500 font-mono">
+                <p class="text-xs text-slate-400 mt-1">Share this password with the student</p>
+            </div>
+            <div class="grid grid-cols-2 gap-3">
+                <div>
+                    <label class="block text-xs font-semibold text-slate-700 mb-1">Class / Section <span class="text-slate-400">(optional)</span></label>
+                    <input type="text" id="ns-class" placeholder="e.g. Class 10-A, Grade 12"
+                        class="w-full px-3 py-2.5 text-sm border border-slate-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-indigo-500">
+                </div>
+                <div>
+                    <label class="block text-xs font-semibold text-slate-700 mb-1">Email <span class="text-slate-400">(optional)</span></label>
+                    <input type="email" id="ns-email" placeholder="student@school.com"
+                        class="w-full px-3 py-2.5 text-sm border border-slate-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-indigo-500">
+                </div>
+            </div>
+        </div>
+        <div id="ns-error" class="hidden mt-3 p-3 bg-rose-50 border border-rose-200 text-rose-700 text-xs font-semibold rounded-xl"></div>
+        <div id="ns-success" class="hidden mt-3 p-3 bg-emerald-50 border border-emerald-200 text-emerald-700 text-xs font-semibold rounded-xl"></div>
+        <div class="flex items-center justify-end gap-3 mt-5">
+            <button onclick="document.getElementById('add-student-modal').classList.add('hidden')"
+                class="px-4 py-2.5 text-sm font-semibold text-slate-600 hover:bg-slate-100 rounded-xl transition">Cancel</button>
+            <button onclick="createStudentAccount()" id="ns-btn"
+                class="px-5 py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white text-sm font-semibold rounded-xl shadow-sm transition flex items-center gap-2">
+                <i data-lucide="user-plus" class="w-4 h-4"></i> Create Account
+            </button>
+        </div>
+    </div>
+</div>
+
+<!-- ===== RESET PASSWORD MODAL ===== -->
+<div id="reset-pw-modal" class="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-50 flex items-center justify-center p-4 hidden">
+    <div class="bg-white rounded-2xl max-w-sm w-full p-6 shadow-2xl border border-slate-200">
+        <div class="flex items-center justify-between mb-4">
+            <div class="flex items-center space-x-2">
+                <div class="w-9 h-9 rounded-xl bg-amber-100 text-amber-600 flex items-center justify-center">
+                    <i data-lucide="key" class="w-4 h-4"></i>
+                </div>
+                <div>
+                    <h3 class="font-bold text-slate-900">Reset Password</h3>
+                    <p class="text-xs text-slate-500" id="rp-name-label">Student name</p>
+                </div>
+            </div>
+            <button onclick="document.getElementById('reset-pw-modal').classList.add('hidden')" class="text-slate-400 hover:text-slate-600">
+                <i data-lucide="x" class="w-5 h-5"></i>
+            </button>
+        </div>
+        <input type="hidden" id="rp-student-id">
+        <div>
+            <label class="block text-xs font-semibold text-slate-700 mb-1.5">New Password</label>
+            <input type="text" id="rp-new-password" placeholder="Enter new password (min. 4 chars)"
+                class="w-full px-3 py-2.5 text-sm border border-slate-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-amber-500 font-mono">
+        </div>
+        <div id="rp-error" class="hidden mt-2 p-2.5 bg-rose-50 border border-rose-200 text-rose-700 text-xs rounded-xl"></div>
+        <div class="flex gap-3 mt-5">
+            <button onclick="document.getElementById('reset-pw-modal').classList.add('hidden')"
+                class="flex-1 py-2.5 text-sm font-semibold text-slate-600 hover:bg-slate-100 rounded-xl transition">Cancel</button>
+            <button onclick="submitResetPassword()"
+                class="flex-1 py-2.5 bg-amber-500 hover:bg-amber-600 text-white text-sm font-bold rounded-xl shadow-sm transition">
+                Update Password
+            </button>
+        </div>
+    </div>
+</div>
+
+<!-- ===== MANAGE EXAM ACCESS & SCHEDULE MODAL ===== -->
+<div id="manage-access-modal" class="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-50 flex items-center justify-center p-4 hidden">
+    <div class="bg-white rounded-2xl max-w-lg w-full p-6 shadow-2xl border border-slate-200">
+        <div class="flex items-center justify-between mb-4">
+            <div class="flex items-center space-x-2.5">
+                <div class="w-9 h-9 rounded-xl bg-indigo-100 text-indigo-600 flex items-center justify-center">
+                    <i data-lucide="calendar-clock" class="w-4 h-4"></i>
+                </div>
+                <div>
+                    <h3 class="font-bold text-slate-900">Manage Access & Schedule</h3>
+                    <p class="text-xs text-slate-500 line-clamp-1" id="ma-exam-title">Exam Title</p>
+                </div>
+            </div>
+            <button onclick="document.getElementById('manage-access-modal').classList.add('hidden')" class="text-slate-400 hover:text-slate-600 p-1">
+                <i data-lucide="x" class="w-5 h-5"></i>
+            </button>
+        </div>
+
+        <input type="hidden" id="ma-exam-id">
+
+        <div class="space-y-4">
+            <!-- Access Targeting -->
+            <div class="p-3.5 bg-slate-50 border border-slate-200 rounded-xl space-y-2">
+                <label class="block text-xs font-bold text-slate-800">
+                    <i data-lucide="users" class="w-3.5 h-3.5 inline mr-1 text-indigo-600"></i>Student Access Permission:
+                </label>
+                <div class="grid grid-cols-3 gap-1.5 p-1 bg-white rounded-lg border border-slate-200 text-xs font-semibold">
+                    <label class="p-1.5 rounded-md cursor-pointer text-center ma-acc-tab bg-indigo-50 text-indigo-700 font-bold" id="ma-tab-all">
+                        <input type="radio" name="ma_access_type" value="all" onchange="maSwitchAccess('all')" class="hidden">
+                        <span>All Students</span>
+                    </label>
+                    <label class="p-1.5 rounded-md cursor-pointer text-center ma-acc-tab text-slate-600 hover:text-slate-900" id="ma-tab-class">
+                        <input type="radio" name="ma_access_type" value="class" onchange="maSwitchAccess('class')" class="hidden">
+                        <span>By Class</span>
+                    </label>
+                    <label class="p-1.5 rounded-md cursor-pointer text-center ma-acc-tab text-slate-600 hover:text-slate-900" id="ma-tab-selected">
+                        <input type="radio" name="ma_access_type" value="selected" onchange="maSwitchAccess('selected')" class="hidden">
+                        <span>Select Names</span>
+                    </label>
+                </div>
+
+                <div id="ma-class-block" class="hidden pt-1 space-y-1">
+                    <label class="block text-[11px] font-semibold text-slate-600">Target Class / Batch Name:</label>
+                    <input type="text" id="ma-target-class" placeholder="e.g. Class 10-A, Grade 12" class="w-full px-3 py-1.5 text-xs border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500">
+                </div>
+
+                <div id="ma-selected-block" class="hidden pt-1 space-y-1.5">
+                    <label class="text-[11px] font-semibold text-slate-600">Select Enrolled Students:</label>
+                    <div class="max-h-36 overflow-y-auto space-y-1 border border-slate-200 bg-white rounded-lg p-2" id="ma-students-list">
+                        {% for s in students %}
+                        <label class="flex items-center space-x-2 p-1 hover:bg-slate-50 rounded text-xs cursor-pointer">
+                            <input type="checkbox" value="{{ s.id }}" class="ma-student-cb rounded text-indigo-600 focus:ring-indigo-500">
+                            <span class="font-medium text-slate-800">{{ s.full_name }}</span>
+                            {% if s.roll_number %}<span class="text-[10px] font-mono text-slate-400">({{ s.roll_number }})</span>{% endif %}
+                            {% if s.class_name %}<span class="text-[10px] bg-purple-50 text-purple-700 px-1.5 py-0.5 rounded ml-auto font-semibold">{{ s.class_name }}</span>{% endif %}
+                        </label>
+                        {% endfor %}
+                    </div>
+                </div>
+            </div>
+
+            <!-- Schedule Timing -->
+            <div class="p-3.5 bg-slate-50 border border-slate-200 rounded-xl space-y-2">
+                <label class="block text-xs font-bold text-slate-800">
+                    <i data-lucide="calendar" class="w-3.5 h-3.5 inline mr-1 text-sky-600"></i>Exam Timing & Availability:
+                </label>
+                <div class="grid grid-cols-2 gap-1.5 p-1 bg-white rounded-lg border border-slate-200 text-xs font-semibold">
+                    <label class="p-1.5 rounded-md cursor-pointer text-center ma-sched-tab bg-sky-50 text-sky-700 font-bold" id="ma-tab-anytime">
+                        <input type="radio" name="ma_schedule_type" value="anytime" onchange="maSwitchSched('anytime')" class="hidden">
+                        <span>Anytime (Flexible)</span>
+                    </label>
+                    <label class="p-1.5 rounded-md cursor-pointer text-center ma-sched-tab text-slate-600 hover:text-slate-900" id="ma-tab-scheduled">
+                        <input type="radio" name="ma_schedule_type" value="scheduled" onchange="maSwitchSched('scheduled')" class="hidden">
+                        <span>Specific Window</span>
+                    </label>
+                </div>
+
+                <div id="ma-sched-inputs" class="hidden pt-1 space-y-2">
+                    <div>
+                        <label class="block text-[11px] font-semibold text-slate-600 mb-0.5">Start Date & Time:</label>
+                        <input type="datetime-local" id="ma-start-time" class="w-full px-2.5 py-1.5 text-xs border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-sky-500">
+                    </div>
+                    <div>
+                        <label class="block text-[11px] font-semibold text-slate-600 mb-0.5">End Date & Time (Deadline):</label>
+                        <input type="datetime-local" id="ma-end-time" class="w-full px-2.5 py-1.5 text-xs border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-sky-500">
+                    </div>
+                    <p class="text-[10px] text-slate-400">Students cannot enter before Start Time and cannot start after End Time.</p>
+                </div>
+            </div>
+        </div>
+
+        <div class="flex gap-3 mt-5">
+            <button onclick="document.getElementById('manage-access-modal').classList.add('hidden')" class="flex-1 py-2.5 text-xs font-semibold text-slate-600 hover:bg-slate-100 rounded-xl transition">Cancel</button>
+            <button onclick="saveExamAccessSchedule()" id="ma-save-btn" class="flex-1 py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-bold rounded-xl transition shadow-sm">Save Changes</button>
+        </div>
+    </div>
+</div>
+
+
+<!-- AI API Keys Modal (Gemini & Groq) -->
+<div id="api-key-modal" class="fixed inset-0 bg-slate-900/50 backdrop-blur-sm z-50 flex items-center justify-center p-4 hidden">
+    <div class="bg-white rounded-2xl max-w-lg w-full p-6 shadow-2xl border border-slate-200">
+        <div class="flex items-center justify-between mb-4">
+            <div class="flex items-center space-x-2">
+                <div class="w-8 h-8 rounded-lg bg-amber-100 text-amber-600 flex items-center justify-center">
+                    <i data-lucide="sparkles" class="w-4 h-4"></i>
+                </div>
+                <div>
+                    <h3 class="font-bold text-slate-900">AI Engines (100% Free Tiers)</h3>
+                    <p class="text-[11px] text-slate-500">Powers automatic MCQ generation from PDFs and notes</p>
+                </div>
+            </div>
+            <button onclick="document.getElementById('api-key-modal').classList.add('hidden')" class="text-slate-400 hover:text-slate-600">
+                <i data-lucide="x" class="w-5 h-5"></i>
+            </button>
+        </div>
+
+        <form action="/tutor/settings" method="POST" class="space-y-4">
+            <!-- Google Gemini -->
+            <div class="p-3 bg-slate-50 border border-slate-200 rounded-xl">
+                <div class="flex items-center justify-between mb-1.5">
+                    <label class="text-xs font-bold text-slate-800 flex items-center space-x-1.5">
+                        <span>Google Gemini API</span>
+                        {% if has_gemini_key %}
+                        <span class="px-2 py-0.5 rounded-full text-[10px] bg-emerald-100 text-emerald-700 font-bold">Active ({{ gemini_key_mask }})</span>
+                        {% endif %}
+                    </label>
+                    <a href="https://aistudio.google.com/app/apikey" target="_blank" class="text-[11px] text-sky-600 hover:underline font-semibold">Get Free Key ↗</a>
+                </div>
+                <input type="password" name="gemini_api_key" placeholder="AQ.Ab... or AIzaSy..." class="w-full px-3 py-2 border border-slate-300 rounded-lg text-xs focus:outline-none focus:ring-2 focus:ring-sky-500 font-mono">
+                <p class="text-[10px] text-slate-400 mt-1">Recommended: Supports textbook photos (multimodal) and PDF notes.</p>
+            </div>
+
+            <!-- Groq Cloud -->
+            <div class="p-3 bg-slate-50 border border-slate-200 rounded-xl">
+                <div class="flex items-center justify-between mb-1.5">
+                    <label class="text-xs font-bold text-slate-800 flex items-center space-x-1.5">
+                        <span>Groq Cloud API (Llama 3 / Qwen)</span>
+                        {% if has_groq_key %}
+                        <span class="px-2 py-0.5 rounded-full text-[10px] bg-emerald-100 text-emerald-700 font-bold">Active ({{ groq_key_mask }})</span>
+                        {% endif %}
+                    </label>
+                    <a href="https://console.groq.com/keys" target="_blank" class="text-[11px] text-sky-600 hover:underline font-semibold">Get Free Key ↗</a>
+                </div>
+                <input type="password" name="groq_api_key" placeholder="gsk_..." class="w-full px-3 py-2 border border-slate-300 rounded-lg text-xs focus:outline-none focus:ring-2 focus:ring-sky-500 font-mono">
+                <p class="text-[10px] text-slate-400 mt-1">Ultra-fast backup engine: Generates academic questions in under 1 second.</p>
+            </div>
+
+            <div class="flex items-center justify-end space-x-2 pt-2">
+                <button type="button" onclick="document.getElementById('api-key-modal').classList.add('hidden')" class="px-3.5 py-2 text-xs font-semibold text-slate-600 hover:bg-slate-100 rounded-lg">Cancel</button>
+                <button type="submit" class="px-4 py-2 bg-sky-600 hover:bg-sky-700 text-white text-xs font-semibold rounded-lg shadow-sm">Save All Keys</button>
+            </div>
+        </form>
+    </div>
+</div>
+
+    <!-- Remote Share Modal -->
+    <div id="remote-share-modal" class="fixed inset-0 bg-slate-900/60 backdrop-blur-xs z-50 flex items-center justify-center p-4 hidden">
+        <div class="bg-white rounded-3xl max-w-xl w-full p-6 sm:p-8 shadow-2xl border border-slate-200">
+            <div class="flex items-center justify-between border-b border-slate-100 pb-4 mb-5">
+                <div class="flex items-center space-x-2.5">
+                    <div class="w-10 h-10 rounded-xl bg-indigo-50 text-indigo-600 flex items-center justify-center">
+                        <i data-lucide="globe" class="w-5 h-5"></i>
+                    </div>
+                    <div>
+                        <h3 class="font-bold text-slate-900 text-base">Share with Remote Students (Free)</h3>
+                        <p class="text-xs text-slate-500">Let students anywhere connect to your online exams for free.</p>
+                    </div>
+                </div>
+                <button onclick="document.getElementById('remote-share-modal').classList.add('hidden')" class="text-slate-400 hover:text-slate-600 p-1">
+                    <i data-lucide="x" class="w-5 h-5"></i>
+                </button>
+            </div>
+
+            <!-- Public Tunnel URL Input -->
+            <div class="mb-5 p-4 rounded-2xl bg-indigo-50/50 border border-indigo-100 space-y-2">
+                <label class="block text-xs font-bold text-slate-800">Your Free Public Tunnel URL:</label>
+                <div class="flex items-center space-x-2">
+                    <input type="url" id="modal-public-url" value="{{ public_url }}" placeholder="e.g. https://xyz.free.pinggy.link or https://exam.trycloudflare.com" class="w-full px-3 py-2 text-xs border border-indigo-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-indigo-500 bg-white font-mono">
+                    <button onclick="savePublicUrl()" class="px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-bold rounded-xl transition flex-shrink-0">
+                        Save URL
+                    </button>
+                </div>
+                <p class="text-[11px] text-slate-500">Once saved, all "Copy Exam Link" buttons will automatically use this public address!</p>
+            </div>
+
+            <!-- Easy 1-2-3 Guide -->
+            <div class="space-y-3 text-xs text-slate-600">
+                <div class="p-3.5 rounded-xl border border-slate-200 bg-slate-50 space-y-1.5">
+                    <div class="flex items-center justify-between">
+                        <span class="font-bold text-slate-900 flex items-center">
+                            <span class="w-5 h-5 rounded-full bg-sky-100 text-sky-700 font-bold flex items-center justify-center mr-2 text-[10px]">1</span>
+                            Option A: Instant 1-Click Free Tunnel (No Sign-up)
+                        </span>
+                        <span class="text-[10px] px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-800 font-bold">Recommended</span>
+                    </div>
+                    <p class="text-slate-500 text-[11px]">In your project folder, double-click <strong class="text-slate-700">share_exam_with_students.bat</strong> (or run in PowerShell):</p>
+                    <div class="p-2 bg-slate-900 text-emerald-400 font-mono text-[11px] rounded-lg flex items-center justify-between">
+                        <span>ssh -p 443 -R0:localhost:5000 a.pinggy.io</span>
+                        <button onclick="navigator.clipboard.writeText('ssh -p 443 -R0:localhost:5000 a.pinggy.io')" class="text-slate-400 hover:text-white ml-2 text-[10px] underline">Copy</button>
+                    </div>
+                    <p class="text-[11px] text-slate-500">Copy the public <code class="text-indigo-600 font-bold">https://....free.pinggy.link</code> URL it gives you, paste it into the box above, and click <strong>Save URL</strong>.</p>
+                </div>
+
+                <div class="p-3.5 rounded-xl border border-slate-200 bg-slate-50 space-y-1.5">
+                    <span class="font-bold text-slate-900 flex items-center">
+                        <span class="w-5 h-5 rounded-full bg-amber-100 text-amber-700 font-bold flex items-center justify-center mr-2 text-[10px]">2</span>
+                        Option B: Cloudflare Tunnel or Ngrok (100% Free)
+                    </span>
+                    <p class="text-slate-500 text-[11px]">If you prefer Cloudflare or ngrok:</p>
+                    <div class="p-2 bg-slate-900 text-amber-300 font-mono text-[11px] rounded-lg">
+                        cloudflared tunnel --url http://localhost:5000
+                    </div>
+                </div>
+
+                <div class="p-3.5 rounded-xl border border-slate-200 bg-slate-50 space-y-1.5">
+                    <span class="font-bold text-slate-900 flex items-center">
+                        <span class="w-5 h-5 rounded-full bg-purple-100 text-purple-700 font-bold flex items-center justify-center mr-2 text-[10px]">3</span>
+                        Option C: Free 24/7 Cloud Hosting (Render.com)
+                    </span>
+                    <p class="text-slate-500 text-[11px]">Upload this project to a free GitHub repository and link it to <strong class="text-slate-700">Render.com</strong> (Free Web Service) for a permanent 24/7 web link without needing your laptop powered on.</p>
+                </div>
+            </div>
+
+            <div class="mt-6 flex justify-end">
+                <button onclick="document.getElementById('remote-share-modal').classList.add('hidden')" class="px-5 py-2.5 bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-bold rounded-xl transition">
+                    Close
+                </button>
+            </div>
+        </div>
+    </div>
+
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+    let currentPublicUrl = "{{ public_url }}";
+
+    function copyExamLink(code) {
+        const base = currentPublicUrl ? currentPublicUrl : window.location.origin;
+        const url = `${base}/student?code=${code}`;
+        navigator.clipboard.writeText(url).then(() => {
+            Swal.fire({
+                icon: 'success',
+                title: 'Exam Link Copied!',
+                html: `
+                    <p class="text-xs text-slate-500 mb-2">Share this link with your students:</p>
+                    <code class="block p-2.5 bg-slate-100 rounded-xl text-sky-700 text-xs break-all font-mono font-bold">${url}</code>
+                    ${!currentPublicUrl ? '<p class="text-[11px] text-amber-600 font-semibold mt-2.5">⚠️ Note: Since this is localhost, remote students cannot access it without a public tunnel. Click "Remote Students Link" to get a free link!</p>' : '<p class="text-[11px] text-emerald-600 font-semibold mt-2">✓ Public Internet Link Active - Ready for remote students!</p>'}
+                `,
+                confirmButtonColor: '#0284c7'
+            });
+        });
+    }
+
+    async function savePublicUrl() {
+        const url = document.getElementById('modal-public-url').value.trim();
+        try {
+            const resp = await fetch('/api/tutor/set-public-url', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ public_url: url })
+            });
+            const res = await resp.json();
+            if (res.success) {
+                currentPublicUrl = res.public_url;
+                Swal.fire({
+                    icon: 'success',
+                    title: 'Public URL Saved!',
+                    text: 'Your exam link will now automatically use this public tunnel URL.',
+                    timer: 1600,
+                    showConfirmButton: false
+                });
+            }
+        } catch (err) {
+            Swal.fire({ icon: 'error', title: 'Error', text: 'Failed to save URL.' });
+        }
+    }
+
+    // ===== STUDENT MANAGEMENT =====
+
+    async function createStudentAccount() {
+        const name = document.getElementById('ns-name').value.trim();
+        const roll = document.getElementById('ns-roll').value.trim();
+        const username = document.getElementById('ns-username').value.trim();
+        const password = document.getElementById('ns-password').value.trim();
+        const email = document.getElementById('ns-email').value.trim();
+        const className = document.getElementById('ns-class') ? document.getElementById('ns-class').value.trim() : '';
+
+        const errEl = document.getElementById('ns-error');
+        const successEl = document.getElementById('ns-success');
+        errEl.classList.add('hidden');
+        successEl.classList.add('hidden');
+
+        if (!name || !roll || !username || !password) {
+            errEl.textContent = 'Full Name, Roll Number, Username, and Password are all required.';
+            errEl.classList.remove('hidden');
+            return;
+        }
+
+        const btn = document.getElementById('ns-btn');
+        btn.disabled = true;
+        btn.innerHTML = '<i data-lucide="loader" class="w-4 h-4 animate-spin"></i> Creating...';
+        lucide.createIcons();
+
+        try {
+            const resp = await fetch('/api/admin/create-student', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ full_name: name, roll_number: roll, username, password, email, class_name: className })
+            });
+            const res = await resp.json();
+
+            if (res.success) {
+                successEl.textContent = `Account created! Username: ${res.student.username}  |  Roll: ${res.student.roll_number}`;
+                successEl.classList.remove('hidden');
+                // Clear fields
+                ['ns-name', 'ns-roll', 'ns-username', 'ns-password', 'ns-email', 'ns-class'].forEach(id => {
+                    const el = document.getElementById(id);
+                    if (el) el.value = '';
+                });
+                // Reload page after short delay to show new student in table
+                setTimeout(() => { window.location.reload(); }, 1200);
+            } else {
+                errEl.textContent = res.error || 'Failed to create account.';
+                errEl.classList.remove('hidden');
+            }
+        } catch (err) {
+            errEl.textContent = 'Network error. Please try again.';
+            errEl.classList.remove('hidden');
+        } finally {
+            btn.disabled = false;
+            btn.innerHTML = '<i data-lucide="user-plus" class="w-4 h-4"></i> Create Account';
+            lucide.createIcons();
+        }
+    }
+
+    // ===== EXAM ACCESS & SCHEDULE MANAGEMENT =====
+
+    function maSwitchAccess(type) {
+        document.querySelectorAll('input[name="ma_access_type"]').forEach(r => {
+            r.checked = (r.value === type);
+        });
+        const tabs = {
+            'all': document.getElementById('ma-tab-all'),
+            'class': document.getElementById('ma-tab-class'),
+            'selected': document.getElementById('ma-tab-selected')
+        };
+        Object.keys(tabs).forEach(k => {
+            if (tabs[k]) {
+                if (k === type) {
+                    tabs[k].className = 'p-1.5 rounded-md cursor-pointer text-center ma-acc-tab bg-indigo-50 text-indigo-700 font-bold';
+                } else {
+                    tabs[k].className = 'p-1.5 rounded-md cursor-pointer text-center ma-acc-tab text-slate-600 hover:text-slate-900';
+                }
+            }
+        });
+        const classBlock = document.getElementById('ma-class-block');
+        const selBlock = document.getElementById('ma-selected-block');
+        if (classBlock) classBlock.classList.toggle('hidden', type !== 'class');
+        if (selBlock) selBlock.classList.toggle('hidden', type !== 'selected');
+    }
+
+    function maSwitchSched(type) {
+        document.querySelectorAll('input[name="ma_schedule_type"]').forEach(r => {
+            r.checked = (r.value === type);
+        });
+        const tabs = {
+            'anytime': document.getElementById('ma-tab-anytime'),
+            'scheduled': document.getElementById('ma-tab-scheduled')
+        };
+        Object.keys(tabs).forEach(k => {
+            if (tabs[k]) {
+                if (k === type) {
+                    tabs[k].className = 'p-1.5 rounded-md cursor-pointer text-center ma-sched-tab bg-sky-50 text-sky-700 font-bold';
+                } else {
+                    tabs[k].className = 'p-1.5 rounded-md cursor-pointer text-center ma-sched-tab text-slate-600 hover:text-slate-900';
+                }
+            }
+        });
+        const schedInputs = document.getElementById('ma-sched-inputs');
+        if (schedInputs) schedInputs.classList.toggle('hidden', type !== 'scheduled');
+    }
+
+    async function openManageAccessModal(examId, examTitle) {
+        document.getElementById('ma-exam-id').value = examId;
+        document.getElementById('ma-exam-title').textContent = examTitle;
+        document.getElementById('manage-access-modal').classList.remove('hidden');
+
+        try {
+            const resp = await fetch(`/api/tutor/exam/${examId}/access-schedule`);
+            const data = await resp.json();
+            if (data.success) {
+                maSwitchAccess(data.access_type || 'all');
+                document.getElementById('ma-target-class').value = data.assigned_class || '';
+
+                const assignedSet = new Set((data.assigned_student_ids || []).map(id => String(id)));
+                document.querySelectorAll('.ma-student-cb').forEach(cb => {
+                    cb.checked = assignedSet.has(String(cb.value));
+                });
+
+                maSwitchSched(data.schedule_type || 'anytime');
+                document.getElementById('ma-start-time').value = data.start_time || '';
+                document.getElementById('ma-end-time').value = data.end_time || '';
+            }
+        } catch (err) {
+            console.error('Failed to load access details:', err);
+        }
+    }
+
+    async function saveExamAccessSchedule() {
+        const examId = document.getElementById('ma-exam-id').value;
+        const accessType = document.querySelector('input[name="ma_access_type"]:checked')?.value || 'all';
+        const assignedClass = document.getElementById('ma-target-class').value.trim();
+        const schedType = document.querySelector('input[name="ma_schedule_type"]:checked')?.value || 'anytime';
+        const startTime = document.getElementById('ma-start-time').value;
+        const endTime = document.getElementById('ma-end-time').value;
+
+        const assignedStudents = [];
+        if (accessType === 'selected') {
+            document.querySelectorAll('.ma-student-cb:checked').forEach(cb => {
+                assignedStudents.push(parseInt(cb.value));
+            });
+            if (assignedStudents.length === 0) {
+                Swal.fire({ icon: 'warning', title: 'No Students Selected', text: 'Please check at least one student or choose "All Students".' });
+                return;
+            }
+        } else if (accessType === 'class') {
+            if (!assignedClass) {
+                Swal.fire({ icon: 'warning', title: 'Class Name Required', text: 'Please enter a target class/batch name.' });
+                return;
+            }
+        }
+
+        if (schedType === 'scheduled') {
+            if (!startTime || !endTime) {
+                Swal.fire({ icon: 'warning', title: 'Schedule Required', text: 'Please set both Start Date/Time and End Date/Time for a scheduled exam.' });
+                return;
+            }
+            if (new Date(endTime) <= new Date(startTime)) {
+                Swal.fire({ icon: 'warning', title: 'Invalid Time Window', text: 'End Time must be after Start Time.' });
+                return;
+            }
+        }
+
+        const saveBtn = document.getElementById('ma-save-btn');
+        saveBtn.disabled = true;
+        saveBtn.innerText = 'Saving...';
+
+        try {
+            const resp = await fetch(`/api/tutor/exam/${examId}/access-schedule`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    access_type: accessType,
+                    assigned_class: assignedClass,
+                    assigned_students: assignedStudents,
+                    schedule_type: schedType,
+                    start_time: startTime,
+                    end_time: endTime
+                })
+            });
+            const res = await resp.json();
+            if (res.success) {
+                Swal.fire({
+                    icon: 'success',
+                    title: 'Updated!',
+                    text: 'Exam access & schedule preferences saved.',
+                    timer: 1400,
+                    showConfirmButton: false
+                });
+                setTimeout(() => window.location.reload(), 1400);
+            } else {
+                Swal.fire({ icon: 'error', title: 'Error', text: res.error || 'Failed to update access.' });
+            }
+        } catch (err) {
+            Swal.fire({ icon: 'error', title: 'Error', text: 'Network error occurred.' });
+        } finally {
+            saveBtn.disabled = false;
+            saveBtn.innerText = 'Save Changes';
+        }
+    }
+
+    async function deleteStudent(studentId, studentName) {
+        const result = await Swal.fire({
+            icon: 'warning',
+            title: 'Delete Student Account?',
+            html: `<p class="text-sm text-slate-600">This will permanently delete the account for <strong>${studentName}</strong>. Their exam submission records will remain.</p>`,
+            showCancelButton: true,
+            confirmButtonText: 'Yes, Delete Account',
+            cancelButtonText: 'Cancel',
+            confirmButtonColor: '#e11d48'
+        });
+        if (!result.isConfirmed) return;
+
+        try {
+            const resp = await fetch(`/api/admin/delete-student/${studentId}`, { method: 'DELETE' });
+            const res = await resp.json();
+            if (res.success) {
+                const row = document.getElementById(`student-row-${studentId}`);
+                if (row) row.remove();
+                Swal.fire({ icon: 'success', title: 'Deleted!', text: `${studentName}'s account has been removed.`, timer: 1400, showConfirmButton: false });
+            } else {
+                Swal.fire({ icon: 'error', title: 'Error', text: res.error || 'Could not delete account.' });
+            }
+        } catch (err) {
+            Swal.fire({ icon: 'error', title: 'Error', text: 'Network error.' });
+        }
+    }
+
+    function openResetPassword(studentId, studentName) {
+        document.getElementById('rp-student-id').value = studentId;
+        document.getElementById('rp-name-label').textContent = studentName;
+        document.getElementById('rp-new-password').value = '';
+        document.getElementById('rp-error').classList.add('hidden');
+        document.getElementById('reset-pw-modal').classList.remove('hidden');
+    }
+
+    async function submitResetPassword() {
+        const studentId = document.getElementById('rp-student-id').value;
+        const newPassword = document.getElementById('rp-new-password').value.trim();
+        const errEl = document.getElementById('rp-error');
+        errEl.classList.add('hidden');
+
+        if (!newPassword) {
+            errEl.textContent = 'Please enter a new password.';
+            errEl.classList.remove('hidden');
+            return;
+        }
+
+        try {
+            const resp = await fetch('/api/admin/reset-password', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ student_id: parseInt(studentId), new_password: newPassword })
+            });
+            const res = await resp.json();
+            if (res.success) {
+                document.getElementById('reset-pw-modal').classList.add('hidden');
+                Swal.fire({
+                    icon: 'success',
+                    title: 'Password Updated!',
+                    html: `<p class="text-sm text-slate-600">New password: <span class="font-mono font-bold text-indigo-700">${newPassword}</span></p><p class="text-xs text-slate-400 mt-1">Share this new password with the student.</p>`,
+                    confirmButtonColor: '#0284c7'
+                });
+            } else {
+                errEl.textContent = res.error || 'Failed to reset password.';
+                errEl.classList.remove('hidden');
+            }
+        } catch (err) {
+            errEl.textContent = 'Network error.';
+            errEl.classList.remove('hidden');
+        }
+    }
+</script>
+{% endblock %}

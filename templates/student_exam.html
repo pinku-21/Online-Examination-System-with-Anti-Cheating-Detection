@@ -1,0 +1,1136 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{{ submission.title }} - Proctored Exam</title>
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    colors: {
+                        brand: {
+                            500: '#0284c7',
+                            600: '#0369a1',
+                        }
+                    }
+                }
+            }
+        }
+    </script>
+    <!-- Lucide Icons -->
+    <script src="https://unpkg.com/lucide@latest"></script>
+    <!-- SweetAlert2 -->
+    <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
+    <!-- TensorFlow.js & COCO-SSD Real-time AI Vision Proctoring -->
+    <script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs@latest/dist/tf.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@tensorflow-models/coco-ssd@latest"></script>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap');
+        body {
+            font-family: 'Inter', sans-serif;
+            user-select: none;
+            -webkit-user-select: none;
+        }
+        .svg-diagram-box svg {
+            max-width: 100%;
+            height: auto;
+            display: block;
+            margin: 0 auto;
+        }
+    </style>
+</head>
+<body class="bg-slate-100 text-slate-800 min-h-screen flex flex-col select-none">
+
+    <!-- Pre-Exam Readiness Modal -->
+    <div id="start-modal" class="fixed inset-0 bg-slate-900/90 backdrop-blur-md z-50 flex items-center justify-center p-4">
+        <div class="bg-white rounded-3xl max-w-xl w-full p-8 shadow-2xl border border-slate-200">
+            <div class="text-center mb-6">
+                <div class="w-16 h-16 rounded-2xl bg-sky-100 text-sky-600 flex items-center justify-center mx-auto mb-3">
+                    <i data-lucide="shield-alert" class="w-9 h-9"></i>
+                </div>
+                <h2 class="text-2xl font-extrabold text-slate-900">Anti-Cheat System Verification</h2>
+                <p class="text-slate-500 text-sm mt-1">Please read the proctoring rules before beginning.</p>
+            </div>
+
+            <div class="space-y-3.5 mb-6 text-sm text-slate-600 bg-slate-50 p-5 rounded-2xl border border-slate-200">
+                <div class="flex items-start space-x-3">
+                    <i data-lucide="monitor" class="w-5 h-5 text-sky-600 flex-shrink-0 mt-0.5"></i>
+                    <div>
+                        <strong class="text-slate-900">Fullscreen Locked:</strong> The exam runs in strict full-screen mode. Exiting fullscreen will count as an anti-cheating strike.
+                    </div>
+                </div>
+                <div class="flex items-start space-x-3">
+                    <i data-lucide="eye-off" class="w-5 h-5 text-rose-600 flex-shrink-0 mt-0.5"></i>
+                    <div>
+                        <strong class="text-slate-900">Tab Switch & Window Blur Detection:</strong> Leaving this browser tab, minimizing the window, or clicking outside will trigger an immediate strike.
+                    </div>
+                </div>
+                <div class="flex items-start space-x-3">
+                    <i data-lucide="video" class="w-5 h-5 text-emerald-600 flex-shrink-0 mt-0.5"></i>
+                    <div>
+                        <strong class="text-slate-900">Webcam Proctoring:</strong> Your camera will be enabled for multi-face and phone detection.
+                    </div>
+                </div>
+                <div class="flex items-start space-x-3">
+                    {% if submission.enable_audio_detection in [1, True, '1'] %}
+                        <i data-lucide="mic" class="w-5 h-5 text-amber-600 flex-shrink-0 mt-0.5"></i>
+                        <div>
+                            <strong class="text-slate-900">Acoustic Audio Proctoring:</strong> Room noise and speaking activity are actively monitored.
+                        </div>
+                    {% else %}
+                        <i data-lucide="mic-off" class="w-5 h-5 text-slate-400 flex-shrink-0 mt-0.5"></i>
+                        <div>
+                            <strong class="text-slate-900">Audio Proctoring:</strong> <span class="text-emerald-700 font-semibold">Disabled</span> (No strikes for background noise / speaking).
+                        </div>
+                    {% endif %}
+                </div>
+                <div class="flex items-start space-x-3">
+                    <i data-lucide="alert-octagon" class="w-5 h-5 text-rose-600 flex-shrink-0 mt-0.5"></i>
+                    <div>
+                        <strong class="text-rose-600">{{ submission.max_warnings }} Strikes Limit:</strong> You are allowed a maximum of <strong>{{ submission.max_warnings }} warnings</strong>. If you exceed this limit, your exam will be <strong>IMMEDIATELY TERMINATED</strong> and reported.
+                    </div>
+                </div>
+            </div>
+
+            <button onclick="launchExamSession()" class="w-full py-4 bg-sky-600 hover:bg-sky-700 text-white font-bold rounded-2xl shadow-lg shadow-sky-600/30 transition flex items-center justify-center space-x-2 text-base">
+                <i data-lucide="maximize" class="w-5 h-5"></i>
+                <span>Agree & Enter Fullscreen Exam</span>
+            </button>
+        </div>
+    </div>
+
+    <!-- Exam Navigation Header -->
+    <header class="bg-white border-b border-slate-200 sticky top-0 z-40 px-4 sm:px-6 py-3">
+        <div class="max-w-7xl mx-auto flex items-center justify-between">
+            <div class="flex items-center space-x-3">
+                <div class="w-9 h-9 rounded-lg bg-sky-600 text-white flex items-center justify-center font-bold">
+                    <i data-lucide="shield-check" class="w-5 h-5"></i>
+                </div>
+                <div>
+                    <h1 class="font-bold text-slate-900 text-sm sm:text-base leading-tight">{{ submission.title }}</h1>
+                    <div class="text-xs text-slate-500 flex items-center space-x-2">
+                        <span>{{ submission.student_name }}</span>
+                        <span>•</span>
+                        <span class="font-mono">{{ submission.roll_number }}</span>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Strikes Warning & Timer -->
+            <div class="flex items-center space-x-4">
+                <!-- Strikes Warning Counter -->
+                <div id="warning-badge" class="px-3.5 py-1.5 rounded-xl border border-rose-200 bg-rose-50 text-rose-700 text-xs font-bold flex items-center space-x-1.5 shadow-sm">
+                    <i data-lucide="alert-triangle" class="w-4 h-4 text-rose-600"></i>
+                    <span>Strikes: <span id="strike-counter">{{ submission.warnings_count }}</span> / {{ submission.max_warnings }}</span>
+                </div>
+
+                <!-- Timer -->
+                <div class="px-3.5 py-1.5 rounded-xl border border-slate-200 bg-slate-50 text-slate-800 text-xs font-mono font-bold flex items-center space-x-1.5 shadow-sm">
+                    <i data-lucide="clock" class="w-4 h-4 text-sky-600"></i>
+                    <span id="exam-timer">--:--</span>
+                </div>
+
+                <!-- Submit Button -->
+                <button onclick="confirmSubmitExam()" class="px-4 py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs rounded-xl shadow-sm transition flex items-center space-x-1.5">
+                    <i data-lucide="send" class="w-3.5 h-3.5"></i>
+                    <span>Submit Exam</span>
+                </button>
+            </div>
+        </div>
+    </header>
+
+    <!-- Main Workspace -->
+    <div class="max-w-7xl mx-auto px-4 sm:px-6 py-6 flex-1 w-full grid grid-cols-1 lg:grid-cols-12 gap-6">
+        
+        <!-- Left: Question View (8 cols) -->
+        <div class="lg:col-span-8 flex flex-col justify-between bg-white rounded-3xl border border-slate-200 p-6 sm:p-8 shadow-sm min-h-[520px]">
+            <div>
+                <div class="flex items-center justify-between border-b border-slate-100 pb-4 mb-6">
+                    <div class="flex items-center space-x-2">
+                        <span id="q-number-pill" class="px-3 py-1 bg-sky-100 text-sky-800 text-xs font-extrabold rounded-full">Question 1 of {{ questions|length }}</span>
+                        <span id="q-points-pill" class="text-xs text-slate-400 font-semibold">1.0 Mark</span>
+                    </div>
+                    <button onclick="toggleMarkForReview()" id="btn-review" class="text-xs font-semibold text-slate-500 hover:text-amber-600 flex items-center space-x-1 transition">
+                        <i data-lucide="flag" class="w-3.5 h-3.5"></i>
+                        <span id="review-text">Flag for Review</span>
+                    </button>
+                </div>
+
+                <!-- Question Text -->
+                <h3 id="current-question-text" class="text-base sm:text-lg font-bold text-slate-900 leading-relaxed mb-4">
+                    Loading question...
+                </h3>
+
+                <!-- Question Figure / Diagram Container -->
+                <div id="figure-container" class="mb-5 hidden"></div>
+
+                <!-- Options List -->
+                <div id="options-container" class="space-y-3"></div>
+            </div>
+
+            <!-- Bottom Pagination Controls -->
+            <div class="flex items-center justify-between border-t border-slate-100 pt-6 mt-8">
+                <button onclick="prevQuestion()" id="btn-prev" class="px-4 py-2 border border-slate-300 hover:bg-slate-50 text-slate-700 text-xs font-bold rounded-xl transition flex items-center space-x-1 disabled:opacity-40">
+                    <i data-lucide="chevron-left" class="w-4 h-4"></i>
+                    <span>Previous</span>
+                </button>
+                <button onclick="nextQuestion()" id="btn-next" class="px-5 py-2 bg-sky-600 hover:bg-sky-700 text-white text-xs font-bold rounded-xl shadow-sm transition flex items-center space-x-1">
+                    <span>Next</span>
+                    <i data-lucide="chevron-right" class="w-4 h-4"></i>
+                </button>
+            </div>
+        </div>
+
+        <!-- Right: Proctoring Feed & Question Navigator (4 cols) -->
+        <div class="lg:col-span-4 space-y-6">
+            
+            <!-- Live AI Multi-Sensor Proctoring Webcam Widget -->
+            <div class="bg-white rounded-3xl border border-slate-200 p-5 shadow-sm overflow-hidden">
+                <div class="flex items-center justify-between mb-3">
+                    <span class="text-xs font-bold text-slate-800 flex items-center space-x-1.5">
+                        <i data-lucide="shield-alert" class="w-4 h-4 text-emerald-600"></i>
+                        <span>AI Proctor Cam</span>
+                    </span>
+                    <span id="ai-active-pill" class="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-100 text-emerald-800 border border-emerald-200">
+                        <span class="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-ping mr-1"></span> AI Vision Online
+                    </span>
+                </div>
+                
+                <div class="relative rounded-2xl overflow-hidden bg-slate-900 aspect-video flex items-center justify-center border border-slate-300 shadow-inner">
+                    <video id="webcam-preview" autoplay muted playsinline class="w-full h-full object-cover"></video>
+                    <canvas id="ai-overlay" class="absolute inset-0 w-full h-full pointer-events-none"></canvas>
+                    
+                    <!-- Fallback / Camera Inactive -->
+                    <div id="webcam-fallback" class="absolute inset-0 flex flex-col items-center justify-center text-slate-400 p-4 text-center hidden bg-slate-900/90">
+                        <i data-lucide="camera-off" class="w-8 h-8 mb-1 text-slate-500"></i>
+                        <span class="text-[11px]">Connecting camera feed...</span>
+                    </div>
+
+                    <!-- Scan line effect -->
+                    <div class="absolute inset-x-0 h-0.5 bg-gradient-to-r from-transparent via-emerald-400 to-transparent pointer-events-none animate-pulse"></div>
+                </div>
+
+                <!-- Multi-Sensor AI Diagnostics Badges -->
+                <div class="mt-3 grid grid-cols-3 gap-1.5 text-center">
+                    <!-- Face Status -->
+                    <div class="p-1.5 rounded-xl border border-slate-100 bg-slate-50 flex flex-col items-center">
+                        <span class="text-[10px] text-slate-400 uppercase font-semibold">Face</span>
+                        <span id="hud-face" class="text-[11px] font-extrabold text-emerald-600 mt-0.5">Detecting...</span>
+                    </div>
+                    <!-- Phone / Device Status -->
+                    <div class="p-1.5 rounded-xl border border-slate-100 bg-slate-50 flex flex-col items-center">
+                        <span class="text-[10px] text-slate-400 uppercase font-semibold">Devices</span>
+                        <span id="hud-phone" class="text-[11px] font-extrabold text-emerald-600 mt-0.5">Scanning</span>
+                    </div>
+                    <!-- Audio / Voice Status -->
+                    <div class="p-1.5 rounded-xl border border-slate-100 bg-slate-50 flex flex-col items-center">
+                        <span class="text-[10px] text-slate-400 uppercase font-semibold">Audio</span>
+                        <span id="hud-audio" class="text-[11px] font-extrabold text-emerald-600 mt-0.5">Quiet ✓</span>
+                    </div>
+                </div>
+
+                <p class="text-[10px] text-slate-400 mt-2 text-center">Real-time AI proctoring: monitors faces, devices & audio.</p>
+            </div>
+
+            <!-- Question Palette -->
+            <div class="bg-white rounded-3xl border border-slate-200 p-5 shadow-sm">
+                <div class="flex items-center justify-between mb-4">
+                    <h4 class="text-xs font-bold text-slate-800 uppercase tracking-wider">Question Navigator</h4>
+                    <span id="answered-stat" class="text-xs font-semibold text-sky-600">0 / {{ questions|length }} Answered</span>
+                </div>
+
+                <div id="palette-grid" class="grid grid-cols-5 gap-2"></div>
+
+                <div class="mt-4 pt-3 border-t border-slate-100 grid grid-cols-3 gap-1 text-[11px] text-slate-500 text-center">
+                    <div><span class="inline-block w-2.5 h-2.5 rounded-full bg-sky-500 mr-1"></span>Answered</div>
+                    <div><span class="inline-block w-2.5 h-2.5 rounded-full bg-amber-400 mr-1"></span>Flagged</div>
+                    <div><span class="inline-block w-2.5 h-2.5 rounded-full bg-slate-200 mr-1"></span>Unvisited</div>
+                </div>
+            </div>
+
+        </div>
+
+    </div>
+
+    <!-- Hidden Exam Configuration Data for JS -->
+    <div id="exam-metadata" 
+         data-submission-id="{{ submission.id }}"
+         data-max-warnings="{{ submission.max_warnings }}"
+         data-duration-minutes="{{ submission.duration_minutes }}"
+         data-warnings-count="{{ submission.warnings_count }}"
+         data-enable-audio="{{ 1 if submission.enable_audio_detection in [1, True, '1'] else 0 }}"
+         class="hidden"></div>
+    <script id="exam-questions-json" type="application/json">
+        {{ questions|tojson }}
+    </script>
+
+    <script>
+        const metaEl = document.getElementById('exam-metadata');
+        const SUBMISSION_ID = Number(metaEl.dataset.submissionId);
+        const MAX_WARNINGS = Number(metaEl.dataset.maxWarnings);
+        const DURATION_MINUTES = Number(metaEl.dataset.durationMinutes);
+        const ENABLE_AUDIO = Number(metaEl.dataset.enableAudio) === 1;
+        const QUESTIONS = JSON.parse(document.getElementById('exam-questions-json').textContent);
+
+        let currentQuestionIndex = 0;
+        let studentAnswers = {}; // {question_id: answer_string}
+        let flaggedQuestions = new Set();
+        let warningsCount = Number(metaEl.dataset.warningsCount);
+        let isExamActive = false;
+        let isTerminated = false;
+        let timeRemainingSeconds = DURATION_MINUTES * 60;
+        let timerInterval = null;
+        let violationCooldown = false;
+
+        // File picker blur suppression flag (prevents false cheating warnings when uploading answer photos)
+        let isBrowsingFile = false;
+        let fileBrowseCooldownTimer = null;
+
+        function notifyFileBrowseStart() {
+            isBrowsingFile = true;
+            clearTimeout(fileBrowseCooldownTimer);
+        }
+
+        function notifyFileBrowseEnd() {
+            clearTimeout(fileBrowseCooldownTimer);
+            fileBrowseCooldownTimer = setTimeout(() => {
+                isBrowsingFile = false;
+            }, 2500);
+        }
+
+        window.addEventListener('focus', () => {
+            if (isBrowsingFile) {
+                notifyFileBrowseEnd();
+            }
+        });
+
+        // Initialize Icons
+        lucide.createIcons();
+
+        let isGracePeriod = true;
+        let aiVisionModel = null;
+        let aiDetectionInterval = null;
+        let audioAnalysisInterval = null;
+        let noPersonConsecutiveCount = 0;
+        let loudAudioConsecutiveCount = 0;
+
+        // Launch Exam & Enter Fullscreen
+        async function launchExamSession() {
+            // Activate a 5-second grace period for permissions & transitions
+            isGracePeriod = true;
+            setTimeout(() => { isGracePeriod = false; }, 5000);
+
+            try {
+                // Request Fullscreen
+                const docEl = document.documentElement;
+                if (docEl.requestFullscreen) {
+                    await docEl.requestFullscreen();
+                } else if (docEl.webkitRequestFullscreen) {
+                    await docEl.webkitRequestFullscreen();
+                } else if (docEl.msRequestFullscreen) {
+                    await docEl.msRequestFullscreen();
+                }
+            } catch (err) {
+                console.warn("Fullscreen request error:", err);
+            }
+
+            // Request Camera & Mic
+            initWebcam();
+
+            // Hide Modal
+            document.getElementById('start-modal').classList.add('hidden');
+            isExamActive = true;
+
+            // Start Timer
+            startTimer();
+
+            // Setup Anti-Cheating Event Listeners
+            initAntiCheatingProctor();
+
+            // Render First Question & Palette
+            renderQuestion(0);
+            renderPalette();
+        }
+
+        async function initWebcam() {
+            const videoEl = document.getElementById('webcam-preview');
+            if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+                console.warn("MediaDevices API unavailable.");
+                document.getElementById('webcam-fallback').classList.remove('hidden');
+                updateHudBadge('hud-face', 'No Media', 'rose');
+                updateHudBadge('hud-phone', 'Disabled', 'slate');
+                return;
+            }
+
+            let stream = null;
+            if (ENABLE_AUDIO) {
+                // Audio detection enabled: request both video and audio
+                try {
+                    stream = await navigator.mediaDevices.getUserMedia({ 
+                        video: { width: { ideal: 640 }, height: { ideal: 480 } }, 
+                        audio: true 
+                    });
+                    videoEl.srcObject = stream;
+                    initAudioProctor(stream);
+                } catch (err) {
+                    try {
+                        stream = await navigator.mediaDevices.getUserMedia({ video: true, audio: false });
+                        videoEl.srcObject = stream;
+                        updateHudBadge('hud-audio', 'No Mic', 'slate');
+                    } catch (e2) {
+                        console.warn("Camera permission not granted:", e2);
+                        document.getElementById('webcam-fallback').classList.remove('hidden');
+                        updateHudBadge('hud-face', 'No Camera', 'rose');
+                        updateHudBadge('hud-phone', 'Disabled', 'slate');
+                        return;
+                    }
+                }
+            } else {
+                // Audio detection disabled by instructor: request video only (no mic permission needed)
+                try {
+                    stream = await navigator.mediaDevices.getUserMedia({ 
+                        video: { width: { ideal: 640 }, height: { ideal: 480 } }, 
+                        audio: false 
+                    });
+                    videoEl.srcObject = stream;
+                    updateHudBadge('hud-audio', 'Off (Optional)', 'slate');
+                } catch (e2) {
+                    console.warn("Camera permission not granted:", e2);
+                    document.getElementById('webcam-fallback').classList.remove('hidden');
+                    updateHudBadge('hud-face', 'No Camera', 'rose');
+                    updateHudBadge('hud-phone', 'Disabled', 'slate');
+                    return;
+                }
+            }
+
+            // Start AI Vision Object & Face Detection Model
+            if (videoEl.readyState >= 1) {
+                startAIVisionEngine(videoEl);
+            } else {
+                videoEl.addEventListener('loadedmetadata', () => {
+                    startAIVisionEngine(videoEl);
+                }, { once: true });
+            }
+        }
+
+        // --- 1. Real-time AI Vision Engine (TensorFlow.js + COCO-SSD) ---
+        async function startAIVisionEngine(videoEl) {
+            const pillEl = document.getElementById('ai-active-pill');
+            if (pillEl) pillEl.innerHTML = '<span class="w-1.5 h-1.5 rounded-full bg-amber-400 animate-ping mr-1"></span> Loading AI Model...';
+
+            try {
+                if (typeof cocoSsd === 'undefined') {
+                    console.warn("COCO-SSD script loading pending...");
+                    setTimeout(() => startAIVisionEngine(videoEl), 1000);
+                    return;
+                }
+
+                aiVisionModel = await cocoSsd.load();
+                if (pillEl) {
+                    pillEl.className = "inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-100 text-emerald-800 border border-emerald-200";
+                    pillEl.innerHTML = '<span class="w-1.5 h-1.5 rounded-full bg-emerald-500 mr-1"></span> AI Engine Live';
+                }
+
+                const canvas = document.getElementById('ai-overlay');
+                const ctx = canvas.getContext('2d');
+
+                // Run detection every 1.5 seconds
+                aiDetectionInterval = setInterval(async () => {
+                    if (!isExamActive || isTerminated || !aiVisionModel || videoEl.readyState < 2) return;
+
+                    // Match canvas size to video render size
+                    canvas.width = videoEl.videoWidth || 640;
+                    canvas.height = videoEl.videoHeight || 480;
+                    ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+                    try {
+                        const predictions = await aiVisionModel.detect(videoEl);
+                        
+                        let personCount = 0;
+                        let detectedDevices = [];
+
+                        predictions.forEach(pred => {
+                            if (pred.score < 0.45) return;
+
+                            if (pred.class === 'person') {
+                                personCount++;
+                                drawBoundingBox(ctx, pred.bbox, 'Candidate', '#10b981');
+                            } else if (['cell phone', 'laptop', 'remote', 'book', 'tablet'].includes(pred.class)) {
+                                detectedDevices.push(pred.class);
+                                drawBoundingBox(ctx, pred.bbox, pred.class.toUpperCase(), '#f43f5e');
+                            }
+                        });
+
+                        // Skip violation alerts during initial startup grace period
+                        if (isGracePeriod) return;
+
+                        // Rule A: Mobile Phone / Device Detection
+                        if (detectedDevices.length > 0) {
+                            updateHudBadge('hud-phone', 'Phone Alert! 🚨', 'rose');
+                            triggerViolation('mobile_phone_detected', `Unauthorized electronic device detected: ${detectedDevices[0].toUpperCase()}`);
+                        } else {
+                            updateHudBadge('hud-phone', 'Clear ✓', 'emerald');
+                        }
+
+                        // Rule B: Face / Person Detection (0 = left desk, >1 = cheating assistance)
+                        if (personCount === 0) {
+                            noPersonConsecutiveCount++;
+                            updateHudBadge('hud-face', 'No Person ❌', 'rose');
+                            // Trigger violation after 2 consecutive missing cycles (~3 seconds)
+                            if (noPersonConsecutiveCount >= 2) {
+                                triggerViolation('no_face', 'No candidate face detected in webcam feed. Candidate left desk or covered camera.');
+                            }
+                        } else if (personCount > 1) {
+                            noPersonConsecutiveCount = 0;
+                            updateHudBadge('hud-face', `${personCount} People ⚠️`, 'rose');
+                            triggerViolation('multiple_faces', `Multiple persons (${personCount}) detected in webcam feed.`);
+                        } else {
+                            noPersonConsecutiveCount = 0;
+                            updateHudBadge('hud-face', '1 Person ✓', 'emerald');
+                        }
+
+                    } catch (detErr) {
+                        console.error("AI detection frame error:", detErr);
+                    }
+                }, 1400);
+
+            } catch (err) {
+                console.warn("AI Model load error:", err);
+                if (pillEl) pillEl.innerText = "Camera Active";
+            }
+        }
+
+        function drawBoundingBox(ctx, bbox, label, color) {
+            const [x, y, width, height] = bbox;
+            ctx.strokeStyle = color;
+            ctx.lineWidth = 2.5;
+            ctx.strokeRect(x, y, width, height);
+
+            ctx.fillStyle = color;
+            ctx.font = 'bold 12px Inter, sans-serif';
+            ctx.fillRect(x, Math.max(0, y - 18), ctx.measureText(label).width + 10, 18);
+
+            ctx.fillStyle = '#ffffff';
+            ctx.fillText(label, x + 5, Math.max(13, y - 4));
+        }
+
+        // --- 2. Real-time Acoustic / Voice Proctoring (Web Audio API) ---
+        function initAudioProctor(stream) {
+            if (!ENABLE_AUDIO) {
+                updateHudBadge('hud-audio', 'Off (Optional)', 'slate');
+                return;
+            }
+            try {
+                const AudioContext = window.AudioContext || window.webkitAudioContext;
+                if (!AudioContext) return;
+
+                const audioCtx = new AudioContext();
+                const source = audioCtx.createMediaStreamSource(stream);
+                const analyser = audioCtx.createAnalyser();
+                analyser.fftSize = 512;
+                source.connect(analyser);
+
+                const dataArray = new Uint8Array(analyser.frequencyBinCount);
+
+                audioAnalysisInterval = setInterval(() => {
+                    if (!isExamActive || isTerminated) return;
+
+                    analyser.getByteFrequencyData(dataArray);
+                    let sum = 0;
+                    for (let i = 0; i < dataArray.length; i++) {
+                        sum += dataArray[i];
+                    }
+                    const avgVolume = sum / dataArray.length; // 0 to 255
+
+                    // Threshold: speaking typically generates avgVolume > 38-45
+                    if (avgVolume > 42) {
+                        loudAudioConsecutiveCount++;
+                        updateHudBadge('hud-audio', 'Talking! 🎙️', 'rose');
+                        if (loudAudioConsecutiveCount >= 2) {
+                            triggerViolation('voice_detected', `Voice or speaking activity detected in room (level: ${Math.round(avgVolume)}).`);
+                            loudAudioConsecutiveCount = 0;
+                        }
+                    } else {
+                        loudAudioConsecutiveCount = 0;
+                        updateHudBadge('hud-audio', 'Quiet ✓', 'emerald');
+                    }
+                }, 800);
+
+            } catch (err) {
+                console.warn("Web Audio API error:", err);
+            }
+        }
+
+        function updateHudBadge(elementId, text, tone) {
+            const el = document.getElementById(elementId);
+            if (!el) return;
+            el.innerText = text;
+            if (tone === 'rose') {
+                el.className = 'text-[11px] font-extrabold text-rose-600 mt-0.5 animate-pulse';
+            } else if (tone === 'emerald') {
+                el.className = 'text-[11px] font-extrabold text-emerald-600 mt-0.5';
+            } else {
+                el.className = 'text-[11px] font-extrabold text-slate-500 mt-0.5';
+            }
+        }
+
+        // Anti-Cheating Engine
+        function initAntiCheatingProctor() {
+            // 1. Tab Switch / Window Minimize (visibilitychange)
+            document.addEventListener('visibilitychange', () => {
+                if (isBrowsingFile) return;
+                if (!isExamActive || isTerminated || isGracePeriod) return;
+                if (document.hidden) {
+                    triggerViolation('tab_switch', 'Student switched browser tab or minimized window.');
+                }
+            });
+
+            // 2. Window Blur (e.g. clicking another app / dual monitors)
+            window.addEventListener('blur', () => {
+                if (isBrowsingFile) return;
+                if (!isExamActive || isTerminated || isGracePeriod || (typeof Swal !== 'undefined' && Swal.isVisible())) return;
+                triggerViolation('window_blur', 'Exam window lost focus (clicked outside).');
+            });
+
+            // 3. Fullscreen Exit
+            document.addEventListener('fullscreenchange', () => {
+                if (isBrowsingFile) return;
+                if (!isExamActive || isTerminated || isGracePeriod || (typeof Swal !== 'undefined' && Swal.isVisible())) return;
+                const isFs = Boolean(document.fullscreenElement || document.webkitFullscreenElement || document.mozFullScreenElement || document.msFullscreenElement);
+                if (!isFs) {
+                    triggerViolation('fullscreen_exit', 'Student exited full-screen mode.');
+                }
+            });
+
+            // 4. Disable Right Click Context Menu
+            document.addEventListener('contextmenu', (e) => {
+                e.preventDefault();
+                triggerViolation('right_click', 'Attempted to open context menu.');
+            });
+
+            // 5. Disable Copy, Cut, Paste
+            ['copy', 'cut', 'paste'].forEach(evt => {
+                document.addEventListener(evt, (e) => {
+                    e.preventDefault();
+                    triggerViolation('clipboard_attempt', `Attempted to ${evt} content.`);
+                });
+            });
+
+            // 6. Block Shortcut Keys (Alt+Tab, F12, Ctrl+C, Ctrl+V, etc.)
+            document.addEventListener('keydown', (e) => {
+                if (
+                    e.key === 'F12' || 
+                    (e.ctrlKey && e.shiftKey && (e.key === 'I' || e.key === 'J' || e.key === 'C')) ||
+                    (e.ctrlKey && (e.key === 'u' || e.key === 'U'))
+                ) {
+                    e.preventDefault();
+                    triggerViolation('devtools_attempt', 'Attempted to open developer inspection tools.');
+                }
+            });
+        }
+
+        // Send violation report to backend & update warning counter
+        async function triggerViolation(type, details) {
+            if (violationCooldown || isTerminated) return;
+            violationCooldown = true;
+            setTimeout(() => { violationCooldown = false; }, 2500); // 2.5s cooldown to prevent multiple triggers at once
+
+            try {
+                const resp = await fetch(`/api/submission/${SUBMISSION_ID}/violation`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ type: type, details: details })
+                });
+                const res = await resp.json();
+
+                if (res.warnings_count !== undefined) {
+                    warningsCount = res.warnings_count;
+                    document.getElementById('strike-counter').innerText = warningsCount;
+                }
+
+                if (res.is_terminated) {
+                    isTerminated = true;
+                    isExamActive = false;
+                    clearInterval(timerInterval);
+                    clearInterval(aiDetectionInterval);
+                    clearInterval(audioAnalysisInterval);
+
+                    Swal.fire({
+                        icon: 'error',
+                        title: 'EXAM TERMINATED!',
+                        html: `
+                            <p class="text-sm text-slate-700 font-semibold mb-2">${res.reason}</p>
+                            <p class="text-xs text-rose-600 font-bold">You exceeded the maximum allowed cheating strikes (${warningsCount}/${MAX_WARNINGS}). Your responses have been locked and submitted to the tutor.</p>
+                        `,
+                        allowOutsideClick: false,
+                        showConfirmButton: true,
+                        confirmButtonText: 'View Report',
+                        confirmButtonColor: '#e11d48'
+                    }).then(() => {
+                        window.location.href = `/student/result/${SUBMISSION_ID}`;
+                    });
+                } else {
+                    // Show strike warning alert
+                    Swal.fire({
+                        icon: 'warning',
+                        title: `⚠️ WARNING (Strike ${warningsCount}/${MAX_WARNINGS})`,
+                        html: `
+                            <p class="text-sm font-semibold text-slate-800 mb-1">Violation: ${type.replace('_', ' ').toUpperCase()}</p>
+                            <p class="text-xs text-slate-500 mb-3">${details}</p>
+                            <p class="text-xs font-bold text-rose-600">Re-enter full-screen and stay on this page! Reaching ${MAX_WARNINGS} strikes will permanently terminate your exam.</p>
+                        `,
+                        confirmButtonText: 'Return to Exam',
+                        confirmButtonColor: '#0284c7'
+                    }).then(() => {
+                        // Re-request fullscreen if lost
+                        if (!document.fullscreenElement) {
+                            document.documentElement.requestFullscreen().catch(() => {});
+                        }
+                    });
+                }
+            } catch (err) {
+                console.error("Violation logging error:", err);
+            }
+        }
+
+        // Timer
+        function startTimer() {
+            updateTimerDisplay();
+            timerInterval = setInterval(() => {
+                timeRemainingSeconds--;
+                if (timeRemainingSeconds <= 0) {
+                    clearInterval(timerInterval);
+                    autoSubmitOnTimeUp();
+                } else {
+                    updateTimerDisplay();
+                }
+            }, 1000);
+        }
+
+        function updateTimerDisplay() {
+            const mins = Math.floor(timeRemainingSeconds / 60);
+            const secs = timeRemainingSeconds % 60;
+            document.getElementById('exam-timer').innerText = `${String(mins).padStart(2, '0')}:${String(secs).padStart(2, '0')}`;
+        }
+
+        function autoSubmitOnTimeUp() {
+            isExamActive = false;
+            Swal.fire({
+                icon: 'info',
+                title: 'Time Expired!',
+                text: 'Your exam time is over. Submitting your answers automatically...',
+                timer: 3000,
+                showConfirmButton: false
+            }).then(() => {
+                submitExamAnswers();
+            });
+        }
+
+        // Question Rendering
+        function renderQuestion(index) {
+            currentQuestionIndex = index;
+            const q = QUESTIONS[index];
+            if (!q) return;
+
+            document.getElementById('q-number-pill').innerText = `Question ${index + 1} of ${QUESTIONS.length}`;
+            document.getElementById('q-points-pill').innerText = `${q.points || 1.0} Mark${parseFloat(q.points) > 1 ? 's' : ''}`;
+            document.getElementById('current-question-text').innerText = q.question_text;
+
+            // Render Figure / Diagram if present
+            const figContainer = document.getElementById('figure-container');
+            if (q.figure_svg) {
+                figContainer.classList.remove('hidden');
+                figContainer.innerHTML = `
+                    <div class="p-4 bg-white border border-slate-200 rounded-2xl flex flex-col items-center shadow-xs">
+                        <span class="text-[10px] font-bold text-sky-800 bg-sky-50 px-3 py-0.5 rounded-full mb-3 uppercase tracking-wider border border-sky-100">Figure / Diagram</span>
+                        <div class="w-full max-w-md flex justify-center svg-diagram-box">
+                            ${q.figure_svg}
+                        </div>
+                    </div>
+                `;
+            } else if (q.figure_url) {
+                figContainer.classList.remove('hidden');
+                figContainer.innerHTML = `
+                    <div class="p-4 bg-white border border-slate-200 rounded-2xl flex flex-col items-center shadow-xs">
+                        <span class="text-[10px] font-bold text-indigo-800 bg-indigo-50 px-3 py-0.5 rounded-full mb-3 uppercase tracking-wider border border-indigo-100">Figure / Diagram</span>
+                        <img src="${q.figure_url}" alt="Exam Figure" class="max-h-60 object-contain rounded-xl border border-slate-100 cursor-pointer hover:shadow-md transition" onclick="previewFigureModal('${q.figure_url}')">
+                        <span class="text-[10px] text-slate-400 mt-1.5">Click image to enlarge</span>
+                    </div>
+                `;
+            } else {
+                figContainer.classList.add('hidden');
+                figContainer.innerHTML = '';
+            }
+
+            // Flag status
+            const isFlagged = flaggedQuestions.has(q.id);
+            document.getElementById('review-text').innerText = isFlagged ? 'Flagged for Review' : 'Flag for Review';
+            document.getElementById('btn-review').className = `text-xs font-semibold flex items-center space-x-1 transition ${isFlagged ? 'text-amber-600 font-bold' : 'text-slate-500 hover:text-amber-600'}`;
+
+            // Render Options or Written Text Area
+            const container = document.getElementById('options-container');
+            container.innerHTML = '';
+
+            const selectedAnswer = studentAnswers[String(q.id)] || '';
+
+            if (q.options && q.options.length > 0) {
+                // Objective choices (MCQ / True-False)
+                const currentChoice = typeof selectedAnswer === 'object' ? '' : selectedAnswer;
+                (q.options || []).forEach((opt, optIndex) => {
+                    const optBox = document.createElement('label');
+                    const isSelected = (currentChoice === opt);
+                    optBox.className = `flex items-center p-4 rounded-2xl border cursor-pointer transition ${isSelected ? 'border-sky-500 bg-sky-50/70 font-semibold text-sky-900 shadow-sm' : 'border-slate-200 hover:bg-slate-50 text-slate-700'}`;
+                    optBox.innerHTML = `
+                        <input type="radio" name="opt_choice" value="${opt.replace(/"/g, '&quot;')}" ${isSelected ? 'checked' : ''} onchange="selectOption('${q.id}', '${opt.replace(/'/g, "\\'")}')" class="w-4 h-4 text-sky-600 focus:ring-sky-500 mr-3">
+                        <span class="text-sm">${opt}</span>
+                    `;
+                    container.appendChild(optBox);
+                });
+            } else {
+                // Subjective / Short / Descriptive written answer + Handwritten photo upload
+                let existingText = '';
+                let existingImageUrl = '';
+                if (typeof selectedAnswer === 'object' && selectedAnswer !== null) {
+                    existingText = selectedAnswer.text || '';
+                    existingImageUrl = selectedAnswer.image_url || '';
+                } else if (typeof selectedAnswer === 'string') {
+                    existingText = selectedAnswer;
+                }
+
+                const writeBox = document.createElement('div');
+                writeBox.className = 'space-y-4 mt-2';
+                writeBox.innerHTML = `
+                    <div class="space-y-2">
+                        <div class="flex items-center justify-between text-xs text-slate-500">
+                            <span class="font-bold text-slate-700">Written Response (${(q.question_type || 'short').toUpperCase()}):</span>
+                            <span class="text-[11px] text-emerald-600 font-semibold flex items-center"><span class="w-1.5 h-1.5 rounded-full bg-emerald-500 mr-1"></span>Auto-saved</span>
+                        </div>
+                        <textarea rows="5" placeholder="Type your answer, key steps, or written explanation here (optional if uploading photo)..." class="w-full p-4 text-sm rounded-2xl border border-slate-300 focus:outline-none focus:ring-2 focus:ring-sky-500 bg-slate-50/30 focus:bg-white text-slate-900 leading-relaxed font-sans" oninput="saveTextInput('${q.id}', this.value)">${escapeHtml(existingText)}</textarea>
+                    </div>
+
+                    <!-- Handwritten Solution / Photo Upload Section -->
+                    <div class="p-4 sm:p-5 rounded-2xl border ${existingImageUrl ? 'border-emerald-300 bg-emerald-50/25' : 'border-dashed border-sky-300 bg-sky-50/30'} transition" id="upload-box-${q.id}">
+                        <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-2 mb-3">
+                            <div class="flex items-start sm:items-center space-x-2.5">
+                                <span class="p-2 rounded-xl ${existingImageUrl ? 'bg-emerald-100 text-emerald-700' : 'bg-sky-100 text-sky-700'} flex-shrink-0">
+                                    <i data-lucide="camera" class="w-4 h-4"></i>
+                                </span>
+                                <div>
+                                    <h4 class="text-xs font-bold text-slate-900">Upload Handwritten Answer / Paper Photo</h4>
+                                    <p class="text-[11px] text-slate-500">For geometric proofs, mathematical calculations, or diagrams, write on paper and upload a photo.</p>
+                                </div>
+                            </div>
+                            ${existingImageUrl ? `
+                                <span class="inline-flex items-center px-2.5 py-1 rounded-full text-[11px] font-bold bg-emerald-100 text-emerald-800 border border-emerald-200 self-start sm:self-auto">
+                                    <i data-lucide="check-circle" class="w-3.5 h-3.5 mr-1 text-emerald-600"></i> Solution Attached
+                                </span>
+                            ` : ''}
+                        </div>
+
+                        ${existingImageUrl ? `
+                            <div class="p-3.5 bg-white border border-slate-200 rounded-xl shadow-xs flex flex-col md:flex-row items-center gap-4">
+                                <div class="relative group cursor-pointer" onclick="previewImageModal('${existingImageUrl}')">
+                                    <img src="${existingImageUrl}" alt="Handwritten Answer" class="h-32 max-w-[220px] object-cover rounded-lg border border-slate-200 group-hover:opacity-90 shadow-xs transition">
+                                    <div class="absolute inset-0 bg-black/30 rounded-lg opacity-0 group-hover:opacity-100 flex items-center justify-center text-white text-[11px] font-bold transition">
+                                        <i data-lucide="zoom-in" class="w-4 h-4 mr-1"></i> Enlarge
+                                    </div>
+                                </div>
+                                <div class="flex flex-col space-y-2 w-full md:w-auto">
+                                    <button type="button" onclick="previewImageModal('${existingImageUrl}')" class="px-3.5 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-semibold rounded-xl flex items-center justify-center space-x-2 transition">
+                                        <i data-lucide="maximize-2" class="w-3.5 h-3.5"></i>
+                                        <span>View Full Resolution</span>
+                                    </button>
+                                    <label class="px-3.5 py-2 bg-sky-50 hover:bg-sky-100 text-sky-700 text-xs font-semibold rounded-xl flex items-center justify-center space-x-2 cursor-pointer transition border border-sky-200">
+                                        <i data-lucide="refresh-cw" class="w-3.5 h-3.5"></i>
+                                        <span>Replace / Retake Photo</span>
+                                        <input type="file" accept="image/*" class="hidden" onchange="uploadStudentAnswerImage('${q.id}', this)" onclick="notifyFileBrowseStart()">
+                                    </label>
+                                    <button type="button" onclick="removeStudentAnswerImage('${q.id}')" class="px-3.5 py-2 bg-rose-50 hover:bg-rose-100 text-rose-600 text-xs font-semibold rounded-xl flex items-center justify-center space-x-2 transition border border-rose-200">
+                                        <i data-lucide="trash-2" class="w-3.5 h-3.5"></i>
+                                        <span>Remove Photo</span>
+                                    </button>
+                                </div>
+                            </div>
+                        ` : `
+                            <div class="mt-2 flex flex-col sm:flex-row items-start sm:items-center gap-3">
+                                <label class="px-4 py-2.5 bg-sky-600 hover:bg-sky-700 text-white text-xs font-bold rounded-xl flex items-center justify-center space-x-2 cursor-pointer shadow-sm hover:shadow transition">
+                                    <i data-lucide="upload-cloud" class="w-4 h-4"></i>
+                                    <span>Upload Handwritten Photo</span>
+                                    <input type="file" accept="image/*" class="hidden" onchange="uploadStudentAnswerImage('${q.id}', this)" onclick="notifyFileBrowseStart()">
+                                </label>
+                                <span class="text-[11px] text-slate-500 font-medium">Supports JPG, PNG, WEBP (take photo on mobile / upload image)</span>
+                            </div>
+                        `}
+                    </div>
+                `;
+                container.appendChild(writeBox);
+            }
+
+            // Update Navigation Button States
+            document.getElementById('btn-prev').disabled = (index === 0);
+            document.getElementById('btn-next').innerText = (index === QUESTIONS.length - 1) ? 'Finish & Review' : 'Next';
+
+            renderPalette();
+            lucide.createIcons();
+        }
+
+        function escapeHtml(text) {
+            if (!text) return '';
+            return String(text)
+                .replace(/&/g, '&amp;')
+                .replace(/</g, '&lt;')
+                .replace(/>/g, '&gt;')
+                .replace(/"/g, '&quot;')
+                .replace(/'/g, '&#039;');
+        }
+
+        function previewFigureModal(url) {
+            Swal.fire({
+                title: 'Question Diagram',
+                imageUrl: url,
+                imageAlt: 'Diagram',
+                confirmButtonText: 'Close',
+                confirmButtonColor: '#0284c7'
+            });
+        }
+
+        function previewImageModal(url) {
+            Swal.fire({
+                title: 'Handwritten Answer Preview',
+                imageUrl: url,
+                imageAlt: 'Handwritten Answer',
+                confirmButtonText: 'Close',
+                confirmButtonColor: '#0284c7',
+                width: '80%'
+            });
+        }
+
+        function selectOption(questionId, chosenOption) {
+            studentAnswers[String(questionId)] = chosenOption;
+            renderPalette();
+            renderQuestion(currentQuestionIndex);
+        }
+
+        function saveTextInput(questionId, value) {
+            const curr = studentAnswers[String(questionId)];
+            if (typeof curr === 'object' && curr !== null) {
+                curr.text = value;
+            } else {
+                studentAnswers[String(questionId)] = {
+                    text: value,
+                    image_url: ''
+                };
+            }
+            renderPalette();
+        }
+
+        async function uploadStudentAnswerImage(questionId, inputEl) {
+            notifyFileBrowseEnd();
+            const file = inputEl.files && inputEl.files[0];
+            if (!file) return;
+
+            if (file.size > 20 * 1024 * 1024) {
+                Swal.fire({
+                    icon: 'warning',
+                    title: 'File Too Large',
+                    text: 'Please select an image smaller than 20MB.'
+                });
+                return;
+            }
+
+            const formData = new FormData();
+            formData.append('answer_image', file);
+            formData.append('question_id', questionId);
+
+            Swal.fire({
+                title: 'Uploading Answer Image...',
+                text: 'Saving your handwritten solution securely.',
+                allowOutsideClick: false,
+                didOpen: () => {
+                    Swal.showLoading();
+                }
+            });
+
+            try {
+                const resp = await fetch(`/api/submission/${SUBMISSION_ID}/upload-answer-image`, {
+                    method: 'POST',
+                    body: formData
+                });
+                const res = await resp.json();
+
+                if (res.success && res.image_url) {
+                    const curr = studentAnswers[String(questionId)];
+                    if (typeof curr === 'object' && curr !== null) {
+                        curr.image_url = res.image_url;
+                    } else {
+                        studentAnswers[String(questionId)] = {
+                            text: typeof curr === 'string' ? curr : '',
+                            image_url: res.image_url
+                        };
+                    }
+                    renderPalette();
+                    renderQuestion(currentQuestionIndex);
+                    Swal.fire({
+                        icon: 'success',
+                        title: 'Attached Successfully!',
+                        text: 'Your handwritten answer photo has been saved.',
+                        timer: 1600,
+                        showConfirmButton: false
+                    });
+                } else {
+                    Swal.fire({
+                        icon: 'error',
+                        title: 'Upload Failed',
+                        text: res.error || 'Failed to upload image.'
+                    });
+                }
+            } catch (err) {
+                Swal.fire({
+                    icon: 'error',
+                    title: 'Network Error',
+                    text: 'Could not reach server to upload image.'
+                });
+            }
+        }
+
+        function removeStudentAnswerImage(questionId) {
+            const curr = studentAnswers[String(questionId)];
+            if (typeof curr === 'object' && curr !== null) {
+                curr.image_url = '';
+                if (!curr.text || !curr.text.trim()) {
+                    delete studentAnswers[String(questionId)];
+                }
+            }
+            renderPalette();
+            renderQuestion(currentQuestionIndex);
+        }
+
+        function toggleMarkForReview() {
+            const q = QUESTIONS[currentQuestionIndex];
+            if (flaggedQuestions.has(q.id)) {
+                flaggedQuestions.delete(q.id);
+            } else {
+                flaggedQuestions.add(q.id);
+            }
+            renderQuestion(currentQuestionIndex);
+        }
+
+        function prevQuestion() {
+            if (currentQuestionIndex > 0) {
+                renderQuestion(currentQuestionIndex - 1);
+            }
+        }
+
+        function nextQuestion() {
+            if (currentQuestionIndex < QUESTIONS.length - 1) {
+                renderQuestion(currentQuestionIndex + 1);
+            } else {
+                confirmSubmitExam();
+            }
+        }
+
+        function renderPalette() {
+            const grid = document.getElementById('palette-grid');
+            grid.innerHTML = '';
+            let answeredCount = 0;
+
+            QUESTIONS.forEach((q, idx) => {
+                const ans = studentAnswers[String(q.id)];
+                let isAnswered = false;
+                if (typeof ans === 'object' && ans !== null) {
+                    isAnswered = Boolean((ans.text && ans.text.trim()) || ans.image_url);
+                } else if (typeof ans === 'string') {
+                    isAnswered = Boolean(ans.trim());
+                }
+
+                const isFlagged = flaggedQuestions.has(q.id);
+                const isCurrent = (idx === currentQuestionIndex);
+
+                if (isAnswered) answeredCount++;
+
+                let bgClass = 'bg-slate-100 text-slate-700 hover:bg-slate-200';
+                if (isCurrent) {
+                    bgClass = 'ring-2 ring-sky-600 font-bold bg-sky-50 text-sky-700';
+                }
+                if (isAnswered) {
+                    bgClass = 'bg-sky-600 text-white font-bold';
+                }
+                if (isFlagged) {
+                    bgClass = 'bg-amber-400 text-amber-950 font-bold';
+                }
+
+                const btn = document.createElement('button');
+                btn.className = `w-10 h-10 rounded-xl text-xs flex items-center justify-center transition shadow-sm ${bgClass}`;
+                btn.innerText = idx + 1;
+                btn.onclick = () => renderQuestion(idx);
+                grid.appendChild(btn);
+            });
+
+            document.getElementById('answered-stat').innerText = `${answeredCount} / ${QUESTIONS.length} Answered`;
+        }
+
+        function confirmSubmitExam() {
+            let answeredCount = 0;
+            QUESTIONS.forEach(q => {
+                const ans = studentAnswers[String(q.id)];
+                if (typeof ans === 'object' && ans !== null) {
+                    if ((ans.text && ans.text.trim()) || ans.image_url) answeredCount++;
+                } else if (typeof ans === 'string' && ans.trim()) {
+                    answeredCount++;
+                }
+            });
+            const unanswered = QUESTIONS.length - answeredCount;
+
+            Swal.fire({
+                title: 'Submit Examination?',
+                text: unanswered > 0 ? `You still have ${unanswered} unanswered question(s). Are you sure you want to finish?` : 'Are you sure you want to finalize and submit your exam?',
+                icon: 'question',
+                showCancelButton: true,
+                confirmButtonColor: '#059669',
+                cancelButtonColor: '#64748b',
+                confirmButtonText: 'Yes, Submit Now'
+            }).then((res) => {
+                if (res.isConfirmed) {
+                    submitExamAnswers();
+                }
+            });
+        }
+
+        async function submitExamAnswers() {
+            isExamActive = false;
+            clearInterval(timerInterval);
+            clearInterval(aiDetectionInterval);
+            clearInterval(audioAnalysisInterval);
+
+            Swal.fire({
+                title: 'Grading and Submitting...',
+                text: 'Please wait while your score is calculated.',
+                allowOutsideClick: false,
+                didOpen: () => {
+                    Swal.showLoading();
+                }
+            });
+
+            try {
+                const resp = await fetch(`/api/submission/${SUBMISSION_ID}/submit`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ answers: studentAnswers })
+                });
+                const res = await resp.json();
+
+                if (res.success) {
+                    window.location.href = `/student/result/${SUBMISSION_ID}`;
+                } else {
+                    Swal.fire({ icon: 'error', title: 'Error', text: res.error || 'Failed to submit.' });
+                }
+            } catch (err) {
+                Swal.fire({ icon: 'error', title: 'Network Error', text: 'Failed to reach server.' });
+            }
+        }
+    </script>
+</body>
+</html>
