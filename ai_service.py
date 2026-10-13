@@ -3,6 +3,7 @@ import json
 import base64
 import re
 import requests
+import concurrent.futures
 from pypdf import PdfReader
 from database import get_setting
 
@@ -403,58 +404,63 @@ def generate_questions_with_groq(api_key, text_content=None, num_questions=5, qu
 
 def generate_questions_unified(gemini_key=None, groq_key=None, text_content=None, image_paths=None, num_questions=5, question_type="mcq", difficulty="Medium", custom_prompt=None, total_marks=None, available_figures=None):
     """
-    Unified AI Orchestrator: Gemini (primary, multimodal) → Groq (fast fallback).
+    PARALLEL AI Orchestrator: Fires Groq + Gemini simultaneously.
+    Returns the FIRST successful result — no waiting for the slow one.
+    Groq typically wins in 5-15s. Gemini handles images/PDFs.
     """
-    gemini_err = None
-    # --- 1. Try Gemini first (supports images/PDFs) ---
-    if gemini_key:
-        result = generate_questions_with_gemini(
-            api_key=gemini_key,
-            text_content=text_content,
-            image_paths=image_paths,
-            num_questions=num_questions,
-            question_type=question_type,
-            difficulty=difficulty,
-            custom_prompt=custom_prompt,
-            total_marks=total_marks,
-            available_figures=available_figures
-        )
-        if result.get("success"):
-            return result
-        gemini_err = result.get("error")
-        print(f"Gemini attempt failed: {gemini_err}. Falling back to Groq...")
+    if not gemini_key and not groq_key:
+        return generate_mock_questions(text_content or "", num_questions=num_questions, question_type=question_type, total_marks=total_marks)
 
-    # --- 2. Fallback to Groq (ultra-fast, text-based) ---
-    groq_err = None
-    if groq_key:
-        result = generate_questions_with_groq(
-            api_key=groq_key,
-            text_content=text_content,
-            num_questions=num_questions,
-            question_type=question_type,
-            difficulty=difficulty,
-            custom_prompt=custom_prompt,
-            total_marks=total_marks,
-            available_figures=available_figures
-        )
-        if result.get("success"):
-            return result
-        groq_err = result.get("error")
-        print(f"Groq attempt failed: {groq_err}")
+    kwargs_gemini = dict(
+        api_key=gemini_key,
+        text_content=text_content,
+        image_paths=image_paths,
+        num_questions=num_questions,
+        question_type=question_type,
+        difficulty=difficulty,
+        custom_prompt=custom_prompt,
+        total_marks=total_marks,
+        available_figures=available_figures
+    )
+    kwargs_groq = dict(
+        api_key=groq_key,
+        text_content=text_content,
+        num_questions=num_questions,
+        question_type=question_type,
+        difficulty=difficulty,
+        custom_prompt=custom_prompt,
+        total_marks=total_marks,
+        available_figures=available_figures
+    )
 
-    # --- 3. If both keys present but all failed ---
-    if gemini_key or groq_key:
-        errors = []
-        if gemini_key:
-            errors.append(f"Gemini: {gemini_err or 'Failed'}")
+    futures_map = {}
+    errors = []
+
+    with concurrent.futures.ThreadPoolExecutor(max_workers=2) as executor:
         if groq_key:
-            errors.append(f"Groq: {groq_err or 'Failed'}")
-        return {
-            "success": False,
-            "error": "AI generation could not complete. " + " | ".join(errors) + ". Please check API keys or quotas."
-        }
+            futures_map[executor.submit(generate_questions_with_groq, **kwargs_groq)] = "Groq"
+        if gemini_key:
+            futures_map[executor.submit(generate_questions_with_gemini, **kwargs_gemini)] = "Gemini"
 
-    return generate_mock_questions(text_content or "", num_questions=num_questions, question_type=question_type, total_marks=total_marks)
+        for future in concurrent.futures.as_completed(futures_map, timeout=180):
+            provider = futures_map[future]
+            try:
+                result = future.result()
+                if result.get("success"):
+                    print(f"{provider} won the race!")
+                    return result
+                else:
+                    errors.append(f"{provider}: {result.get('error', 'Failed')}")
+                    print(f"{provider} failed: {result.get('error')}")
+            except Exception as e:
+                errors.append(f"{provider}: {str(e)}")
+                print(f"{provider} exception: {e}")
+
+    # Both failed
+    return {
+        "success": False,
+        "error": "AI generation could not complete. " + " | ".join(errors) + ". Please check your API keys or quotas."
+    }
 
 def generate_mock_questions(topic_or_context, num_questions=5, question_type="mcq", total_marks=None):
     """
