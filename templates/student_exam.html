@@ -24,9 +24,10 @@
     <script src="https://unpkg.com/lucide@latest"></script>
     <!-- SweetAlert2 -->
     <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
-    <!-- TensorFlow.js & COCO-SSD Real-time AI Vision Proctoring -->
+    <!-- TensorFlow.js & COCO-SSD + BlazeFace Real-time AI Vision Proctoring -->
     <script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs@latest/dist/tf.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/@tensorflow-models/coco-ssd@latest"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@tensorflow-models/blazeface@latest"></script>
     <style>
         @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap');
         body {
@@ -338,6 +339,7 @@
 
         let isGracePeriod = true;
         let aiVisionModel = null;
+        let blazeFaceModel = null;  // secondary close-up face detector
         let aiDetectionInterval = null;
         let audioAnalysisInterval = null;
         let noPersonConsecutiveCount = 0;
@@ -347,7 +349,8 @@
         async function launchExamSession() {
             // Activate a 5-second grace period for permissions & transitions
             isGracePeriod = true;
-            setTimeout(() => { isGracePeriod = false; }, 5000);
+            // 15-second grace period: model warm-up + permission prompts take time
+            setTimeout(() => { isGracePeriod = false; }, 15000);
 
             try {
                 // Request Fullscreen
@@ -474,7 +477,7 @@
             }
         }
 
-        // --- 1. Real-time AI Vision Engine (TensorFlow.js + COCO-SSD) ---
+        // --- 1. Real-time AI Vision Engine (TensorFlow.js + COCO-SSD + BlazeFace) ---
         async function startAIVisionEngine(videoEl) {
             if (!ENABLE_VIDEO) return;
             const pillEl = document.getElementById('ai-active-pill');
@@ -487,7 +490,15 @@
                     return;
                 }
 
-                aiVisionModel = await cocoSsd.load();
+                // Load both models in parallel for faster startup
+                const modelPromises = [cocoSsd.load()];
+                if (typeof blazeface !== 'undefined') {
+                    modelPromises.push(blazeface.load());
+                }
+                const loaded = await Promise.all(modelPromises);
+                aiVisionModel = loaded[0];
+                if (loaded[1]) blazeFaceModel = loaded[1];
+
                 if (pillEl) {
                     pillEl.className = "inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-100 text-emerald-800 border border-emerald-200";
                     pillEl.innerHTML = '<span class="w-1.5 h-1.5 rounded-full bg-emerald-500 mr-1"></span> AI Engine Live';
@@ -506,22 +517,42 @@
                     ctx.clearRect(0, 0, canvas.width, canvas.height);
 
                     try {
+                        // Run COCO-SSD (good for multi-person / devices)
                         const predictions = await aiVisionModel.detect(videoEl);
-                        
+
+                        // Run BlazeFace in parallel if available (great for close-up face detection)
+                        let blazeFaceCount = 0;
+                        if (blazeFaceModel) {
+                            try {
+                                const faces = await blazeFaceModel.estimateFaces(videoEl, false);
+                                blazeFaceCount = faces.length;
+                                // Draw face boxes from BlazeFace
+                                faces.forEach(face => {
+                                    const tl = face.topLeft;
+                                    const br = face.bottomRight;
+                                    const w = br[0] - tl[0];
+                                    const h = br[1] - tl[1];
+                                    drawBoundingBox(ctx, [tl[0], tl[1], w, h], 'Face ✓', '#10b981');
+                                });
+                            } catch(bf) { /* blazeface frame error, ignore */ }
+                        }
+
                         let personCount = 0;
                         let detectedDevices = [];
 
                         predictions.forEach(pred => {
-                            if (pred.score < 0.45) return;
-
-                            if (pred.class === 'person') {
+                            // Lower threshold to 0.25 for persons (helps with close-up cam angles)
+                            if (pred.class === 'person' && pred.score >= 0.25) {
                                 personCount++;
                                 drawBoundingBox(ctx, pred.bbox, 'Candidate', '#10b981');
-                            } else if (['cell phone', 'laptop', 'remote', 'book', 'tablet'].includes(pred.class)) {
+                            } else if (pred.score >= 0.45 && ['cell phone', 'laptop', 'remote', 'book', 'tablet'].includes(pred.class)) {
                                 detectedDevices.push(pred.class);
                                 drawBoundingBox(ctx, pred.bbox, pred.class.toUpperCase(), '#f43f5e');
                             }
                         });
+
+                        // Combine: either COCO person OR BlazeFace counts as "person present"
+                        const totalPersonCount = Math.max(personCount, blazeFaceCount);
 
                         // Skip violation alerts during initial startup grace period
                         if (isGracePeriod) return;
@@ -534,18 +565,19 @@
                             updateHudBadge('hud-phone', 'Clear ✓', 'emerald');
                         }
 
-                        // Rule B: Face / Person Detection (0 = left desk, >1 = cheating assistance)
-                        if (personCount === 0) {
+                        // Rule B: Face / Person Detection
+                        // Requires 6 consecutive misses (~8 seconds) before flagging to avoid false positives
+                        if (totalPersonCount === 0) {
                             noPersonConsecutiveCount++;
                             updateHudBadge('hud-face', 'No Person ❌', 'rose');
-                            // Trigger violation after 2 consecutive missing cycles (~3 seconds)
-                            if (noPersonConsecutiveCount >= 2) {
+                            if (noPersonConsecutiveCount >= 6) {
                                 triggerViolation('no_face', 'No candidate face detected in webcam feed. Candidate left desk or covered camera.');
                             }
-                        } else if (personCount > 1) {
+                        } else if (totalPersonCount > 1 && blazeFaceCount <= 1) {
+                            // Only flag multiple people if BlazeFace also confirms >1 face
                             noPersonConsecutiveCount = 0;
-                            updateHudBadge('hud-face', `${personCount} People ⚠️`, 'rose');
-                            triggerViolation('multiple_faces', `Multiple persons (${personCount}) detected in webcam feed.`);
+                            updateHudBadge('hud-face', `${totalPersonCount} People ⚠️`, 'rose');
+                            triggerViolation('multiple_faces', `Multiple persons (${totalPersonCount}) detected in webcam feed.`);
                         } else {
                             noPersonConsecutiveCount = 0;
                             updateHudBadge('hud-face', '1 Person ✓', 'emerald');
