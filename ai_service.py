@@ -668,3 +668,107 @@ Return ONLY a JSON object with this exact structure:
         "success": False,
         "error": "AI evaluation could not be completed. Please configure a valid Gemini or Groq API key in Tutor Settings."
     }
+
+
+def verify_faces_with_gemini(gemini_key, reference_image_path, live_snapshot_path, student_name=""):
+    """
+    Compares a registered student profile photo (reference) with a live webcam snapshot using Gemini Vision AI.
+    Returns: {"success": bool, "is_match": bool, "confidence": float, "reason": str}
+    """
+    if not gemini_key:
+        return {"success": False, "error": "Gemini API key is required for biometric face verification."}
+
+    if not reference_image_path or not os.path.exists(reference_image_path):
+        return {"success": False, "error": "Registered student reference photo not found on server."}
+
+    if not live_snapshot_path or not os.path.exists(live_snapshot_path):
+        return {"success": False, "error": "Live webcam snapshot not found."}
+
+    try:
+        ref_mime, ref_b64 = encode_image_base64(reference_image_path)
+        live_mime, live_b64 = encode_image_base64(live_snapshot_path)
+    except Exception as enc_err:
+        return {"success": False, "error": f"Failed to encode facial images: {enc_err}"}
+
+    prompt = f"""You are a high-security biometric proctoring verification system.
+TASK: Compare IMAGE 1 (Official registered reference photo of student: {student_name or 'Candidate'}) with IMAGE 2 (Live webcam snapshot captured right now at exam check-in).
+
+Determine whether both images show the EXACT SAME INDIVIDUAL.
+Analyze:
+- Facial features: eye spacing, eyebrow shape, nose bridge/tip, mouth width, lips, ear placement.
+- Facial structure: jawline, cheekbones, chin, forehead, overall face shape.
+- Account for reasonable variations: slight lighting differences, camera angles, glasses, minor expression changes, or hairstyles.
+- Strictly detect impersonation: if someone else (friend, sibling, different person, impostor) is sitting in front of the camera, flag is_match as false.
+
+STRICT JSON OUTPUT FORMAT ONLY:
+{{
+  "is_match": true,
+  "confidence": 92,
+  "reason": "Facial symmetry, nose bridge, eye spacing, and jawline structure match the registered student."
+}}
+
+If the person does NOT match:
+{{
+  "is_match": false,
+  "confidence": 20,
+  "reason": "Different facial geometry, jawline, and nose structure from the registered profile photo."
+}}
+"""
+
+    parts = [
+        {"text": prompt},
+        {"text": "--- IMAGE 1: REGISTERED STUDENT REFERENCE PHOTO ---"},
+        {"inline_data": {"mime_type": ref_mime, "data": ref_b64}},
+        {"text": "--- IMAGE 2: LIVE WEBCAM SNAPSHOT TAKEN AT EXAM ENTRY ---"},
+        {"inline_data": {"mime_type": live_mime, "data": live_b64}}
+    ]
+
+    models = [
+        "gemini-3.8-flash",
+        "gemini-flash-latest",
+        "gemini-3.5-flash",
+        "gemini-3.5-flash-lite",
+        "gemini-flash-lite-latest"
+    ]
+
+    for model_name in models:
+        url = f"https://generativelanguage.googleapis.com/v1beta/models/{model_name}:generateContent?key={gemini_key}"
+        payload = {
+            "contents": [{"parts": parts}],
+            "generationConfig": {
+                "temperature": 0.1,
+                "response_mime_type": "application/json"
+            }
+        }
+        try:
+            resp = requests.post(url, json=payload, headers={"Content-Type": "application/json"}, timeout=35)
+            if resp.status_code == 200:
+                raw_text = resp.json()["candidates"][0]["content"]["parts"][0]["text"].strip()
+                if raw_text.startswith("```json"):
+                    raw_text = raw_text[7:]
+                if raw_text.startswith("```"):
+                    raw_text = raw_text[3:]
+                if raw_text.endswith("```"):
+                    raw_text = raw_text[:-3]
+                raw_text = raw_text.strip()
+                data = json.loads(raw_text)
+                is_match = bool(data.get("is_match", False))
+                confidence = float(data.get("confidence", 0.0))
+                reason = data.get("reason", "Face verification evaluated by Gemini AI.")
+                return {
+                    "success": True,
+                    "is_match": is_match,
+                    "confidence": round(confidence, 1),
+                    "reason": reason,
+                    "model_used": f"Gemini Vision ({model_name})"
+                }
+            else:
+                print(f"Gemini face verification error ({model_name}): status {resp.status_code} - {resp.text}")
+        except Exception as e:
+            print(f"Gemini face verification exception ({model_name}): {e}")
+
+    return {
+        "success": False,
+        "error": "Gemini AI face verification failed to respond. Please verify your GEMINI_API_KEY."
+    }
+

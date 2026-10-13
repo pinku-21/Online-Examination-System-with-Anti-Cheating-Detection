@@ -29,6 +29,7 @@ from database import (
     get_user_by_id,
     get_student_submissions
 )
+import base64
 from ai_service import (
     extract_text_from_pdf, 
     extract_figures_from_pdf,
@@ -36,7 +37,8 @@ from ai_service import (
     generate_questions_with_groq,
     generate_questions_unified,
     generate_mock_questions,
-    evaluate_answer_with_ai
+    evaluate_answer_with_ai,
+    verify_faces_with_gemini
 )
 
 IST = timezone(timedelta(hours=5, minutes=30))
@@ -639,6 +641,190 @@ def api_upload_answer_image(submission_id):
         "image_url": f"/static/student_answers/{unique_name}"
     })
 
+@app.route("/api/student/upload-profile-photo", methods=["POST"])
+@login_required
+def api_upload_profile_photo():
+    """Allows student or admin to upload their reference profile photo for biometric verification."""
+    uploaded_file = request.files.get("profile_photo") or request.files.get("file")
+    user_id = session.get("user_id")
+    if not user_id:
+        return jsonify({"success": False, "error": "Not logged in."}), 401
+
+    if not uploaded_file or not uploaded_file.filename:
+        return jsonify({"success": False, "error": "No image file provided."}), 400
+
+    filename = secure_filename(uploaded_file.filename) or "profile.jpg"
+    _, ext = os.path.splitext(filename)
+    if not ext:
+        ext = ".jpg"
+    if ext.lower() not in [".jpg", ".jpeg", ".png", ".webp", ".bmp", ".heic"]:
+        ext = ".jpg"
+
+    unique_name = f"user_{user_id}_{int(datetime.now().timestamp())}{ext}"
+    upload_dir = os.path.join(os.path.dirname(__file__), "static", "profile_photos")
+    os.makedirs(upload_dir, exist_ok=True)
+    save_path = os.path.join(upload_dir, unique_name)
+    uploaded_file.save(save_path)
+    rel_url = f"/static/profile_photos/{unique_name}"
+
+    conn = get_connection()
+    cursor = conn.cursor()
+    cursor.execute("UPDATE users SET profile_photo = ? WHERE id = ?", (rel_url, user_id))
+    conn.commit()
+    conn.close()
+
+    session["profile_photo"] = rel_url
+    return jsonify({"success": True, "profile_photo_url": rel_url})
+
+@app.route("/api/submission/<int:submission_id>/verify-face-ai", methods=["POST"])
+@login_required
+def api_verify_face_ai(submission_id):
+    """
+    Biometric Face Verification endpoint using Gemini Vision AI.
+    Compares live webcam snapshot with student's registered reference photo.
+    """
+    conn = get_connection()
+    cursor = conn.cursor()
+    cursor.execute("""
+        SELECT s.*, u.profile_photo, u.full_name AS registered_full_name
+        FROM submissions s
+        LEFT JOIN users u ON s.user_id = u.id
+        WHERE s.id = ?
+    """, (submission_id,))
+    sub_row = cursor.fetchone()
+    if not sub_row:
+        conn.close()
+        return jsonify({"success": False, "error": "Submission not found."}), 404
+
+    # Extract webcam snapshot
+    live_file = request.files.get("snapshot")
+    live_b64 = (request.form.get("snapshot_base64") or (request.get_json(silent=True) or {}).get("snapshot_base64") or "").strip()
+
+    upload_dir = os.path.join(os.path.dirname(__file__), "static", "verified_faces")
+    os.makedirs(upload_dir, exist_ok=True)
+    snapshot_filename = f"verify_sub{submission_id}_{int(datetime.now().timestamp())}.jpg"
+    snapshot_path = os.path.join(upload_dir, snapshot_filename)
+    snapshot_rel_url = f"/static/verified_faces/{snapshot_filename}"
+
+    if live_file and live_file.filename:
+        live_file.save(snapshot_path)
+    elif live_b64:
+        if "," in live_b64:
+            live_b64 = live_b64.split(",", 1)[1]
+        try:
+            with open(snapshot_path, "wb") as f:
+                f.write(base64.b64decode(live_b64))
+        except Exception as b64_err:
+            conn.close()
+            return jsonify({"success": False, "error": f"Invalid snapshot image: {b64_err}"}), 400
+    else:
+        conn.close()
+        return jsonify({"success": False, "error": "No webcam snapshot provided."}), 400
+
+    # Check for reference photo
+    ref_photo_url = sub_row["profile_photo"] or session.get("profile_photo", "")
+
+    # If first time registering a reference photo during check-in:
+    custom_ref_file = request.files.get("reference_photo")
+    if custom_ref_file and custom_ref_file.filename:
+        p_dir = os.path.join(os.path.dirname(__file__), "static", "profile_photos")
+        os.makedirs(p_dir, exist_ok=True)
+        p_name = f"user_{sub_row['user_id'] or submission_id}_{int(datetime.now().timestamp())}.jpg"
+        p_path = os.path.join(p_dir, p_name)
+        custom_ref_file.save(p_path)
+        ref_photo_url = f"/static/profile_photos/{p_name}"
+        if sub_row["user_id"]:
+            cursor.execute("UPDATE users SET profile_photo = ? WHERE id = ?", (ref_photo_url, sub_row["user_id"]))
+            conn.commit()
+
+    if not ref_photo_url:
+        # First time taking exam: save this clean webcam scan as their registered reference photo
+        p_dir = os.path.join(os.path.dirname(__file__), "static", "profile_photos")
+        os.makedirs(p_dir, exist_ok=True)
+        p_name = f"user_{sub_row['user_id'] or submission_id}_{int(datetime.now().timestamp())}.jpg"
+        p_path = os.path.join(p_dir, p_name)
+        with open(snapshot_path, "rb") as sf, open(p_path, "wb") as df:
+            df.write(sf.read())
+        ref_photo_url = f"/static/profile_photos/{p_name}"
+        if sub_row["user_id"]:
+            cursor.execute("UPDATE users SET profile_photo = ? WHERE id = ?", (ref_photo_url, sub_row["user_id"]))
+            conn.commit()
+
+        cursor.execute("""
+            UPDATE submissions 
+            SET verified_face_url = ?, is_face_verified = 1, face_match_confidence = 100.0
+            WHERE id = ?
+        """, (snapshot_rel_url, submission_id))
+        conn.commit()
+        conn.close()
+        return jsonify({
+            "success": True,
+            "is_match": True,
+            "confidence": 100.0,
+            "is_first_registration": True,
+            "verified_face_url": snapshot_rel_url,
+            "reference_photo_url": ref_photo_url,
+            "reason": "Official reference identity registered and verified successfully from live webcam scan."
+        })
+
+    # Resolve local reference image path
+    clean_ref = ref_photo_url.lstrip("/").replace("/", os.sep)
+    abs_ref_path = os.path.join(os.path.dirname(__file__), clean_ref)
+    if not os.path.exists(abs_ref_path):
+        conn.close()
+        return jsonify({"success": False, "error": "Reference photo file not found on server."}), 400
+
+    gemini_key = get_setting("gemini_api_key", "").strip() or os.environ.get("GEMINI_API_KEY", "").strip()
+    student_name = sub_row["registered_full_name"] or sub_row["student_name"] or ""
+
+    verif_res = verify_faces_with_gemini(
+        gemini_key=gemini_key,
+        reference_image_path=abs_ref_path,
+        live_snapshot_path=snapshot_path,
+        student_name=student_name
+    )
+
+    if not verif_res.get("success"):
+        conn.close()
+        return jsonify({"success": False, "error": verif_res.get("error", "AI verification failed.")})
+
+    is_match = bool(verif_res.get("is_match", False))
+    confidence = float(verif_res.get("confidence", 0.0))
+    reason = verif_res.get("reason", "")
+
+    if is_match and confidence >= 60.0:
+        cursor.execute("""
+            UPDATE submissions 
+            SET verified_face_url = ?, is_face_verified = 1, face_match_confidence = ?
+            WHERE id = ?
+        """, (snapshot_rel_url, confidence, submission_id))
+        conn.commit()
+        conn.close()
+        return jsonify({
+            "success": True,
+            "is_match": True,
+            "confidence": confidence,
+            "verified_face_url": snapshot_rel_url,
+            "reference_photo_url": ref_photo_url,
+            "reason": reason
+        })
+    else:
+        # Log impersonation attempt
+        cursor.execute("""
+            INSERT INTO violations (submission_id, violation_type, details)
+            VALUES (?, 'impersonation_mismatch', ?)
+        """, (submission_id, f"Live face does not match registered profile: {reason} (Confidence: {confidence}%)"))
+        conn.commit()
+        conn.close()
+        return jsonify({
+            "success": True,
+            "is_match": False,
+            "confidence": confidence,
+            "verified_face_url": snapshot_rel_url,
+            "reference_photo_url": ref_photo_url,
+            "reason": reason or "Facial landmarks and structure do not match the registered candidate."
+        })
+
 @app.route("/api/tutor/submission/<int:submission_id>/update-score", methods=["POST"])
 @admin_required
 def tutor_update_submission_score(submission_id):
@@ -1223,9 +1409,11 @@ def tutor_submission_details(submission_id):
     cursor = conn.cursor()
     
     cursor.execute("""
-        SELECT s.*, e.title as exam_title, e.max_warnings, e.passing_percentage
+        SELECT s.*, e.title as exam_title, e.max_warnings, e.passing_percentage,
+               u.profile_photo AS student_profile_photo
         FROM submissions s
         JOIN exams e ON s.exam_id = e.id
+        LEFT JOIN users u ON s.user_id = u.id
         WHERE s.id = ?
     """, (submission_id,))
     submission = cursor.fetchone()
@@ -1349,9 +1537,11 @@ def student_dashboard():
     cursor = conn.cursor()
 
     # Get student profile
-    cursor.execute("SELECT class_name FROM users WHERE id = ?", (user_id,))
+    cursor.execute("SELECT class_name, profile_photo FROM users WHERE id = ?", (user_id,))
     u_row = cursor.fetchone()
     user_class = (u_row["class_name"] or "").strip().lower() if u_row else ""
+    if u_row and u_row["profile_photo"]:
+        session["profile_photo"] = u_row["profile_photo"]
 
     # Fetch all active exams
     cursor.execute("""
@@ -1512,9 +1702,11 @@ def student_exam_room(submission_id):
     
     cursor.execute("""
         SELECT s.*, e.title, e.duration_minutes, e.max_warnings, e.exam_code, e.enable_audio_detection, e.enable_video_detection,
-               e.schedule_type, e.start_time, e.end_time
+               e.schedule_type, e.start_time, e.end_time,
+               u.profile_photo AS student_profile_photo
         FROM submissions s
         JOIN exams e ON s.exam_id = e.id
+        LEFT JOIN users u ON s.user_id = u.id
         WHERE s.id = ?
     """, (submission_id,))
     submission = cursor.fetchone()

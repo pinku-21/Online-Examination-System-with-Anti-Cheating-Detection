@@ -10,13 +10,35 @@
         <div class="absolute -right-12 -top-12 w-64 h-64 bg-white/10 rounded-full blur-2xl pointer-events-none"></div>
 
         <div class="flex flex-col md:flex-row md:items-center justify-between gap-6 relative z-10">
-            <div>
-                <div class="inline-flex items-center space-x-2 px-3 py-1 bg-white/15 backdrop-blur-md rounded-full text-xs font-semibold mb-3 border border-white/20">
-                    <span class="w-2 h-2 rounded-full bg-emerald-400"></span>
-                    <span>Student Profile Active</span>
+            <div class="flex items-center space-x-5">
+                <!-- Profile Avatar / Upload Box -->
+                <div class="relative group flex-shrink-0">
+                    <div class="w-16 h-16 sm:w-20 sm:h-20 rounded-2xl overflow-hidden bg-white/20 border-2 border-white/40 shadow-md flex items-center justify-center">
+                        {% if student.profile_photo %}
+                            <img id="dash-avatar-img" src="{{ student.profile_photo }}" alt="Profile" class="w-full h-full object-cover">
+                        {% else %}
+                            <i id="dash-avatar-placeholder" data-lucide="user" class="w-9 h-9 text-white/80"></i>
+                        {% endif %}
+                    </div>
+                    <label for="dash-photo-upload" title="Upload biometric reference photo" class="absolute -bottom-1 -right-1 bg-white text-sky-700 hover:text-sky-900 p-1.5 rounded-xl shadow-lg cursor-pointer border border-sky-100 transition hover:scale-110">
+                        <i data-lucide="camera" class="w-3.5 h-3.5"></i>
+                    </label>
+                    <input type="file" id="dash-photo-upload" accept="image/*" class="hidden" onchange="uploadDashboardProfilePhoto(event)">
                 </div>
-                <h1 class="text-2xl sm:text-3xl font-black tracking-tight">Welcome, {{ student.user_name }}!</h1>
-                <p class="text-sky-100 text-xs sm:text-sm mt-1">Roll: <strong class="text-white font-mono bg-white/20 px-2 py-0.5 rounded">{{ student.roll_number or 'N/A' }}</strong> &nbsp;|&nbsp; Class: <strong class="text-white bg-white/20 px-2 py-0.5 rounded">{{ student.class_name or 'General' }}</strong> &nbsp;|&nbsp; User: <span class="font-mono">{{ student.username }}</span></p>
+
+                <div>
+                    <div class="inline-flex items-center space-x-2 px-3 py-1 bg-white/15 backdrop-blur-md rounded-full text-xs font-semibold mb-2 border border-white/20">
+                        <span class="w-2 h-2 rounded-full bg-emerald-400"></span>
+                        <span>Student Profile Active</span>
+                        {% if student.profile_photo %}
+                            <span class="text-emerald-300 font-bold ml-1">• Biometrics Registered</span>
+                        {% else %}
+                            <span class="text-amber-300 font-bold ml-1">• Photo Pending</span>
+                        {% endif %}
+                    </div>
+                    <h1 class="text-2xl sm:text-3xl font-black tracking-tight">Welcome, {{ student.user_name }}!</h1>
+                    <p class="text-sky-100 text-xs sm:text-sm mt-1">Roll: <strong class="text-white font-mono bg-white/20 px-2 py-0.5 rounded">{{ student.roll_number or 'N/A' }}</strong> &nbsp;|&nbsp; Class: <strong class="text-white bg-white/20 px-2 py-0.5 rounded">{{ student.class_name or 'General' }}</strong> &nbsp;|&nbsp; User: <span class="font-mono">{{ student.username }}</span></p>
+                </div>
             </div>
 
             <!-- Join Exam by Code Box -->
@@ -283,4 +305,46 @@
     </div>
 
 </div>
+
+<script>
+async function uploadDashboardProfilePhoto(event) {
+    const file = event.target.files[0];
+    if (!file) return;
+
+    const formData = new FormData();
+    formData.append('profile_photo', file);
+
+    Swal.fire({
+        title: 'Uploading Profile Photo...',
+        text: 'Saving your reference photo for AI biometric verification.',
+        allowOutsideClick: false,
+        didOpen: () => {
+            Swal.showLoading();
+        }
+    });
+
+    try {
+        const resp = await fetch('/api/student/upload-profile-photo', {
+            method: 'POST',
+            body: formData
+        });
+        const res = await resp.json();
+        if (res.success) {
+            Swal.fire({
+                icon: 'success',
+                title: 'Photo Registered!',
+                text: 'Your official reference photo for AI face verification has been saved.',
+                timer: 2000,
+                showConfirmButton: false
+            }).then(() => {
+                location.reload();
+            });
+        } else {
+            Swal.fire({ icon: 'error', title: 'Upload Failed', text: res.error || 'Failed to upload photo.' });
+        }
+    } catch (e) {
+        Swal.fire({ icon: 'error', title: 'Error', text: 'Network error uploading profile photo.' });
+    }
+}
+</script>
 {% endblock %}

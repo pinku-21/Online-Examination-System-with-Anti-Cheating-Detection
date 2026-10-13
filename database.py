@@ -215,6 +215,10 @@ def init_db():
             "ALTER TABLE questions ADD COLUMN IF NOT EXISTS figure_url TEXT",
             "ALTER TABLE submissions ADD COLUMN IF NOT EXISTS user_id INTEGER",
             "ALTER TABLE submissions ADD COLUMN IF NOT EXISTS manual_evaluation_json TEXT",
+            "ALTER TABLE users ADD COLUMN IF NOT EXISTS profile_photo TEXT DEFAULT ''",
+            "ALTER TABLE submissions ADD COLUMN IF NOT EXISTS verified_face_url TEXT DEFAULT ''",
+            "ALTER TABLE submissions ADD COLUMN IF NOT EXISTS is_face_verified INTEGER DEFAULT 0",
+            "ALTER TABLE submissions ADD COLUMN IF NOT EXISTS face_match_confidence DOUBLE PRECISION DEFAULT 0.0",
         ]
         for statement in migrations:
             cursor.execute(statement)
@@ -316,6 +320,10 @@ def init_db():
             ("questions", "figure_url", "TEXT"),
             ("submissions", "user_id", "INTEGER"),
             ("submissions", "manual_evaluation_json", "TEXT"),
+            ("users", "profile_photo", "TEXT DEFAULT ''"),
+            ("submissions", "verified_face_url", "TEXT DEFAULT ''"),
+            ("submissions", "is_face_verified", "INTEGER DEFAULT 0"),
+            ("submissions", "face_match_confidence", "REAL DEFAULT 0.0"),
         ]:
             columns = {row["name"] for row in cursor.execute(f"PRAGMA table_info({table})").fetchall()}
             if column not in columns:
