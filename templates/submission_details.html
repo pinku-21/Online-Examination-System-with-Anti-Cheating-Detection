@@ -14,6 +14,35 @@
             <span class="text-slate-900 font-medium">Proctoring Audit</span>
         </div>
         <div class="flex items-center gap-3">
+            <!-- Pause/Resume management buttons (only when relevant status) -->
+            {% if submission.status == 'pause_requested' %}
+            <button type="button"
+                    data-submission-id="{{ submission.id }}"
+                    onclick="managePause(this, 'approve_pause')"
+                    class="px-4 py-2 bg-sky-600 hover:bg-sky-700 text-white text-xs font-bold rounded-xl shadow-sm transition flex items-center space-x-1.5"
+                    title="Accept the pause request — student's exam timer will be frozen">
+                <i data-lucide="pause-circle" class="w-3.5 h-3.5"></i>
+                <span>Approve Pause</span>
+            </button>
+            <button type="button"
+                    data-submission-id="{{ submission.id }}"
+                    onclick="managePause(this, 'reject_pause')"
+                    class="px-4 py-2 bg-rose-600 hover:bg-rose-700 text-white text-xs font-bold rounded-xl shadow-sm transition flex items-center space-x-1.5"
+                    title="Reject the pause — student's exam continues with the running timer">
+                <i data-lucide="x-circle" class="w-3.5 h-3.5"></i>
+                <span>Reject Pause</span>
+            </button>
+            {% elif submission.status == 'paused' %}
+            <button type="button"
+                    data-submission-id="{{ submission.id }}"
+                    onclick="managePause(this, 'approve_resume')"
+                    class="px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold rounded-xl shadow-sm transition flex items-center space-x-1.5"
+                    title="Allow the student to re-enter and continue the exam">
+                <i data-lucide="play-circle" class="w-3.5 h-3.5"></i>
+                <span>Approve Resume</span>
+            </button>
+            {% endif %}
+
             <button type="button"
                     data-submission-id="{{ submission.id }}"
                     data-student-name="{{ submission.student_name | e }}"
@@ -30,6 +59,39 @@
             </a>
         </div>
     </div>
+
+    <!-- Pause/Resume Alert Banner -->
+    {% if submission.status in ('pause_requested', 'paused') %}
+    <div class="mb-6 rounded-2xl border p-5 flex items-start gap-4
+        {% if submission.status == 'pause_requested' %}bg-amber-50 border-amber-200{% else %}bg-sky-50 border-sky-200{% endif %}">
+        <div class="shrink-0">
+            {% if submission.status == 'pause_requested' %}
+            <span class="w-10 h-10 rounded-full bg-amber-100 text-amber-600 flex items-center justify-center">
+                <i data-lucide="clock" class="w-5 h-5"></i>
+            </span>
+            {% else %}
+            <span class="w-10 h-10 rounded-full bg-sky-100 text-sky-600 flex items-center justify-center">
+                <i data-lucide="pause-circle" class="w-5 h-5"></i>
+            </span>
+            {% endif %}
+        </div>
+        <div class="flex-1">
+            <h3 class="font-bold text-sm {% if submission.status == 'pause_requested' %}text-amber-800{% else %}text-sky-800{% endif %} mb-1">
+                {% if submission.status == 'pause_requested' %}⏳ Pause Request Pending Your Approval{% else %}⏸️ Exam is Currently Paused{% endif %}
+            </h3>
+            <p class="text-xs {% if submission.status == 'pause_requested' %}text-amber-700{% else %}text-sky-700{% endif %}">
+                {% if submission.pause_reason %}<strong>Reason:</strong> {{ submission.pause_reason }} &nbsp;·&nbsp;{% endif %}
+                {% if submission.time_remaining_seconds %}
+                    <strong>Time saved:</strong> {{ (submission.time_remaining_seconds // 60)|int }}m {{ (submission.time_remaining_seconds % 60)|int }}s remaining
+                {% endif %}
+                {% if submission.pause_requested_at %}
+                    &nbsp;·&nbsp;<strong>Requested at:</strong> {{ submission.pause_requested_at }}
+                {% endif %}
+            </p>
+        </div>
+    </div>
+    {% endif %}
+
 
     <!-- Student Status Overview -->
     <div class="bg-white rounded-2xl border border-slate-200 p-6 sm:p-8 shadow-sm mb-8">
@@ -420,6 +482,51 @@
             }
         } catch (err) {
             Swal.fire({ icon: 'error', title: 'Network Error', text: 'Could not connect to the server.' });
+        }
+    }
+
+    // Pause/Resume management for tutors
+    async function managePause(btn, action) {
+        const submissionId = btn.dataset.submissionId;
+
+        const labels = {
+            approve_pause:  { title: 'Approve Pause?',  text: 'The student\'s timer will be frozen. They cannot continue until you approve their resume.', color: '#0284c7', btnText: '✓ Approve Pause' },
+            reject_pause:   { title: 'Reject Pause?',   text: 'The student\'s pause request will be denied and their exam timer will keep running.',          color: '#e11d48', btnText: '✗ Reject Pause' },
+            approve_resume: { title: 'Approve Resume?', text: 'The student will be allowed to re-enter and continue from where they left off.',                color: '#059669', btnText: '▶ Approve Resume' },
+        };
+        const lbl = labels[action];
+        if (!lbl) return;
+
+        const result = await Swal.fire({
+            icon: 'question',
+            title: lbl.title,
+            text: lbl.text,
+            showCancelButton: true,
+            confirmButtonColor: lbl.color,
+            cancelButtonColor: '#64748b',
+            confirmButtonText: lbl.btnText,
+        });
+
+        if (!result.isConfirmed) return;
+
+        btn.disabled = true;
+        try {
+            const resp = await fetch(`/api/tutor/submission/${submissionId}/manage-pause`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ action })
+            });
+            const res = await resp.json();
+            if (res.success) {
+                await Swal.fire({ icon: 'success', title: 'Done!', text: res.message, timer: 2000, showConfirmButton: false });
+                window.location.reload();
+            } else {
+                Swal.fire({ icon: 'error', title: 'Error', text: res.error || 'Action failed.' });
+                btn.disabled = false;
+            }
+        } catch (err) {
+            Swal.fire({ icon: 'error', title: 'Network Error', text: 'Could not connect to server.' });
+            btn.disabled = false;
         }
     }
 

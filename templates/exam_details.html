@@ -124,6 +124,14 @@
                                             <span class="inline-flex items-center px-2.5 py-1 rounded-full text-xs font-bold bg-emerald-100 text-emerald-800">
                                                 <i data-lucide="check-circle" class="w-3.5 h-3.5 mr-1"></i> Submitted
                                             </span>
+                                        {% elif sub.status == 'pause_requested' %}
+                                            <span class="inline-flex items-center px-2.5 py-1 rounded-full text-xs font-bold bg-amber-100 text-amber-800 animate-pulse">
+                                                <i data-lucide="clock" class="w-3.5 h-3.5 mr-1"></i> Pause Requested
+                                            </span>
+                                        {% elif sub.status == 'paused' %}
+                                            <span class="inline-flex items-center px-2.5 py-1 rounded-full text-xs font-bold bg-sky-100 text-sky-800">
+                                                <i data-lucide="pause-circle" class="w-3.5 h-3.5 mr-1"></i> Paused
+                                            </span>
                                         {% else %}
                                             <span class="inline-flex items-center px-2.5 py-1 rounded-full text-xs font-bold bg-amber-100 text-amber-800 animate-pulse">
                                                 <i data-lucide="loader" class="w-3.5 h-3.5 mr-1"></i> In Progress

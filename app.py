@@ -1810,7 +1810,15 @@ def student_exam_room(submission_id):
     if submission["status"] in ["submitted", "terminated"]:
         conn.close()
         return redirect(url_for("exam_result", submission_id=submission_id))
-        
+
+    # If paused or awaiting tutor approval, show a waiting screen instead of the exam
+    if submission["status"] in ["paused", "pause_requested"]:
+        conn.close()
+        return render_template(
+            "exam_paused.html",
+            submission=submission,
+        )
+
     cursor.execute("SELECT id, question_text, question_type, options_json, points, figure_svg, figure_url FROM questions WHERE exam_id = ? ORDER BY id ASC", (submission["exam_id"],))
     raw_questions = cursor.fetchall()
     conn.close()
@@ -1821,7 +1829,26 @@ def student_exam_room(submission_id):
         q_dict["options"] = json.loads(q["options_json"]) if q["options_json"] else []
         questions.append(q_dict)
         
-    return render_template("student_exam.html", submission=submission, questions=questions)
+    # Restore saved progress (answers, timer, current question index) for page-refresh recovery
+    saved_progress = None
+    saved_time_remaining = None
+    saved_question_index = 0
+    if submission["status"] == "in_progress":
+        if submission["progress_answers_json"]:
+            saved_progress = submission["progress_answers_json"]
+        if submission["time_remaining_seconds"] is not None:
+            saved_time_remaining = int(submission["time_remaining_seconds"])
+        if submission["current_question_index"] is not None:
+            saved_question_index = int(submission["current_question_index"])
+
+    return render_template(
+        "student_exam.html",
+        submission=submission,
+        questions=questions,
+        saved_progress=saved_progress,
+        saved_time_remaining=saved_time_remaining,
+        saved_question_index=saved_question_index,
+    )
 
 @app.route("/api/submission/<int:submission_id>/violation", methods=["POST"])
 def api_log_violation(submission_id):
@@ -1930,6 +1957,197 @@ def api_submit_exam(submission_id):
     conn.close()
     
     return jsonify({"success": True, "submission_id": submission_id})
+
+
+# ---------------------------------------------------------------------------
+# Exam Progress Auto-Save (called every 30 s by the exam front-end)
+# ---------------------------------------------------------------------------
+@app.route("/api/submission/<int:submission_id>/save-progress", methods=["POST"])
+@login_required
+def api_save_progress(submission_id):
+    """Auto-saves the student's current answers + timer so the page can recover after a refresh."""
+    data = request.get_json() or {}
+    answers_json = json.dumps(data.get("answers", {}))
+    time_remaining = data.get("time_remaining_seconds")
+    current_q_index = data.get("current_question_index", 0)
+
+    conn = get_connection()
+    cursor = conn.cursor()
+    cursor.execute("SELECT id, status, user_id FROM submissions WHERE id = ?", (submission_id,))
+    sub = cursor.fetchone()
+
+    if not sub or sub["status"] not in ("in_progress",):
+        conn.close()
+        return jsonify({"success": False, "error": "Submission not active."})
+
+    # Basic ownership guard
+    if session.get("user_role") == "student" and sub["user_id"] != session.get("user_id"):
+        conn.close()
+        return jsonify({"success": False, "error": "Access denied."})
+
+    cursor.execute("""
+        UPDATE submissions
+        SET progress_answers_json = ?,
+            time_remaining_seconds = ?,
+            current_question_index = ?
+        WHERE id = ?
+    """, (answers_json, time_remaining, current_q_index, submission_id))
+    conn.commit()
+    conn.close()
+    return jsonify({"success": True})
+
+
+# ---------------------------------------------------------------------------
+# Student Pause Request
+# ---------------------------------------------------------------------------
+@app.route("/api/submission/<int:submission_id>/request-pause", methods=["POST"])
+@login_required
+def api_request_pause(submission_id):
+    """
+    Student asks to pause their exam. Saves current progress and marks
+    status='pause_requested'. The tutor must approve to fully pause or allow resume.
+    Scheduled exams will NOT allow the student to self-resume — tutor approval is required.
+    """
+    data = request.get_json() or {}
+    reason = (data.get("reason") or "Student requested a pause.").strip()[:500]
+    answers_json = json.dumps(data.get("answers", {}))
+    time_remaining = data.get("time_remaining_seconds")
+    current_q_index = data.get("current_question_index", 0)
+
+    conn = get_connection()
+    cursor = conn.cursor()
+    cursor.execute("""
+        SELECT s.*, e.schedule_type
+        FROM submissions s
+        JOIN exams e ON s.exam_id = e.id
+        WHERE s.id = ?
+    """, (submission_id,))
+    sub = cursor.fetchone()
+
+    if not sub:
+        conn.close()
+        return jsonify({"success": False, "error": "Submission not found."})
+
+    if sub["status"] not in ("in_progress",):
+        conn.close()
+        return jsonify({"success": False, "error": f"Cannot pause an exam with status '{sub['status']}'."})
+
+    if session.get("user_role") == "student" and sub["user_id"] != session.get("user_id"):
+        conn.close()
+        return jsonify({"success": False, "error": "Access denied."})
+
+    cursor.execute("""
+        UPDATE submissions
+        SET status = 'pause_requested',
+            progress_answers_json = ?,
+            time_remaining_seconds = ?,
+            current_question_index = ?,
+            pause_requested_at = CURRENT_TIMESTAMP,
+            pause_reason = ?
+        WHERE id = ?
+    """, (answers_json, time_remaining, current_q_index, reason, submission_id))
+    conn.commit()
+    conn.close()
+    return jsonify({"success": True, "message": "Pause request sent to the tutor. Please wait for approval."})
+
+
+# ---------------------------------------------------------------------------
+# Student polls pause/resume status
+# ---------------------------------------------------------------------------
+@app.route("/api/submission/<int:submission_id>/pause-status", methods=["GET"])
+@login_required
+def api_pause_status(submission_id):
+    """
+    Front-end polls this every 10 s while waiting for tutor to approve/reject the pause.
+    Returns current status and, on approval, the saved time & answers so the student can resume.
+    """
+    conn = get_connection()
+    cursor = conn.cursor()
+    cursor.execute("""
+        SELECT id, status, time_remaining_seconds, progress_answers_json, current_question_index, user_id
+        FROM submissions WHERE id = ?
+    """, (submission_id,))
+    sub = cursor.fetchone()
+    conn.close()
+
+    if not sub:
+        return jsonify({"success": False, "error": "Not found."})
+
+    if session.get("user_role") == "student" and sub["user_id"] != session.get("user_id"):
+        return jsonify({"success": False, "error": "Access denied."})
+
+    return jsonify({
+        "success": True,
+        "status": sub["status"],
+        "time_remaining_seconds": sub["time_remaining_seconds"],
+        "current_question_index": sub["current_question_index"] or 0,
+        "progress_answers_json": sub["progress_answers_json"] or "{}",
+    })
+
+
+# ---------------------------------------------------------------------------
+# Tutor approves or rejects a pause/resume request
+# ---------------------------------------------------------------------------
+@app.route("/api/tutor/submission/<int:submission_id>/manage-pause", methods=["POST"])
+@admin_required
+def api_manage_pause(submission_id):
+    """
+    Tutor can:
+      action='approve_pause'  → status becomes 'paused'  (timer frozen, student locked out)
+      action='approve_resume' → status returns to 'in_progress' (student can re-enter)
+      action='reject_pause'   → status returns to 'in_progress' (deny the student's request)
+    """
+    data = request.get_json() or {}
+    action = data.get("action", "")
+
+    conn = get_connection()
+    cursor = conn.cursor()
+    cursor.execute("SELECT id, status FROM submissions WHERE id = ?", (submission_id,))
+    sub = cursor.fetchone()
+
+    if not sub:
+        conn.close()
+        return jsonify({"success": False, "error": "Submission not found."})
+
+    current_status = sub["status"]
+
+    if action == "approve_pause":
+        if current_status != "pause_requested":
+            conn.close()
+            return jsonify({"success": False, "error": "No pending pause request."})
+        cursor.execute("UPDATE submissions SET status = 'paused' WHERE id = ?", (submission_id,))
+        msg = "Exam paused. The student cannot continue until you approve their resume request."
+
+    elif action == "approve_resume":
+        if current_status not in ("paused", "pause_requested"):
+            conn.close()
+            return jsonify({"success": False, "error": "Submission is not in a paused state."})
+        cursor.execute("""
+            UPDATE submissions
+            SET status = 'in_progress', pause_requested_at = NULL, pause_reason = NULL
+            WHERE id = ?
+        """, (submission_id,))
+        msg = "Resume approved. The student can now re-enter and continue the exam."
+
+    elif action == "reject_pause":
+        if current_status != "pause_requested":
+            conn.close()
+            return jsonify({"success": False, "error": "No pending pause request to reject."})
+        cursor.execute("""
+            UPDATE submissions
+            SET status = 'in_progress', pause_requested_at = NULL, pause_reason = NULL
+            WHERE id = ?
+        """, (submission_id,))
+        msg = "Pause request rejected. The student's exam timer continues."
+
+    else:
+        conn.close()
+        return jsonify({"success": False, "error": f"Unknown action '{action}'."})
+
+    conn.commit()
+    conn.close()
+    return jsonify({"success": True, "message": msg})
+
 
 @app.route("/student/result/<int:submission_id>")
 @login_required

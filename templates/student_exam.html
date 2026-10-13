@@ -234,6 +234,13 @@
                     <span id="exam-timer">--:--</span>
                 </div>
 
+                <!-- Pause Exam Button -->
+                <button onclick="requestPauseExam()"
+                    class="px-4 py-1.5 bg-amber-500 hover:bg-amber-600 text-white font-bold text-xs rounded-xl shadow-sm transition flex items-center space-x-1.5">
+                    <i data-lucide="pause-circle" class="w-3.5 h-3.5"></i>
+                    <span>Pause Exam</span>
+                </button>
+
                 <!-- Submit Button -->
                 <button onclick="confirmSubmitExam()"
                     class="px-4 py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs rounded-xl shadow-sm transition flex items-center space-x-1.5">
@@ -381,6 +388,9 @@
         data-schedule-type="{{ submission.schedule_type or 'anytime' }}" data-end-time="{{ submission.end_time or '' }}"
         data-is-face-verified="{{ 1 if submission.is_face_verified in [1, True, '1'] else 0 }}"
         data-face-confidence="{{ submission.face_match_confidence | default(0.0) }}"
+        data-saved-progress='{{ saved_progress or "{}" }}'
+        data-saved-time-remaining="{{ saved_time_remaining or '' }}"
+        data-saved-question-index="{{ saved_question_index or 0 }}"
         class="hidden"></div>
     <script id="exam-questions-json" type="application/json">
         {{ questions|tojson }}
@@ -397,12 +407,23 @@
         const END_TIME_STR = metaEl.dataset.endTime || '';
         const QUESTIONS = JSON.parse(document.getElementById('exam-questions-json').textContent);
 
+        // ── Restore from server-saved progress (survives page refresh) ──────────
+        const _savedProgressRaw = metaEl.dataset.savedProgress || '{}';
+        const _savedTimeRemaining = metaEl.dataset.savedTimeRemaining ? Number(metaEl.dataset.savedTimeRemaining) : null;
+        const _savedQuestionIndex = Number(metaEl.dataset.savedQuestionIndex || 0);
+        let _restoredProgress = {};
+        try { _restoredProgress = JSON.parse(_savedProgressRaw); } catch(e) { _restoredProgress = {}; }
+        const HAS_SAVED_PROGRESS = Object.keys(_restoredProgress).length > 0 || _savedTimeRemaining !== null;
+        // ────────────────────────────────────────────────────────────────────────
+
         let currentQuestionIndex = 0;
         let studentAnswers = {}; // {question_id: answer_string}
         let flaggedQuestions = new Set();
         let warningsCount = Number(metaEl.dataset.warningsCount);
         let isExamActive = false;
         let isTerminated = false;
+        let isPauseRequested = false;
+        let autoSaveInterval = null;
         let timeRemainingSeconds = DURATION_MINUTES * 60;
 
         // If exam has a strict scheduled end time, cap the timer so it ends exactly at the scheduled time
@@ -415,6 +436,11 @@
             } catch (e) {
                 console.warn("Could not parse schedule end time:", e);
             }
+        }
+
+        // Override with server-saved remaining time (refresh recovery)
+        if (_savedTimeRemaining !== null && _savedTimeRemaining > 0) {
+            timeRemainingSeconds = Math.min(timeRemainingSeconds, _savedTimeRemaining);
         }
 
         let timerInterval = null;
@@ -773,16 +799,131 @@
             document.getElementById('start-modal').classList.add('hidden');
             isExamActive = true;
 
+            // ── Restore saved answers & question index (refresh recovery) ────────
+            if (HAS_SAVED_PROGRESS) {
+                studentAnswers = _restoredProgress;
+                currentQuestionIndex = _savedQuestionIndex;
+                // Brief toast to tell student their work was recovered
+                Swal.fire({
+                    toast: true,
+                    position: 'top-end',
+                    icon: 'success',
+                    title: '✅ Progress Restored',
+                    text: 'Your saved answers and timer have been recovered.',
+                    timer: 4000,
+                    showConfirmButton: false,
+                    timerProgressBar: true,
+                });
+            }
+
             // Start Timer
             startTimer();
+
+            // Start auto-save every 30 seconds
+            autoSaveInterval = setInterval(autoSaveProgress, 30000);
 
             // Setup Anti-Cheating Event Listeners
             initAntiCheatingProctor();
 
-            // Render First Question & Palette
-            renderQuestion(0);
+            // Render correct starting question & Palette
+            renderQuestion(currentQuestionIndex);
             renderPalette();
         }
+
+        // ── Auto-save answers & timer to server every 30 s ──────────────────────
+        async function autoSaveProgress() {
+            if (!isExamActive || isTerminated || isPauseRequested) return;
+            try {
+                await fetch(`/api/submission/${SUBMISSION_ID}/save-progress`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        answers: studentAnswers,
+                        time_remaining_seconds: timeRemainingSeconds,
+                        current_question_index: currentQuestionIndex,
+                    })
+                });
+            } catch(e) {
+                console.warn('Auto-save failed:', e);
+            }
+        }
+
+        // ── Request to pause the exam ────────────────────────────────────────────
+        async function requestPauseExam() {
+            if (!isExamActive || isTerminated || isPauseRequested) return;
+
+            const { value: reason, isConfirmed } = await Swal.fire({
+                title: 'Request to Pause Exam',
+                html: `
+                    <p class="text-sm text-slate-600 mb-3 text-left">
+                        Your current progress (answers + timer) will be saved.<br>
+                        <strong>The tutor must approve</strong> your pause request before you can stop.<br>
+                        For scheduled exams, you cannot resume without tutor permission.
+                    </p>
+                    <textarea id="pause-reason-input" placeholder="Optional: Reason for pausing (e.g. Emergency, Technical issue…)"
+                        class="w-full border border-slate-300 rounded-xl px-3 py-2 text-sm text-slate-800 resize-none" rows="3"></textarea>
+                `,
+                showCancelButton: true,
+                confirmButtonText: 'Send Pause Request',
+                confirmButtonColor: '#7c3aed',
+                cancelButtonColor: '#64748b',
+                preConfirm: () => {
+                    return document.getElementById('pause-reason-input').value.trim() || 'Student requested a pause.';
+                }
+            });
+
+            if (!isConfirmed) return;
+
+            isPauseRequested = true;
+
+            // Save progress immediately, then request pause
+            await autoSaveProgress();
+
+            try {
+                const resp = await fetch(`/api/submission/${SUBMISSION_ID}/request-pause`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        reason: reason,
+                        answers: studentAnswers,
+                        time_remaining_seconds: timeRemainingSeconds,
+                        current_question_index: currentQuestionIndex,
+                    })
+                });
+                const res = await resp.json();
+
+                if (res.success) {
+                    // Stop timer + proctoring while waiting
+                    isExamActive = false;
+                    clearInterval(timerInterval);
+                    clearInterval(autoSaveInterval);
+                    clearInterval(aiDetectionInterval);
+                    clearInterval(audioAnalysisInterval);
+
+                    Swal.fire({
+                        icon: 'info',
+                        title: 'Pause Request Sent',
+                        html: `
+                            <p class="text-sm text-slate-700">Your request has been sent to the tutor.</p>
+                            <p class="text-xs text-slate-500 mt-2">You will be redirected to a waiting page now. You can safely close this tab — your progress is saved.</p>
+                        `,
+                        confirmButtonText: 'Go to Waiting Room',
+                        confirmButtonColor: '#7c3aed',
+                        allowOutsideClick: false,
+                    }).then(() => {
+                        window.location.href = `/student/exam/${SUBMISSION_ID}`;
+                    });
+                } else {
+                    isPauseRequested = false;
+                    Swal.fire({ icon: 'error', title: 'Error', text: res.error || 'Could not send pause request.' });
+                }
+            } catch(e) {
+                isPauseRequested = false;
+                Swal.fire({ icon: 'error', title: 'Network Error', text: 'Could not reach the server.' });
+            }
+        }
+
+
 
         async function initWebcam() {
             const videoEl = document.getElementById('webcam-preview');
@@ -1702,8 +1843,10 @@
         async function submitExamAnswers() {
             isExamActive = false;
             clearInterval(timerInterval);
+            clearInterval(autoSaveInterval);
             clearInterval(aiDetectionInterval);
             clearInterval(audioAnalysisInterval);
+
 
             Swal.fire({
                 title: 'Grading and Submitting...',

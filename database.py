@@ -219,6 +219,12 @@ def init_db():
             "ALTER TABLE submissions ADD COLUMN IF NOT EXISTS verified_face_url TEXT DEFAULT ''",
             "ALTER TABLE submissions ADD COLUMN IF NOT EXISTS is_face_verified INTEGER DEFAULT 0",
             "ALTER TABLE submissions ADD COLUMN IF NOT EXISTS face_match_confidence DOUBLE PRECISION DEFAULT 0.0",
+            # Pause/resume and progress-save columns
+            "ALTER TABLE submissions ADD COLUMN IF NOT EXISTS time_remaining_seconds INTEGER",
+            "ALTER TABLE submissions ADD COLUMN IF NOT EXISTS progress_answers_json TEXT",
+            "ALTER TABLE submissions ADD COLUMN IF NOT EXISTS pause_requested_at TIMESTAMP",
+            "ALTER TABLE submissions ADD COLUMN IF NOT EXISTS pause_reason TEXT",
+            "ALTER TABLE submissions ADD COLUMN IF NOT EXISTS current_question_index INTEGER DEFAULT 0",
         ]
         for statement in migrations:
             cursor.execute(statement)
@@ -324,6 +330,12 @@ def init_db():
             ("submissions", "verified_face_url", "TEXT DEFAULT ''"),
             ("submissions", "is_face_verified", "INTEGER DEFAULT 0"),
             ("submissions", "face_match_confidence", "REAL DEFAULT 0.0"),
+            # Pause/resume and progress-save columns
+            ("submissions", "time_remaining_seconds", "INTEGER"),
+            ("submissions", "progress_answers_json", "TEXT"),
+            ("submissions", "pause_requested_at", "TIMESTAMP"),
+            ("submissions", "pause_reason", "TEXT"),
+            ("submissions", "current_question_index", "INTEGER DEFAULT 0"),
         ]:
             columns = {row["name"] for row in cursor.execute(f"PRAGMA table_info({table})").fetchall()}
             if column not in columns:
