@@ -1,5 +1,6 @@
 <!DOCTYPE html>
 <html lang="en">
+
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -30,11 +31,13 @@
     <script src="https://cdn.jsdelivr.net/npm/@tensorflow-models/blazeface@latest"></script>
     <style>
         @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap');
+
         body {
             font-family: 'Inter', sans-serif;
             user-select: none;
             -webkit-user-select: none;
         }
+
         .svg-diagram-box svg {
             max-width: 100%;
             height: auto;
@@ -43,13 +46,16 @@
         }
     </style>
 </head>
+
 <body class="bg-slate-100 text-slate-800 min-h-screen flex flex-col select-none">
 
     <!-- Pre-Exam Readiness Modal -->
-    <div id="start-modal" class="fixed inset-0 bg-slate-900/90 backdrop-blur-md z-50 flex items-center justify-center p-4">
+    <div id="start-modal"
+        class="fixed inset-0 bg-slate-900/90 backdrop-blur-md z-50 flex items-center justify-center p-4">
         <div class="bg-white rounded-3xl max-w-xl w-full p-8 shadow-2xl border border-slate-200">
             <div class="text-center mb-6">
-                <div class="w-16 h-16 rounded-2xl bg-sky-100 text-sky-600 flex items-center justify-center mx-auto mb-3">
+                <div
+                    class="w-16 h-16 rounded-2xl bg-sky-100 text-sky-600 flex items-center justify-center mx-auto mb-3">
                     <i data-lucide="shield-alert" class="w-9 h-9"></i>
                 </div>
                 <h2 class="text-2xl font-extrabold text-slate-900">Anti-Cheat System Verification</h2>
@@ -60,50 +66,61 @@
                 <div class="flex items-start space-x-3">
                     <i data-lucide="monitor" class="w-5 h-5 text-sky-600 flex-shrink-0 mt-0.5"></i>
                     <div>
-                        <strong class="text-slate-900">Fullscreen Locked:</strong> The exam runs in strict full-screen mode. Exiting fullscreen will count as an anti-cheating strike.
+                        <strong class="text-slate-900">Fullscreen Locked:</strong> The exam runs in strict full-screen
+                        mode. Exiting fullscreen will count as an anti-cheating strike.
                     </div>
                 </div>
                 <div class="flex items-start space-x-3">
                     <i data-lucide="eye-off" class="w-5 h-5 text-rose-600 flex-shrink-0 mt-0.5"></i>
                     <div>
-                        <strong class="text-slate-900">Tab Switch & Window Blur Detection:</strong> Leaving this browser tab, minimizing the window, or clicking outside will trigger an immediate strike.
+                        <strong class="text-slate-900">Tab Switch & Window Blur Detection:</strong> Leaving this browser
+                        tab, minimizing the window, or clicking outside will trigger an immediate strike.
                     </div>
                 </div>
                 <div class="flex items-start space-x-3">
                     {% if submission.enable_video_detection in [1, True, '1'] %}
-                        <i data-lucide="video" class="w-5 h-5 text-emerald-600 flex-shrink-0 mt-0.5"></i>
-                        <div>
-                            <strong class="text-slate-900">Webcam Proctoring:</strong> Your camera will be enabled for multi-face and phone detection.
-                        </div>
+                    <i data-lucide="video" class="w-5 h-5 text-emerald-600 flex-shrink-0 mt-0.5"></i>
+                    <div>
+                        <strong class="text-slate-900">Webcam Proctoring:</strong> Your camera will be enabled for
+                        multi-face and phone detection.
+                    </div>
                     {% else %}
-                        <i data-lucide="video-off" class="w-5 h-5 text-slate-400 flex-shrink-0 mt-0.5"></i>
-                        <div>
-                            <strong class="text-slate-900">Webcam Proctoring:</strong> <span class="text-emerald-700 font-semibold">Disabled</span> (Camera & AI face/device detection turned off).
-                        </div>
+                    <i data-lucide="video-off" class="w-5 h-5 text-slate-400 flex-shrink-0 mt-0.5"></i>
+                    <div>
+                        <strong class="text-slate-900">Webcam Proctoring:</strong> <span
+                            class="text-emerald-700 font-semibold">Disabled</span> (Camera & AI face/device detection
+                        turned off).
+                    </div>
                     {% endif %}
                 </div>
                 <div class="flex items-start space-x-3">
                     {% if submission.enable_audio_detection in [1, True, '1'] %}
-                        <i data-lucide="mic" class="w-5 h-5 text-amber-600 flex-shrink-0 mt-0.5"></i>
-                        <div>
-                            <strong class="text-slate-900">Acoustic Audio Proctoring:</strong> Room noise and speaking activity are actively monitored.
-                        </div>
+                    <i data-lucide="mic" class="w-5 h-5 text-amber-600 flex-shrink-0 mt-0.5"></i>
+                    <div>
+                        <strong class="text-slate-900">Acoustic Audio Proctoring:</strong> Room noise and speaking
+                        activity are actively monitored.
+                    </div>
                     {% else %}
-                        <i data-lucide="mic-off" class="w-5 h-5 text-slate-400 flex-shrink-0 mt-0.5"></i>
-                        <div>
-                            <strong class="text-slate-900">Audio Proctoring:</strong> <span class="text-emerald-700 font-semibold">Disabled</span> (No strikes for background noise / speaking).
-                        </div>
+                    <i data-lucide="mic-off" class="w-5 h-5 text-slate-400 flex-shrink-0 mt-0.5"></i>
+                    <div>
+                        <strong class="text-slate-900">Audio Proctoring:</strong> <span
+                            class="text-emerald-700 font-semibold">Disabled</span> (No strikes for background noise /
+                        speaking).
+                    </div>
                     {% endif %}
                 </div>
                 <div class="flex items-start space-x-3">
                     <i data-lucide="alert-octagon" class="w-5 h-5 text-rose-600 flex-shrink-0 mt-0.5"></i>
                     <div>
-                        <strong class="text-rose-600">{{ submission.max_warnings }} Strikes Limit:</strong> You are allowed a maximum of <strong>{{ submission.max_warnings }} warnings</strong>. If you exceed this limit, your exam will be <strong>IMMEDIATELY TERMINATED</strong> and reported.
+                        <strong class="text-rose-600">{{ submission.max_warnings }} Strikes Limit:</strong> You are
+                        allowed a maximum of <strong>{{ submission.max_warnings }} warnings</strong>. If you exceed this
+                        limit, your exam will be <strong>IMMEDIATELY TERMINATED</strong> and reported.
                     </div>
                 </div>
             </div>
 
-            <button onclick="launchExamSession()" class="w-full py-4 bg-sky-600 hover:bg-sky-700 text-white font-bold rounded-2xl shadow-lg shadow-sky-600/30 transition flex items-center justify-center space-x-2 text-base">
+            <button onclick="launchExamSession()"
+                class="w-full py-4 bg-sky-600 hover:bg-sky-700 text-white font-bold rounded-2xl shadow-lg shadow-sky-600/30 transition flex items-center justify-center space-x-2 text-base">
                 <i data-lucide="maximize" class="w-5 h-5"></i>
                 <span>Agree & Enter Fullscreen Exam</span>
             </button>
@@ -130,19 +147,23 @@
             <!-- Strikes Warning & Timer -->
             <div class="flex items-center space-x-4">
                 <!-- Strikes Warning Counter -->
-                <div id="warning-badge" class="px-3.5 py-1.5 rounded-xl border border-rose-200 bg-rose-50 text-rose-700 text-xs font-bold flex items-center space-x-1.5 shadow-sm">
+                <div id="warning-badge"
+                    class="px-3.5 py-1.5 rounded-xl border border-rose-200 bg-rose-50 text-rose-700 text-xs font-bold flex items-center space-x-1.5 shadow-sm">
                     <i data-lucide="alert-triangle" class="w-4 h-4 text-rose-600"></i>
-                    <span>Strikes: <span id="strike-counter">{{ submission.warnings_count }}</span> / {{ submission.max_warnings }}</span>
+                    <span>Strikes: <span id="strike-counter">{{ submission.warnings_count }}</span> / {{
+                        submission.max_warnings }}</span>
                 </div>
 
                 <!-- Timer -->
-                <div class="px-3.5 py-1.5 rounded-xl border border-slate-200 bg-slate-50 text-slate-800 text-xs font-mono font-bold flex items-center space-x-1.5 shadow-sm">
+                <div
+                    class="px-3.5 py-1.5 rounded-xl border border-slate-200 bg-slate-50 text-slate-800 text-xs font-mono font-bold flex items-center space-x-1.5 shadow-sm">
                     <i data-lucide="clock" class="w-4 h-4 text-sky-600"></i>
                     <span id="exam-timer">--:--</span>
                 </div>
 
                 <!-- Submit Button -->
-                <button onclick="confirmSubmitExam()" class="px-4 py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs rounded-xl shadow-sm transition flex items-center space-x-1.5">
+                <button onclick="confirmSubmitExam()"
+                    class="px-4 py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs rounded-xl shadow-sm transition flex items-center space-x-1.5">
                     <i data-lucide="send" class="w-3.5 h-3.5"></i>
                     <span>Submit Exam</span>
                 </button>
@@ -152,23 +173,28 @@
 
     <!-- Main Workspace -->
     <div class="max-w-7xl mx-auto px-4 sm:px-6 py-6 flex-1 w-full grid grid-cols-1 lg:grid-cols-12 gap-6">
-        
+
         <!-- Left: Question View (8 cols) -->
-        <div class="lg:col-span-8 flex flex-col justify-between bg-white rounded-3xl border border-slate-200 p-6 sm:p-8 shadow-sm min-h-[520px]">
+        <div
+            class="lg:col-span-8 flex flex-col justify-between bg-white rounded-3xl border border-slate-200 p-6 sm:p-8 shadow-sm min-h-[520px]">
             <div>
                 <div class="flex items-center justify-between border-b border-slate-100 pb-4 mb-6">
                     <div class="flex items-center space-x-2">
-                        <span id="q-number-pill" class="px-3 py-1 bg-sky-100 text-sky-800 text-xs font-extrabold rounded-full">Question 1 of {{ questions|length }}</span>
+                        <span id="q-number-pill"
+                            class="px-3 py-1 bg-sky-100 text-sky-800 text-xs font-extrabold rounded-full">Question 1 of
+                            {{ questions|length }}</span>
                         <span id="q-points-pill" class="text-xs text-slate-400 font-semibold">1.0 Mark</span>
                     </div>
-                    <button onclick="toggleMarkForReview()" id="btn-review" class="text-xs font-semibold text-slate-500 hover:text-amber-600 flex items-center space-x-1 transition">
+                    <button onclick="toggleMarkForReview()" id="btn-review"
+                        class="text-xs font-semibold text-slate-500 hover:text-amber-600 flex items-center space-x-1 transition">
                         <i data-lucide="flag" class="w-3.5 h-3.5"></i>
                         <span id="review-text">Flag for Review</span>
                     </button>
                 </div>
 
                 <!-- Question Text -->
-                <h3 id="current-question-text" class="text-base sm:text-lg font-bold text-slate-900 leading-relaxed mb-4">
+                <h3 id="current-question-text"
+                    class="text-base sm:text-lg font-bold text-slate-900 leading-relaxed mb-4">
                     Loading question...
                 </h3>
 
@@ -181,11 +207,13 @@
 
             <!-- Bottom Pagination Controls -->
             <div class="flex items-center justify-between border-t border-slate-100 pt-6 mt-8">
-                <button onclick="prevQuestion()" id="btn-prev" class="px-4 py-2 border border-slate-300 hover:bg-slate-50 text-slate-700 text-xs font-bold rounded-xl transition flex items-center space-x-1 disabled:opacity-40">
+                <button onclick="prevQuestion()" id="btn-prev"
+                    class="px-4 py-2 border border-slate-300 hover:bg-slate-50 text-slate-700 text-xs font-bold rounded-xl transition flex items-center space-x-1 disabled:opacity-40">
                     <i data-lucide="chevron-left" class="w-4 h-4"></i>
                     <span>Previous</span>
                 </button>
-                <button onclick="nextQuestion()" id="btn-next" class="px-5 py-2 bg-sky-600 hover:bg-sky-700 text-white text-xs font-bold rounded-xl shadow-sm transition flex items-center space-x-1">
+                <button onclick="nextQuestion()" id="btn-next"
+                    class="px-5 py-2 bg-sky-600 hover:bg-sky-700 text-white text-xs font-bold rounded-xl shadow-sm transition flex items-center space-x-1">
                     <span>Next</span>
                     <i data-lucide="chevron-right" class="w-4 h-4"></i>
                 </button>
@@ -194,7 +222,7 @@
 
         <!-- Right: Proctoring Feed & Question Navigator (4 cols) -->
         <div class="lg:col-span-4 space-y-6">
-            
+
             <!-- Live AI Multi-Sensor Proctoring Webcam Widget -->
             <div class="bg-white rounded-3xl border border-slate-200 p-5 shadow-sm overflow-hidden">
                 <div class="flex items-center justify-between mb-3">
@@ -202,23 +230,28 @@
                         <i data-lucide="shield-alert" class="w-4 h-4 text-emerald-600"></i>
                         <span>AI Proctor Cam</span>
                     </span>
-                    <span id="ai-active-pill" class="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-100 text-emerald-800 border border-emerald-200">
+                    <span id="ai-active-pill"
+                        class="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-100 text-emerald-800 border border-emerald-200">
                         <span class="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-ping mr-1"></span> AI Vision Online
                     </span>
                 </div>
-                
-                <div class="relative rounded-2xl overflow-hidden bg-slate-900 aspect-video flex items-center justify-center border border-slate-300 shadow-inner">
+
+                <div
+                    class="relative rounded-2xl overflow-hidden bg-slate-900 aspect-video flex items-center justify-center border border-slate-300 shadow-inner">
                     <video id="webcam-preview" autoplay muted playsinline class="w-full h-full object-cover"></video>
                     <canvas id="ai-overlay" class="absolute inset-0 w-full h-full pointer-events-none"></canvas>
-                    
+
                     <!-- Fallback / Camera Inactive -->
-                    <div id="webcam-fallback" class="absolute inset-0 flex flex-col items-center justify-center text-slate-400 p-4 text-center hidden bg-slate-900/90">
+                    <div id="webcam-fallback"
+                        class="absolute inset-0 flex flex-col items-center justify-center text-slate-400 p-4 text-center hidden bg-slate-900/90">
                         <i data-lucide="camera-off" class="w-8 h-8 mb-1 text-slate-500"></i>
                         <span class="text-[11px]">Connecting camera feed...</span>
                     </div>
 
                     <!-- Scan line effect -->
-                    <div class="absolute inset-x-0 h-0.5 bg-gradient-to-r from-transparent via-emerald-400 to-transparent pointer-events-none animate-pulse"></div>
+                    <div
+                        class="absolute inset-x-0 h-0.5 bg-gradient-to-r from-transparent via-emerald-400 to-transparent pointer-events-none animate-pulse">
+                    </div>
                 </div>
 
                 <!-- Multi-Sensor AI Diagnostics Badges -->
@@ -226,7 +259,8 @@
                     <!-- Face Status -->
                     <div class="p-1.5 rounded-xl border border-slate-100 bg-slate-50 flex flex-col items-center">
                         <span class="text-[10px] text-slate-400 uppercase font-semibold">Face</span>
-                        <span id="hud-face" class="text-[11px] font-extrabold text-emerald-600 mt-0.5">Detecting...</span>
+                        <span id="hud-face"
+                            class="text-[11px] font-extrabold text-emerald-600 mt-0.5">Detecting...</span>
                     </div>
                     <!-- Phone / Device Status -->
                     <div class="p-1.5 rounded-xl border border-slate-100 bg-slate-50 flex flex-col items-center">
@@ -240,19 +274,22 @@
                     </div>
                 </div>
 
-                <p class="text-[10px] text-slate-400 mt-2 text-center">Real-time AI proctoring: monitors faces, devices & audio.</p>
+                <p class="text-[10px] text-slate-400 mt-2 text-center">Real-time AI proctoring: monitors faces, devices
+                    & audio.</p>
             </div>
 
             <!-- Question Palette -->
             <div class="bg-white rounded-3xl border border-slate-200 p-5 shadow-sm">
                 <div class="flex items-center justify-between mb-4">
                     <h4 class="text-xs font-bold text-slate-800 uppercase tracking-wider">Question Navigator</h4>
-                    <span id="answered-stat" class="text-xs font-semibold text-sky-600">0 / {{ questions|length }} Answered</span>
+                    <span id="answered-stat" class="text-xs font-semibold text-sky-600">0 / {{ questions|length }}
+                        Answered</span>
                 </div>
 
                 <div id="palette-grid" class="grid grid-cols-5 gap-2"></div>
 
-                <div class="mt-4 pt-3 border-t border-slate-100 grid grid-cols-3 gap-1 text-[11px] text-slate-500 text-center">
+                <div
+                    class="mt-4 pt-3 border-t border-slate-100 grid grid-cols-3 gap-1 text-[11px] text-slate-500 text-center">
                     <div><span class="inline-block w-2.5 h-2.5 rounded-full bg-sky-500 mr-1"></span>Answered</div>
                     <div><span class="inline-block w-2.5 h-2.5 rounded-full bg-amber-400 mr-1"></span>Flagged</div>
                     <div><span class="inline-block w-2.5 h-2.5 rounded-full bg-slate-200 mr-1"></span>Unvisited</div>
@@ -264,16 +301,12 @@
     </div>
 
     <!-- Hidden Exam Configuration Data for JS -->
-    <div id="exam-metadata" 
-         data-submission-id="{{ submission.id }}"
-         data-max-warnings="{{ submission.max_warnings }}"
-         data-duration-minutes="{{ submission.duration_minutes }}"
-         data-warnings-count="{{ submission.warnings_count }}"
-         data-enable-video="{{ 1 if submission.enable_video_detection in [1, True, '1'] else 0 }}"
-         data-enable-audio="{{ 1 if submission.enable_audio_detection in [1, True, '1'] else 0 }}"
-         data-schedule-type="{{ submission.schedule_type or 'anytime' }}"
-         data-end-time="{{ submission.end_time or '' }}"
-         class="hidden"></div>
+    <div id="exam-metadata" data-submission-id="{{ submission.id }}" data-max-warnings="{{ submission.max_warnings }}"
+        data-duration-minutes="{{ submission.duration_minutes }}" data-warnings-count="{{ submission.warnings_count }}"
+        data-enable-video="{{ 1 if submission.enable_video_detection in [1, True, '1'] else 0 }}"
+        data-enable-audio="{{ 1 if submission.enable_audio_detection in [1, True, '1'] else 0 }}"
+        data-schedule-type="{{ submission.schedule_type or 'anytime' }}" data-end-time="{{ submission.end_time or '' }}"
+        class="hidden"></div>
     <script id="exam-questions-json" type="application/json">
         {{ questions|tojson }}
     </script>
@@ -325,7 +358,28 @@
             clearTimeout(fileBrowseCooldownTimer);
             fileBrowseCooldownTimer = setTimeout(() => {
                 isBrowsingFile = false;
-            }, 2500);
+                // Re-request fullscreen quietly if exited during photo upload
+                if (isExamActive && !isTerminated && !document.fullscreenElement) {
+                    const docEl = document.documentElement;
+                    if (docEl.requestFullscreen) {
+                        docEl.requestFullscreen().catch(() => {});
+                    } else if (docEl.webkitRequestFullscreen) {
+                        docEl.webkitRequestFullscreen().catch(() => {});
+                    }
+                }
+            }, 3500);
+        }
+
+        function triggerPhotoUpload(questionId, useCameraDirect) {
+            notifyFileBrowseStart();
+            const inputId = useCameraDirect ? `camera-input-${questionId}` : `photo-input-${questionId}`;
+            const input = document.getElementById(inputId);
+            if (input) {
+                input.value = ''; // Reset to allow re-selection
+                input.click();
+            } else {
+                console.error("Upload input not found for question", questionId);
+            }
         }
 
         window.addEventListener('focus', () => {
@@ -430,9 +484,9 @@
             if (ENABLE_AUDIO) {
                 // Audio detection enabled: request both video and audio
                 try {
-                    stream = await navigator.mediaDevices.getUserMedia({ 
-                        video: { width: { ideal: 640 }, height: { ideal: 480 } }, 
-                        audio: true 
+                    stream = await navigator.mediaDevices.getUserMedia({
+                        video: { width: { ideal: 640 }, height: { ideal: 480 } },
+                        audio: true
                     });
                     videoEl.srcObject = stream;
                     initAudioProctor(stream);
@@ -452,9 +506,9 @@
             } else {
                 // Audio detection disabled by instructor: request video only (no mic permission needed)
                 try {
-                    stream = await navigator.mediaDevices.getUserMedia({ 
-                        video: { width: { ideal: 640 }, height: { ideal: 480 } }, 
-                        audio: false 
+                    stream = await navigator.mediaDevices.getUserMedia({
+                        video: { width: { ideal: 640 }, height: { ideal: 480 } },
+                        audio: false
                     });
                     videoEl.srcObject = stream;
                     updateHudBadge('hud-audio', 'Off (Optional)', 'slate');
@@ -534,7 +588,7 @@
                                     const h = br[1] - tl[1];
                                     drawBoundingBox(ctx, [tl[0], tl[1], w, h], 'Face ✓', '#10b981');
                                 });
-                            } catch(bf) { /* blazeface frame error, ignore */ }
+                            } catch (bf) { /* blazeface frame error, ignore */ }
                         }
 
                         let personCount = 0;
@@ -570,7 +624,7 @@
                         if (totalPersonCount === 0) {
                             noPersonConsecutiveCount++;
                             updateHudBadge('hud-face', 'No Person ❌', 'rose');
-                            if (noPersonConsecutiveCount >= 6) {
+                            if (noPersonConsecutiveCount >= 4) {
                                 triggerViolation('no_face', 'No candidate face detected in webcam feed. Candidate left desk or covered camera.');
                             }
                         } else if (totalPersonCount > 1 && blazeFaceCount <= 1) {
@@ -713,7 +767,7 @@
             // 6. Block Shortcut Keys (Alt+Tab, F12, Ctrl+C, Ctrl+V, etc.)
             document.addEventListener('keydown', (e) => {
                 if (
-                    e.key === 'F12' || 
+                    e.key === 'F12' ||
                     (e.ctrlKey && e.shiftKey && (e.key === 'I' || e.key === 'J' || e.key === 'C')) ||
                     (e.ctrlKey && (e.key === 'u' || e.key === 'U'))
                 ) {
@@ -778,7 +832,7 @@
                     }).then(() => {
                         // Re-request fullscreen if lost
                         if (!document.fullscreenElement) {
-                            document.documentElement.requestFullscreen().catch(() => {});
+                            document.documentElement.requestFullscreen().catch(() => { });
                         }
                     });
                 }
@@ -934,11 +988,10 @@
                                         <i data-lucide="maximize-2" class="w-3.5 h-3.5"></i>
                                         <span>View Full Resolution</span>
                                     </button>
-                                    <label class="px-3.5 py-2 bg-sky-50 hover:bg-sky-100 text-sky-700 text-xs font-semibold rounded-xl flex items-center justify-center space-x-2 cursor-pointer transition border border-sky-200">
+                                    <button type="button" onclick="triggerPhotoUpload('${q.id}', false)" class="px-3.5 py-2 bg-sky-50 hover:bg-sky-100 text-sky-700 text-xs font-semibold rounded-xl flex items-center justify-center space-x-2 cursor-pointer transition border border-sky-200">
                                         <i data-lucide="refresh-cw" class="w-3.5 h-3.5"></i>
                                         <span>Replace / Retake Photo</span>
-                                        <input type="file" accept="image/*" class="hidden" onchange="uploadStudentAnswerImage('${q.id}', this)" onclick="notifyFileBrowseStart()">
-                                    </label>
+                                    </button>
                                     <button type="button" onclick="removeStudentAnswerImage('${q.id}')" class="px-3.5 py-2 bg-rose-50 hover:bg-rose-100 text-rose-600 text-xs font-semibold rounded-xl flex items-center justify-center space-x-2 transition border border-rose-200">
                                         <i data-lucide="trash-2" class="w-3.5 h-3.5"></i>
                                         <span>Remove Photo</span>
@@ -946,15 +999,20 @@
                                 </div>
                             </div>
                         ` : `
-                            <div class="mt-2 flex flex-col sm:flex-row items-start sm:items-center gap-3">
-                                <label class="px-4 py-2.5 bg-sky-600 hover:bg-sky-700 text-white text-xs font-bold rounded-xl flex items-center justify-center space-x-2 cursor-pointer shadow-sm hover:shadow transition">
+                            <div class="mt-2 flex flex-col sm:flex-row items-stretch sm:items-center gap-2.5">
+                                <button type="button" onclick="triggerPhotoUpload('${q.id}', false)" class="px-4 py-2.5 bg-sky-600 hover:bg-sky-700 active:bg-sky-800 text-white text-xs font-bold rounded-xl flex items-center justify-center space-x-2 cursor-pointer shadow-sm hover:shadow transition">
                                     <i data-lucide="upload-cloud" class="w-4 h-4"></i>
                                     <span>Upload Handwritten Photo</span>
-                                    <input type="file" accept="image/*" class="hidden" onchange="uploadStudentAnswerImage('${q.id}', this)" onclick="notifyFileBrowseStart()">
-                                </label>
-                                <span class="text-[11px] text-slate-500 font-medium">Supports JPG, PNG, WEBP (take photo on mobile / upload image)</span>
+                                </button>
+                                <button type="button" onclick="triggerPhotoUpload('${q.id}', true)" class="px-3.5 py-2.5 bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-semibold rounded-xl flex items-center justify-center space-x-1.5 cursor-pointer transition border border-slate-200">
+                                    <i data-lucide="camera" class="w-4 h-4 text-sky-600"></i>
+                                    <span>Take Photo (Camera)</span>
+                                </button>
+                                <span class="text-[11px] text-slate-500 font-medium text-center sm:text-left">Supports JPG, PNG, WEBP (Camera or Gallery)</span>
                             </div>
                         `}
+                        <input type="file" id="photo-input-${q.id}" accept="image/*" style="position:absolute;width:1px;height:1px;opacity:0;pointer-events:none;" onchange="uploadStudentAnswerImage('${q.id}', this)" oncancel="notifyFileBrowseEnd()">
+                        <input type="file" id="camera-input-${q.id}" accept="image/*" capture="environment" style="position:absolute;width:1px;height:1px;opacity:0;pointer-events:none;" onchange="uploadStudentAnswerImage('${q.id}', this)" oncancel="notifyFileBrowseEnd()">
                     </div>
                 `;
                 container.appendChild(writeBox);
@@ -1224,4 +1282,5 @@
         }
     </script>
 </body>
+
 </html>

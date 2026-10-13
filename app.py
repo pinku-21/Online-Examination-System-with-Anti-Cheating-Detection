@@ -611,10 +611,20 @@ def api_upload_answer_image(submission_id):
     if not uploaded_file or not uploaded_file.filename:
         return jsonify({"success": False, "error": "No image file provided."}), 400
         
-    filename = secure_filename(uploaded_file.filename)
+    raw_name = uploaded_file.filename or "photo.jpg"
+    filename = secure_filename(raw_name) or f"photo_{int(datetime.now().timestamp())}.jpg"
     _, ext = os.path.splitext(filename)
+    if not ext:
+        if uploaded_file.mimetype and uploaded_file.mimetype.startswith("image/"):
+            ext = "." + uploaded_file.mimetype.split("/")[-1].replace("jpeg", "jpg")
+        else:
+            ext = ".jpg"
+        filename += ext
     if ext.lower() not in [".jpg", ".jpeg", ".png", ".webp", ".gif", ".bmp", ".heic"]:
-        return jsonify({"success": False, "error": "Only image formats (JPG, PNG, WEBP, GIF) are supported."}), 400
+        if uploaded_file.mimetype and uploaded_file.mimetype.startswith("image/"):
+            filename = os.path.splitext(filename)[0] + ".jpg"
+        else:
+            return jsonify({"success": False, "error": "Only image formats (JPG, PNG, WEBP) are supported."}), 400
         
     q_id = request.form.get("question_id", "0")
     unique_name = f"ans_{submission_id}_q{q_id}_{int(datetime.now().timestamp())}_{filename}"
