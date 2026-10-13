@@ -138,7 +138,8 @@
             </div>
             <div class="flex items-center gap-2 self-start sm:self-auto flex-shrink-0">
                 <button type="button" id="btn-eval-all"
-                        onclick="evaluateAllWithAI({{ submission.id }})"
+                        data-submission-id="{{ submission.id }}"
+                        onclick="evaluateAllWithAI(this)"
                         class="px-4 py-2 bg-gradient-to-r from-indigo-600 to-violet-600 hover:from-indigo-700 hover:to-violet-700 text-white text-xs font-bold rounded-xl shadow-md transition-all duration-200 flex items-center space-x-1.5 cursor-pointer">
                     <i data-lucide="sparkles" class="w-3.5 h-3.5"></i>
                     <span>Evaluate All with AI</span>
@@ -544,8 +545,11 @@
         }
     }
 
-    async function evaluateAllWithAI(submissionId) {
-        const btn = document.getElementById('btn-eval-all');
+    async function evaluateAllWithAI(target) {
+        const submissionId = (typeof target === 'object' && target !== null && target.dataset) 
+            ? target.dataset.submissionId 
+            : target;
+        const btn = document.getElementById('btn-eval-all') || (typeof target === 'object' ? target : null);
         const originalHtml = btn ? btn.innerHTML : '';
         if (btn) {
             btn.disabled = true;
