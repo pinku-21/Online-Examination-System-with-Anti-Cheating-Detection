@@ -693,29 +693,36 @@ def api_tutor_evaluate_question(submission_id):
         conn.close()
         return jsonify({"success": False, "error": "Question not found."}), 404
 
-    # Extract student's response
+    # Extract student's response (text + single or multi-page images)
     student_answers = json.loads(submission["answers_json"]) if submission["answers_json"] else {}
     ans_raw = student_answers.get(question_id)
     student_text = ""
     student_img_url = ""
+    student_img_urls = []
     if isinstance(ans_raw, dict):
         student_text = (ans_raw.get("text") or "").strip()
         student_img_url = (ans_raw.get("image_url") or "").strip()
+        raw_list = ans_raw.get("image_urls") or []
+        if isinstance(raw_list, list):
+            student_img_urls = [u.strip() for u in raw_list if isinstance(u, str) and u.strip()]
+        if student_img_url and student_img_url not in student_img_urls:
+            student_img_urls.insert(0, student_img_url)
+        elif not student_img_url and student_img_urls:
+            student_img_url = student_img_urls[0]
     elif isinstance(ans_raw, str):
         student_text = ans_raw.strip()
 
-    if not student_text and not student_img_url:
+    if not student_text and not student_img_urls:
         conn.close()
         return jsonify({"success": False, "error": "Student did not submit text or photo for this question."}), 400
 
-    # Resolve local file path for image if present
-    abs_img_path = None
-    if student_img_url:
-        # e.g. /static/student_answers/xxx.jpg
-        clean_rel = student_img_url.lstrip("/").replace("/", os.sep)
-        local_candidate = os.path.join(os.path.dirname(__file__), clean_rel)
-        if os.path.exists(local_candidate):
-            abs_img_path = local_candidate
+    # Resolve local file paths for all uploaded pages
+    abs_img_paths = []
+    for u in student_img_urls:
+        clean_rel = u.lstrip("/").replace("/", os.sep)
+        local_cand = os.path.join(os.path.dirname(__file__), clean_rel)
+        if os.path.exists(local_cand):
+            abs_img_paths.append(local_cand)
 
     gemini_key = get_setting("gemini_api_key", "").strip() or os.environ.get("GEMINI_API_KEY", "").strip()
     groq_key = get_setting("groq_api_key", "").strip() or os.environ.get("GROQ_API_KEY", "").strip()
@@ -727,7 +734,8 @@ def api_tutor_evaluate_question(submission_id):
         max_points=question["points"],
         correct_answer=question["correct_answer"] or "",
         student_text=student_text,
-        image_path=abs_img_path,
+        image_path=abs_img_paths[0] if abs_img_paths else None,
+        image_paths=abs_img_paths,
         explanation=question["explanation"] or ""
     )
 
@@ -827,25 +835,33 @@ def api_tutor_evaluate_all(submission_id):
         ans_raw = student_answers.get(qid_s, "")
         student_text = ""
         student_img_url = ""
+        student_img_urls = []
         if isinstance(ans_raw, dict):
             student_text = (ans_raw.get("text") or "").strip()
             student_img_url = (ans_raw.get("image_url") or "").strip()
+            raw_list = ans_raw.get("image_urls") or []
+            if isinstance(raw_list, list):
+                student_img_urls = [u.strip() for u in raw_list if isinstance(u, str) and u.strip()]
+            if student_img_url and student_img_url not in student_img_urls:
+                student_img_urls.insert(0, student_img_url)
+            elif not student_img_url and student_img_urls:
+                student_img_url = student_img_urls[0]
         elif isinstance(ans_raw, str):
             student_text = ans_raw.strip()
 
         # Skip if nothing answered
-        if not student_text and not student_img_url:
+        if not student_text and not student_img_urls:
             # Use objective grading for blank / unanswered
             results.append({"question_id": qid_s, "question_text": q["question_text"][:60], "success": False, "awarded_marks": 0, "max_points": q_pts, "reason": "Not attempted"})
             continue
 
-        # Resolve image path
-        abs_img_path = None
-        if student_img_url:
-            clean_rel = student_img_url.lstrip("/").replace("/", os.sep)
-            local_candidate = os.path.join(os.path.dirname(__file__), clean_rel)
-            if os.path.exists(local_candidate):
-                abs_img_path = local_candidate
+        # Resolve image paths for all pages
+        abs_img_paths = []
+        for u in student_img_urls:
+            clean_rel = u.lstrip("/").replace("/", os.sep)
+            local_cand = os.path.join(os.path.dirname(__file__), clean_rel)
+            if os.path.exists(local_cand):
+                abs_img_paths.append(local_cand)
 
         eval_result = evaluate_answer_with_ai(
             gemini_key=gemini_key,
@@ -854,7 +870,8 @@ def api_tutor_evaluate_all(submission_id):
             max_points=q["points"],
             correct_answer=q["correct_answer"] or "",
             student_text=student_text,
-            image_path=abs_img_path,
+            image_path=abs_img_paths[0] if abs_img_paths else None,
+            image_paths=abs_img_paths,
             explanation=q["explanation"] or ""
         )
 
@@ -1234,14 +1251,24 @@ def tutor_submission_details(submission_id):
         
         student_text = ""
         student_img = ""
+        student_imgs = []
         if isinstance(ans_raw, dict):
             student_text = (ans_raw.get("text") or "").strip()
             student_img = (ans_raw.get("image_url") or "").strip()
+            raw_list = ans_raw.get("image_urls") or []
+            if isinstance(raw_list, list):
+                student_imgs = [u.strip() for u in raw_list if isinstance(u, str) and u.strip()]
+            if student_img and student_img not in student_imgs:
+                student_imgs.insert(0, student_img)
+            elif not student_img and student_imgs:
+                student_img = student_imgs[0]
         elif isinstance(ans_raw, str):
             student_text = ans_raw.strip()
             
-        q_dict["student_answer"] = student_text if student_text else ("(Handwritten Solution Photo Attached)" if student_img else "Not Attempted")
+        page_suffix = f" ({len(student_imgs)} Pages Attached)" if len(student_imgs) > 1 else (" (1 Page Attached)" if student_imgs else "")
+        q_dict["student_answer"] = student_text if student_text else (f"(Handwritten Solution{page_suffix})" if student_imgs else "Not Attempted")
         q_dict["student_image_url"] = student_img
+        q_dict["student_image_urls"] = student_imgs
         
         correct_ans = (q["correct_answer"] or "").strip().lower()
         if correct_ans:

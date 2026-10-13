@@ -213,13 +213,14 @@
                         {% endif %}
                     </div>
 
-                    <!-- Uploaded Handwritten Solution Photo (ALWAYS shown when available) -->
-                    {% if q.student_image_url %}
-                        <div class="p-4 bg-sky-50/70 border border-sky-200 rounded-2xl max-w-xl">
-                            <div class="flex items-center justify-between mb-2.5">
+                    <!-- Uploaded Handwritten Solution Photo(s) (ALWAYS shown when available) -->
+                    {% if q.student_image_urls or q.student_image_url %}
+                        {% set img_list = q.student_image_urls if q.student_image_urls else [q.student_image_url] %}
+                        <div class="p-4 bg-sky-50/70 border border-sky-200 rounded-2xl max-w-2xl">
+                            <div class="flex items-center justify-between mb-3">
                                 <span class="text-xs font-bold text-sky-950 flex items-center">
                                     <i data-lucide="camera" class="w-4 h-4 mr-1.5 text-sky-600"></i>
-                                    Uploaded Answer Photo
+                                    Uploaded Answer Photo{{ 's' if img_list|length > 1 else '' }} ({{ img_list|length }} Page{{ 's' if img_list|length > 1 else '' }})
                                 </span>
                                 <div class="flex items-center space-x-2">
                                     <button type="button" 
@@ -233,24 +234,33 @@
                                         <i data-lucide="sparkles" class="w-3.5 h-3.5"></i>
                                         <span>Evaluate with AI</span>
                                     </button>
-                                    <a href="{{ q.student_image_url }}" target="_blank" class="text-xs font-semibold text-sky-700 hover:text-sky-900 flex items-center space-x-0.5">
-                                        <span>Full Size</span>
-                                        <i data-lucide="external-link" class="w-3.5 h-3.5"></i>
-                                    </a>
                                 </div>
                             </div>
-                            <a href="{{ q.student_image_url }}" target="_blank" class="block group relative overflow-hidden rounded-xl border border-slate-200 bg-white">
-                                <img src="{{ q.student_image_url }}" alt="Handwritten Answer Photo" class="max-h-80 w-auto object-contain mx-auto group-hover:scale-102 transition duration-200">
-                                <div class="absolute bottom-2 right-2 bg-slate-900/70 text-white text-[10px] font-semibold px-2 py-0.5 rounded-md flex items-center space-x-1 backdrop-blur-2xs">
-                                    <i data-lucide="zoom-in" class="w-3 h-3"></i>
-                                    <span>Click to enlarge</span>
+                            <div class="grid grid-cols-1 {{ 'sm:grid-cols-2' if img_list|length > 1 else '' }} gap-3">
+                                {% for img_url in img_list %}
+                                <div class="rounded-xl border border-slate-200 bg-white overflow-hidden p-1.5 shadow-xs">
+                                    <div class="text-[10px] font-bold text-slate-500 px-2 py-0.5 mb-1 flex items-center justify-between border-b border-slate-100">
+                                        <span>Page {{ loop.index }} of {{ img_list|length }}</span>
+                                        <a href="{{ img_url }}" target="_blank" class="text-sky-600 hover:text-sky-800 flex items-center font-semibold">
+                                            <span>Full Size</span>
+                                            <i data-lucide="external-link" class="w-3 h-3 ml-0.5"></i>
+                                        </a>
+                                    </div>
+                                    <a href="{{ img_url }}" target="_blank" class="block group relative overflow-hidden rounded-lg bg-slate-50">
+                                        <img src="{{ img_url }}" alt="Answer Page {{ loop.index }}" class="max-h-72 w-auto object-contain mx-auto group-hover:scale-102 transition duration-200">
+                                        <div class="absolute bottom-1.5 right-1.5 bg-slate-900/70 text-white text-[9px] font-semibold px-2 py-0.5 rounded flex items-center space-x-1 backdrop-blur-2xs">
+                                            <i data-lucide="zoom-in" class="w-2.5 h-2.5"></i>
+                                            <span>Enlarge</span>
+                                        </div>
+                                    </a>
                                 </div>
-                            </a>
+                                {% endfor %}
+                            </div>
                         </div>
                     {% endif %}
 
                     <!-- AI Evaluate button for text-based subjective answers (no image) -->
-                    {% if not q.student_image_url and q.student_answer and q.student_answer != 'Not Attempted' %}
+                    {% if not q.student_image_url and not q.student_image_urls and q.student_answer and q.student_answer != 'Not Attempted' %}
                         <div class="flex items-center justify-end">
                             <button type="button" 
                                     id="btn-eval-{{ q.id }}" 

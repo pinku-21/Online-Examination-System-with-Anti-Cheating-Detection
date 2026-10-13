@@ -519,13 +519,24 @@ def generate_mock_questions(topic_or_context, num_questions=5, question_type="mc
     return {"success": True, "questions": questions, "is_mock": True}
 
 
-def evaluate_answer_with_ai(gemini_key=None, groq_key=None, question_text="", max_points=1.0, correct_answer="", student_text="", image_path=None, explanation=""):
+def evaluate_answer_with_ai(gemini_key=None, groq_key=None, question_text="", max_points=1.0, correct_answer="", student_text="", image_path=None, image_paths=None, explanation=""):
     """
-    Evaluates a student's answer (written text or uploaded handwritten photo) using AI.
-    Supports Google Gemini (with vision for handwriting) and Groq Cloud.
+    Evaluates a student's answer (written text or uploaded handwritten photos/pages) using AI.
+    Supports Google Gemini (with multi-image vision for multi-page solutions) and Groq Cloud.
     Returns: {"success": bool, "awarded_marks": float, "feedback": str, "model_used": str}
     """
     max_pts = float(max_points) if max_points else 1.0
+
+    # Collect all valid image paths (single or multiple pages)
+    all_imgs = []
+    if image_paths and isinstance(image_paths, list):
+        for p in image_paths:
+            if p and os.path.exists(p) and p not in all_imgs:
+                all_imgs.append(p)
+    if image_path and os.path.exists(image_path) and image_path not in all_imgs:
+        all_imgs.append(image_path)
+
+    pages_note = f" (Student attached {len(all_imgs)} page(s) of handwritten solution)" if all_imgs else ""
 
     eval_prompt = f"""You are a fair, expert academic examiner evaluating a student's answer for an examination.
 
@@ -542,12 +553,12 @@ GRADING RUBRIC / EXPLANATION:
 {explanation or 'Award marks proportionately based on correctness (0 to ' + str(max_pts) + ').'}
 
 STUDENT'S WRITTEN TEXT:
-{student_text or '(No typed text provided - examine the attached photo/image of the handwritten answer)'}
+{student_text or '(No typed text provided - examine the attached photo(s) of the handwritten answer)'}{pages_note}
 
 EVALUATION INSTRUCTIONS:
-1. Carefully inspect the student's submitted response (including handwritten solution photo/diagram if provided).
+1. Carefully inspect the student's submitted response. If multiple pages/photos are attached, inspect all pages sequentially to read the complete solution, proof, or calculation.
 2. For 2, 3, 4, 5, or 10-mark questions:
-   - Award full marks if the answer/proof/calculation is complete and correct.
+   - Award full marks if the answer/proof/calculation across all pages is complete and correct.
    - Award partial marks (e.g. 1, 1.5, 2, 2.5, 3, 3.5, 4, etc.) for correct steps, valid method, or partially complete explanations.
    - Award 0 if completely irrelevant or incorrect.
 3. Awarded marks MUST be between 0.0 and {max_pts}.
@@ -557,16 +568,18 @@ STRICT JSON OUTPUT FORMAT:
 Return ONLY a JSON object with this exact structure:
 {{
   "awarded_marks": 2.5,
-  "feedback": "Step 1 and Step 2 are correct. Minor arithmetic error in the final step."
+  "feedback": "Page 1 and Page 2 steps are correct. Minor arithmetic error in the final step."
 }}
 """
 
-    # 1. Try Gemini first (multimodal vision + handwriting analysis)
+    # 1. Try Gemini first (multimodal vision + multi-page handwriting analysis)
     if gemini_key:
         parts = [{"text": eval_prompt}]
-        if image_path and os.path.exists(image_path):
+        for idx, img_p in enumerate(all_imgs):
             try:
-                mime, b64_data = encode_image_base64(image_path)
+                mime, b64_data = encode_image_base64(img_p)
+                if len(all_imgs) > 1:
+                    parts.append({"text": f"--- STUDENT ANSWER PAGE {idx + 1} OF {len(all_imgs)} ---"})
                 parts.append({
                     "inline_data": {
                         "mime_type": mime,
@@ -574,7 +587,7 @@ Return ONLY a JSON object with this exact structure:
                     }
                 })
             except Exception as e:
-                print(f"Error encoding student answer image: {e}")
+                print(f"Error encoding student answer image {img_p}: {e}")
 
         models = [
             "gemini-3.8-flash",
