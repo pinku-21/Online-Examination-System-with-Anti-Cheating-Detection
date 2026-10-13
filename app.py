@@ -1011,6 +1011,46 @@ def tutor_submission_details(submission_id):
     conn.close()
     return render_template("submission_details.html", submission=submission, violations=violations, questions=questions_review)
 
+@app.route("/api/tutor/submission/<int:submission_id>/grant-reattempt", methods=["POST"])
+@admin_required
+def api_grant_reattempt(submission_id):
+    """
+    Admin grants a student a fresh re-attempt by deleting the existing submission
+    (and all linked violations). The student can then start the exam again from scratch.
+    """
+    conn = get_connection()
+    cursor = conn.cursor()
+
+    # Verify submission exists and fetch info for response
+    cursor.execute("""
+        SELECT s.id, s.student_name, s.roll_number, s.exam_id, s.status,
+               e.title as exam_title
+        FROM submissions s
+        JOIN exams e ON s.exam_id = e.id
+        WHERE s.id = ?
+    """, (submission_id,))
+    submission = cursor.fetchone()
+
+    if not submission:
+        conn.close()
+        return jsonify({"success": False, "error": "Submission not found."}), 404
+
+    # Delete violations first (foreign key constraint), then the submission
+    cursor.execute("DELETE FROM violations WHERE submission_id = ?", (submission_id,))
+    cursor.execute("DELETE FROM submissions WHERE id = ?", (submission_id,))
+
+    conn.commit()
+    conn.close()
+
+    return jsonify({
+        "success": True,
+        "message": f"Re-attempt granted for {submission['student_name']}. Their previous submission has been cleared.",
+        "student_name": submission["student_name"],
+        "exam_title": submission["exam_title"],
+        "exam_id": submission["exam_id"]
+    })
+
+
 @app.route("/student/dashboard")
 @login_required
 def student_dashboard():

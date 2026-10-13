@@ -119,10 +119,19 @@
                                     </td>
                                     <td class="px-6 py-4 text-xs text-slate-500 font-medium">{{ sub.started_at | format_datetime_12h }}</td>
                                     <td class="px-6 py-4 text-right">
-                                        <a href="/tutor/submission/{{ sub.id }}" class="px-3 py-1.5 bg-slate-100 hover:bg-sky-50 hover:text-sky-700 text-slate-700 text-xs font-semibold rounded-lg transition inline-flex items-center space-x-1">
-                                            <i data-lucide="eye" class="w-3.5 h-3.5"></i>
-                                            <span>Audit Report</span>
-                                        </a>
+                                        <div class="flex items-center justify-end gap-2">
+                                            <a href="/tutor/submission/{{ sub.id }}" class="px-3 py-1.5 bg-slate-100 hover:bg-sky-50 hover:text-sky-700 text-slate-700 text-xs font-semibold rounded-lg transition inline-flex items-center space-x-1">
+                                                <i data-lucide="eye" class="w-3.5 h-3.5"></i>
+                                                <span>Audit Report</span>
+                                            </a>
+                                            <button type="button"
+                                                    onclick="grantReattempt({{ sub.id }}, '{{ sub.student_name | escape }}')"
+                                                    class="px-3 py-1.5 bg-amber-50 hover:bg-amber-100 text-amber-700 border border-amber-200 text-xs font-semibold rounded-lg transition inline-flex items-center space-x-1"
+                                                    title="Clear this submission and allow student to retake the exam">
+                                                <i data-lucide="rotate-ccw" class="w-3.5 h-3.5"></i>
+                                                <span>Re-attempt</span>
+                                            </button>
+                                        </div>
                                     </td>
                                 </tr>
                             {% endfor %}
@@ -306,6 +315,45 @@
 
 {% block scripts %}
 <script>
+    async function grantReattempt(submissionId, studentName) {
+        const result = await Swal.fire({
+            icon: 'warning',
+            title: 'Grant Re-attempt?',
+            html: `
+                <p class="text-sm text-slate-600 mb-3">This will <strong>permanently delete</strong> the current submission for <strong>${studentName}</strong> (including all violations and answers), allowing them to take the exam again from scratch.</p>
+                <p class="text-xs text-rose-600 font-semibold">⚠️ This action cannot be undone. The previous attempt data will be lost.</p>
+            `,
+            showCancelButton: true,
+            confirmButtonColor: '#d97706',
+            cancelButtonColor: '#6b7280',
+            confirmButtonText: '<i class="mr-1">↺</i> Yes, Grant Re-attempt',
+            cancelButtonText: 'Cancel'
+        });
+
+        if (!result.isConfirmed) return;
+
+        try {
+            const resp = await fetch(`/api/tutor/submission/${submissionId}/grant-reattempt`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' }
+            });
+            const res = await resp.json();
+            if (res.success) {
+                await Swal.fire({
+                    icon: 'success',
+                    title: 'Re-attempt Granted!',
+                    html: `<p class="text-sm text-slate-600"><strong>${studentName}</strong> can now retake the exam. Their previous submission has been cleared.</p>`,
+                    confirmButtonColor: '#059669'
+                });
+                window.location.reload();
+            } else {
+                Swal.fire({ icon: 'error', title: 'Error', text: res.error || 'Failed to grant re-attempt.' });
+            }
+        } catch (err) {
+            Swal.fire({ icon: 'error', title: 'Network Error', text: 'Could not connect to the server.' });
+        }
+    }
+
     function copyDirectLink(code) {
         const url = `${window.location.origin}/student?code=${code}`;
         navigator.clipboard.writeText(url).then(() => {

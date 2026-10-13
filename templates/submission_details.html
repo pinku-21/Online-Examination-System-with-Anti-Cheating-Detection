@@ -13,10 +13,22 @@
             <span>/</span>
             <span class="text-slate-900 font-medium">Proctoring Audit</span>
         </div>
-        <a href="/tutor/exam/{{ submission.exam_id }}" class="text-sm text-slate-600 hover:text-slate-900 font-medium flex items-center space-x-1">
-            <i data-lucide="arrow-left" class="w-4 h-4"></i>
-            <span>Back to Exam</span>
-        </a>
+        <div class="flex items-center gap-3">
+            <button type="button"
+                    data-submission-id="{{ submission.id }}"
+                    data-student-name="{{ submission.student_name | e }}"
+                    data-exam-id="{{ submission.exam_id }}"
+                    onclick="grantReattemptFromDetail(this)"
+                    class="px-4 py-2 bg-amber-500 hover:bg-amber-600 text-white text-xs font-bold rounded-xl shadow-sm transition flex items-center space-x-1.5"
+                    title="Clear this submission so the student can retake the exam">
+                <i data-lucide="rotate-ccw" class="w-3.5 h-3.5"></i>
+                <span>Grant Re-attempt</span>
+            </button>
+            <a href="/tutor/exam/{{ submission.exam_id }}" class="text-sm text-slate-600 hover:text-slate-900 font-medium flex items-center space-x-1">
+                <i data-lucide="arrow-left" class="w-4 h-4"></i>
+                <span>Back to Exam</span>
+            </a>
+        </div>
     </div>
 
     <!-- Student Status Overview -->
@@ -279,6 +291,49 @@
 
 {% block scripts %}
 <script>
+    async function grantReattemptFromDetail(btn) {
+        const submissionId = btn.dataset.submissionId;
+        const studentName  = btn.dataset.studentName;
+        const examId       = btn.dataset.examId;
+        const result = await Swal.fire({
+            icon: 'warning',
+            title: 'Grant Re-attempt?',
+            html: `
+                <p class="text-sm text-slate-600 mb-3">This will <strong>permanently delete</strong> this submission for <strong>${studentName}</strong> (including all violations and answers), allowing them to take the exam again fresh.</p>
+                <p class="text-xs text-rose-600 font-semibold">⚠️ This action cannot be undone. All data for this attempt will be lost.</p>
+            `,
+            showCancelButton: true,
+            confirmButtonColor: '#d97706',
+            cancelButtonColor: '#6b7280',
+            confirmButtonText: '↺ Yes, Grant Re-attempt',
+            cancelButtonText: 'Cancel'
+        });
+
+        if (!result.isConfirmed) return;
+
+        try {
+            const resp = await fetch(`/api/tutor/submission/${submissionId}/grant-reattempt`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' }
+            });
+            const res = await resp.json();
+            if (res.success) {
+                await Swal.fire({
+                    icon: 'success',
+                    title: 'Re-attempt Granted!',
+                    html: `<p class="text-sm text-slate-600"><strong>${studentName}</strong> can now retake the exam. Redirecting back to exam page...</p>`,
+                    timer: 2000,
+                    showConfirmButton: false
+                });
+                window.location.href = `/tutor/exam/${examId}`;
+            } else {
+                Swal.fire({ icon: 'error', title: 'Error', text: res.error || 'Failed to grant re-attempt.' });
+            }
+        } catch (err) {
+            Swal.fire({ icon: 'error', title: 'Network Error', text: 'Could not connect to the server.' });
+        }
+    }
+
     async function promptEditScore(elOrSubId, currentScore, totalPoints) {
         let subId = elOrSubId;
         if (typeof elOrSubId === 'object' && elOrSubId !== null && elOrSubId.dataset) {
