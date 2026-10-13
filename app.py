@@ -381,12 +381,10 @@ def tutor_dashboard():
     exams = [dict(r) for r in cursor.fetchall()]
     conn.close()
     
-    openai_key = get_setting("openai_api_key", "") or os.environ.get("OPENAI_API_KEY", "").strip()
     gemini_key = get_setting("gemini_api_key", "") or os.environ.get("GEMINI_API_KEY", "").strip()
     groq_key = get_setting("groq_api_key", "") or os.environ.get("GROQ_API_KEY", "").strip()
     public_url = get_setting("public_url", "")
     has_api_key = bool(
-        (openai_key and len(openai_key.strip()) > 10) or 
         (gemini_key and len(gemini_key.strip()) > 10) or 
         (groq_key and len(groq_key.strip()) > 10)
     )
@@ -404,10 +402,8 @@ def tutor_dashboard():
         students=students,
         classes=distinct_classes,
         has_api_key=has_api_key,
-        has_openai_key=bool(openai_key and len(openai_key.strip()) > 10),
         has_gemini_key=bool(gemini_key and len(gemini_key.strip()) > 10),
         has_groq_key=bool(groq_key and len(groq_key.strip()) > 10),
-        openai_key_mask=(openai_key[:7] + "..." + openai_key[-4:]) if len(openai_key) > 11 else "",
         gemini_key_mask=(gemini_key[:4] + "..." + gemini_key[-4:]) if len(gemini_key) > 8 else "",
         groq_key_mask=(groq_key[:4] + "..." + groq_key[-4:]) if len(groq_key) > 8 else "",
         public_url=public_url
@@ -416,13 +412,10 @@ def tutor_dashboard():
 @app.route("/tutor/settings", methods=["GET", "POST"])
 @admin_required
 def tutor_save_settings():
-    openai_key = request.form.get("openai_api_key", "").strip()
     gemini_key = request.form.get("gemini_api_key", "").strip()
     groq_key = request.form.get("groq_api_key", "").strip()
     public_url = request.form.get("public_url", "").strip().rstrip("/")
     
-    if openai_key:
-        set_setting("openai_api_key", openai_key)
     if gemini_key:
         set_setting("gemini_api_key", gemini_key)
     if groq_key:
@@ -443,11 +436,9 @@ def api_set_public_url():
 @app.route("/tutor/exam/new")
 @admin_required
 def new_exam():
-    openai_key = get_setting("openai_api_key", "") or os.environ.get("OPENAI_API_KEY", "").strip()
     gemini_key = get_setting("gemini_api_key", "") or os.environ.get("GEMINI_API_KEY", "").strip()
     groq_key = get_setting("groq_api_key", "") or os.environ.get("GROQ_API_KEY", "").strip()
     has_api_key = bool(
-        (openai_key and len(openai_key.strip()) > 10) or 
         (gemini_key and len(gemini_key.strip()) > 10) or 
         (groq_key and len(groq_key.strip()) > 10)
     )
@@ -513,12 +504,11 @@ def api_generate_questions():
     if extracted_pdf_texts:
         combined_text += "Extracted from Uploaded PDF Documents:\n" + "\n\n".join(extracted_pdf_texts)
 
-    openai_key = get_setting("openai_api_key", "") or os.environ.get("OPENAI_API_KEY", "").strip()
     gemini_key = get_setting("gemini_api_key", "") or os.environ.get("GEMINI_API_KEY", "").strip()
     groq_key = get_setting("groq_api_key", "") or os.environ.get("GROQ_API_KEY", "").strip()
 
     # Mock: return immediately
-    if use_mock or (not openai_key and not gemini_key and not groq_key):
+    if use_mock or (not gemini_key and not groq_key):
         result = generate_mock_questions(combined_text, num_questions=num_questions, question_type=question_type, total_marks=total_marks)
         result["extracted_figures"] = extracted_figures
         return jsonify({"job_id": None, "status": "done", "result": result})
@@ -538,7 +528,6 @@ def api_generate_questions():
         print(f"Warning: Failed to save job to DB: {db_err}")
 
     kwargs = dict(
-        openai_key=openai_key,
         gemini_key=gemini_key,
         groq_key=groq_key,
         text_content=combined_text,
@@ -718,12 +707,10 @@ def api_tutor_evaluate_question(submission_id):
         if os.path.exists(local_candidate):
             abs_img_path = local_candidate
 
-    openai_key = get_setting("openai_api_key", "").strip() or os.environ.get("OPENAI_API_KEY", "").strip()
     gemini_key = get_setting("gemini_api_key", "").strip() or os.environ.get("GEMINI_API_KEY", "").strip()
     groq_key = get_setting("groq_api_key", "").strip() or os.environ.get("GROQ_API_KEY", "").strip()
 
     eval_result = evaluate_answer_with_ai(
-        openai_key=openai_key,
         gemini_key=gemini_key,
         groq_key=groq_key,
         question_text=question["question_text"],

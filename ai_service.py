@@ -401,14 +401,14 @@ def generate_questions_with_groq(api_key, text_content=None, num_questions=5, qu
             
     return {"success": False, "error": last_error or "Failed to generate questions with Groq."}
 
-def generate_questions_unified(openai_key=None, gemini_key=None, groq_key=None, text_content=None, image_paths=None, num_questions=5, question_type="mcq", difficulty="Medium", custom_prompt=None, total_marks=None, available_figures=None):
+def generate_questions_unified(gemini_key=None, groq_key=None, text_content=None, image_paths=None, num_questions=5, question_type="mcq", difficulty="Medium", custom_prompt=None, total_marks=None, available_figures=None):
     """
-    Unified AI Orchestrator with fallback across OpenAI (ChatGPT), Gemini, and Groq.
+    Unified AI Orchestrator with Google Gemini (primary with vision/PDF) and Groq Cloud (ultra-fast fallback).
     """
-    openai_err = None
-    if openai_key:
-        result = generate_questions_with_openai(
-            api_key=openai_key,
+    gemini_err = None
+    if gemini_key:
+        result = generate_questions_with_gemini(
+            api_key=gemini_key,
             text_content=text_content,
             image_paths=image_paths,
             num_questions=num_questions,
@@ -420,8 +420,8 @@ def generate_questions_unified(openai_key=None, gemini_key=None, groq_key=None, 
         )
         if result.get("success"):
             return result
-        openai_err = result.get("error")
-        print(f"OpenAI attempt failed: {openai_err}. Checking fallback...")
+        gemini_err = result.get("error")
+        print(f"Gemini attempt failed: {gemini_err}. Checking Groq fallback...")
 
     gemini_err = None
     if gemini_key:
@@ -459,10 +459,8 @@ def generate_questions_unified(openai_key=None, gemini_key=None, groq_key=None, 
         print(f"Groq attempt failed: {groq_err}")
 
     # If keys were provided but all failed:
-    if openai_key or gemini_key or groq_key:
+    if gemini_key or groq_key:
         errors = []
-        if openai_key:
-            errors.append(f"OpenAI: {openai_err or 'Failed'}")
         if gemini_key:
             errors.append(f"Gemini: {gemini_err or 'Failed'}")
         if groq_key:
@@ -531,10 +529,10 @@ def generate_mock_questions(topic_or_context, num_questions=5, question_type="mc
     return {"success": True, "questions": questions, "is_mock": True}
 
 
-def evaluate_answer_with_ai(gemini_key=None, groq_key=None, openai_key=None, question_text="", max_points=1.0, correct_answer="", student_text="", image_path=None, explanation=""):
+def evaluate_answer_with_ai(gemini_key=None, groq_key=None, question_text="", max_points=1.0, correct_answer="", student_text="", image_path=None, explanation=""):
     """
     Evaluates a student's answer (written text or uploaded handwritten photo) using AI.
-    Supports OpenAI (GPT-4o/mini), Google Gemini, and Groq Cloud.
+    Supports Google Gemini (with vision for handwriting) and Groq Cloud.
     Returns: {"success": bool, "awarded_marks": float, "feedback": str, "model_used": str}
     """
     max_pts = float(max_points) if max_points else 1.0
@@ -573,54 +571,7 @@ Return ONLY a JSON object with this exact structure:
 }}
 """
 
-    # 1. Try OpenAI first if configured (high accuracy + native vision for handwritten photos)
-    if openai_key:
-        user_parts = [{"type": "text", "text": eval_prompt}]
-        if image_path and os.path.exists(image_path):
-            try:
-                mime, b64_data = encode_image_base64(image_path)
-                user_parts.append({
-                    "type": "image_url",
-                    "image_url": {"url": f"data:{mime};base64,{b64_data}"}
-                })
-            except Exception as e:
-                print(f"Error encoding student answer image for OpenAI: {e}")
-
-        openai_models = ["gpt-4o-mini", "gpt-4o"]
-        for o_model in openai_models:
-            try:
-                headers = {
-                    "Authorization": f"Bearer {openai_key}",
-                    "Content-Type": "application/json"
-                }
-                payload = {
-                    "model": o_model,
-                    "messages": [
-                        {"role": "system", "content": "You are an academic grader. Return strictly JSON with 'awarded_marks' and 'feedback'."},
-                        {"role": "user", "content": user_parts if image_path else eval_prompt}
-                    ],
-                    "temperature": 0.2,
-                    "response_format": {"type": "json_object"}
-                }
-                resp = requests.post("https://api.openai.com/v1/chat/completions", headers=headers, json=payload, timeout=40)
-                if resp.status_code == 200:
-                    content = resp.json()["choices"][0]["message"]["content"].strip()
-                    data = json.loads(content)
-                    awarded = float(data.get("awarded_marks", 0.0))
-                    awarded = max(0.0, min(max_pts, round(awarded, 1)))
-                    feedback = data.get("feedback", "AI evaluated response.")
-                    return {
-                        "success": True,
-                        "awarded_marks": awarded,
-                        "feedback": feedback,
-                        "model_used": f"OpenAI ({o_model})"
-                    }
-                else:
-                    print(f"OpenAI error ({o_model}): {resp.status_code} - {resp.text}")
-            except Exception as e:
-                print(f"OpenAI evaluation error ({o_model}): {e}")
-
-    # 2. Try Gemini (multimodal supported)
+    # 1. Try Gemini first (multimodal vision + handwriting analysis)
     if gemini_key:
         parts = [{"text": eval_prompt}]
         if image_path and os.path.exists(image_path):
@@ -712,5 +663,5 @@ Return ONLY a JSON object with this exact structure:
 
     return {
         "success": False,
-        "error": "AI evaluation could not be completed. Please configure a valid OpenAI, Gemini, or Groq API key in Tutor Settings."
+        "error": "AI evaluation could not be completed. Please configure a valid Gemini or Groq API key in Tutor Settings."
     }

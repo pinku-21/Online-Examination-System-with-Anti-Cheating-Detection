@@ -358,7 +358,7 @@
 
 
 
-<!-- AI API Keys Modal (OpenAI, Gemini & Groq) -->
+<!-- AI API Keys Modal (Gemini & Groq) -->
 <div id="api-key-modal" class="fixed inset-0 bg-slate-900/50 backdrop-blur-sm z-50 flex items-center justify-center p-4 hidden">
     <div class="bg-white rounded-2xl max-w-lg w-full p-6 shadow-2xl border border-slate-200">
         <div class="flex items-center justify-between mb-4">
@@ -368,7 +368,7 @@
                 </div>
                 <div>
                     <h3 class="font-bold text-slate-900">AI Generation & Grading Engines</h3>
-                    <p class="text-[11px] text-slate-500">Configure OpenAI (ChatGPT), Gemini, or Groq for question design and auto-grading</p>
+                    <p class="text-[11px] text-slate-500">Configure Google Gemini or Groq Cloud for question design and auto-grading</p>
                 </div>
             </div>
             <button onclick="document.getElementById('api-key-modal').classList.add('hidden')" class="text-slate-400 hover:text-slate-600">
@@ -377,20 +377,6 @@
         </div>
 
         <form action="/tutor/settings" method="POST" class="space-y-4">
-            <!-- OpenAI ChatGPT -->
-            <div class="p-3 bg-slate-50 border border-slate-200 rounded-xl">
-                <div class="flex items-center justify-between mb-1.5">
-                    <label class="text-xs font-bold text-slate-800 flex items-center space-x-1.5">
-                        <span>OpenAI API (ChatGPT - GPT-4o / GPT-4o-mini)</span>
-                        {% if has_openai_key %}
-                        <span class="px-2 py-0.5 rounded-full text-[10px] bg-emerald-100 text-emerald-700 font-bold">Active ({{ openai_key_mask }})</span>
-                        {% endif %}
-                    </label>
-                    <a href="https://platform.openai.com/api-keys" target="_blank" class="text-[11px] text-sky-600 hover:underline font-semibold">Get API Key ↗</a>
-                </div>
-                <input type="password" name="openai_api_key" placeholder="sk-proj-... or sk-..." class="w-full px-3 py-2 border border-slate-300 rounded-lg text-xs focus:outline-none focus:ring-2 focus:ring-sky-500 font-mono">
-                <p class="text-[10px] text-slate-400 mt-1">High accuracy: Blueprint generation, diagram creation, and multimodal evaluation of handwritten student answers.</p>
-            </div>
 
             <!-- Google Gemini -->
             <div class="p-3 bg-slate-50 border border-slate-200 rounded-xl">
