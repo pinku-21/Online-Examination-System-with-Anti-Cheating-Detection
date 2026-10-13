@@ -351,13 +351,20 @@
 
         function notifyFileBrowseStart() {
             isBrowsingFile = true;
+            noPersonConsecutiveCount = 0;
+            loudAudioConsecutiveCount = 0;
             clearTimeout(fileBrowseCooldownTimer);
+            updateHudBadge('hud-face', 'Uploading 📷', 'sky');
+            updateHudBadge('hud-phone', 'Upload Mode', 'sky');
         }
 
         function notifyFileBrowseEnd() {
             clearTimeout(fileBrowseCooldownTimer);
+            // 6-second cooldown buffer after returning from camera/upload before resuming strict proctoring
             fileBrowseCooldownTimer = setTimeout(() => {
                 isBrowsingFile = false;
+                noPersonConsecutiveCount = 0;
+                loudAudioConsecutiveCount = 0;
                 // Re-request fullscreen quietly if exited during photo upload
                 if (isExamActive && !isTerminated && !document.fullscreenElement) {
                     const docEl = document.documentElement;
@@ -367,7 +374,7 @@
                         docEl.webkitRequestFullscreen().catch(() => {});
                     }
                 }
-            }, 3500);
+            }, 6000);
         }
 
         function triggerPhotoUpload(questionId, useCameraDirect) {
@@ -608,8 +615,15 @@
                         // Combine: either COCO person OR BlazeFace counts as "person present"
                         const totalPersonCount = Math.max(personCount, blazeFaceCount);
 
-                        // Skip violation alerts during initial startup grace period
-                        if (isGracePeriod) return;
+                        // Skip violation alerts during initial startup grace period OR while taking/uploading photos
+                        if (isGracePeriod || isBrowsingFile) {
+                            noPersonConsecutiveCount = 0;
+                            if (isBrowsingFile) {
+                                updateHudBadge('hud-face', 'Uploading 📷', 'sky');
+                                updateHudBadge('hud-phone', 'Upload Mode', 'sky');
+                            }
+                            return;
+                        }
 
                         // Rule A: Mobile Phone / Device Detection
                         if (detectedDevices.length > 0) {
@@ -620,11 +634,11 @@
                         }
 
                         // Rule B: Face / Person Detection
-                        // Requires 6 consecutive misses (~8 seconds) before flagging to avoid false positives
+                        // Requires 8 consecutive misses (~12 seconds) before flagging (allows looking down to write on paper)
                         if (totalPersonCount === 0) {
                             noPersonConsecutiveCount++;
                             updateHudBadge('hud-face', 'No Person ❌', 'rose');
-                            if (noPersonConsecutiveCount >= 4) {
+                            if (noPersonConsecutiveCount >= 8) {
                                 triggerViolation('no_face', 'No candidate face detected in webcam feed. Candidate left desk or covered camera.');
                             }
                         } else if (totalPersonCount > 1 && blazeFaceCount <= 1) {
@@ -681,7 +695,10 @@
                 const dataArray = new Uint8Array(analyser.frequencyBinCount);
 
                 audioAnalysisInterval = setInterval(() => {
-                    if (!isExamActive || isTerminated) return;
+                    if (!isExamActive || isTerminated || isGracePeriod || isBrowsingFile) {
+                        loudAudioConsecutiveCount = 0;
+                        return;
+                    }
 
                     analyser.getByteFrequencyData(dataArray);
                     let sum = 0;
@@ -779,7 +796,8 @@
 
         // Send violation report to backend & update warning counter
         async function triggerViolation(type, details) {
-            if (violationCooldown || isTerminated) return;
+            // Silenced completely while browsing/taking photos or in grace/cooldown periods
+            if (isBrowsingFile || isGracePeriod || violationCooldown || isTerminated) return;
             violationCooldown = true;
             setTimeout(() => { violationCooldown = false; }, 2500); // 2.5s cooldown to prevent multiple triggers at once
 
@@ -1093,9 +1111,12 @@
         }
 
         async function uploadStudentAnswerImage(questionId, inputEl) {
-            notifyFileBrowseEnd();
+            notifyFileBrowseStart();
             const files = inputEl.files ? Array.from(inputEl.files) : [];
-            if (!files.length) return;
+            if (!files.length) {
+                notifyFileBrowseEnd();
+                return;
+            }
 
             // Validate sizes
             for (const f of files) {
@@ -1105,6 +1126,7 @@
                         title: 'File Too Large',
                         text: `${f.name} is larger than 20MB. Please select smaller images.`
                     });
+                    notifyFileBrowseEnd();
                     return;
                 }
             }
@@ -1176,6 +1198,9 @@
                     title: 'Network Error',
                     text: 'Could not reach server to upload image.'
                 });
+            } finally {
+                // Keep anti-cheat silenced until 6 seconds after upload completes and student is back to exam
+                notifyFileBrowseEnd();
             }
         }
 
