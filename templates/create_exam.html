@@ -551,13 +551,15 @@
         const originalHtml = btn.innerHTML;
         btn.disabled = true;
 
-        // Animated progress messages to keep user informed
+        // Animated progress messages — cycles while AI works in background
         const progressMessages = [
-            'Analyzing PDF content...',
+            'Uploading & analyzing PDF...',
             'Building exam blueprint...',
             'Generating questions with AI...',
             'Crafting answers & rubrics...',
-            'Almost done, finalizing exam...'
+            'Applying mark distribution...',
+            'Adding figures & diagrams...',
+            'Finalizing your exam paper...'
         ];
         let msgIdx = 0;
         btn.innerHTML = `<i data-lucide="loader" class="w-5 h-5 animate-spin"></i><span id="gen-progress-msg">${progressMessages[0]}</span>`;
@@ -566,13 +568,41 @@
             msgIdx = (msgIdx + 1) % progressMessages.length;
             const el = document.getElementById('gen-progress-msg');
             if (el) el.textContent = progressMessages[msgIdx];
-        }, 4000);
+        }, 3500);
 
         const resetBtn = () => {
             clearInterval(progressInterval);
             btn.disabled = false;
             btn.innerHTML = originalHtml;
             lucide.createIcons();
+        };
+
+        const handleResult = (data) => {
+            if (data.success && data.questions) {
+                questionsData = data.questions;
+                if (data.extracted_figures) {
+                    extractedFiguresList = data.extracted_figures;
+                    renderPdfFiguresGallery();
+                }
+                renderQuestions();
+                if (!document.getElementById('exam-title').value.trim()) {
+                    const topicSnippet = document.getElementById('topic-text').value.slice(0, 30) || 'Study Notes';
+                    document.getElementById('exam-title').value = `Exam on ${topicSnippet} - ${new Date().toLocaleDateString()}`;
+                }
+                const totalMarks = questionsData.reduce((sum, q) => sum + (parseFloat(q.points) || 1.0), 0);
+                const figCount = questionsData.filter(q => q.figure_svg || q.figure_url).length;
+                resetBtn();
+                Swal.fire({
+                    icon: 'success',
+                    title: 'Exam Paper Ready!',
+                    text: `Generated ${questionsData.length} questions totaling ${totalMarks} Marks (${figCount} with figures) via ${data.model_used || 'AI'}. You can review and adjust marks or choices below!`,
+                    timer: 3500,
+                    showConfirmButton: false
+                });
+            } else {
+                resetBtn();
+                Swal.fire({ icon: 'error', title: 'Generation Failed', text: data.error || 'Could not generate questions. Please check your API key or upload valid text/PDF.' });
+            }
         };
 
         let numQVal = document.getElementById('num-questions').value;
@@ -586,106 +616,71 @@
         if (questionTypeVal === 'custom') {
             const selectedTypes = [];
             if (document.getElementById('fmt-mcq').checked) selectedTypes.push('Multiple Choice (MCQ)');
-            if (document.getElementById('fmt-short').checked) selectedTypes.push('Short Answer (2â€“4 Marks)');
-            if (document.getElementById('fmt-descriptive').checked) selectedTypes.push('Long Descriptive / Essay (5â€“10 Marks)');
+            if (document.getElementById('fmt-short').checked) selectedTypes.push('Short Answer (2-4 Marks)');
+            if (document.getElementById('fmt-descriptive').checked) selectedTypes.push('Long Descriptive / Essay (5-10 Marks)');
             if (document.getElementById('fmt-tf').checked) selectedTypes.push('True / False');
             if (document.getElementById('fmt-diagram').checked) selectedTypes.push('Questions with Visual SVG Figures / Diagrams');
             if (document.getElementById('fmt-numerical').checked) selectedTypes.push('Numerical / Problem Solving');
-
             const details = document.getElementById('custom-format-details').value.trim();
             customFormatPrompt = `CUSTOM QUESTION FORMAT DIRECTIVE:\nYou MUST generate questions conforming strictly to these user-selected types: ${selectedTypes.join(', ')}.`;
-            if (details) {
-                customFormatPrompt += ` Breakdown specifications: ${details}`;
-            }
+            if (details) customFormatPrompt += ` Breakdown specifications: ${details}`;
         }
 
         const formData = new FormData();
         selectedFiles.forEach(f => formData.append('files', f));
         formData.append('topic_text', document.getElementById('topic-text').value);
         formData.append('custom_prompt', document.getElementById('custom-prompt').value);
-        if (customFormatPrompt) {
-            formData.append('custom_format_instruction', customFormatPrompt);
-        }
+        if (customFormatPrompt) formData.append('custom_format_instruction', customFormatPrompt);
         formData.append('total_marks', document.getElementById('total-marks').value);
         formData.append('num_questions', numQVal);
         formData.append('difficulty', document.getElementById('difficulty').value);
         formData.append('question_type', questionTypeVal);
 
-        // 120-second client-side timeout
-        const controller = new AbortController();
-        const timeoutId = setTimeout(() => controller.abort(), 120000);
-
         try {
-            const resp = await fetch('/api/generate-questions', {
-                method: 'POST',
-                body: formData,
-                signal: controller.signal
-            });
-            clearTimeout(timeoutId);
-            if (!resp.ok) {
-                let errorMsg = `Server error (${resp.status})`;
-                if (resp.status === 504 || resp.status === 502) {
-                    errorMsg = 'The server took too long. This usually happens with large PDFs. Try: reduce questions to 5, or remove some question types.';
-                } else {
-                    try {
-                        const errData = await resp.json();
-                        if (errData && errData.error) errorMsg = errData.error;
-                    } catch (e) {}
-                }
+            // Step 1: POST — returns instantly with job_id (background thread runs AI)
+            const startResp = await fetch('/api/generate-questions', { method: 'POST', body: formData });
+            if (!startResp.ok) {
                 resetBtn();
-                Swal.fire({
-                    icon: 'error',
-                    title: 'Generation Failed',
-                    text: errorMsg
-                });
+                Swal.fire({ icon: 'error', title: 'Failed to Start', text: `Server error (${startResp.status}). Please try again.` });
+                return;
+            }
+            const startData = await startResp.json();
+
+            // If mock/immediate result (no job_id)
+            if (!startData.job_id) {
+                handleResult(startData.result || startData);
                 return;
             }
 
-            const data = await resp.json();
-
-            if (data.success && data.questions) {
-                questionsData = data.questions;
-                if (data.extracted_figures) {
-                    extractedFiguresList = data.extracted_figures;
-                    renderPdfFiguresGallery();
+            // Step 2: Poll every 3 seconds until AI job is done
+            const jobId = startData.job_id;
+            const pollInterval = setInterval(async () => {
+                try {
+                    const pollResp = await fetch(`/api/job-status/${jobId}`);
+                    if (!pollResp.ok) {
+                        clearInterval(pollInterval);
+                        resetBtn();
+                        Swal.fire({ icon: 'error', title: 'Polling Error', text: 'Lost track of the generation job. Please try again.' });
+                        return;
+                    }
+                    const pollData = await pollResp.json();
+                    if (pollData.status === 'done' || pollData.status === 'error') {
+                        clearInterval(pollInterval);
+                        handleResult(pollData.result || {});
+                    }
+                    // status === 'running' -> keep polling
+                } catch (pollErr) {
+                    clearInterval(pollInterval);
+                    resetBtn();
+                    Swal.fire({ icon: 'error', title: 'Connection Lost', text: 'Could not reach server while waiting for AI. Please try again.' });
                 }
-                renderQuestions();
-                
-                if (!document.getElementById('exam-title').value.trim()) {
-                    const topicSnippet = document.getElementById('topic-text').value.slice(0, 30) || 'Study Notes';
-                    document.getElementById('exam-title').value = `Exam on ${topicSnippet} - ${new Date().toLocaleDateString()}`;
-                }
+            }, 3000);
 
-                const totalMarks = questionsData.reduce((sum, q) => sum + (parseFloat(q.points) || 1.0), 0);
-                const figCount = questionsData.filter(q => q.figure_svg || q.figure_url).length;
-
-                resetBtn();
-                Swal.fire({
-                    icon: 'success',
-                    title: 'Exam Paper Ready!',
-                    text: `Generated ${questionsData.length} questions totaling ${totalMarks} Marks (${figCount} with figures) via ${data.model_used || 'AI'}. You can review and adjust marks or choices below!`,
-                    timer: 3000,
-                    showConfirmButton: false
-                });
-            } else {
-                resetBtn();
-                Swal.fire({
-                    icon: 'error',
-                    title: 'Generation Failed',
-                    text: data.error || 'Could not generate questions. Please check your API key or upload valid text/PDF.'
-                });
-            }
         } catch (err) {
-            clearTimeout(timeoutId);
             resetBtn();
-            let errTitle = 'Request Failed';
-            let errText = err.message || 'An unexpected error occurred.';
-            if (err.name === 'AbortError') {
-                errTitle = 'Generation Timed Out';
-                errText = 'AI is taking too long. Try: fewer questions (5â€“6), fewer question types, or a shorter PDF.';
-            }
-            Swal.fire({ icon: 'error', title: errTitle, text: errText });
+            Swal.fire({ icon: 'error', title: 'Request Failed', text: err.message || 'Unable to communicate with the server.' });
         }
+    }
     }
 
     function renderQuestions() {

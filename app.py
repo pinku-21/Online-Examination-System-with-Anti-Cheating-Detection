@@ -2,10 +2,19 @@ import os
 import json
 import random
 import string
+import threading
+import uuid
+import time
 from functools import wraps
 from datetime import datetime, timezone, timedelta
 from flask import Flask, render_template, request, jsonify, redirect, url_for, flash, session
 from werkzeug.utils import secure_filename
+
+try:
+    from dotenv import load_dotenv
+    load_dotenv()
+except Exception:
+    pass
 
 from database import (
     init_db, 
@@ -35,6 +44,31 @@ def get_current_time():
 
 app = Flask(__name__)
 app.secret_key = os.environ.get("SECRET_KEY", "examguard-super-secret-key-2026")
+
+# --- BACKGROUND JOB STORE (in-memory, thread-safe) ---
+# Stores AI generation jobs so HTTP never times out
+_job_store = {}
+_job_lock = threading.Lock()
+
+def _cleanup_old_jobs():
+    """Remove jobs older than 30 minutes to prevent memory leaks."""
+    cutoff = time.time() - 1800
+    with _job_lock:
+        old = [k for k, v in _job_store.items() if v.get("created_at", 0) < cutoff]
+        for k in old:
+            del _job_store[k]
+
+def _run_generation_job(job_id, fn, kwargs):
+    """Worker thread: runs AI generation, stores result in job store."""
+    try:
+        result = fn(**kwargs)
+        with _job_lock:
+            _job_store[job_id]["status"] = "done"
+            _job_store[job_id]["result"] = result
+    except Exception as e:
+        with _job_lock:
+            _job_store[job_id]["status"] = "error"
+            _job_store[job_id]["result"] = {"success": False, "error": str(e)}
 
 @app.template_filter('format_datetime_12h')
 def format_datetime_12h_filter(val):
@@ -303,10 +337,15 @@ def tutor_dashboard():
     exams = [dict(r) for r in cursor.fetchall()]
     conn.close()
     
+    openai_key = get_setting("openai_api_key", "") or os.environ.get("OPENAI_API_KEY", "").strip()
     gemini_key = get_setting("gemini_api_key", "") or os.environ.get("GEMINI_API_KEY", "").strip()
     groq_key = get_setting("groq_api_key", "") or os.environ.get("GROQ_API_KEY", "").strip()
     public_url = get_setting("public_url", "")
-    has_api_key = bool((gemini_key and len(gemini_key.strip()) > 10) or (groq_key and len(groq_key.strip()) > 10))
+    has_api_key = bool(
+        (openai_key and len(openai_key.strip()) > 10) or 
+        (gemini_key and len(gemini_key.strip()) > 10) or 
+        (groq_key and len(groq_key.strip()) > 10)
+    )
     
     conn2 = get_connection()
     cursor2 = conn2.cursor()
@@ -321,8 +360,10 @@ def tutor_dashboard():
         students=students,
         classes=distinct_classes,
         has_api_key=has_api_key,
+        has_openai_key=bool(openai_key and len(openai_key.strip()) > 10),
         has_gemini_key=bool(gemini_key and len(gemini_key.strip()) > 10),
         has_groq_key=bool(groq_key and len(groq_key.strip()) > 10),
+        openai_key_mask=(openai_key[:7] + "..." + openai_key[-4:]) if len(openai_key) > 11 else "",
         gemini_key_mask=(gemini_key[:4] + "..." + gemini_key[-4:]) if len(gemini_key) > 8 else "",
         groq_key_mask=(groq_key[:4] + "..." + groq_key[-4:]) if len(groq_key) > 8 else "",
         public_url=public_url
@@ -331,10 +372,13 @@ def tutor_dashboard():
 @app.route("/tutor/settings", methods=["GET", "POST"])
 @admin_required
 def tutor_save_settings():
+    openai_key = request.form.get("openai_api_key", "").strip()
     gemini_key = request.form.get("gemini_api_key", "").strip()
     groq_key = request.form.get("groq_api_key", "").strip()
     public_url = request.form.get("public_url", "").strip().rstrip("/")
     
+    if openai_key:
+        set_setting("openai_api_key", openai_key)
     if gemini_key:
         set_setting("gemini_api_key", gemini_key)
     if groq_key:
@@ -355,9 +399,14 @@ def api_set_public_url():
 @app.route("/tutor/exam/new")
 @admin_required
 def new_exam():
+    openai_key = get_setting("openai_api_key", "") or os.environ.get("OPENAI_API_KEY", "").strip()
     gemini_key = get_setting("gemini_api_key", "") or os.environ.get("GEMINI_API_KEY", "").strip()
     groq_key = get_setting("groq_api_key", "") or os.environ.get("GROQ_API_KEY", "").strip()
-    has_api_key = bool((gemini_key and len(gemini_key.strip()) > 10) or (groq_key and len(groq_key.strip()) > 10))
+    has_api_key = bool(
+        (openai_key and len(openai_key.strip()) > 10) or 
+        (gemini_key and len(gemini_key.strip()) > 10) or 
+        (groq_key and len(groq_key.strip()) > 10)
+    )
     
     conn = get_connection()
     cursor = conn.cursor()
@@ -371,9 +420,12 @@ def new_exam():
 @app.route("/api/generate-questions", methods=["POST"])
 def api_generate_questions():
     """
-    Handles PDF upload, image uploads, and prompt text.
-    Calls Gemini API or Groq API (or mock generator if requested/no key).
+    Accepts PDF/image/text, starts AI generation in a background thread,
+    and immediately returns a job_id. The client polls /api/job-status/<job_id>.
+    This prevents any HTTP/proxy timeout regardless of how large the PDF is.
     """
+    _cleanup_old_jobs()
+
     topic_text = request.form.get("topic_text", "").strip()
     custom_prompt = request.form.get("custom_prompt", "").strip()
     custom_format_instruction = request.form.get("custom_format_instruction", "").strip()
@@ -417,17 +469,28 @@ def api_generate_questions():
     if extracted_pdf_texts:
         combined_text += "Extracted from Uploaded PDF Documents:\n" + "\n\n".join(extracted_pdf_texts)
 
+    openai_key = get_setting("openai_api_key", "") or os.environ.get("OPENAI_API_KEY", "").strip()
     gemini_key = get_setting("gemini_api_key", "") or os.environ.get("GEMINI_API_KEY", "").strip()
     groq_key = get_setting("groq_api_key", "") or os.environ.get("GROQ_API_KEY", "").strip()
-    
-    # If user selected mock or no API keys provided
-    if use_mock or (not gemini_key and not groq_key):
+
+    # Mock: return immediately
+    if use_mock or (not openai_key and not gemini_key and not groq_key):
         result = generate_mock_questions(combined_text, num_questions=num_questions, question_type=question_type, total_marks=total_marks)
         result["extracted_figures"] = extracted_figures
-        return jsonify(result)
+        return jsonify({"job_id": None, "status": "done", "result": result})
 
-    # Call unified multi-model AI pipeline (Gemini with Vision -> Groq fallback)
-    result = generate_questions_unified(
+    # Start background job — returns immediately, no timeout risk
+    job_id = str(uuid.uuid4())
+    with _job_lock:
+        _job_store[job_id] = {
+            "status": "running",
+            "result": None,
+            "created_at": time.time(),
+            "extracted_figures": extracted_figures
+        }
+
+    kwargs = dict(
+        openai_key=openai_key,
         gemini_key=gemini_key,
         groq_key=groq_key,
         text_content=combined_text,
@@ -439,9 +502,24 @@ def api_generate_questions():
         total_marks=total_marks,
         available_figures=extracted_figures
     )
-    result["extracted_figures"] = extracted_figures
-    
-    return jsonify(result)
+    t = threading.Thread(target=_run_generation_job, args=(job_id, generate_questions_unified, kwargs), daemon=True)
+    t.start()
+
+    return jsonify({"job_id": job_id, "status": "running"})
+
+
+@app.route("/api/job-status/<job_id>", methods=["GET"])
+def api_job_status(job_id):
+    """Poll endpoint: returns job status and result when ready."""
+    with _job_lock:
+        job = _job_store.get(job_id)
+    if not job:
+        return jsonify({"status": "not_found"}), 404
+    if job["status"] == "running":
+        return jsonify({"status": "running"})
+    result = job["result"] or {}
+    result["extracted_figures"] = job.get("extracted_figures", [])
+    return jsonify({"status": job["status"], "result": result})
 
 @app.route("/api/upload-figure", methods=["POST"])
 def api_upload_figure():
@@ -578,10 +656,12 @@ def api_tutor_evaluate_question(submission_id):
         if os.path.exists(local_candidate):
             abs_img_path = local_candidate
 
-    gemini_key = get_setting("gemini_api_key", "").strip()
-    groq_key = get_setting("groq_api_key", "").strip()
+    openai_key = get_setting("openai_api_key", "").strip() or os.environ.get("OPENAI_API_KEY", "").strip()
+    gemini_key = get_setting("gemini_api_key", "").strip() or os.environ.get("GEMINI_API_KEY", "").strip()
+    groq_key = get_setting("groq_api_key", "").strip() or os.environ.get("GROQ_API_KEY", "").strip()
 
     eval_result = evaluate_answer_with_ai(
+        openai_key=openai_key,
         gemini_key=gemini_key,
         groq_key=groq_key,
         question_text=question["question_text"],

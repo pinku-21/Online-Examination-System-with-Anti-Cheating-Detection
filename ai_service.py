@@ -6,7 +6,7 @@ import requests
 from pypdf import PdfReader
 from database import get_setting
 
-def extract_text_from_pdf(pdf_path, max_chars=18000, max_pages=12):
+def extract_text_from_pdf(pdf_path, max_chars=50000, max_pages=30):
     """Extract text content from an uploaded PDF file safely and quickly."""
     try:
         reader = PdfReader(pdf_path)
@@ -213,7 +213,7 @@ def generate_questions_with_gemini(api_key, text_content=None, image_paths=None,
 
     if text_content and text_content.strip():
         parts.append({
-            "text": f"--- REFERENCE MATERIAL TEXT ---\n{text_content[:16000]}"
+            "text": f"--- REFERENCE MATERIAL TEXT ---\n{text_content[:50000]}"
         })
 
     if image_paths:
@@ -247,7 +247,7 @@ def generate_questions_with_gemini(api_key, text_content=None, image_paths=None,
         }
         
         try:
-            resp = requests.post(url, json=payload, headers={"Content-Type": "application/json"}, timeout=90)
+            resp = requests.post(url, json=payload, headers={"Content-Type": "application/json"}, timeout=300)
             if resp.status_code == 200:
                 result_json = resp.json()
                 raw_text = result_json["candidates"][0]["content"]["parts"][0]["text"].strip()
@@ -282,7 +282,7 @@ def generate_questions_with_openai(api_key, text_content=None, image_paths=None,
         available_figures=available_figures
     )
 
-    user_text = f"Please generate the exam paper based strictly on this reference material:\n\n{text_content[:14000] if text_content else 'Academic examination questions requested by instructor'}"
+    user_text = f"Please generate the exam paper based strictly on this reference material:\n\n{text_content[:50000] if text_content else 'Academic examination questions requested by instructor'}"
     
     user_content = []
     user_content.append({"type": "text", "text": user_text})
@@ -314,10 +314,9 @@ def generate_questions_with_openai(api_key, text_content=None, image_paths=None,
                         {"role": "system", "content": system_prompt},
                         {"role": "user", "content": user_content if image_paths else user_text}
                     ],
-                    "temperature": 0.4,
-                    "max_tokens": 4096
+                    "temperature": 0.4
                 },
-                timeout=85
+                timeout=300
             )
             if resp.status_code == 200:
                 raw_text = resp.json()["choices"][0]["message"]["content"].strip()
@@ -357,7 +356,7 @@ def generate_questions_with_groq(api_key, text_content=None, num_questions=5, qu
         available_figures=available_figures
     )
 
-    user_prompt = f"Please generate the exam paper based strictly on this reference material:\n\n{text_content[:12000] if text_content else 'Academic examination questions requested by instructor'}"
+    user_prompt = f"Please generate the exam paper based strictly on this reference material:\n\n{text_content[:50000] if text_content else 'Academic examination questions requested by instructor'}"
     
     models_to_try = ["qwen/qwen3.8-27b", "openai/gpt-oss-120b", "openai/gpt-oss-20b"]
     last_error = None
@@ -376,10 +375,9 @@ def generate_questions_with_groq(api_key, text_content=None, num_questions=5, qu
                         {"role": "system", "content": system_prompt},
                         {"role": "user", "content": user_prompt}
                     ],
-                    "temperature": 0.4,
-                    "max_tokens": 4096
+                    "temperature": 0.4
                 },
-                timeout=55
+                timeout=300
             )
             if resp.status_code == 200:
                 raw_text = resp.json()["choices"][0]["message"]["content"].strip()
