@@ -551,7 +551,7 @@
         const originalHtml = btn.innerHTML;
         btn.disabled = true;
 
-        // Animated progress messages — cycles while AI works in background
+        // Animated progress messages - cycles while AI works in background
         const progressMessages = [
             'Uploading & analyzing PDF...',
             'Building exam blueprint...',
@@ -601,7 +601,11 @@
                 });
             } else {
                 resetBtn();
-                Swal.fire({ icon: 'error', title: 'Generation Failed', text: data.error || 'Could not generate questions. Please check your API key or upload valid text/PDF.' });
+                Swal.fire({
+                    icon: 'error',
+                    title: 'Generation Failed',
+                    text: data.error || 'Could not generate questions. Please check your API key or upload valid text/PDF.'
+                });
             }
         };
 
@@ -621,38 +625,52 @@
             if (document.getElementById('fmt-tf').checked) selectedTypes.push('True / False');
             if (document.getElementById('fmt-diagram').checked) selectedTypes.push('Questions with Visual SVG Figures / Diagrams');
             if (document.getElementById('fmt-numerical').checked) selectedTypes.push('Numerical / Problem Solving');
+
             const details = document.getElementById('custom-format-details').value.trim();
             customFormatPrompt = `CUSTOM QUESTION FORMAT DIRECTIVE:\nYou MUST generate questions conforming strictly to these user-selected types: ${selectedTypes.join(', ')}.`;
-            if (details) customFormatPrompt += ` Breakdown specifications: ${details}`;
+            if (details) {
+                customFormatPrompt += ` Breakdown specifications: ${details}`;
+            }
         }
 
         const formData = new FormData();
         selectedFiles.forEach(f => formData.append('files', f));
         formData.append('topic_text', document.getElementById('topic-text').value);
         formData.append('custom_prompt', document.getElementById('custom-prompt').value);
-        if (customFormatPrompt) formData.append('custom_format_instruction', customFormatPrompt);
+        if (customFormatPrompt) {
+            formData.append('custom_format_instruction', customFormatPrompt);
+        }
         formData.append('total_marks', document.getElementById('total-marks').value);
         formData.append('num_questions', numQVal);
         formData.append('difficulty', document.getElementById('difficulty').value);
         formData.append('question_type', questionTypeVal);
 
         try {
-            // Step 1: POST — returns instantly with job_id (background thread runs AI)
-            const startResp = await fetch('/api/generate-questions', { method: 'POST', body: formData });
+            // Step 1: POST to start background job - returns immediately
+            const startResp = await fetch('/api/generate-questions', {
+                method: 'POST',
+                body: formData
+            });
+
             if (!startResp.ok) {
                 resetBtn();
-                Swal.fire({ icon: 'error', title: 'Failed to Start', text: `Server error (${startResp.status}). Please try again.` });
+                Swal.fire({
+                    icon: 'error',
+                    title: 'Failed to Start',
+                    text: `Server error (${startResp.status}). Please try again.`
+                });
                 return;
             }
+
             const startData = await startResp.json();
 
-            // If mock/immediate result (no job_id)
+            // If mock or immediate result without job_id
             if (!startData.job_id) {
                 handleResult(startData.result || startData);
                 return;
             }
 
-            // Step 2: Poll every 3 seconds until AI job is done
+            // Step 2: Poll /api/job-status/<job_id> every 3 seconds until completed
             const jobId = startData.job_id;
             const pollInterval = setInterval(async () => {
                 try {
@@ -660,7 +678,11 @@
                     if (!pollResp.ok) {
                         clearInterval(pollInterval);
                         resetBtn();
-                        Swal.fire({ icon: 'error', title: 'Polling Error', text: 'Lost track of the generation job. Please try again.' });
+                        Swal.fire({
+                            icon: 'error',
+                            title: 'Polling Error',
+                            text: 'Lost track of the generation job. Please try again.'
+                        });
                         return;
                     }
                     const pollData = await pollResp.json();
@@ -668,19 +690,25 @@
                         clearInterval(pollInterval);
                         handleResult(pollData.result || {});
                     }
-                    // status === 'running' -> keep polling
                 } catch (pollErr) {
                     clearInterval(pollInterval);
                     resetBtn();
-                    Swal.fire({ icon: 'error', title: 'Connection Lost', text: 'Could not reach server while waiting for AI. Please try again.' });
+                    Swal.fire({
+                        icon: 'error',
+                        title: 'Connection Lost',
+                        text: 'Could not reach server while waiting for AI. Please try again.'
+                    });
                 }
             }, 3000);
 
         } catch (err) {
             resetBtn();
-            Swal.fire({ icon: 'error', title: 'Request Failed', text: err.message || 'Unable to communicate with the server.' });
+            Swal.fire({
+                icon: 'error',
+                title: 'Request Failed',
+                text: err.message || 'Unable to communicate with the server.'
+            });
         }
-    }
     }
 
     function renderQuestions() {
