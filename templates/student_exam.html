@@ -485,6 +485,50 @@
         let activeWebcamStream = null;
         let isFaceVerified = Number(metaEl.dataset.isFaceVerified || 0) === 1;
         let customRefPhotoBlob = null;
+        let isBiometricMismatch = false;
+        let lastBiometricCheckTime = 0;
+        let isBiometricChecking = false;
+
+        // Periodic in-exam biometric verification against registered student photo
+        async function runInExamBiometricVerification(videoEl) {
+            if (isBiometricChecking || isBrowsingFile || isTerminated || !isExamActive) return;
+            if (!videoEl || videoEl.readyState < 2) return;
+
+            isBiometricChecking = true;
+            try {
+                const snapCanvas = document.createElement('canvas');
+                snapCanvas.width = videoEl.videoWidth || 640;
+                snapCanvas.height = videoEl.videoHeight || 480;
+                const snapCtx = snapCanvas.getContext('2d');
+                snapCtx.drawImage(videoEl, 0, 0, snapCanvas.width, snapCanvas.height);
+                const snapB64 = snapCanvas.toDataURL('image/jpeg', 0.82);
+
+                const formData = new FormData();
+                formData.append('snapshot_base64', snapB64);
+
+                const resp = await fetch(`/api/submission/${SUBMISSION_ID}/verify-face-ai`, {
+                    method: 'POST',
+                    body: formData
+                });
+                const res = await resp.json();
+
+                if (res.success) {
+                    if (!res.is_match) {
+                        isBiometricMismatch = true;
+                        updateHudBadge('hud-face', 'Mismatch ❌', 'rose');
+                        const reasonMsg = res.reason || 'Live face does not match registered student profile.';
+                        triggerViolation('impersonation_mismatch', `Biometric identity mismatch: The person taking the exam does not match the registered student (${Math.round(res.confidence || 0)}% match). ${reasonMsg}`);
+                    } else {
+                        isBiometricMismatch = false;
+                        updateHudBadge('hud-face', '1 Person ✓', 'emerald');
+                    }
+                }
+            } catch (err) {
+                console.warn("In-exam biometric check error:", err);
+            } finally {
+                isBiometricChecking = false;
+            }
+        }
 
         // Start modal camera for biometric verification
         async function initModalCamera() {
@@ -630,6 +674,12 @@
                         showConfirmButton: false
                     });
                 } else if (res.success && !res.is_match) {
+                    if (res.warnings_count !== undefined) {
+                        warningsCount = res.warnings_count;
+                        const strikeEl = document.getElementById('strike-counter');
+                        if (strikeEl) strikeEl.innerText = warningsCount;
+                    }
+
                     if (alertBox) {
                         alertBox.className = 'mt-3.5 p-2.5 rounded-xl text-xs font-medium flex items-center space-x-2 bg-rose-500/25 text-rose-200 border border-rose-500/40';
                     }
@@ -642,10 +692,24 @@
                     }
                     lucide.createIcons();
 
+                    if (res.is_terminated) {
+                        isTerminated = true;
+                        Swal.fire({
+                            icon: 'error',
+                            title: 'EXAM TERMINATED',
+                            text: 'Exceeded maximum allowable anti-cheating strikes due to impersonation attempt.',
+                            allowOutsideClick: false,
+                            confirmButtonColor: '#e11d48'
+                        }).then(() => {
+                            window.location.href = `/student/result/${SUBMISSION_ID}`;
+                        });
+                        return;
+                    }
+
                     Swal.fire({
                         icon: 'error',
                         title: 'Biometric Verification Failed',
-                        text: res.reason || 'Candidate face does not match registered identity. Impersonation warning recorded.',
+                        text: (res.reason || 'Candidate face does not match registered identity.') + (res.warnings_count ? ` Warning strike added (${res.warnings_count}/${res.max_warnings || 10}).` : ''),
                         confirmButtonColor: '#e11d48'
                     });
                 } else {
@@ -886,7 +950,11 @@
                                     const br = face.bottomRight;
                                     const w = br[0] - tl[0];
                                     const h = br[1] - tl[1];
-                                    drawBoundingBox(ctx, [tl[0], tl[1], w, h], 'Face ✓', '#10b981');
+                                    if (isBiometricMismatch) {
+                                        drawBoundingBox(ctx, [tl[0], tl[1], w, h], '⚠️ Impostor Mismatch', '#f43f5e');
+                                    } else {
+                                        drawBoundingBox(ctx, [tl[0], tl[1], w, h], 'Face ✓', '#10b981');
+                                    }
                                 });
                             } catch (bf) { /* blazeface frame error, ignore */ }
                         }
@@ -898,7 +966,11 @@
                             // Lower threshold to 0.25 for persons (helps with close-up cam angles)
                             if (pred.class === 'person' && pred.score >= 0.25) {
                                 personCount++;
-                                drawBoundingBox(ctx, pred.bbox, 'Candidate', '#10b981');
+                                if (isBiometricMismatch) {
+                                    drawBoundingBox(ctx, pred.bbox, '⚠️ Impostor', '#f43f5e');
+                                } else {
+                                    drawBoundingBox(ctx, pred.bbox, 'Candidate', '#10b981');
+                                }
                             } else if (pred.score >= 0.45 && ['cell phone', 'laptop', 'remote', 'book', 'tablet'].includes(pred.class)) {
                                 detectedDevices.push(pred.class);
                                 drawBoundingBox(ctx, pred.bbox, pred.class.toUpperCase(), '#f43f5e');
@@ -907,6 +979,17 @@
 
                         // Combine: either COCO person OR BlazeFace counts as "person present"
                         const totalPersonCount = Math.max(personCount, blazeFaceCount);
+
+                        // Trigger Periodic In-Exam Biometric Verification Check
+                        const nowMs = Date.now();
+                        if (ENABLE_VIDEO && totalPersonCount > 0 && !isGracePeriod && !isBrowsingFile) {
+                            if (!lastBiometricCheckTime) {
+                                lastBiometricCheckTime = nowMs - 16000; // First check fires ~6-8s after exam starts
+                            } else if (nowMs - lastBiometricCheckTime >= 22000) {
+                                lastBiometricCheckTime = nowMs;
+                                runInExamBiometricVerification(videoEl);
+                            }
+                        }
 
                         // Skip violation alerts during initial startup grace period OR while taking/uploading photos
                         if (isGracePeriod || isBrowsingFile) {
@@ -939,6 +1022,9 @@
                             noPersonConsecutiveCount = 0;
                             updateHudBadge('hud-face', `${totalPersonCount} People ⚠️`, 'rose');
                             triggerViolation('multiple_faces', `Multiple persons (${totalPersonCount}) detected in webcam feed.`);
+                        } else if (isBiometricMismatch) {
+                            noPersonConsecutiveCount = 0;
+                            updateHudBadge('hud-face', 'Mismatch ❌', 'rose');
                         } else {
                             noPersonConsecutiveCount = 0;
                             updateHudBadge('hud-face', '1 Person ✓', 'emerald');

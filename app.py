@@ -738,7 +738,7 @@ def api_verify_face_ai(submission_id):
     cursor.execute("""
         SELECT s.*, u.profile_photo, u.full_name AS registered_full_name
         FROM submissions s
-        LEFT JOIN users u ON s.user_id = u.id
+        LEFT JOIN users u ON (s.user_id = u.id OR (s.roll_number IS NOT NULL AND LOWER(s.roll_number) = LOWER(u.roll_number)))
         WHERE s.id = ?
     """, (submission_id,))
     sub_row = cursor.fetchone()
@@ -771,8 +771,15 @@ def api_verify_face_ai(submission_id):
         conn.close()
         return jsonify({"success": False, "error": "No webcam snapshot provided."}), 400
 
-    # Check for reference photo
-    ref_photo_url = sub_row["profile_photo"] or session.get("profile_photo", "")
+    # Check for reference photo (by linked user, roll number, or session)
+    ref_photo_url = (sub_row["profile_photo"] or "").strip()
+    if not ref_photo_url and sub_row.get("roll_number"):
+        cursor.execute("SELECT profile_photo FROM users WHERE LOWER(roll_number) = LOWER(?) AND profile_photo != ''", (sub_row["roll_number"],))
+        u_p = cursor.fetchone()
+        if u_p and u_p["profile_photo"]:
+            ref_photo_url = u_p["profile_photo"].strip()
+    if not ref_photo_url and session.get("profile_photo"):
+        ref_photo_url = session.get("profile_photo", "").strip()
 
     # If first time registering a reference photo during check-in:
     custom_ref_file = request.files.get("reference_photo")
@@ -859,17 +866,41 @@ def api_verify_face_ai(submission_id):
             "reason": reason
         })
     else:
-        # Log impersonation attempt
+        # Log impersonation attempt and increment strikes
         cursor.execute("""
             INSERT INTO violations (submission_id, violation_type, details)
             VALUES (?, 'impersonation_mismatch', ?)
         """, (submission_id, f"Live face does not match registered profile: {reason} (Confidence: {confidence}%)"))
+        
+        cursor.execute("UPDATE submissions SET warnings_count = warnings_count + 1 WHERE id = ?", (submission_id,))
+        cursor.execute("""
+            SELECT s.warnings_count, e.max_warnings
+            FROM submissions s
+            JOIN exams e ON s.exam_id = e.id
+            WHERE s.id = ?
+        """, (submission_id,))
+        warn_info = cursor.fetchone()
+        cur_warn = warn_info["warnings_count"] if warn_info else 1
+        max_warn = warn_info["max_warnings"] if warn_info else 10
+        is_terminated = False
+        if cur_warn >= max_warn:
+            is_terminated = True
+            term_reason = f"Exceeded maximum allowed anti-cheating warnings ({cur_warn}/{max_warn} strikes). Violation: Biometric Impersonation Mismatch."
+            cursor.execute("""
+                UPDATE submissions 
+                SET status = 'terminated', termination_reason = ?, submitted_at = CURRENT_TIMESTAMP
+                WHERE id = ?
+            """, (term_reason, submission_id))
+
         conn.commit()
         conn.close()
         return jsonify({
             "success": True,
             "is_match": False,
             "confidence": confidence,
+            "warnings_count": cur_warn,
+            "max_warnings": max_warn,
+            "is_terminated": is_terminated,
             "verified_face_url": snapshot_rel_url,
             "reference_photo_url": ref_photo_url,
             "reason": reason or "Facial landmarks and structure do not match the registered candidate."
