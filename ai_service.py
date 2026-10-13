@@ -358,7 +358,7 @@ def generate_questions_with_groq(api_key, text_content=None, num_questions=5, qu
 
     user_prompt = f"Please generate the exam paper based strictly on this reference material:\n\n{text_content[:50000] if text_content else 'Academic examination questions requested by instructor'}"
     
-    models_to_try = ["qwen/qwen3.8-27b", "openai/gpt-oss-120b", "openai/gpt-oss-20b"]
+    models_to_try = ["llama-3.3-70b-versatile", "llama-3.1-70b-versatile", "llama-3.1-8b-instant"]
     last_error = None
     
     for model in models_to_try:
@@ -377,7 +377,7 @@ def generate_questions_with_groq(api_key, text_content=None, num_questions=5, qu
                     ],
                     "temperature": 0.4
                 },
-                timeout=300
+                timeout=120
             )
             if resp.status_code == 200:
                 raw_text = resp.json()["choices"][0]["message"]["content"].strip()
@@ -403,9 +403,10 @@ def generate_questions_with_groq(api_key, text_content=None, num_questions=5, qu
 
 def generate_questions_unified(gemini_key=None, groq_key=None, text_content=None, image_paths=None, num_questions=5, question_type="mcq", difficulty="Medium", custom_prompt=None, total_marks=None, available_figures=None):
     """
-    Unified AI Orchestrator with Google Gemini (primary with vision/PDF) and Groq Cloud (ultra-fast fallback).
+    Unified AI Orchestrator: Gemini (primary, multimodal) → Groq (fast fallback).
     """
     gemini_err = None
+    # --- 1. Try Gemini first (supports images/PDFs) ---
     if gemini_key:
         result = generate_questions_with_gemini(
             api_key=gemini_key,
@@ -421,26 +422,9 @@ def generate_questions_unified(gemini_key=None, groq_key=None, text_content=None
         if result.get("success"):
             return result
         gemini_err = result.get("error")
-        print(f"Gemini attempt failed: {gemini_err}. Checking Groq fallback...")
+        print(f"Gemini attempt failed: {gemini_err}. Falling back to Groq...")
 
-    gemini_err = None
-    if gemini_key:
-        result = generate_questions_with_gemini(
-            api_key=gemini_key,
-            text_content=text_content,
-            image_paths=image_paths,
-            num_questions=num_questions,
-            question_type=question_type,
-            difficulty=difficulty,
-            custom_prompt=custom_prompt,
-            total_marks=total_marks,
-            available_figures=available_figures
-        )
-        if result.get("success"):
-            return result
-        gemini_err = result.get("error")
-        print(f"Gemini attempt failed: {gemini_err}. Checking Groq fallback...")
-
+    # --- 2. Fallback to Groq (ultra-fast, text-based) ---
     groq_err = None
     if groq_key:
         result = generate_questions_with_groq(
@@ -458,7 +442,7 @@ def generate_questions_unified(gemini_key=None, groq_key=None, text_content=None
         groq_err = result.get("error")
         print(f"Groq attempt failed: {groq_err}")
 
-    # If keys were provided but all failed:
+    # --- 3. If both keys present but all failed ---
     if gemini_key or groq_key:
         errors = []
         if gemini_key:
@@ -466,7 +450,7 @@ def generate_questions_unified(gemini_key=None, groq_key=None, text_content=None
         if groq_key:
             errors.append(f"Groq: {groq_err or 'Failed'}")
         return {
-            "success": False, 
+            "success": False,
             "error": "AI generation could not complete. " + " | ".join(errors) + ". Please check API keys or quotas."
         }
 
