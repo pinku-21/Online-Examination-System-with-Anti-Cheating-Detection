@@ -443,6 +443,57 @@
             timeRemainingSeconds = Math.min(timeRemainingSeconds, _savedTimeRemaining);
         }
 
+        // ── Back-navigation & Page-unload protection ─────────────────────────────
+        // Push a dummy state so the browser "back" button pops to HERE first.
+        history.pushState({ examGuard: true }, '', window.location.href);
+
+        window.addEventListener('popstate', function handleBack(e) {
+            // If the exam is still active, intercept the back attempt and force-submit
+            if (isExamActive && !isTerminated) {
+                // Push state again so the page doesn't actually navigate away
+                history.pushState({ examGuard: true }, '', window.location.href);
+
+                Swal.fire({
+                    icon: 'warning',
+                    title: 'Leaving the Exam?',
+                    html: `
+                        <p class="text-sm text-slate-700 mb-2">You tried to navigate away from the exam.<br>
+                        <strong class="text-rose-600">Your exam will be automatically submitted</strong> with all answers you have attempted so far.</p>
+                        <p class="text-xs text-slate-500">You cannot return to the exam after this.</p>
+                    `,
+                    icon: 'warning',
+                    showCancelButton: true,
+                    confirmButtonColor: '#e11d48',
+                    cancelButtonColor: '#64748b',
+                    confirmButtonText: 'Submit & Leave',
+                    cancelButtonText: 'Stay in Exam',
+                    allowOutsideClick: false,
+                }).then((result) => {
+                    if (result.isConfirmed) {
+                        isExamActive = false;
+                        submitExamAnswers();
+                    }
+                    // If cancelled, stay — state is already pushed back
+                });
+            }
+        });
+
+        // On page unload (refresh/close), immediately save current progress via beacon (fire-and-forget)
+        window.addEventListener('beforeunload', function () {
+            if (isExamActive && !isTerminated) {
+                const payload = JSON.stringify({
+                    answers: studentAnswers,
+                    time_remaining_seconds: timeRemainingSeconds,
+                    current_question_index: currentQuestionIndex,
+                });
+                navigator.sendBeacon(
+                    `/api/submission/${SUBMISSION_ID}/save-progress`,
+                    new Blob([payload], { type: 'application/json' })
+                );
+            }
+        });
+        // ────────────────────────────────────────────────────────────────────────
+
         let timerInterval = null;
         let violationCooldown = false;
 

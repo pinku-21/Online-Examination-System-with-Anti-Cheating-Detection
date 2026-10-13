@@ -1573,15 +1573,21 @@ def tutor_submission_details(submission_id):
 @admin_required
 def api_grant_reattempt(submission_id):
     """
-    Admin grants a student a fresh re-attempt by deleting the existing submission
-    (and all linked violations). The student can then start the exam again from scratch.
+    Admin grants a re-attempt with two modes:
+      reattempt_type='fresh'  → Deletes the existing submission entirely (student starts from scratch).
+      reattempt_type='resume' → Restores the submission to 'in_progress' using the saved partial answers
+                               from the point of termination, so the student continues from where they stopped.
     """
+    data = request.get_json() or {}
+    reattempt_type = data.get("reattempt_type", "fresh")
+
     conn = get_connection()
     cursor = conn.cursor()
 
     # Verify submission exists and fetch info for response
     cursor.execute("""
         SELECT s.id, s.student_name, s.roll_number, s.exam_id, s.status,
+               s.answers_json, s.time_remaining_seconds, s.current_question_index,
                e.title as exam_title
         FROM submissions s
         JOIN exams e ON s.exam_id = e.id
@@ -1593,20 +1599,57 @@ def api_grant_reattempt(submission_id):
         conn.close()
         return jsonify({"success": False, "error": "Submission not found."}), 404
 
-    # Delete violations first (foreign key constraint), then the submission
-    cursor.execute("DELETE FROM violations WHERE submission_id = ?", (submission_id,))
-    cursor.execute("DELETE FROM submissions WHERE id = ?", (submission_id,))
+    if reattempt_type == "resume":
+        # Restore to in_progress from the saved partial answers (don't delete — keep audit trail)
+        # Use answers_json (which was saved at termination) as the restored progress
+        saved_answers = submission["answers_json"] or "{}"
+        saved_time = submission["time_remaining_seconds"]
+        saved_q_idx = submission["current_question_index"] or 0
 
-    conn.commit()
-    conn.close()
+        cursor.execute("""
+            UPDATE submissions
+            SET status = 'in_progress',
+                termination_reason = NULL,
+                submitted_at = NULL,
+                warnings_count = 0,
+                progress_answers_json = ?,
+                time_remaining_seconds = ?,
+                current_question_index = ?,
+                answers_json = NULL,
+                score = NULL,
+                total_points = NULL,
+                percentage = NULL
+            WHERE id = ?
+        """, (saved_answers, saved_time, saved_q_idx, submission_id))
 
-    return jsonify({
-        "success": True,
-        "message": f"Re-attempt granted for {submission['student_name']}. Their previous submission has been cleared.",
-        "student_name": submission["student_name"],
-        "exam_title": submission["exam_title"],
-        "exam_id": submission["exam_id"]
-    })
+        # Clear violations log for a clean slate but keep history in audit
+        cursor.execute("DELETE FROM violations WHERE submission_id = ?", (submission_id,))
+
+        conn.commit()
+        conn.close()
+        return jsonify({
+            "success": True,
+            "message": f"Re-attempt (Resume) granted for {submission['student_name']}. They will continue from where they left off.",
+            "student_name": submission["student_name"],
+            "exam_title": submission["exam_title"],
+            "exam_id": submission["exam_id"],
+            "reattempt_type": "resume"
+        })
+    else:
+        # Fresh start — delete violations first (foreign key constraint), then the submission
+        cursor.execute("DELETE FROM violations WHERE submission_id = ?", (submission_id,))
+        cursor.execute("DELETE FROM submissions WHERE id = ?", (submission_id,))
+
+        conn.commit()
+        conn.close()
+        return jsonify({
+            "success": True,
+            "message": f"Fresh re-attempt granted for {submission['student_name']}. Their previous submission has been cleared.",
+            "student_name": submission["student_name"],
+            "exam_title": submission["exam_title"],
+            "exam_id": submission["exam_id"],
+            "reattempt_type": "fresh"
+        })
 
 
 @app.route("/student/dashboard")
@@ -1891,9 +1934,18 @@ def api_log_violation(submission_id):
     if new_warnings >= max_allowed:
         is_terminated = True
         termination_reason = f"Exceeded maximum allowed anti-cheating warnings ({new_warnings}/{max_allowed} strikes). Violation: {violation_type.replace('_', ' ').title()}"
+        # Save any partially-answered questions (from progress_answers_json) into answers_json
+        # so the tutor can see and award marks, and admin can optionally restore from this point.
         cursor.execute("""
             UPDATE submissions 
-            SET warnings_count = ?, status = 'terminated', termination_reason = ?, submitted_at = CURRENT_TIMESTAMP
+            SET warnings_count = ?, status = 'terminated', termination_reason = ?, submitted_at = CURRENT_TIMESTAMP,
+                answers_json = COALESCE(
+                    CASE WHEN (answers_json IS NULL OR answers_json = '' OR answers_json = '{}') 
+                         THEN progress_answers_json 
+                         ELSE answers_json 
+                    END,
+                    '{}'
+                )
             WHERE id = ?
         """, (new_warnings, termination_reason, submission_id))
     else:
@@ -1965,8 +2017,20 @@ def api_submit_exam(submission_id):
 @app.route("/api/submission/<int:submission_id>/save-progress", methods=["POST"])
 @login_required
 def api_save_progress(submission_id):
-    """Auto-saves the student's current answers + timer so the page can recover after a refresh."""
-    data = request.get_json() or {}
+    """Auto-saves the student's current answers + timer so the page can recover after a refresh.
+    Accepts both JSON (fetch) and raw Blob (navigator.sendBeacon) payloads.
+    """
+    # navigator.sendBeacon sends Content-Type: application/octet-stream or text/plain
+    content_type = request.content_type or ""
+    if "application/json" in content_type:
+        data = request.get_json(silent=True) or {}
+    else:
+        # sendBeacon sends raw bytes — decode and parse manually
+        try:
+            data = json.loads(request.get_data(as_text=True))
+        except Exception:
+            data = {}
+
     answers_json = json.dumps(data.get("answers", {}))
     time_remaining = data.get("time_remaining_seconds")
     current_q_index = data.get("current_question_index", 0)

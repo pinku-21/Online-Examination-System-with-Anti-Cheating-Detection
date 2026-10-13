@@ -47,9 +47,10 @@
                     data-submission-id="{{ submission.id }}"
                     data-student-name="{{ submission.student_name | e }}"
                     data-exam-id="{{ submission.exam_id }}"
+                    data-status="{{ submission.status }}"
                     onclick="grantReattemptFromDetail(this)"
                     class="px-4 py-2 bg-amber-500 hover:bg-amber-600 text-white text-xs font-bold rounded-xl shadow-sm transition flex items-center space-x-1.5"
-                    title="Clear this submission so the student can retake the exam">
+                    title="Grant this student another attempt at the exam">
                 <i data-lucide="rotate-ccw" class="w-3.5 h-3.5"></i>
                 <span>Grant Re-attempt</span>
             </button>
@@ -446,34 +447,99 @@
         const submissionId = btn.dataset.submissionId;
         const studentName  = btn.dataset.studentName;
         const examId       = btn.dataset.examId;
-        const result = await Swal.fire({
-            icon: 'warning',
-            title: 'Grant Re-attempt?',
+        const status       = btn.dataset.status || '';
+
+        // Show a dialog letting admin choose: Resume from termination point vs Fresh start
+        const { value: reattemptType, isConfirmed } = await Swal.fire({
+            title: 'Grant Re-attempt',
             html: `
-                <p class="text-sm text-slate-600 mb-3">This will <strong>permanently delete</strong> this submission for <strong>${studentName}</strong> (including all violations and answers), allowing them to take the exam again fresh.</p>
-                <p class="text-xs text-rose-600 font-semibold">⚠️ This action cannot be undone. All data for this attempt will be lost.</p>
+                <p class="text-sm text-slate-600 mb-4 text-left">Choose how <strong>${studentName}</strong> should be allowed to re-attempt this exam:</p>
+                <div class="space-y-3 text-left">
+                    <label id="opt-resume" class="flex items-start gap-3 p-3 rounded-xl border-2 cursor-pointer transition
+                        ${status === 'terminated' ? 'border-sky-400 bg-sky-50' : 'border-slate-200 bg-slate-50'}"
+                        onclick="selectReattemptOpt('resume')">
+                        <input type="radio" name="reattempt_mode" value="resume"
+                            ${status === 'terminated' ? 'checked' : ''}
+                            class="mt-0.5 accent-sky-600" id="radio-resume">
+                        <div>
+                            <p class="text-sm font-bold text-slate-900">▶ Resume from where they left off</p>
+                            <p class="text-xs text-slate-500 mt-0.5">The student continues from their last saved question and time remaining. All previously attempted answers are preserved. <strong class="text-sky-700">Best for terminated students.</strong></p>
+                        </div>
+                    </label>
+                    <label id="opt-fresh" class="flex items-start gap-3 p-3 rounded-xl border-2 cursor-pointer transition
+                        ${status === 'terminated' ? 'border-slate-200 bg-slate-50' : 'border-amber-400 bg-amber-50'}"
+                        onclick="selectReattemptOpt('fresh')">
+                        <input type="radio" name="reattempt_mode" value="fresh"
+                            ${status === 'terminated' ? '' : 'checked'}
+                            class="mt-0.5 accent-amber-600" id="radio-fresh">
+                        <div>
+                            <p class="text-sm font-bold text-slate-900">↺ Fresh start (delete previous attempt)</p>
+                            <p class="text-xs text-slate-500 mt-0.5">All previous answers, violations, and time are permanently erased. The student gets a brand-new attempt. <strong class="text-rose-600">This cannot be undone.</strong></p>
+                        </div>
+                    </label>
+                </div>
             `,
             showCancelButton: true,
             confirmButtonColor: '#d97706',
             cancelButtonColor: '#6b7280',
-            confirmButtonText: '↺ Yes, Grant Re-attempt',
-            cancelButtonText: 'Cancel'
+            confirmButtonText: 'Grant Re-attempt',
+            cancelButtonText: 'Cancel',
+            didOpen: () => {
+                // Attach click listeners for visual feedback on option selection
+                window.selectReattemptOpt = function(val) {
+                    document.getElementById('radio-' + val).checked = true;
+                    ['resume','fresh'].forEach(v => {
+                        const el = document.getElementById('opt-' + v);
+                        if (v === val) {
+                            el.classList.add(v === 'resume' ? 'border-sky-400' : 'border-amber-400', v === 'resume' ? 'bg-sky-50' : 'bg-amber-50');
+                            el.classList.remove('border-slate-200','bg-slate-50');
+                        } else {
+                            el.classList.remove('border-sky-400','bg-sky-50','border-amber-400','bg-amber-50');
+                            el.classList.add('border-slate-200','bg-slate-50');
+                        }
+                    });
+                };
+            },
+            preConfirm: () => {
+                const selected = document.querySelector('input[name="reattempt_mode"]:checked');
+                if (!selected) {
+                    Swal.showValidationMessage('Please choose a re-attempt mode.');
+                    return false;
+                }
+                return selected.value;
+            }
         });
 
-        if (!result.isConfirmed) return;
+        if (!isConfirmed) return;
+
+        // Extra confirmation for fresh start since it's destructive
+        if (reattemptType === 'fresh') {
+            const confirm2 = await Swal.fire({
+                icon: 'warning',
+                title: 'Confirm Fresh Start?',
+                html: `<p class="text-sm text-slate-600">This will <strong class="text-rose-600">permanently delete</strong> all data for this attempt by <strong>${studentName}</strong>. This action cannot be undone.</p>`,
+                showCancelButton: true,
+                confirmButtonColor: '#e11d48',
+                confirmButtonText: 'Yes, Delete & Grant',
+                cancelButtonText: 'Go Back'
+            });
+            if (!confirm2.isConfirmed) return;
+        }
 
         try {
             const resp = await fetch(`/api/tutor/submission/${submissionId}/grant-reattempt`, {
                 method: 'POST',
-                headers: { 'Content-Type': 'application/json' }
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ reattempt_type: reattemptType })
             });
             const res = await resp.json();
             if (res.success) {
+                const modeLabel = reattemptType === 'resume' ? 'Resume Re-attempt' : 'Fresh Re-attempt';
                 await Swal.fire({
                     icon: 'success',
-                    title: 'Re-attempt Granted!',
-                    html: `<p class="text-sm text-slate-600"><strong>${studentName}</strong> can now retake the exam. Redirecting back to exam page...</p>`,
-                    timer: 2000,
+                    title: `${modeLabel} Granted!`,
+                    html: `<p class="text-sm text-slate-600">${res.message}</p>`,
+                    timer: 2500,
                     showConfirmButton: false
                 });
                 window.location.href = `/tutor/exam/${examId}`;
