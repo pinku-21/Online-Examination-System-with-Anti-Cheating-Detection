@@ -223,6 +223,7 @@ def register():
         password = request.form.get("password", "").strip()
         email = request.form.get("email", "").strip().lower() or None
         class_name = request.form.get("class_name", "").strip()
+        photo_file = request.files.get("profile_photo")
 
         if not full_name or not roll_number or not username or not password:
             flash("Full Name, Roll Number, Username, and Password are all required.", "danger")
@@ -232,7 +233,23 @@ def register():
             flash("Password must be at least 4 characters long.", "danger")
             return render_template("register.html")
 
-        res = create_user(username, email, password, full_name, role="student", roll_number=roll_number, class_name=class_name)
+        # Save profile photo if provided
+        profile_photo_url = ""
+        if photo_file and photo_file.filename:
+            _, ext = os.path.splitext(secure_filename(photo_file.filename))
+            ext = ext.lower() if ext else ".jpg"
+            if ext not in [".jpg", ".jpeg", ".png", ".webp", ".bmp"]:
+                ext = ".jpg"
+            safe_roll = "".join(c if c.isalnum() else "_" for c in roll_number.lower())
+            photo_filename = f"reg_{safe_roll}_{int(datetime.now().timestamp())}{ext}"
+            photo_dir = os.path.join(os.path.dirname(__file__), "static", "profile_photos")
+            os.makedirs(photo_dir, exist_ok=True)
+            photo_file.save(os.path.join(photo_dir, photo_filename))
+            profile_photo_url = f"/static/profile_photos/{photo_filename}"
+
+        res = create_user(username, email, password, full_name, role="student", 
+                          roll_number=roll_number, class_name=class_name,
+                          profile_photo=profile_photo_url)
         if res.get("success"):
             # Sign in the new student automatically
             session.clear()
@@ -242,6 +259,8 @@ def register():
             session["user_role"] = "student"
             session["roll_number"] = res["roll_number"]
             session["class_name"] = res.get("class_name", "")
+            if profile_photo_url:
+                session["profile_photo"] = profile_photo_url
             flash(f"Welcome, {full_name}! Your account has been created successfully.", "success")
             return redirect(url_for("student_dashboard"))
         else:
@@ -255,24 +274,55 @@ def register():
 @app.route("/api/admin/create-student", methods=["POST"])
 @admin_required
 def admin_create_student():
-    """Admin creates a new student account with preset credentials."""
-    data = request.get_json() or {}
-    full_name = data.get("full_name", "").strip()
-    roll_number = data.get("roll_number", "").strip().upper()
-    username = data.get("username", "").strip().lower()
-    password = data.get("password", "").strip()
-    email = data.get("email", "").strip().lower() or None
-    class_name = data.get("class_name", "").strip()
+    """Admin creates a new student account with preset credentials.
+    Accepts multipart/form-data (with optional profile_photo file) or JSON.
+    """
+    # Support both multipart FormData and legacy JSON
+    if request.content_type and "multipart" in request.content_type:
+        full_name = request.form.get("full_name", "").strip()
+        roll_number = request.form.get("roll_number", "").strip().upper()
+        username = request.form.get("username", "").strip().lower()
+        password = request.form.get("password", "").strip()
+        email = request.form.get("email", "").strip().lower() or None
+        class_name = request.form.get("class_name", "").strip()
+        photo_file = request.files.get("profile_photo")
+    else:
+        data = request.get_json() or {}
+        full_name = data.get("full_name", "").strip()
+        roll_number = data.get("roll_number", "").strip().upper()
+        username = data.get("username", "").strip().lower()
+        password = data.get("password", "").strip()
+        email = data.get("email", "").strip().lower() or None
+        class_name = data.get("class_name", "").strip()
+        photo_file = None
 
     if not full_name or not roll_number or not username or not password:
         return jsonify({"success": False, "error": "Full Name, Roll Number, Username, and Password are all required."})
     if len(password) < 4:
         return jsonify({"success": False, "error": "Password must be at least 4 characters."})
 
-    res = create_user(username, email, password, full_name, role="student", roll_number=roll_number, class_name=class_name)
+    # Save profile photo if provided
+    profile_photo_url = ""
+    if photo_file and photo_file.filename:
+        _, ext = os.path.splitext(secure_filename(photo_file.filename))
+        ext = ext.lower() if ext else ".jpg"
+        if ext not in [".jpg", ".jpeg", ".png", ".webp", ".bmp"]:
+            ext = ".jpg"
+        safe_roll = "".join(c if c.isalnum() else "_" for c in roll_number.lower())
+        photo_filename = f"reg_{safe_roll}_{int(datetime.now().timestamp())}{ext}"
+        photo_dir = os.path.join(os.path.dirname(__file__), "static", "profile_photos")
+        os.makedirs(photo_dir, exist_ok=True)
+        photo_file.save(os.path.join(photo_dir, photo_filename))
+        profile_photo_url = f"/static/profile_photos/{photo_filename}"
+
+    res = create_user(username, email, password, full_name, role="student",
+                      roll_number=roll_number, class_name=class_name,
+                      profile_photo=profile_photo_url)
     if res.get("success"):
         return jsonify({"success": True, "message": f"Student account created for {full_name} ({username}).", "student": {
-            "id": res["user_id"], "full_name": full_name, "username": username, "roll_number": roll_number, "class_name": class_name
+            "id": res["user_id"], "full_name": full_name, "username": username,
+            "roll_number": roll_number, "class_name": class_name,
+            "has_photo": bool(profile_photo_url)
         }})
     return jsonify({"success": False, "error": res.get("error", "Failed to create student account.")})
 
@@ -393,7 +443,7 @@ def tutor_dashboard():
     
     conn2 = get_connection()
     cursor2 = conn2.cursor()
-    cursor2.execute("SELECT id, full_name, username, roll_number, email, class_name, created_at FROM users WHERE role = 'student' ORDER BY created_at DESC")
+    cursor2.execute("SELECT id, full_name, username, roll_number, email, class_name, profile_photo, created_at FROM users WHERE role = 'student' ORDER BY created_at DESC")
     students = [dict(r) for r in cursor2.fetchall()]
     distinct_classes = sorted(list(set(s['class_name'] for s in students if s.get('class_name'))))
     conn2.close()

@@ -345,7 +345,7 @@ def init_db():
     conn.commit()
     conn.close()
 
-def create_user(username, email, password, full_name, role="student", roll_number=None, class_name=None):
+def create_user(username, email, password, full_name, role="student", roll_number=None, class_name=None, profile_photo=""):
     from werkzeug.security import generate_password_hash
     conn = get_connection()
     cursor = conn.cursor()
@@ -355,14 +355,15 @@ def create_user(username, email, password, full_name, role="student", roll_numbe
         clean_name = full_name.strip()
         clean_roll = roll_number.strip().upper() if roll_number else None
         clean_class = class_name.strip() if class_name else ""
+        clean_photo = (profile_photo or "").strip()
         
         cursor.execute("""
-            INSERT INTO users (username, email, password_hash, full_name, role, roll_number, class_name)
-            VALUES (?, ?, ?, ?, ?, ?, ?)
-        """, (clean_user, clean_email, generate_password_hash(password), clean_name, role, clean_roll, clean_class))
+            INSERT INTO users (username, email, password_hash, full_name, role, roll_number, class_name, profile_photo)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+        """, (clean_user, clean_email, generate_password_hash(password), clean_name, role, clean_roll, clean_class, clean_photo))
         user_id = cursor.lastrowid
         conn.commit()
-        return {"success": True, "user_id": user_id, "username": clean_user, "role": role, "full_name": clean_name, "roll_number": clean_roll, "class_name": clean_class}
+        return {"success": True, "user_id": user_id, "username": clean_user, "role": role, "full_name": clean_name, "roll_number": clean_roll, "class_name": clean_class, "profile_photo": clean_photo}
     except DB_INTEGRITY_ERRORS:
         return {"success": False, "error": "Username or email is already registered."}
     except Exception as e:
