@@ -8,6 +8,12 @@ import re
 import sqlite3
 from pathlib import Path
 
+try:
+    from dotenv import load_dotenv
+    load_dotenv()
+except Exception:
+    pass
+
 DB_PATH = os.path.join(os.path.dirname(__file__), "examguard.db")
 DATABASE_URL = os.environ.get("DATABASE_URL", "").strip()
 

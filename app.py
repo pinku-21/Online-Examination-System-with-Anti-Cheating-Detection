@@ -278,6 +278,35 @@ def admin_delete_student(student_id):
     conn.close()
     return jsonify({"success": True, "message": f"Student account deleted."})
 
+@app.route("/api/admin/delete-exam/<int:exam_id>", methods=["DELETE", "POST"])
+@admin_required
+def admin_delete_exam(exam_id):
+    """Admin permanently deletes an exam and its questions, assignments, and submissions."""
+    conn = get_connection()
+    cursor = conn.cursor()
+    cursor.execute("SELECT id, title FROM exams WHERE id = ?", (exam_id,))
+    exam = cursor.fetchone()
+    if not exam:
+        conn.close()
+        return jsonify({"success": False, "error": "Exam not found."}), 404
+    
+    exam_title = exam["title"]
+    # Explicitly cascade delete submissions, questions, assignments, violations for SQLite / Postgres compatibility
+    cursor.execute("SELECT id FROM submissions WHERE exam_id = ?", (exam_id,))
+    sub_ids = [r["id"] for r in cursor.fetchall()]
+    if sub_ids:
+        for sid in sub_ids:
+            cursor.execute("DELETE FROM violations WHERE submission_id = ?", (sid,))
+        cursor.execute("DELETE FROM submissions WHERE exam_id = ?", (exam_id,))
+    
+    cursor.execute("DELETE FROM questions WHERE exam_id = ?", (exam_id,))
+    cursor.execute("DELETE FROM exam_assignments WHERE exam_id = ?", (exam_id,))
+    cursor.execute("DELETE FROM exams WHERE id = ?", (exam_id,))
+    
+    conn.commit()
+    conn.close()
+    return jsonify({"success": True, "message": f"Exam '{exam_title}' has been successfully deleted."})
+
 @app.route("/api/admin/reset-password", methods=["POST"])
 @admin_required
 def admin_reset_password():

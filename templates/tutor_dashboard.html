@@ -86,7 +86,7 @@
         {% if exams %}
             <div class="divide-y divide-slate-200">
                 {% for exam in exams %}
-                    <div class="p-6 hover:bg-slate-50 transition flex flex-col md:flex-row md:items-center justify-between gap-4">
+                    <div id="exam-card-{{ exam.id }}" class="p-6 hover:bg-slate-50 transition flex flex-col md:flex-row md:items-center justify-between gap-4">
                         <div class="space-y-1">
                             <div class="flex items-center space-x-3">
                                 <h3 class="font-bold text-slate-900 text-base">{{ exam.title }}</h3>
@@ -136,7 +136,7 @@
                             </div>
                         </div>
 
-                        <div class="flex items-center space-x-2 self-start md:self-center">
+                        <div class="flex items-center space-x-2 self-start md:self-center flex-wrap gap-y-1.5">
                             <button type="button" onclick="openManageAccessModal('{{ exam.id }}', '{{ exam.title | escape }}')" class="px-3 py-2 bg-indigo-50 hover:bg-indigo-100 text-indigo-700 text-xs font-semibold rounded-lg transition flex items-center space-x-1.5 border border-indigo-200 cursor-pointer" title="Manage who can access and exam timing">
                                 <i data-lucide="calendar-clock" class="w-3.5 h-3.5 text-indigo-600"></i>
                                 <span>Access & Timing</span>
@@ -149,6 +149,10 @@
                                 <i data-lucide="bar-chart-3" class="w-3.5 h-3.5"></i>
                                 <span>View Results</span>
                             </a>
+                            <button type="button" onclick="deleteExam('{{ exam.id }}', '{{ exam.title | escape }}')" class="px-2.5 py-2 bg-rose-50 hover:bg-rose-100 text-rose-600 hover:text-rose-700 text-xs font-semibold rounded-lg transition flex items-center space-x-1 border border-rose-200 cursor-pointer" title="Delete Exam">
+                                <i data-lucide="trash-2" class="w-3.5 h-3.5"></i>
+                                <span class="hidden sm:inline">Delete</span>
+                            </button>
                         </div>
                     </div>
                 {% endfor %}
@@ -352,106 +356,9 @@
     </div>
 </div>
 
-<!-- ===== MANAGE EXAM ACCESS & SCHEDULE MODAL ===== -->
-<div id="manage-access-modal" class="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-50 flex items-center justify-center p-4 hidden" style="display: none;">
-    <div class="bg-white rounded-2xl max-w-lg w-full p-6 shadow-2xl border border-slate-200">
-        <div class="flex items-center justify-between mb-4">
-            <div class="flex items-center space-x-2.5">
-                <div class="w-9 h-9 rounded-xl bg-indigo-100 text-indigo-600 flex items-center justify-center">
-                    <i data-lucide="calendar-clock" class="w-4 h-4"></i>
-                </div>
-                <div>
-                    <h3 class="font-bold text-slate-900">Manage Access & Schedule</h3>
-                    <p class="text-xs text-slate-500 line-clamp-1" id="ma-exam-title">Exam Title</p>
-                </div>
-            </div>
-            <button type="button" onclick="closeManageAccessModal()" class="text-slate-400 hover:text-slate-600 p-1">
-                <i data-lucide="x" class="w-5 h-5"></i>
-            </button>
-        </div>
-
-        <input type="hidden" id="ma-exam-id">
-
-        <div class="space-y-4">
-            <!-- Access Targeting -->
-            <div class="p-3.5 bg-slate-50 border border-slate-200 rounded-xl space-y-2">
-                <label class="block text-xs font-bold text-slate-800">
-                    <i data-lucide="users" class="w-3.5 h-3.5 inline mr-1 text-indigo-600"></i>Student Access Permission:
-                </label>
-                <div class="grid grid-cols-3 gap-1.5 p-1 bg-white rounded-lg border border-slate-200 text-xs font-semibold">
-                    <label class="p-1.5 rounded-md cursor-pointer text-center ma-acc-tab bg-indigo-50 text-indigo-700 font-bold" id="ma-tab-all">
-                        <input type="radio" name="ma_access_type" value="all" onchange="maSwitchAccess('all')" class="hidden">
-                        <span>All Students</span>
-                    </label>
-                    <label class="p-1.5 rounded-md cursor-pointer text-center ma-acc-tab text-slate-600 hover:text-slate-900" id="ma-tab-class">
-                        <input type="radio" name="ma_access_type" value="class" onchange="maSwitchAccess('class')" class="hidden">
-                        <span>By Class</span>
-                    </label>
-                    <label class="p-1.5 rounded-md cursor-pointer text-center ma-acc-tab text-slate-600 hover:text-slate-900" id="ma-tab-selected">
-                        <input type="radio" name="ma_access_type" value="selected" onchange="maSwitchAccess('selected')" class="hidden">
-                        <span>Select Names</span>
-                    </label>
-                </div>
-
-                <div id="ma-class-block" class="hidden pt-1 space-y-1">
-                    <label class="block text-[11px] font-semibold text-slate-600">Target Class / Batch Name:</label>
-                    <input type="text" id="ma-target-class" placeholder="e.g. Class 10-A, Grade 12" class="w-full px-3 py-1.5 text-xs border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500">
-                </div>
-
-                <div id="ma-selected-block" class="hidden pt-1 space-y-1.5">
-                    <label class="text-[11px] font-semibold text-slate-600">Select Enrolled Students:</label>
-                    <div class="max-h-36 overflow-y-auto space-y-1 border border-slate-200 bg-white rounded-lg p-2" id="ma-students-list">
-                        {% for s in students %}
-                        <label class="flex items-center space-x-2 p-1 hover:bg-slate-50 rounded text-xs cursor-pointer">
-                            <input type="checkbox" value="{{ s.id }}" class="ma-student-cb rounded text-indigo-600 focus:ring-indigo-500">
-                            <span class="font-medium text-slate-800">{{ s.full_name }}</span>
-                            {% if s.roll_number %}<span class="text-[10px] font-mono text-slate-400">({{ s.roll_number }})</span>{% endif %}
-                            {% if s.class_name %}<span class="text-[10px] bg-purple-50 text-purple-700 px-1.5 py-0.5 rounded ml-auto font-semibold">{{ s.class_name }}</span>{% endif %}
-                        </label>
-                        {% endfor %}
-                    </div>
-                </div>
-            </div>
-
-            <!-- Schedule Timing -->
-            <div class="p-3.5 bg-slate-50 border border-slate-200 rounded-xl space-y-2">
-                <label class="block text-xs font-bold text-slate-800">
-                    <i data-lucide="calendar" class="w-3.5 h-3.5 inline mr-1 text-sky-600"></i>Exam Timing & Availability:
-                </label>
-                <div class="grid grid-cols-2 gap-1.5 p-1 bg-white rounded-lg border border-slate-200 text-xs font-semibold">
-                    <label class="p-1.5 rounded-md cursor-pointer text-center ma-sched-tab bg-sky-50 text-sky-700 font-bold" id="ma-tab-anytime">
-                        <input type="radio" name="ma_schedule_type" value="anytime" onchange="maSwitchSched('anytime')" class="hidden">
-                        <span>Anytime (Flexible)</span>
-                    </label>
-                    <label class="p-1.5 rounded-md cursor-pointer text-center ma-sched-tab text-slate-600 hover:text-slate-900" id="ma-tab-scheduled">
-                        <input type="radio" name="ma_schedule_type" value="scheduled" onchange="maSwitchSched('scheduled')" class="hidden">
-                        <span>Specific Window</span>
-                    </label>
-                </div>
-
-                <div id="ma-sched-inputs" class="hidden pt-1 space-y-2">
-                    <div>
-                        <label class="block text-[11px] font-semibold text-slate-600 mb-0.5">Start Date & Time:</label>
-                        <input type="datetime-local" id="ma-start-time" class="w-full px-2.5 py-1.5 text-xs border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-sky-500">
-                    </div>
-                    <div>
-                        <label class="block text-[11px] font-semibold text-slate-600 mb-0.5">End Date & Time (Deadline):</label>
-                        <input type="datetime-local" id="ma-end-time" class="w-full px-2.5 py-1.5 text-xs border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-sky-500">
-                    </div>
-                    <p class="text-[10px] text-slate-400">Students cannot enter before Start Time and cannot start after End Time.</p>
-                </div>
-            </div>
-        </div>
-
-        <div class="flex gap-3 mt-5">
-            <button type="button" onclick="closeManageAccessModal()" class="flex-1 py-2.5 text-xs font-semibold text-slate-600 hover:bg-slate-100 rounded-xl transition">Cancel</button>
-            <button type="button" onclick="saveExamAccessSchedule()" id="ma-save-btn" class="flex-1 py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-bold rounded-xl transition shadow-sm">Save Changes</button>
-        </div>
-    </div>
-</div>
 
 
-<!-- AI API Keys Modal (Gemini & Groq) -->
+<!-- AI API Keys Modal (OpenAI, Gemini & Groq) -->
 <div id="api-key-modal" class="fixed inset-0 bg-slate-900/50 backdrop-blur-sm z-50 flex items-center justify-center p-4 hidden">
     <div class="bg-white rounded-2xl max-w-lg w-full p-6 shadow-2xl border border-slate-200">
         <div class="flex items-center justify-between mb-4">
@@ -460,8 +367,8 @@
                     <i data-lucide="sparkles" class="w-4 h-4"></i>
                 </div>
                 <div>
-                    <h3 class="font-bold text-slate-900">AI Engines (100% Free Tiers)</h3>
-                    <p class="text-[11px] text-slate-500">Powers automatic MCQ generation from PDFs and notes</p>
+                    <h3 class="font-bold text-slate-900">AI Generation & Grading Engines</h3>
+                    <p class="text-[11px] text-slate-500">Configure OpenAI (ChatGPT), Gemini, or Groq for question design and auto-grading</p>
                 </div>
             </div>
             <button onclick="document.getElementById('api-key-modal').classList.add('hidden')" class="text-slate-400 hover:text-slate-600">
@@ -470,6 +377,21 @@
         </div>
 
         <form action="/tutor/settings" method="POST" class="space-y-4">
+            <!-- OpenAI ChatGPT -->
+            <div class="p-3 bg-slate-50 border border-slate-200 rounded-xl">
+                <div class="flex items-center justify-between mb-1.5">
+                    <label class="text-xs font-bold text-slate-800 flex items-center space-x-1.5">
+                        <span>OpenAI API (ChatGPT - GPT-4o / GPT-4o-mini)</span>
+                        {% if has_openai_key %}
+                        <span class="px-2 py-0.5 rounded-full text-[10px] bg-emerald-100 text-emerald-700 font-bold">Active ({{ openai_key_mask }})</span>
+                        {% endif %}
+                    </label>
+                    <a href="https://platform.openai.com/api-keys" target="_blank" class="text-[11px] text-sky-600 hover:underline font-semibold">Get API Key ↗</a>
+                </div>
+                <input type="password" name="openai_api_key" placeholder="sk-proj-... or sk-..." class="w-full px-3 py-2 border border-slate-300 rounded-lg text-xs focus:outline-none focus:ring-2 focus:ring-sky-500 font-mono">
+                <p class="text-[10px] text-slate-400 mt-1">High accuracy: Blueprint generation, diagram creation, and multimodal evaluation of handwritten student answers.</p>
+            </div>
+
             <!-- Google Gemini -->
             <div class="p-3 bg-slate-50 border border-slate-200 rounded-xl">
                 <div class="flex items-center justify-between mb-1.5">
@@ -510,8 +432,9 @@
 
 <!-- ===== MANAGE EXAM ACCESS & SCHEDULE MODAL ===== -->
 <div id="manage-access-modal" class="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-50 flex items-center justify-center p-4 hidden">
-    <div class="bg-white rounded-2xl max-w-lg w-full p-6 shadow-2xl border border-slate-200">
-        <div class="flex items-center justify-between mb-4">
+    <div class="bg-white rounded-2xl max-w-lg w-full shadow-2xl border border-slate-200 flex flex-col max-h-[90vh] overflow-hidden animate-in fade-in zoom-in-95 duration-150">
+        <!-- Modal Header -->
+        <div class="flex items-center justify-between p-5 border-b border-slate-100 flex-shrink-0">
             <div class="flex items-center space-x-2.5">
                 <div class="w-9 h-9 rounded-xl bg-indigo-100 text-indigo-600 flex items-center justify-center">
                     <i data-lucide="calendar-clock" class="w-4 h-4"></i>
@@ -521,14 +444,15 @@
                     <p class="text-xs text-slate-500 line-clamp-1" id="ma-exam-title">Exam Title</p>
                 </div>
             </div>
-            <button type="button" onclick="closeManageAccessModal()" class="text-slate-400 hover:text-slate-600 p-1">
+            <button type="button" onclick="closeManageAccessModal()" class="text-slate-400 hover:text-slate-600 p-1 rounded-lg hover:bg-slate-100 transition">
                 <i data-lucide="x" class="w-5 h-5"></i>
             </button>
         </div>
 
         <input type="hidden" id="ma-exam-id">
 
-        <div class="space-y-4">
+        <!-- Scrollable Modal Body -->
+        <div class="p-5 space-y-4 overflow-y-auto flex-1">
             <!-- Access Targeting -->
             <div class="p-3.5 bg-slate-50 border border-slate-200 rounded-xl space-y-2">
                 <label class="block text-xs font-bold text-slate-800">
@@ -608,14 +532,40 @@
                     <p class="text-[10px] text-slate-400 mt-1">Once started, student's timer counts down this allotted duration.</p>
                 </div>
             </div>
+
+            <!-- AI Proctoring Controls -->
+            <div class="p-3.5 bg-slate-50 border border-slate-200 rounded-xl space-y-2">
+                <label class="block text-xs font-bold text-slate-800">
+                    <i data-lucide="shield" class="w-3.5 h-3.5 inline mr-1 text-emerald-600"></i>AI Anti-Cheat Sensors:
+                </label>
+                <div class="grid grid-cols-1 sm:grid-cols-2 gap-2 pt-1">
+                    <label class="flex items-center justify-between p-2 bg-white rounded-lg border border-slate-200 cursor-pointer">
+                        <span class="text-xs font-semibold text-slate-800 flex items-center">
+                            <i data-lucide="video" class="w-3.5 h-3.5 mr-1.5 text-sky-600"></i> Video / Cam AI
+                        </span>
+                        <input type="checkbox" id="ma-enable-video" class="rounded text-sky-600 focus:ring-sky-500 w-4 h-4 cursor-pointer">
+                    </label>
+                    <label class="flex items-center justify-between p-2 bg-white rounded-lg border border-slate-200 cursor-pointer">
+                        <span class="text-xs font-semibold text-slate-800 flex items-center">
+                            <i data-lucide="mic" class="w-3.5 h-3.5 mr-1.5 text-sky-600"></i> Voice / Audio AI
+                        </span>
+                        <input type="checkbox" id="ma-enable-audio" class="rounded text-sky-600 focus:ring-sky-500 w-4 h-4 cursor-pointer">
+                    </label>
+                </div>
+            </div>
         </div>
 
-        <div class="flex gap-3 mt-5">
-            <button type="button" onclick="closeManageAccessModal()" class="flex-1 py-2.5 text-xs font-semibold text-slate-600 hover:bg-slate-100 rounded-xl transition border border-slate-200">Cancel</button>
-            <button type="button" onclick="saveExamAccessSchedule()" id="ma-save-btn" class="flex-1 py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-bold rounded-xl transition shadow-sm">Save Changes</button>
+        <!-- Sticky Footer - Always Visible! -->
+        <div class="p-4 border-t border-slate-200 bg-slate-50 flex gap-3 flex-shrink-0">
+            <button type="button" onclick="closeManageAccessModal()" class="flex-1 py-2.5 text-xs font-semibold text-slate-700 bg-white hover:bg-slate-100 rounded-xl transition border border-slate-200 shadow-xs cursor-pointer">Cancel</button>
+            <button type="button" onclick="saveExamAccessSchedule()" id="ma-save-btn" class="flex-1 py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-bold rounded-xl transition shadow-md flex items-center justify-center space-x-1 cursor-pointer">
+                <i data-lucide="check" class="w-4 h-4"></i>
+                <span>Save Changes</span>
+            </button>
         </div>
     </div>
 </div>
+
 
 </div>
 {% endblock %}
@@ -782,6 +732,13 @@
                 if (startEl) startEl.value = ex.start_time || data.start_time || '';
                 if (endEl) endEl.value = ex.end_time || data.end_time || '';
                 if (durEl) durEl.value = ex.duration_minutes || data.duration_minutes || 30;
+
+                const videoEl = document.getElementById('ma-enable-video');
+                const audioEl = document.getElementById('ma-enable-audio');
+                const evVal = (ex.enable_video_detection !== undefined) ? ex.enable_video_detection : data.enable_video_detection;
+                const eaVal = (ex.enable_audio_detection !== undefined) ? ex.enable_audio_detection : data.enable_audio_detection;
+                if (videoEl) videoEl.checked = (evVal === 1 || evVal === true || evVal === '1');
+                if (audioEl) audioEl.checked = (eaVal === 1 || eaVal === true || eaVal === '1');
             }
         } catch (err) {
             console.error('Failed to load access details:', err);
@@ -796,6 +753,8 @@
         const startTime = document.getElementById('ma-start-time').value;
         const endTime = document.getElementById('ma-end-time').value;
         const durationMinutes = parseInt(document.getElementById('ma-duration-minutes').value) || 30;
+        const enableVideo = document.getElementById('ma-enable-video')?.checked ? 1 : 0;
+        const enableAudio = document.getElementById('ma-enable-audio')?.checked ? 1 : 0;
 
         const assignedStudents = [];
         if (accessType === 'selected') {
@@ -839,7 +798,9 @@
                     schedule_type: schedType,
                     start_time: startTime,
                     end_time: endTime,
-                    duration_minutes: durationMinutes
+                    duration_minutes: durationMinutes,
+                    enable_video_detection: enableVideo,
+                    enable_audio_detection: enableAudio
                 })
             });
             const res = await resp.json();
@@ -932,6 +893,47 @@
         } catch (err) {
             errEl.textContent = 'Network error.';
             errEl.classList.remove('hidden');
+        }
+    }
+
+    async function deleteExam(examId, examTitle) {
+        const result = await Swal.fire({
+            icon: 'warning',
+            title: 'Delete Exam?',
+            html: `
+                <p class="text-sm text-slate-600 mb-2">Are you sure you want to delete <strong>${examTitle}</strong>?</p>
+                <p class="text-xs text-rose-600 font-semibold">⚠️ This will permanently remove the exam, all questions, student access assignments, and all submission records.</p>
+            `,
+            showCancelButton: true,
+            confirmButtonText: 'Yes, Delete Exam',
+            cancelButtonText: 'Cancel',
+            confirmButtonColor: '#e11d48'
+        });
+        if (!result.isConfirmed) return;
+
+        try {
+            const resp = await fetch(`/api/admin/delete-exam/${examId}`, { method: 'DELETE' });
+            const res = await resp.json();
+            if (res.success) {
+                const card = document.getElementById(`exam-card-${examId}`);
+                if (card) {
+                    card.style.transition = 'all 0.3s ease';
+                    card.style.opacity = '0';
+                    card.style.transform = 'scale(0.95)';
+                    setTimeout(() => card.remove(), 300);
+                }
+                Swal.fire({
+                    icon: 'success',
+                    title: 'Exam Deleted!',
+                    text: res.message || 'The exam has been removed.',
+                    timer: 1500,
+                    showConfirmButton: false
+                });
+            } else {
+                Swal.fire({ icon: 'error', title: 'Error', text: res.error || 'Failed to delete exam.' });
+            }
+        } catch (err) {
+            Swal.fire({ icon: 'error', title: 'Error', text: 'Network error occurred.' });
         }
     }
 </script>
