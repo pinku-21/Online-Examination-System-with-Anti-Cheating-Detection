@@ -54,7 +54,7 @@
                         <i data-lucide="copy" class="w-3.5 h-3.5"></i>
                         <span>Copy Link</span>
                     </button>
-                    <button type="button" onclick="openManageAccessModal('{{ exam.id }}', '{{ exam.title | escape }}')" class="px-3 py-1.5 bg-indigo-50 hover:bg-indigo-100 text-indigo-700 text-xs font-semibold rounded-lg transition flex items-center space-x-1 border border-indigo-200 cursor-pointer" title="Change schedule time, access, or duration">
+                    <button type="button" data-exam-id="{{ exam.id }}" data-exam-title="{{ exam.title | e }}" onclick="openManageAccessModalFromBtn(this)" class="px-3 py-1.5 bg-indigo-50 hover:bg-indigo-100 text-indigo-700 text-xs font-semibold rounded-lg transition flex items-center space-x-1 border border-indigo-200 cursor-pointer" title="Change schedule time, access, or duration">
                         <i data-lucide="calendar-clock" class="w-3.5 h-3.5 text-indigo-600"></i>
                         <span>Access & Timing</span>
                     </button>
@@ -135,8 +135,10 @@
                                                 <span>Audit Report</span>
                                             </a>
                                             <button type="button"
-                                                    onclick="grantReattempt({{ sub.id }}, '{{ sub.student_name | escape }}')"
-                                                    class="px-3 py-1.5 bg-amber-50 hover:bg-amber-100 text-amber-700 border border-amber-200 text-xs font-semibold rounded-lg transition inline-flex items-center space-x-1"
+                                                    data-submission-id="{{ sub.id }}"
+                                                    data-student-name="{{ sub.student_name | e }}"
+                                                    onclick="grantReattemptFromBtn(this)"
+                                                    class="px-3 py-1.5 bg-amber-50 hover:bg-amber-100 text-amber-700 border border-amber-200 text-xs font-semibold rounded-lg transition inline-flex items-center space-x-1 cursor-pointer"
                                                     title="Clear this submission and allow student to retake the exam">
                                                 <i data-lucide="rotate-ccw" class="w-3.5 h-3.5"></i>
                                                 <span>Re-attempt</span>
@@ -346,6 +348,18 @@
 
 {% block scripts %}
 <script>
+    function grantReattemptFromBtn(btn) {
+        const subId = btn.getAttribute('data-submission-id');
+        const studentName = btn.getAttribute('data-student-name') || 'Student';
+        grantReattempt(subId, studentName);
+    }
+
+    function openManageAccessModalFromBtn(btn) {
+        const examId = btn.getAttribute('data-exam-id');
+        const examTitle = btn.getAttribute('data-exam-title') || '';
+        openManageAccessModal(examId, examTitle);
+    }
+
     async function grantReattempt(submissionId, studentName) {
         const result = await Swal.fire({
             icon: 'warning',
