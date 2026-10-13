@@ -784,6 +784,109 @@ def api_tutor_evaluate_question(submission_id):
         "percentage": round(percentage, 1)
     })
 
+@app.route("/api/tutor/submission/<int:submission_id>/evaluate-all", methods=["POST"])
+@admin_required
+def api_tutor_evaluate_all(submission_id):
+    """Evaluates ALL questions in a submission with AI — text, MCQ, images, short/long answers."""
+    conn = get_connection()
+    cursor = conn.cursor()
+    cursor.execute("SELECT * FROM submissions WHERE id = ?", (submission_id,))
+    submission = cursor.fetchone()
+    if not submission:
+        conn.close()
+        return jsonify({"success": False, "error": "Submission not found."}), 404
+
+    cursor.execute("SELECT * FROM questions WHERE exam_id = ?", (submission["exam_id"],))
+    all_questions = cursor.fetchall()
+
+    student_answers = json.loads(submission["answers_json"]) if submission["answers_json"] else {}
+    existing_eval = json.loads(submission["manual_evaluation_json"]) if submission["manual_evaluation_json"] else {}
+
+    gemini_key = get_setting("gemini_api_key", "").strip() or os.environ.get("GEMINI_API_KEY", "").strip()
+    groq_key = get_setting("groq_api_key", "").strip() or os.environ.get("GROQ_API_KEY", "").strip()
+
+    results = []
+    total_exam_points = 0.0
+    new_total_score = 0.0
+
+    for q in all_questions:
+        qid_s = str(q["id"])
+        q_pts = float(q["points"])
+        total_exam_points += q_pts
+
+        ans_raw = student_answers.get(qid_s, "")
+        student_text = ""
+        student_img_url = ""
+        if isinstance(ans_raw, dict):
+            student_text = (ans_raw.get("text") or "").strip()
+            student_img_url = (ans_raw.get("image_url") or "").strip()
+        elif isinstance(ans_raw, str):
+            student_text = ans_raw.strip()
+
+        # Skip if nothing answered
+        if not student_text and not student_img_url:
+            # Use objective grading for blank / unanswered
+            results.append({"question_id": qid_s, "question_text": q["question_text"][:60], "success": False, "awarded_marks": 0, "max_points": q_pts, "reason": "Not attempted"})
+            continue
+
+        # Resolve image path
+        abs_img_path = None
+        if student_img_url:
+            clean_rel = student_img_url.lstrip("/").replace("/", os.sep)
+            local_candidate = os.path.join(os.path.dirname(__file__), clean_rel)
+            if os.path.exists(local_candidate):
+                abs_img_path = local_candidate
+
+        eval_result = evaluate_answer_with_ai(
+            gemini_key=gemini_key,
+            groq_key=groq_key,
+            question_text=q["question_text"],
+            max_points=q["points"],
+            correct_answer=q["correct_answer"] or "",
+            student_text=student_text,
+            image_path=abs_img_path,
+            explanation=q["explanation"] or ""
+        )
+
+        if eval_result.get("success"):
+            awarded = float(eval_result["awarded_marks"])
+            feedback = eval_result.get("feedback", "")
+            model_used = eval_result.get("model_used", "AI")
+            existing_eval[qid_s] = {
+                "awarded_marks": awarded,
+                "max_points": q_pts,
+                "feedback": feedback,
+                "model_used": model_used,
+                "evaluated_by": "ai",
+                "evaluated_at": datetime.now(IST).strftime("%Y-%m-%d %H:%M:%S")
+            }
+            new_total_score += awarded
+            results.append({"question_id": qid_s, "question_text": q["question_text"][:60], "success": True, "awarded_marks": awarded, "max_points": q_pts})
+        else:
+            # Fall back to objective check
+            if q["correct_answer"] and student_text.lower() == q["correct_answer"].strip().lower():
+                new_total_score += q_pts
+            results.append({"question_id": qid_s, "question_text": q["question_text"][:60], "success": False, "awarded_marks": 0, "max_points": q_pts, "reason": eval_result.get("error", "AI failed")})
+
+    percentage = (new_total_score / total_exam_points * 100) if total_exam_points > 0 else 0.0
+
+    cursor.execute("""
+        UPDATE submissions
+        SET manual_evaluation_json = ?, score = ?, total_points = ?, percentage = ?
+        WHERE id = ?
+    """, (json.dumps(existing_eval), round(new_total_score, 1), total_exam_points, round(percentage, 1), submission_id))
+    conn.commit()
+    conn.close()
+
+    return jsonify({
+        "success": True,
+        "results": results,
+        "new_score": round(new_total_score, 1),
+        "total_points": total_exam_points,
+        "percentage": round(percentage, 1)
+    })
+
+
 @app.route("/api/tutor/submission/<int:submission_id>/update-question-score", methods=["POST"])
 @admin_required
 def api_tutor_update_question_score(submission_id):
