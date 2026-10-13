@@ -69,10 +69,17 @@
                     </div>
                 </div>
                 <div class="flex items-start space-x-3">
-                    <i data-lucide="video" class="w-5 h-5 text-emerald-600 flex-shrink-0 mt-0.5"></i>
-                    <div>
-                        <strong class="text-slate-900">Webcam Proctoring:</strong> Your camera will be enabled for multi-face and phone detection.
-                    </div>
+                    {% if submission.enable_video_detection in [1, True, '1'] %}
+                        <i data-lucide="video" class="w-5 h-5 text-emerald-600 flex-shrink-0 mt-0.5"></i>
+                        <div>
+                            <strong class="text-slate-900">Webcam Proctoring:</strong> Your camera will be enabled for multi-face and phone detection.
+                        </div>
+                    {% else %}
+                        <i data-lucide="video-off" class="w-5 h-5 text-slate-400 flex-shrink-0 mt-0.5"></i>
+                        <div>
+                            <strong class="text-slate-900">Webcam Proctoring:</strong> <span class="text-emerald-700 font-semibold">Disabled</span> (Camera & AI face/device detection turned off).
+                        </div>
+                    {% endif %}
                 </div>
                 <div class="flex items-start space-x-3">
                     {% if submission.enable_audio_detection in [1, True, '1'] %}
@@ -261,6 +268,7 @@
          data-max-warnings="{{ submission.max_warnings }}"
          data-duration-minutes="{{ submission.duration_minutes }}"
          data-warnings-count="{{ submission.warnings_count }}"
+         data-enable-video="{{ 1 if submission.enable_video_detection in [1, True, '1'] else 0 }}"
          data-enable-audio="{{ 1 if submission.enable_audio_detection in [1, True, '1'] else 0 }}"
          data-schedule-type="{{ submission.schedule_type or 'anytime' }}"
          data-end-time="{{ submission.end_time or '' }}"
@@ -274,6 +282,7 @@
         const SUBMISSION_ID = Number(metaEl.dataset.submissionId);
         const MAX_WARNINGS = Number(metaEl.dataset.maxWarnings);
         const DURATION_MINUTES = Number(metaEl.dataset.durationMinutes);
+        const ENABLE_VIDEO = Number(metaEl.dataset.enableVideo) === 1;
         const ENABLE_AUDIO = Number(metaEl.dataset.enableAudio) === 1;
         const SCHEDULE_TYPE = metaEl.dataset.scheduleType || 'anytime';
         const END_TIME_STR = metaEl.dataset.endTime || '';
@@ -374,9 +383,41 @@
 
         async function initWebcam() {
             const videoEl = document.getElementById('webcam-preview');
+            const fallbackEl = document.getElementById('webcam-fallback');
+            const pillEl = document.getElementById('ai-active-pill');
+
+            if (!ENABLE_VIDEO) {
+                // Video & face proctoring disabled manually by instructor
+                if (fallbackEl) {
+                    fallbackEl.classList.remove('hidden');
+                    fallbackEl.innerHTML = '<i data-lucide="video-off" class="w-8 h-8 mb-1 text-slate-400"></i><span class="text-[11px] font-semibold text-slate-300">Camera Proctoring Disabled</span><span class="text-[9px] text-slate-400 mt-0.5">By Instructor</span>';
+                    lucide.createIcons();
+                }
+                if (pillEl) {
+                    pillEl.className = "inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-bold bg-slate-100 text-slate-600 border border-slate-200";
+                    pillEl.innerHTML = '<span class="w-1.5 h-1.5 rounded-full bg-slate-400 mr-1"></span> AI Vision Off';
+                }
+                updateHudBadge('hud-face', 'Off (Manual)', 'slate');
+                updateHudBadge('hud-phone', 'Off (Manual)', 'slate');
+
+                // If audio proctoring is enabled, initialize mic stream
+                if (ENABLE_AUDIO) {
+                    try {
+                        const micStream = await navigator.mediaDevices.getUserMedia({ audio: true, video: false });
+                        initAudioProctor(micStream);
+                    } catch (e) {
+                        console.warn("Mic permission not granted:", e);
+                        updateHudBadge('hud-audio', 'No Mic', 'slate');
+                    }
+                } else {
+                    updateHudBadge('hud-audio', 'Off (Manual)', 'slate');
+                }
+                return;
+            }
+
             if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
                 console.warn("MediaDevices API unavailable.");
-                document.getElementById('webcam-fallback').classList.remove('hidden');
+                if (fallbackEl) fallbackEl.classList.remove('hidden');
                 updateHudBadge('hud-face', 'No Media', 'rose');
                 updateHudBadge('hud-phone', 'Disabled', 'slate');
                 return;
@@ -399,7 +440,7 @@
                         updateHudBadge('hud-audio', 'No Mic', 'slate');
                     } catch (e2) {
                         console.warn("Camera permission not granted:", e2);
-                        document.getElementById('webcam-fallback').classList.remove('hidden');
+                        if (fallbackEl) fallbackEl.classList.remove('hidden');
                         updateHudBadge('hud-face', 'No Camera', 'rose');
                         updateHudBadge('hud-phone', 'Disabled', 'slate');
                         return;
@@ -416,7 +457,7 @@
                     updateHudBadge('hud-audio', 'Off (Optional)', 'slate');
                 } catch (e2) {
                     console.warn("Camera permission not granted:", e2);
-                    document.getElementById('webcam-fallback').classList.remove('hidden');
+                    if (fallbackEl) fallbackEl.classList.remove('hidden');
                     updateHudBadge('hud-face', 'No Camera', 'rose');
                     updateHudBadge('hud-phone', 'Disabled', 'slate');
                     return;
@@ -435,6 +476,7 @@
 
         // --- 1. Real-time AI Vision Engine (TensorFlow.js + COCO-SSD) ---
         async function startAIVisionEngine(videoEl) {
+            if (!ENABLE_VIDEO) return;
             const pillEl = document.getElementById('ai-active-pill');
             if (pillEl) pillEl.innerHTML = '<span class="w-1.5 h-1.5 rounded-full bg-amber-400 animate-ping mr-1"></span> Loading AI Model...';
 

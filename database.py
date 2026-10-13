@@ -135,6 +135,7 @@ def init_db():
             passing_percentage DOUBLE PRECISION NOT NULL DEFAULT 40.0,
             created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
             is_active INTEGER DEFAULT 1,
+            enable_video_detection INTEGER DEFAULT 1,
             enable_audio_detection INTEGER DEFAULT 1,
             access_type TEXT DEFAULT 'all',
             assigned_class TEXT DEFAULT '',
@@ -191,6 +192,7 @@ def init_db():
         # Safe, repeatable migrations for databases created by an earlier version.
         migrations = [
             "ALTER TABLE users ADD COLUMN IF NOT EXISTS class_name TEXT DEFAULT ''",
+            "ALTER TABLE exams ADD COLUMN IF NOT EXISTS enable_video_detection INTEGER DEFAULT 1",
             "ALTER TABLE exams ADD COLUMN IF NOT EXISTS enable_audio_detection INTEGER DEFAULT 1",
             "ALTER TABLE exams ADD COLUMN IF NOT EXISTS access_type TEXT DEFAULT 'all'",
             "ALTER TABLE exams ADD COLUMN IF NOT EXISTS assigned_class TEXT DEFAULT ''",
@@ -226,6 +228,7 @@ def init_db():
             passing_percentage REAL NOT NULL DEFAULT 40.0,
             created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
             is_active INTEGER DEFAULT 1,
+            enable_video_detection INTEGER DEFAULT 1,
             enable_audio_detection INTEGER DEFAULT 1,
             access_type TEXT DEFAULT 'all',
             assigned_class TEXT DEFAULT '',
@@ -284,6 +287,7 @@ def init_db():
         # Repair older SQLite databases using the same idempotent migration style.
         for table, column, definition in [
             ("users", "class_name", "TEXT DEFAULT ''"),
+            ("exams", "enable_video_detection", "INTEGER DEFAULT 1"),
             ("exams", "enable_audio_detection", "INTEGER DEFAULT 1"),
             ("exams", "access_type", "TEXT DEFAULT 'all'"),
             ("exams", "assigned_class", "TEXT DEFAULT ''"),

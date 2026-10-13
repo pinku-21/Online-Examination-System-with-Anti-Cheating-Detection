@@ -333,6 +333,20 @@
                     </div>
                 </div>
 
+                <!-- Webcam / Video AI Proctoring Option (Manual Toggle) -->
+                <div class="p-3.5 bg-slate-50 border border-slate-200 rounded-2xl space-y-1.5">
+                    <div class="flex items-center justify-between">
+                        <label for="enable-video-detection" class="text-xs font-bold text-slate-900 flex items-center cursor-pointer">
+                            <i data-lucide="video" class="w-4 h-4 mr-1.5 text-sky-600"></i>
+                            <span>Webcam / Video AI Proctoring</span>
+                        </label>
+                        <input type="checkbox" id="enable-video-detection" checked class="w-4 h-4 text-sky-600 rounded border-slate-300 focus:ring-sky-500 cursor-pointer">
+                    </div>
+                    <p class="text-[11px] text-slate-500 leading-tight">
+                        <strong>Default: On</strong>. Uncheck to disable camera requirements and bypass face/phone detection (helpful if candidate webcam fails or for low-bandwidth environments).
+                    </p>
+                </div>
+
                 <!-- Voice / Audio AI Proctoring Option (Optional Toggle) -->
                 <div class="p-3.5 bg-slate-50 border border-slate-200 rounded-2xl space-y-1.5">
                     <div class="flex items-center justify-between">
@@ -1151,6 +1165,7 @@
             duration_minutes: parseInt(document.getElementById('exam-duration').value) || 15,
             max_warnings: parseInt(document.getElementById('max-warnings').value) || 3,
             passing_percentage: parseFloat(document.getElementById('passing-score').value) || 40.0,
+            enable_video_detection: document.getElementById('enable-video-detection').checked ? 1 : 0,
             enable_audio_detection: document.getElementById('enable-audio-detection').checked ? 1 : 0,
             access_type: currentAccessType,
             assigned_class: assignedClass,

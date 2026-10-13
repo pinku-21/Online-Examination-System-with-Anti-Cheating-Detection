@@ -757,6 +757,7 @@ def api_save_exam():
         return jsonify({"success": False, "error": "Exam must contain at least 1 question"}), 400
 
     enable_audio = 1 if data.get("enable_audio_detection", 1) in [1, True, "1"] else 0
+    enable_video = 1 if data.get("enable_video_detection", 1) in [1, True, "1"] else 0
     exam_code = generate_exam_code()
     
     # Access and schedule options
@@ -770,9 +771,9 @@ def api_save_exam():
     conn = get_connection()
     cursor = conn.cursor()
     cursor.execute("""
-        INSERT INTO exams (exam_code, title, description, duration_minutes, max_warnings, passing_percentage, enable_audio_detection, access_type, assigned_class, schedule_type, start_time, end_time)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-    """, (exam_code, title, description, duration, max_warnings, passing_percentage, enable_audio, access_type, assigned_class, schedule_type, start_time, end_time))
+        INSERT INTO exams (exam_code, title, description, duration_minutes, max_warnings, passing_percentage, enable_audio_detection, enable_video_detection, access_type, assigned_class, schedule_type, start_time, end_time)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    """, (exam_code, title, description, duration, max_warnings, passing_percentage, enable_audio, enable_video, access_type, assigned_class, schedule_type, start_time, end_time))
     exam_id = cursor.lastrowid
     
     for q in questions_list:
@@ -814,7 +815,7 @@ def api_exam_access_schedule(exam_id):
     conn = get_connection()
     cursor = conn.cursor()
     if request.method == "GET":
-        cursor.execute("SELECT id, title, access_type, assigned_class, schedule_type, start_time, end_time, duration_minutes FROM exams WHERE id = ?", (exam_id,))
+        cursor.execute("SELECT id, title, access_type, assigned_class, schedule_type, start_time, end_time, duration_minutes, enable_audio_detection, enable_video_detection FROM exams WHERE id = ?", (exam_id,))
         exam = cursor.fetchone()
         if not exam:
             conn.close()
@@ -832,6 +833,8 @@ def api_exam_access_schedule(exam_id):
         st_val = _ser_dt(ex_dict.get("start_time"))
         et_val = _ser_dt(ex_dict.get("end_time"))
         dur_val = int(ex_dict.get("duration_minutes") or 30)
+        enable_audio_val = 1 if ex_dict.get("enable_audio_detection") in [1, True, "1"] else 0
+        enable_video_val = 1 if ex_dict.get("enable_video_detection") in [1, True, "1"] else 0
         return jsonify({
             "success": True,
             "exam": {
@@ -842,7 +845,9 @@ def api_exam_access_schedule(exam_id):
                 "schedule_type": ex_dict.get("schedule_type") or "anytime",
                 "start_time": st_val,
                 "end_time": et_val,
-                "duration_minutes": dur_val
+                "duration_minutes": dur_val,
+                "enable_audio_detection": enable_audio_val,
+                "enable_video_detection": enable_video_val
             },
             "access_type": ex_dict.get("access_type") or "all",
             "assigned_class": ex_dict.get("assigned_class") or "",
@@ -850,6 +855,8 @@ def api_exam_access_schedule(exam_id):
             "start_time": st_val,
             "end_time": et_val,
             "duration_minutes": dur_val,
+            "enable_audio_detection": enable_audio_val,
+            "enable_video_detection": enable_video_val,
             "assigned_student_ids": assigned_ids
         })
 
@@ -882,6 +889,19 @@ def api_exam_access_schedule(exam_id):
             SET access_type = ?, assigned_class = ?, schedule_type = ?, start_time = ?, end_time = ?
             WHERE id = ?
         """, (access_type, assigned_class, schedule_type, start_time, end_time, exam_id))
+
+    enable_audio = data.get("enable_audio_detection")
+    enable_video = data.get("enable_video_detection")
+    if enable_audio is not None and enable_video is not None:
+        ea_val = 1 if enable_audio in [1, True, "1"] else 0
+        ev_val = 1 if enable_video in [1, True, "1"] else 0
+        cursor.execute("UPDATE exams SET enable_audio_detection = ?, enable_video_detection = ? WHERE id = ?", (ea_val, ev_val, exam_id))
+    elif enable_audio is not None:
+        ea_val = 1 if enable_audio in [1, True, "1"] else 0
+        cursor.execute("UPDATE exams SET enable_audio_detection = ? WHERE id = ?", (ea_val, exam_id))
+    elif enable_video is not None:
+        ev_val = 1 if enable_video in [1, True, "1"] else 0
+        cursor.execute("UPDATE exams SET enable_video_detection = ? WHERE id = ?", (ev_val, exam_id))
 
     cursor.execute("DELETE FROM exam_assignments WHERE exam_id = ?", (exam_id,))
     if access_type == "selected" and assigned_students:
@@ -1222,7 +1242,7 @@ def student_exam_room(submission_id):
     cursor = conn.cursor()
     
     cursor.execute("""
-        SELECT s.*, e.title, e.duration_minutes, e.max_warnings, e.exam_code, e.enable_audio_detection,
+        SELECT s.*, e.title, e.duration_minutes, e.max_warnings, e.exam_code, e.enable_audio_detection, e.enable_video_detection,
                e.schedule_type, e.start_time, e.end_time
         FROM submissions s
         JOIN exams e ON s.exam_id = e.id

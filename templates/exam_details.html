@@ -31,6 +31,16 @@
                     <span class="flex items-center"><i data-lucide="clock" class="w-4 h-4 mr-1 text-sky-600"></i> {{ exam.duration_minutes }} Minutes</span>
                     <span class="flex items-center"><i data-lucide="shield-alert" class="w-4 h-4 mr-1 text-rose-600"></i> Max {{ exam.max_warnings }} Strikes Before Termination</span>
                     <span class="flex items-center"><i data-lucide="award" class="w-4 h-4 mr-1 text-amber-600"></i> {{ exam.passing_percentage }}% Passing Mark</span>
+                    {% if exam.enable_video_detection in [1, True, '1'] %}
+                        <span class="flex items-center font-semibold text-emerald-700"><i data-lucide="video" class="w-4 h-4 mr-1 text-emerald-600"></i> Video AI On</span>
+                    {% else %}
+                        <span class="flex items-center text-slate-400"><i data-lucide="video-off" class="w-4 h-4 mr-1 text-slate-400"></i> Video AI Off</span>
+                    {% endif %}
+                    {% if exam.enable_audio_detection in [1, True, '1'] %}
+                        <span class="flex items-center font-semibold text-emerald-700"><i data-lucide="mic" class="w-4 h-4 mr-1 text-emerald-600"></i> Audio AI On</span>
+                    {% else %}
+                        <span class="flex items-center text-slate-400"><i data-lucide="mic-off" class="w-4 h-4 mr-1 text-slate-400"></i> Audio AI Off</span>
+                    {% endif %}
                     <span class="flex items-center"><i data-lucide="calendar" class="w-4 h-4 mr-1 text-slate-400"></i> Created: {{ exam.created_at | format_date }}</span>
                 </div>
             </div>
@@ -302,6 +312,27 @@
                     <p class="text-[10px] text-slate-400 mt-1">Once started, student's timer counts down this allotted duration.</p>
                 </div>
             </div>
+
+            <!-- AI Proctoring Controls -->
+            <div class="p-3.5 bg-slate-50 border border-slate-200 rounded-xl space-y-2">
+                <label class="block text-xs font-bold text-slate-800">
+                    <i data-lucide="shield" class="w-3.5 h-3.5 inline mr-1 text-emerald-600"></i>AI Anti-Cheat Sensors:
+                </label>
+                <div class="grid grid-cols-1 sm:grid-cols-2 gap-2 pt-1">
+                    <label class="flex items-center justify-between p-2 bg-white rounded-lg border border-slate-200 cursor-pointer">
+                        <span class="text-xs font-semibold text-slate-800 flex items-center">
+                            <i data-lucide="video" class="w-3.5 h-3.5 mr-1.5 text-sky-600"></i> Video / Cam AI
+                        </span>
+                        <input type="checkbox" id="ma-enable-video" class="rounded text-sky-600 focus:ring-sky-500 w-4 h-4 cursor-pointer">
+                    </label>
+                    <label class="flex items-center justify-between p-2 bg-white rounded-lg border border-slate-200 cursor-pointer">
+                        <span class="text-xs font-semibold text-slate-800 flex items-center">
+                            <i data-lucide="mic" class="w-3.5 h-3.5 mr-1.5 text-sky-600"></i> Voice / Audio AI
+                        </span>
+                        <input type="checkbox" id="ma-enable-audio" class="rounded text-sky-600 focus:ring-sky-500 w-4 h-4 cursor-pointer">
+                    </label>
+                </div>
+            </div>
         </div>
 
         <div class="flex gap-3 mt-5">
@@ -454,6 +485,13 @@
                 if (startEl) startEl.value = ex.start_time || data.start_time || '';
                 if (endEl) endEl.value = ex.end_time || data.end_time || '';
                 if (durEl) durEl.value = ex.duration_minutes || data.duration_minutes || 30;
+
+                const videoEl = document.getElementById('ma-enable-video');
+                const audioEl = document.getElementById('ma-enable-audio');
+                const evVal = (ex.enable_video_detection !== undefined) ? ex.enable_video_detection : data.enable_video_detection;
+                const eaVal = (ex.enable_audio_detection !== undefined) ? ex.enable_audio_detection : data.enable_audio_detection;
+                if (videoEl) videoEl.checked = (evVal === 1 || evVal === true || evVal === '1');
+                if (audioEl) audioEl.checked = (eaVal === 1 || eaVal === true || eaVal === '1');
             }
         } catch (err) {
             console.error('Failed to load access details:', err);
@@ -468,6 +506,8 @@
         const startTime = document.getElementById('ma-start-time').value;
         const endTime = document.getElementById('ma-end-time').value;
         const durationMinutes = parseInt(document.getElementById('ma-duration-minutes').value) || 30;
+        const enableVideo = document.getElementById('ma-enable-video')?.checked ? 1 : 0;
+        const enableAudio = document.getElementById('ma-enable-audio')?.checked ? 1 : 0;
 
         const assignedStudents = [];
         if (accessType === 'selected') {
@@ -511,7 +551,9 @@
                     schedule_type: schedType,
                     start_time: startTime,
                     end_time: endTime,
-                    duration_minutes: durationMinutes
+                    duration_minutes: durationMinutes,
+                    enable_video_detection: enableVideo,
+                    enable_audio_detection: enableAudio
                 })
             });
             const res = await resp.json();
