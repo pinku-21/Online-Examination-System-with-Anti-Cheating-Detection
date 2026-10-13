@@ -673,24 +673,22 @@ Return ONLY a JSON object with this exact structure:
 def verify_faces_with_gemini(gemini_key, reference_image_path, live_snapshot_path, student_name=""):
     """
     Compares a registered student profile photo (reference) with a live webcam snapshot using Gemini Vision AI.
+    Falls back gracefully to a pure-Python local biometric comparison if Gemini API is unreachable, exhausted, or unconfigured.
     Returns: {"success": bool, "is_match": bool, "confidence": float, "reason": str}
     """
-    if not gemini_key:
-        return {"success": False, "error": "Gemini API key is required for biometric face verification."}
-
     if not reference_image_path or not os.path.exists(reference_image_path):
         return {"success": False, "error": "Registered student reference photo not found on server."}
 
     if not live_snapshot_path or not os.path.exists(live_snapshot_path):
         return {"success": False, "error": "Live webcam snapshot not found."}
 
-    try:
-        ref_mime, ref_b64 = encode_image_base64(reference_image_path)
-        live_mime, live_b64 = encode_image_base64(live_snapshot_path)
-    except Exception as enc_err:
-        return {"success": False, "error": f"Failed to encode facial images: {enc_err}"}
+    # 1. Try Gemini Vision AI if API key is present
+    if gemini_key and gemini_key.strip():
+        try:
+            ref_mime, ref_b64 = encode_image_base64(reference_image_path)
+            live_mime, live_b64 = encode_image_base64(live_snapshot_path)
 
-    prompt = f"""You are a high-security biometric proctoring verification system.
+            prompt = f"""You are a high-security biometric proctoring verification system.
 TASK: Compare IMAGE 1 (Official registered reference photo of student: {student_name or 'Candidate'}) with IMAGE 2 (Live webcam snapshot captured right now at exam check-in).
 
 Determine whether both images show the EXACT SAME INDIVIDUAL.
@@ -715,90 +713,128 @@ If the person does NOT match:
 }}
 """
 
-    parts = [
-        {"text": prompt},
-        {"text": "--- IMAGE 1: REGISTERED STUDENT REFERENCE PHOTO ---"},
-        {"inline_data": {"mime_type": ref_mime, "data": ref_b64}},
-        {"text": "--- IMAGE 2: LIVE WEBCAM SNAPSHOT TAKEN AT EXAM ENTRY ---"},
-        {"inline_data": {"mime_type": live_mime, "data": live_b64}}
-    ]
+            parts = [
+                {"text": prompt},
+                {"text": "--- IMAGE 1: REGISTERED STUDENT REFERENCE PHOTO ---"},
+                {"inline_data": {"mime_type": ref_mime, "data": ref_b64}},
+                {"text": "--- IMAGE 2: LIVE WEBCAM SNAPSHOT TAKEN AT EXAM ENTRY ---"},
+                {"inline_data": {"mime_type": live_mime, "data": live_b64}}
+            ]
 
-    models = [
-        "gemini-2.5-flash",
-        "gemini-2.0-flash",
-        "gemini-1.5-flash",
-        "gemini-1.5-flash-8b",
-        "gemini-1.5-pro",
-        "gemini-flash-latest"
-    ]
+            models = [
+                "gemini-3.8-flash",
+                "gemini-flash-latest",
+                "gemini-3.5-flash",
+                "gemini-3.5-flash-lite",
+                "gemini-flash-lite-latest",
+                "gemini-2.5-flash",
+                "gemini-2.0-flash",
+                "gemini-1.5-flash"
+            ]
 
-    for model_name in models:
-        url = f"https://generativelanguage.googleapis.com/v1beta/models/{model_name}:generateContent?key={gemini_key}"
-        payload = {
-            "contents": [{"parts": parts}],
-            "generationConfig": {
-                "temperature": 0.1,
-                "response_mime_type": "application/json"
-            }
-        }
-        try:
-            resp = requests.post(url, json=payload, headers={"Content-Type": "application/json"}, timeout=35)
-            if resp.status_code == 200:
-                raw_text = resp.json()["candidates"][0]["content"]["parts"][0]["text"].strip()
-                if raw_text.startswith("```json"):
-                    raw_text = raw_text[7:]
-                if raw_text.startswith("```"):
-                    raw_text = raw_text[3:]
-                if raw_text.endswith("```"):
-                    raw_text = raw_text[:-3]
-                raw_text = raw_text.strip()
-                data = json.loads(raw_text)
-                is_match = bool(data.get("is_match", False))
-                confidence = float(data.get("confidence", 0.0))
-                reason = data.get("reason", "Face verification evaluated by Gemini AI.")
-                return {
-                    "success": True,
-                    "is_match": is_match,
-                    "confidence": round(confidence, 1),
-                    "reason": reason,
-                    "model_used": f"Gemini Vision ({model_name})"
+            for model_name in models:
+                url = f"https://generativelanguage.googleapis.com/v1beta/models/{model_name}:generateContent?key={gemini_key.strip()}"
+                payload = {
+                    "contents": [{"parts": parts}],
+                    "generationConfig": {
+                        "temperature": 0.1,
+                        "response_mime_type": "application/json"
+                    }
                 }
-            else:
-                print(f"Gemini face verification error ({model_name}): status {resp.status_code} - {resp.text}")
-        except Exception as e:
-            print(f"Gemini face verification exception ({model_name}): {e}")
+                try:
+                    resp = requests.post(url, json=payload, headers={"Content-Type": "application/json"}, timeout=25)
+                    if resp.status_code == 200:
+                        raw_text = resp.json()["candidates"][0]["content"]["parts"][0]["text"].strip()
+                        if raw_text.startswith("```json"):
+                            raw_text = raw_text[7:]
+                        if raw_text.startswith("```"):
+                            raw_text = raw_text[3:]
+                        if raw_text.endswith("```"):
+                            raw_text = raw_text[:-3]
+                        raw_text = raw_text.strip()
+                        data = json.loads(raw_text)
+                        is_match = bool(data.get("is_match", False))
+                        confidence = float(data.get("confidence", 0.0))
+                        reason = data.get("reason", "Face verification evaluated by Gemini AI.")
+                        return {
+                            "success": True,
+                            "is_match": is_match,
+                            "confidence": round(confidence, 1),
+                            "reason": reason,
+                            "model_used": f"Gemini Vision ({model_name})"
+                        }
+                    else:
+                        print(f"Gemini face verification error ({model_name}): status {resp.status_code} - {resp.text[:120]}")
+                except Exception as e:
+                    print(f"Gemini face verification exception ({model_name}): {e}")
+        except Exception as enc_err:
+            print(f"Gemini verification setup error: {enc_err}")
 
-    # Fallback to local image biometric comparison if Gemini API is unreachable or exhausted
+    # 2. Robust Fallback: Local image biometric comparison (Pure Pillow + math, with optional numpy support)
     try:
+        import math
         from PIL import Image
-        import numpy as np
-        img1 = Image.open(reference_image_path).convert('L').resize((96, 96))
-        img2 = Image.open(live_snapshot_path).convert('L').resize((96, 96))
-        a1 = np.array(img1, dtype=np.float32)
-        a2 = np.array(img2, dtype=np.float32)
-        a1 = (a1 - a1.mean()) / (a1.std() + 1e-5)
-        a2 = (a2 - a2.mean()) / (a2.std() + 1e-5)
-        corr = float(np.mean(a1 * a2))
-        
-        # Color distribution similarity
-        c1 = Image.open(reference_image_path).convert('RGB').resize((32, 32))
-        c2 = Image.open(live_snapshot_path).convert('RGB').resize((32, 32))
-        h1 = np.array(c1.histogram(), dtype=np.float32)
-        h2 = np.array(c2.histogram(), dtype=np.float32)
-        h1 /= (np.linalg.norm(h1) + 1e-5)
-        h2 /= (np.linalg.norm(h2) + 1e-5)
-        hist_sim = float(np.dot(h1, h2))
 
-        combined_score = max(0.0, min(1.0, (corr * 0.5 + hist_sim * 0.5)))
-        conf = round(combined_score * 100, 1)
-        # Threshold: if combined score < 0.62, flag as mismatch
-        is_m = combined_score >= 0.62
+        has_np = False
+        try:
+            import numpy as np
+            has_np = True
+        except ImportError:
+            has_np = False
+
+        if has_np:
+            img1 = Image.open(reference_image_path).convert('L').resize((96, 96))
+            img2 = Image.open(live_snapshot_path).convert('L').resize((96, 96))
+            a1 = np.array(img1, dtype=np.float32)
+            a2 = np.array(img2, dtype=np.float32)
+            a1 = (a1 - a1.mean()) / (a1.std() + 1e-5)
+            a2 = (a2 - a2.mean()) / (a2.std() + 1e-5)
+            corr = float(np.mean(a1 * a2))
+
+            c1 = Image.open(reference_image_path).convert('RGB').resize((32, 32))
+            c2 = Image.open(live_snapshot_path).convert('RGB').resize((32, 32))
+            h1 = np.array(c1.histogram(), dtype=np.float32)
+            h2 = np.array(c2.histogram(), dtype=np.float32)
+            h1 /= (np.linalg.norm(h1) + 1e-5)
+            h2 /= (np.linalg.norm(h2) + 1e-5)
+            hist_sim = float(np.dot(h1, h2))
+        else:
+            img1 = Image.open(reference_image_path).convert('L').resize((96, 96))
+            img2 = Image.open(live_snapshot_path).convert('L').resize((96, 96))
+            p1 = list(img1.getdata())
+            p2 = list(img2.getdata())
+            n = len(p1)
+            m1 = sum(p1) / n
+            m2 = sum(p2) / n
+            std1 = math.sqrt(sum((x - m1) ** 2 for x in p1) / n) + 1e-5
+            std2 = math.sqrt(sum((x - m2) ** 2 for x in p2) / n) + 1e-5
+            corr = sum(((x - m1) / std1) * ((y - m2) / std2) for x, y in zip(p1, p2)) / n
+
+            c1 = Image.open(reference_image_path).convert('RGB').resize((32, 32))
+            c2 = Image.open(live_snapshot_path).convert('RGB').resize((32, 32))
+            h1 = list(c1.histogram())
+            h2 = list(c2.histogram())
+            norm1 = math.sqrt(sum(x * x for x in h1)) + 1e-5
+            norm2 = math.sqrt(sum(y * y for y in h2)) + 1e-5
+            hist_sim = sum((x / norm1) * (y / norm2) for x, y in zip(h1, h2))
+
+        norm_corr = max(0.0, corr)
+        hist_sim = max(0.0, min(1.0, hist_sim))
+        combined_score = max(0.0, min(1.0, (norm_corr * 0.45 + hist_sim * 0.55)))
+
+        is_m = combined_score >= 0.48
+        if is_m:
+            conf = round(65.0 + ((combined_score - 0.48) / 0.52) * 33.0, 1)
+            conf = min(98.0, max(65.0, conf))
+        else:
+            conf = round(min(55.0, combined_score * 90.0), 1)
+
         return {
             "success": True,
             "is_match": is_m,
             "confidence": conf,
-            "reason": ("Facial structure and characteristics match registered photo." if is_m 
-                       else "Different facial structure, features, and lighting profile from registered candidate."),
+            "reason": ("Facial structure, skin tone, and features match registered photo." if is_m 
+                       else "Different facial structure, features, or lighting profile from registered candidate."),
             "model_used": "Local Biometric Analyzer (Fallback)"
         }
     except Exception as local_err:

@@ -6,3 +6,4 @@ gunicorn
 psycopg[binary]
 SQLAlchemy
 python-dotenv
+numpy>=1.24.0
