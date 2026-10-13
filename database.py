@@ -195,6 +195,12 @@ def init_db():
             key TEXT PRIMARY KEY,
             value TEXT
         )""")
+        cursor.execute("""CREATE TABLE IF NOT EXISTS ai_generation_jobs (
+            job_id TEXT PRIMARY KEY,
+            status TEXT NOT NULL DEFAULT 'running',
+            result_json TEXT,
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        )""")
         # Safe, repeatable migrations for databases created by an earlier version.
         migrations = [
             "ALTER TABLE users ADD COLUMN IF NOT EXISTS class_name TEXT DEFAULT ''",
@@ -290,6 +296,12 @@ def init_db():
             FOREIGN KEY (submission_id) REFERENCES submissions(id) ON DELETE CASCADE
         )""")
         cursor.execute("""CREATE TABLE IF NOT EXISTS settings (key TEXT PRIMARY KEY, value TEXT)""")
+        cursor.execute("""CREATE TABLE IF NOT EXISTS ai_generation_jobs (
+            job_id TEXT PRIMARY KEY,
+            status TEXT NOT NULL DEFAULT 'running',
+            result_json TEXT,
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        )""")
         # Repair older SQLite databases using the same idempotent migration style.
         for table, column, definition in [
             ("users", "class_name", "TEXT DEFAULT ''"),
@@ -451,6 +463,46 @@ def set_setting(key, value):
     cursor.execute("INSERT OR REPLACE INTO settings (key, value) VALUES (?, ?)", (key, value))
     conn.commit()
     conn.close()
+
+def save_generation_job(job_id, status="running", result_data=None):
+    """Saves or updates an AI generation job in the database (works across all worker processes)."""
+    import json
+    conn = get_connection()
+    cursor = conn.cursor()
+    res_str = json.dumps(result_data) if result_data is not None else None
+    cursor.execute("""
+        INSERT INTO ai_generation_jobs (job_id, status, result_json)
+        VALUES (?, ?, ?)
+    """, (job_id, status, res_str))
+    conn.commit()
+    conn.close()
+
+def update_generation_job(job_id, status, result_data):
+    """Updates status and result of a background generation job."""
+    import json
+    conn = get_connection()
+    cursor = conn.cursor()
+    res_str = json.dumps(result_data) if result_data is not None else None
+    cursor.execute("""
+        UPDATE ai_generation_jobs
+        SET status = ?, result_json = ?
+        WHERE job_id = ?
+    """, (status, res_str, job_id))
+    conn.commit()
+    conn.close()
+
+def get_generation_job(job_id):
+    """Retrieves an AI generation job from database."""
+    import json
+    conn = get_connection()
+    cursor = conn.cursor()
+    cursor.execute("SELECT job_id, status, result_json FROM ai_generation_jobs WHERE job_id = ?", (job_id,))
+    row = cursor.fetchone()
+    conn.close()
+    if not row:
+        return None
+    res = json.loads(row["result_json"]) if row["result_json"] else None
+    return {"job_id": row["job_id"], "status": row["status"], "result": res}
 
 if __name__ == "__main__":
     init_db()

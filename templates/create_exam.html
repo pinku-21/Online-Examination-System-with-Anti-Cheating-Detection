@@ -672,32 +672,44 @@
 
             // Step 2: Poll /api/job-status/<job_id> every 3 seconds until completed
             const jobId = startData.job_id;
+            let consecutiveFailures = 0;
+            const maxFailures = 6; // Allow up to 18 seconds of transient worker switching / sync latency
+
             const pollInterval = setInterval(async () => {
                 try {
                     const pollResp = await fetch(`/api/job-status/${jobId}`);
                     if (!pollResp.ok) {
-                        clearInterval(pollInterval);
-                        resetBtn();
-                        Swal.fire({
-                            icon: 'error',
-                            title: 'Polling Error',
-                            text: 'Lost track of the generation job. Please try again.'
-                        });
-                        return;
+                        consecutiveFailures++;
+                        if (consecutiveFailures >= maxFailures) {
+                            clearInterval(pollInterval);
+                            resetBtn();
+                            Swal.fire({
+                                icon: 'error',
+                                title: 'Generation Job Error',
+                                text: 'Lost track of the generation job. Please try again.'
+                            });
+                        }
+                        return; // Retry on next interval
                     }
+
+                    // Reset failure counter on valid response
+                    consecutiveFailures = 0;
                     const pollData = await pollResp.json();
                     if (pollData.status === 'done' || pollData.status === 'error') {
                         clearInterval(pollInterval);
                         handleResult(pollData.result || {});
                     }
                 } catch (pollErr) {
-                    clearInterval(pollInterval);
-                    resetBtn();
-                    Swal.fire({
-                        icon: 'error',
-                        title: 'Connection Lost',
-                        text: 'Could not reach server while waiting for AI. Please try again.'
-                    });
+                    consecutiveFailures++;
+                    if (consecutiveFailures >= maxFailures) {
+                        clearInterval(pollInterval);
+                        resetBtn();
+                        Swal.fire({
+                            icon: 'error',
+                            title: 'Connection Lost',
+                            text: 'Could not reach server while waiting for AI. Please try again.'
+                        });
+                    }
                 }
             }, 3000);
 

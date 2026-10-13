@@ -21,6 +21,9 @@ from database import (
     get_connection, 
     get_setting, 
     set_setting,
+    save_generation_job,
+    update_generation_job,
+    get_generation_job,
     create_user,
     authenticate_user,
     get_user_by_id,
@@ -45,30 +48,42 @@ def get_current_time():
 app = Flask(__name__)
 app.secret_key = os.environ.get("SECRET_KEY", "examguard-super-secret-key-2026")
 
-# --- BACKGROUND JOB STORE (in-memory, thread-safe) ---
-# Stores AI generation jobs so HTTP never times out
+# --- BACKGROUND JOB STORE (thread-safe + database persistent) ---
+# Stores AI generation jobs in memory and in the database so any Gunicorn worker process can poll it
 _job_store = {}
 _job_lock = threading.Lock()
 
 def _cleanup_old_jobs():
-    """Remove jobs older than 30 minutes to prevent memory leaks."""
+    """Remove jobs older than 30 minutes from memory to prevent memory leaks."""
     cutoff = time.time() - 1800
     with _job_lock:
         old = [k for k, v in _job_store.items() if v.get("created_at", 0) < cutoff]
         for k in old:
             del _job_store[k]
 
-def _run_generation_job(job_id, fn, kwargs):
-    """Worker thread: runs AI generation, stores result in job store."""
+def _run_generation_job(job_id, fn, kwargs, extracted_figures=None):
+    """Worker thread: runs AI generation, stores result in memory and in database."""
     try:
         result = fn(**kwargs)
+        if result and extracted_figures and "extracted_figures" not in result:
+            result["extracted_figures"] = extracted_figures
         with _job_lock:
             _job_store[job_id]["status"] = "done"
             _job_store[job_id]["result"] = result
+        # Persist to database so any worker process can see it
+        try:
+            update_generation_job(job_id, "done", result)
+        except Exception as db_err:
+            print(f"Warning: Failed to update job in DB: {db_err}")
     except Exception as e:
+        err_result = {"success": False, "error": str(e)}
         with _job_lock:
             _job_store[job_id]["status"] = "error"
-            _job_store[job_id]["result"] = {"success": False, "error": str(e)}
+            _job_store[job_id]["result"] = err_result
+        try:
+            update_generation_job(job_id, "error", err_result)
+        except Exception:
+            pass
 
 @app.template_filter('format_datetime_12h')
 def format_datetime_12h_filter(val):
@@ -517,6 +532,10 @@ def api_generate_questions():
             "created_at": time.time(),
             "extracted_figures": extracted_figures
         }
+    try:
+        save_generation_job(job_id, "running", None)
+    except Exception as db_err:
+        print(f"Warning: Failed to save job to DB: {db_err}")
 
     kwargs = dict(
         openai_key=openai_key,
@@ -531,7 +550,7 @@ def api_generate_questions():
         total_marks=total_marks,
         available_figures=extracted_figures
     )
-    t = threading.Thread(target=_run_generation_job, args=(job_id, generate_questions_unified, kwargs), daemon=True)
+    t = threading.Thread(target=_run_generation_job, args=(job_id, generate_questions_unified, kwargs, extracted_figures), daemon=True)
     t.start()
 
     return jsonify({"job_id": job_id, "status": "running"})
@@ -539,16 +558,30 @@ def api_generate_questions():
 
 @app.route("/api/job-status/<job_id>", methods=["GET"])
 def api_job_status(job_id):
-    """Poll endpoint: returns job status and result when ready."""
+    """Poll endpoint: returns job status and result when ready (checks memory first, then DB)."""
+    # 1. Check local worker memory
     with _job_lock:
         job = _job_store.get(job_id)
-    if not job:
-        return jsonify({"status": "not_found"}), 404
-    if job["status"] == "running":
-        return jsonify({"status": "running"})
-    result = job["result"] or {}
-    result["extracted_figures"] = job.get("extracted_figures", [])
-    return jsonify({"status": job["status"], "result": result})
+    
+    if job:
+        if job["status"] == "running":
+            return jsonify({"status": "running"})
+        result = job["result"] or {}
+        if "extracted_figures" not in result and job.get("extracted_figures"):
+            result["extracted_figures"] = job["extracted_figures"]
+        return jsonify({"status": job["status"], "result": result})
+
+    # 2. If not found in this worker process's memory, check database
+    try:
+        db_job = get_generation_job(job_id)
+        if db_job:
+            if db_job["status"] == "running":
+                return jsonify({"status": "running"})
+            return jsonify({"status": db_job["status"], "result": db_job["result"] or {}})
+    except Exception as e:
+        print(f"Error querying job from DB: {e}")
+
+    return jsonify({"status": "not_found"}), 404
 
 @app.route("/api/upload-figure", methods=["POST"])
 def api_upload_figure():
