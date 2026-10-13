@@ -23,7 +23,8 @@ from ai_service import (
     generate_questions_with_gemini, 
     generate_questions_with_groq,
     generate_questions_unified,
-    generate_mock_questions
+    generate_mock_questions,
+    evaluate_answer_with_ai
 )
 
 IST = timezone(timedelta(hours=5, minutes=30))
@@ -500,6 +501,7 @@ def api_upload_answer_image(submission_id):
     })
 
 @app.route("/api/tutor/submission/<int:submission_id>/update-score", methods=["POST"])
+@admin_required
 def tutor_update_submission_score(submission_id):
     """Allows tutors to award points or adjust final score for subjective/handwritten answers."""
     data = request.get_json() or {}
@@ -528,6 +530,214 @@ def tutor_update_submission_score(submission_id):
     conn.commit()
     conn.close()
     return jsonify({"success": True, "score": round(new_score, 1), "percentage": round(percentage, 1)})
+
+@app.route("/api/tutor/submission/<int:submission_id>/evaluate-question", methods=["POST"])
+@admin_required
+def api_tutor_evaluate_question(submission_id):
+    """Uses Google Gemini / Groq AI to check an uploaded photo or handwritten/written answer and assign marks."""
+    data = request.get_json() or {}
+    question_id = str(data.get("question_id", ""))
+    if not question_id:
+        return jsonify({"success": False, "error": "Question ID is required."}), 400
+
+    conn = get_connection()
+    cursor = conn.cursor()
+    cursor.execute("SELECT * FROM submissions WHERE id = ?", (submission_id,))
+    submission = cursor.fetchone()
+    if not submission:
+        conn.close()
+        return jsonify({"success": False, "error": "Submission not found."}), 404
+
+    cursor.execute("SELECT * FROM questions WHERE id = ? AND exam_id = ?", (int(question_id), submission["exam_id"]))
+    question = cursor.fetchone()
+    if not question:
+        conn.close()
+        return jsonify({"success": False, "error": "Question not found."}), 404
+
+    # Extract student's response
+    student_answers = json.loads(submission["answers_json"]) if submission["answers_json"] else {}
+    ans_raw = student_answers.get(question_id)
+    student_text = ""
+    student_img_url = ""
+    if isinstance(ans_raw, dict):
+        student_text = (ans_raw.get("text") or "").strip()
+        student_img_url = (ans_raw.get("image_url") or "").strip()
+    elif isinstance(ans_raw, str):
+        student_text = ans_raw.strip()
+
+    if not student_text and not student_img_url:
+        conn.close()
+        return jsonify({"success": False, "error": "Student did not submit text or photo for this question."}), 400
+
+    # Resolve local file path for image if present
+    abs_img_path = None
+    if student_img_url:
+        # e.g. /static/student_answers/xxx.jpg
+        clean_rel = student_img_url.lstrip("/").replace("/", os.sep)
+        local_candidate = os.path.join(os.path.dirname(__file__), clean_rel)
+        if os.path.exists(local_candidate):
+            abs_img_path = local_candidate
+
+    gemini_key = get_setting("gemini_api_key", "").strip()
+    groq_key = get_setting("groq_api_key", "").strip()
+
+    eval_result = evaluate_answer_with_ai(
+        gemini_key=gemini_key,
+        groq_key=groq_key,
+        question_text=question["question_text"],
+        max_points=question["points"],
+        correct_answer=question["correct_answer"] or "",
+        student_text=student_text,
+        image_path=abs_img_path,
+        explanation=question["explanation"] or ""
+    )
+
+    if not eval_result.get("success"):
+        conn.close()
+        return jsonify({"success": False, "error": eval_result.get("error", "AI evaluation failed.")})
+
+    awarded = float(eval_result["awarded_marks"])
+    feedback = eval_result.get("feedback", "")
+    model_used = eval_result.get("model_used", "AI")
+
+    # Save to manual_evaluation_json in submissions
+    existing_eval = json.loads(submission["manual_evaluation_json"]) if submission["manual_evaluation_json"] else {}
+    existing_eval[question_id] = {
+        "awarded_marks": awarded,
+        "max_points": float(question["points"]),
+        "feedback": feedback,
+        "model_used": model_used,
+        "evaluated_by": "ai",
+        "evaluated_at": datetime.now(IST).strftime("%Y-%m-%d %H:%M:%S")
+    }
+
+    # Recalculate total score
+    cursor.execute("SELECT * FROM questions WHERE exam_id = ?", (submission["exam_id"],))
+    all_questions = cursor.fetchall()
+
+    new_total_score = 0.0
+    total_exam_points = 0.0
+    for q in all_questions:
+        q_pts = float(q["points"])
+        total_exam_points += q_pts
+        qid_s = str(q["id"])
+
+        if qid_s in existing_eval:
+            new_total_score += float(existing_eval[qid_s]["awarded_marks"])
+        else:
+            # Default objective grading
+            q_ans_raw = student_answers.get(qid_s, "")
+            if isinstance(q_ans_raw, dict):
+                st_txt = (q_ans_raw.get("text") or "").strip()
+            else:
+                st_txt = str(q_ans_raw).strip() if q_ans_raw else ""
+            if q["correct_answer"] and st_txt.lower() == q["correct_answer"].strip().lower():
+                new_total_score += q_pts
+
+    percentage = (new_total_score / total_exam_points * 100) if total_exam_points > 0 else 0.0
+
+    cursor.execute("""
+        UPDATE submissions
+        SET manual_evaluation_json = ?, score = ?, total_points = ?, percentage = ?
+        WHERE id = ?
+    """, (json.dumps(existing_eval), round(new_total_score, 1), total_exam_points, round(percentage, 1), submission_id))
+
+    conn.commit()
+    conn.close()
+
+    return jsonify({
+        "success": True,
+        "awarded_marks": awarded,
+        "feedback": feedback,
+        "model_used": model_used,
+        "new_score": round(new_total_score, 1),
+        "total_points": total_exam_points,
+        "percentage": round(percentage, 1)
+    })
+
+@app.route("/api/tutor/submission/<int:submission_id>/update-question-score", methods=["POST"])
+@admin_required
+def api_tutor_update_question_score(submission_id):
+    """Allows tutor to manually edit or override marks for an individual question (2, 3, 4, 5, etc.)."""
+    data = request.get_json() or {}
+    question_id = str(data.get("question_id", ""))
+    if not question_id:
+        return jsonify({"success": False, "error": "Question ID is required."}), 400
+
+    try:
+        new_marks = float(data.get("awarded_marks", 0.0))
+    except (ValueError, TypeError):
+        return jsonify({"success": False, "error": "Invalid mark value."}), 400
+
+    conn = get_connection()
+    cursor = conn.cursor()
+    cursor.execute("SELECT * FROM submissions WHERE id = ?", (submission_id,))
+    submission = cursor.fetchone()
+    if not submission:
+        conn.close()
+        return jsonify({"success": False, "error": "Submission not found."}), 404
+
+    cursor.execute("SELECT * FROM questions WHERE id = ? AND exam_id = ?", (int(question_id), submission["exam_id"]))
+    question = cursor.fetchone()
+    if not question:
+        conn.close()
+        return jsonify({"success": False, "error": "Question not found."}), 404
+
+    max_pts = float(question["points"])
+    new_marks = max(0.0, min(max_pts, round(new_marks, 1)))
+
+    student_answers = json.loads(submission["answers_json"]) if submission["answers_json"] else {}
+    existing_eval = json.loads(submission["manual_evaluation_json"]) if submission["manual_evaluation_json"] else {}
+
+    existing_eval[question_id] = {
+        "awarded_marks": new_marks,
+        "max_points": max_pts,
+        "feedback": data.get("feedback", "Teacher graded/edited mark."),
+        "model_used": "Teacher",
+        "evaluated_by": "teacher",
+        "evaluated_at": datetime.now(IST).strftime("%Y-%m-%d %H:%M:%S")
+    }
+
+    # Recalculate total score
+    cursor.execute("SELECT * FROM questions WHERE exam_id = ?", (submission["exam_id"],))
+    all_questions = cursor.fetchall()
+
+    new_total_score = 0.0
+    total_exam_points = 0.0
+    for q in all_questions:
+        q_pts = float(q["points"])
+        total_exam_points += q_pts
+        qid_s = str(q["id"])
+
+        if qid_s in existing_eval:
+            new_total_score += float(existing_eval[qid_s]["awarded_marks"])
+        else:
+            q_ans_raw = student_answers.get(qid_s, "")
+            if isinstance(q_ans_raw, dict):
+                st_txt = (q_ans_raw.get("text") or "").strip()
+            else:
+                st_txt = str(q_ans_raw).strip() if q_ans_raw else ""
+            if q["correct_answer"] and st_txt.lower() == q["correct_answer"].strip().lower():
+                new_total_score += q_pts
+
+    percentage = (new_total_score / total_exam_points * 100) if total_exam_points > 0 else 0.0
+
+    cursor.execute("""
+        UPDATE submissions
+        SET manual_evaluation_json = ?, score = ?, total_points = ?, percentage = ?
+        WHERE id = ?
+    """, (json.dumps(existing_eval), round(new_total_score, 1), total_exam_points, round(percentage, 1), submission_id))
+
+    conn.commit()
+    conn.close()
+
+    return jsonify({
+        "success": True,
+        "awarded_marks": new_marks,
+        "new_score": round(new_total_score, 1),
+        "total_points": total_exam_points,
+        "percentage": round(percentage, 1)
+    })
 
 @app.route("/api/save-exam", methods=["POST"])
 def api_save_exam():
@@ -604,7 +814,7 @@ def api_exam_access_schedule(exam_id):
     conn = get_connection()
     cursor = conn.cursor()
     if request.method == "GET":
-        cursor.execute("SELECT id, title, access_type, assigned_class, schedule_type, start_time, end_time FROM exams WHERE id = ?", (exam_id,))
+        cursor.execute("SELECT id, title, access_type, assigned_class, schedule_type, start_time, end_time, duration_minutes FROM exams WHERE id = ?", (exam_id,))
         exam = cursor.fetchone()
         if not exam:
             conn.close()
@@ -621,6 +831,7 @@ def api_exam_access_schedule(exam_id):
             return str(v)
         st_val = _ser_dt(ex_dict.get("start_time"))
         et_val = _ser_dt(ex_dict.get("end_time"))
+        dur_val = int(ex_dict.get("duration_minutes") or 30)
         return jsonify({
             "success": True,
             "exam": {
@@ -630,13 +841,15 @@ def api_exam_access_schedule(exam_id):
                 "assigned_class": ex_dict.get("assigned_class") or "",
                 "schedule_type": ex_dict.get("schedule_type") or "anytime",
                 "start_time": st_val,
-                "end_time": et_val
+                "end_time": et_val,
+                "duration_minutes": dur_val
             },
             "access_type": ex_dict.get("access_type") or "all",
             "assigned_class": ex_dict.get("assigned_class") or "",
             "schedule_type": ex_dict.get("schedule_type") or "anytime",
             "start_time": st_val,
             "end_time": et_val,
+            "duration_minutes": dur_val,
             "assigned_student_ids": assigned_ids
         })
 
@@ -647,12 +860,28 @@ def api_exam_access_schedule(exam_id):
     schedule_type = data.get("schedule_type", "anytime")
     start_time = data.get("start_time", "").strip() or None
     end_time = data.get("end_time", "").strip() or None
+    duration_minutes = data.get("duration_minutes")
 
-    cursor.execute("""
-        UPDATE exams
-        SET access_type = ?, assigned_class = ?, schedule_type = ?, start_time = ?, end_time = ?
-        WHERE id = ?
-    """, (access_type, assigned_class, schedule_type, start_time, end_time, exam_id))
+    if duration_minutes is not None:
+        try:
+            dur_int = max(1, int(duration_minutes))
+            cursor.execute("""
+                UPDATE exams
+                SET access_type = ?, assigned_class = ?, schedule_type = ?, start_time = ?, end_time = ?, duration_minutes = ?
+                WHERE id = ?
+            """, (access_type, assigned_class, schedule_type, start_time, end_time, dur_int, exam_id))
+        except (ValueError, TypeError):
+            cursor.execute("""
+                UPDATE exams
+                SET access_type = ?, assigned_class = ?, schedule_type = ?, start_time = ?, end_time = ?
+                WHERE id = ?
+            """, (access_type, assigned_class, schedule_type, start_time, end_time, exam_id))
+    else:
+        cursor.execute("""
+            UPDATE exams
+            SET access_type = ?, assigned_class = ?, schedule_type = ?, start_time = ?, end_time = ?
+            WHERE id = ?
+        """, (access_type, assigned_class, schedule_type, start_time, end_time, exam_id))
 
     cursor.execute("DELETE FROM exam_assignments WHERE exam_id = ?", (exam_id,))
     if access_type == "selected" and assigned_students:
@@ -700,10 +929,13 @@ def tutor_exam_details(exam_id):
         ORDER BY s.started_at DESC
     """, (exam_id,))
     submissions = cursor.fetchall()
+    cursor.execute("SELECT id, full_name, roll_number, class_name FROM users WHERE role = 'student' ORDER BY full_name ASC")
+    students = cursor.fetchall()
+
     conn.close()
     
     public_url = get_setting("public_url", "")
-    return render_template("exam_details.html", exam=exam, questions=formatted_questions, submissions=submissions, public_url=public_url)
+    return render_template("exam_details.html", exam=exam, questions=formatted_questions, submissions=submissions, students=students, public_url=public_url)
 
 @app.route("/tutor/submission/<int:submission_id>")
 @admin_required
@@ -729,6 +961,7 @@ def tutor_submission_details(submission_id):
     raw_questions = cursor.fetchall()
     
     student_answers = json.loads(submission["answers_json"]) if submission["answers_json"] else {}
+    manual_eval = json.loads(submission["manual_evaluation_json"]) if submission["manual_evaluation_json"] else {}
     
     questions_review = []
     for q in raw_questions:
@@ -753,6 +986,25 @@ def tutor_submission_details(submission_id):
             q_dict["is_correct"] = (student_text.lower() == correct_ans)
         else:
             q_dict["is_correct"] = False
+
+        # Attach manual / AI evaluation data if present
+        eval_item = manual_eval.get(q_id_str)
+        if eval_item:
+            q_dict["awarded_marks"] = float(eval_item.get("awarded_marks", 0.0))
+            q_dict["eval_feedback"] = eval_item.get("feedback", "")
+            q_dict["eval_by"] = eval_item.get("evaluated_by", "ai")
+            q_dict["eval_model"] = eval_item.get("model_used", "")
+            q_dict["eval_at"] = eval_item.get("evaluated_at", "")
+            q_dict["is_evaluated"] = True
+        else:
+            # Fallback to objective calculation
+            default_pts = float(q["points"]) if q_dict["is_correct"] else 0.0
+            q_dict["awarded_marks"] = default_pts
+            q_dict["eval_feedback"] = ""
+            q_dict["eval_by"] = "auto"
+            q_dict["eval_model"] = ""
+            q_dict["eval_at"] = ""
+            q_dict["is_evaluated"] = False
             
         questions_review.append(q_dict)
         

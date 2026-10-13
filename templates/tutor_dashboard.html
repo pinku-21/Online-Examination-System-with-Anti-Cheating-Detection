@@ -596,6 +596,17 @@
                     </div>
                     <p class="text-[10px] text-slate-400">Students cannot enter before Start Time and cannot start after End Time.</p>
                 </div>
+
+                <div class="pt-2 border-t border-slate-200/80">
+                    <label class="block text-[11px] font-semibold text-slate-700 mb-1">
+                        <i data-lucide="clock" class="w-3.5 h-3.5 inline mr-1 text-sky-600"></i>Exam Duration (Minutes per student):
+                    </label>
+                    <div class="flex items-center space-x-2">
+                        <input type="number" id="ma-duration-minutes" min="1" max="600" placeholder="30" class="w-28 px-2.5 py-1.5 text-xs border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-sky-500 font-bold">
+                        <span class="text-xs text-slate-500 font-medium">Minutes</span>
+                    </div>
+                    <p class="text-[10px] text-slate-400 mt-1">Once started, student's timer counts down this allotted duration.</p>
+                </div>
             </div>
         </div>
 
@@ -767,8 +778,10 @@
                 maSwitchSched(ex.schedule_type || data.schedule_type || 'anytime');
                 const startEl = document.getElementById('ma-start-time');
                 const endEl = document.getElementById('ma-end-time');
+                const durEl = document.getElementById('ma-duration-minutes');
                 if (startEl) startEl.value = ex.start_time || data.start_time || '';
                 if (endEl) endEl.value = ex.end_time || data.end_time || '';
+                if (durEl) durEl.value = ex.duration_minutes || data.duration_minutes || 30;
             }
         } catch (err) {
             console.error('Failed to load access details:', err);
@@ -782,6 +795,7 @@
         const schedType = document.querySelector('input[name="ma_schedule_type"]:checked')?.value || 'anytime';
         const startTime = document.getElementById('ma-start-time').value;
         const endTime = document.getElementById('ma-end-time').value;
+        const durationMinutes = parseInt(document.getElementById('ma-duration-minutes').value) || 30;
 
         const assignedStudents = [];
         if (accessType === 'selected') {
@@ -824,7 +838,8 @@
                     assigned_students: assignedStudents,
                     schedule_type: schedType,
                     start_time: startTime,
-                    end_time: endTime
+                    end_time: endTime,
+                    duration_minutes: durationMinutes
                 })
             });
             const res = await resp.json();

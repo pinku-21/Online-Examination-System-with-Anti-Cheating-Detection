@@ -41,9 +41,14 @@
             <div class="flex items-center gap-4">
                 <div class="p-4 bg-slate-50 rounded-xl text-center border border-slate-200 min-w-[130px]">
                     <span class="text-xs text-slate-500 font-medium block">Final Score</span>
-                    <span class="text-2xl font-bold text-slate-900">{{ submission.score }} / {{ submission.total_points }}</span>
-                    <span class="text-xs font-semibold text-sky-600 block">({{ submission.percentage }}%)</span>
-                    <button type="button" onclick="promptEditScore({{ submission.id }}, {{ submission.score }}, {{ submission.total_points }})" class="mt-1 text-[11px] text-sky-600 hover:text-sky-800 font-bold underline inline-flex items-center">
+                    <span class="text-2xl font-bold text-slate-900">{{ submission.score | default(0) }} / {{ submission.total_points | default(0) }}</span>
+                    <span class="text-xs font-semibold text-sky-600 block">({{ submission.percentage | default(0) }}%)</span>
+                    <button type="button" 
+                            data-submission-id="{{ submission.id }}" 
+                            data-current-score="{{ submission.score | default(0) }}" 
+                            data-total-points="{{ submission.total_points | default(0) }}" 
+                            onclick="promptEditScore(this)" 
+                            class="mt-1 text-[11px] text-sky-600 hover:text-sky-800 font-bold underline inline-flex items-center">
                         <i data-lucide="edit-3" class="w-3 h-3 mr-1"></i> Edit Marks
                     </button>
                 </div>
@@ -57,7 +62,7 @@
                             <i data-lucide="shield-check" class="w-5 h-5 inline text-emerald-600 mr-1"></i>COMPLETED
                         {% endif %}
                     </span>
-                    <span class="text-[11px] font-semibold block mt-0.5">{{ submission.warnings_count }} / {{ submission.max_warnings }} Strikes</span>
+                    <span class="text-[11px] font-semibold block mt-0.5">{{ submission.warnings_count | default(0) }} / {{ submission.max_warnings | default(3) }} Strikes</span>
                 </div>
             </div>
         </div>
@@ -100,7 +105,7 @@
                                 <p class="text-slate-600 mt-0.5">{{ v.details or 'Student triggered an anti-cheating warning.' }}</p>
                             </div>
                         </div>
-                        <span class="font-mono text-slate-400 text-[11px] flex-shrink-0">{{ v.timestamp }}</span>
+                        <span class="font-mono text-slate-400 text-[11px] flex-shrink-0">{{ v.timestamp | format_datetime_12h }}</span>
                     </div>
                 {% endfor %}
             </div>
@@ -114,66 +119,154 @@
 
     <!-- Answers Review -->
     <div class="bg-white rounded-2xl border border-slate-200 shadow-sm p-6 sm:p-8">
-        <h2 class="text-lg font-bold text-slate-900 mb-6">Student Answers Review</h2>
+        <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-slate-100 pb-4 mb-6">
+            <div>
+                <h2 class="text-lg font-bold text-slate-900">Student Answers & Grading Review</h2>
+                <p class="text-xs text-slate-500 mt-0.5">Evaluate uploaded handwritten photos or written answers with AI, and adjust marks anytime.</p>
+            </div>
+            <span class="text-xs font-semibold px-3 py-1 bg-sky-50 text-sky-700 rounded-full self-start sm:self-auto border border-sky-100">
+                {{ questions|length }} Questions Evaluated
+            </span>
+        </div>
+
         <div class="space-y-6">
             {% for q in questions %}
-                <div class="p-5 rounded-xl border {% if q.is_correct %}border-emerald-200 bg-emerald-50/20{% else %}border-rose-200 bg-rose-50/20{% endif %} space-y-2">
-                    <div class="flex items-start justify-between gap-4">
-                        <span class="font-semibold text-slate-900 text-sm">
-                            <span class="font-bold mr-1">Q{{ loop.index }}.</span> {{ q.question_text }}
-                        </span>
-                        {% if q.is_correct %}
-                            <span class="px-2 py-0.5 bg-emerald-100 text-emerald-800 font-bold text-xs rounded-full">+{{ q.points }} pt</span>
-                        {% else %}
-                            <span class="px-2 py-0.5 bg-rose-100 text-rose-800 font-bold text-xs rounded-full">0 pt</span>
-                        {% endif %}
+                <div class="p-5 sm:p-6 rounded-2xl border {% if q.is_evaluated and q.awarded_marks > 0 %}border-indigo-200 bg-indigo-50/15{% elif q.is_correct %}border-emerald-200 bg-emerald-50/20{% elif q.is_evaluated and q.awarded_marks == 0 %}border-rose-200 bg-rose-50/25{% else %}border-slate-200 bg-white{% endif %} space-y-3.5 transition">
+                    
+                    <!-- Header: Question No, Text, and Marks Badges -->
+                    <div class="flex flex-col sm:flex-row sm:items-start justify-between gap-3">
+                        <div class="flex-1">
+                            <span class="font-bold text-sky-700 mr-1 text-sm">Q{{ loop.index }}.</span>
+                            <span class="font-semibold text-slate-900 text-sm leading-relaxed">{{ q.question_text }}</span>
+                            <span class="inline-block ml-2 px-2 py-0.5 rounded text-[11px] font-mono bg-slate-100 text-slate-600 font-medium">Type: {{ q.question_type }}</span>
+                        </div>
+                        
+                        <div class="flex items-center space-x-2 flex-shrink-0 self-start sm:self-auto">
+                            <!-- Awarded Marks Pill -->
+                            <div class="px-3 py-1 rounded-xl text-xs font-bold flex items-center space-x-1 {% if q.awarded_marks > 0 %}bg-emerald-100 text-emerald-800 border border-emerald-200{% else %}bg-slate-100 text-slate-700 border border-slate-200{% endif %}">
+                                <span>Awarded:</span>
+                                <span class="text-sm font-black">{{ q.awarded_marks }}</span>
+                                <span class="text-slate-400">/ {{ q.points }} Mks</span>
+                            </div>
+
+                            <!-- Edit Mark Button -->
+                            <button type="button" 
+                                    data-submission-id="{{ submission.id }}" 
+                                    data-question-id="{{ q.id }}" 
+                                    data-current-marks="{{ q.awarded_marks }}" 
+                                    data-max-points="{{ q.points }}" 
+                                    data-question-text="{{ q.question_text | escape }}" 
+                                    onclick="promptEditQuestionScore(this)" 
+                                    class="px-2.5 py-1 bg-white hover:bg-slate-50 border border-slate-300 text-slate-700 hover:text-sky-600 rounded-lg text-xs font-semibold shadow-2xs transition flex items-center space-x-1" 
+                                    title="Edit or give marks for this question">
+                                <i data-lucide="edit-3" class="w-3.5 h-3.5"></i>
+                                <span>Edit Mark</span>
+                            </button>
+                        </div>
                     </div>
 
                     {% if q.figure_svg %}
-                        <div class="my-3 p-3 bg-white border border-slate-200 rounded-xl max-w-sm flex flex-col items-center shadow-xs">
-                            <span class="text-[9px] font-bold text-sky-800 uppercase tracking-wider mb-1">Figure / Diagram</span>
+                        <div class="my-2 p-3 bg-white border border-slate-200 rounded-xl max-w-sm flex flex-col items-center shadow-2xs">
+                            <span class="text-[9px] font-bold text-sky-800 uppercase tracking-wider mb-1">Question Diagram</span>
                             <div class="w-full max-w-xs flex justify-center">
                                 {{ q.figure_svg | safe }}
                             </div>
                         </div>
                     {% elif q.figure_url %}
-                        <div class="my-3 p-3 bg-white border border-slate-200 rounded-xl max-w-sm flex flex-col items-center shadow-xs">
-                            <span class="text-[9px] font-bold text-indigo-800 uppercase tracking-wider mb-1">Figure / Diagram</span>
+                        <div class="my-2 p-3 bg-white border border-slate-200 rounded-xl max-w-sm flex flex-col items-center shadow-2xs">
+                            <span class="text-[9px] font-bold text-indigo-800 uppercase tracking-wider mb-1">Question Diagram</span>
                             <img src="{{ q.figure_url }}" alt="Figure" class="max-h-48 object-contain rounded-lg">
                         </div>
                     {% endif %}
 
-                    <div class="text-xs space-y-1 pt-2">
-                        <p><strong class="text-slate-700">Student Answer:</strong> <span class="{% if q.is_correct %}text-emerald-700 font-bold{% else %}text-rose-700 font-bold{% endif %}">{{ q.student_answer }}</span></p>
-                        {% if not q.is_correct and q.correct_answer %}
-                            <p><strong class="text-slate-700">Correct Answer:</strong> <span class="text-emerald-700 font-bold">{{ q.correct_answer }}</span></p>
+                    <!-- Student Written Text -->
+                    <div class="text-xs space-y-1.5 p-3 rounded-xl bg-slate-50/80 border border-slate-100">
+                        <div>
+                            <strong class="text-slate-700">Student Submitted Text / Choice:</strong> 
+                            <span class="{% if q.is_correct or q.awarded_marks > 0 %}text-emerald-700 font-semibold{% else %}text-slate-800{% endif %} ml-1">{{ q.student_answer }}</span>
+                        </div>
+                        {% if q.correct_answer %}
+                            <div>
+                                <strong class="text-slate-700">Reference Answer / Model Key:</strong> 
+                                <span class="text-slate-600 ml-1">{{ q.correct_answer }}</span>
+                            </div>
                         {% endif %}
                     </div>
 
+                    <!-- Uploaded Handwritten Solution Photo -->
                     {% if q.student_image_url %}
-                        <div class="mt-3 p-4 bg-sky-50/60 border border-sky-200 rounded-2xl max-w-xl">
-                            <div class="flex items-center justify-between mb-2">
+                        <div class="p-4 bg-sky-50/70 border border-sky-200 rounded-2xl max-w-xl">
+                            <div class="flex items-center justify-between mb-2.5">
                                 <span class="text-xs font-bold text-sky-950 flex items-center">
                                     <i data-lucide="camera" class="w-4 h-4 mr-1.5 text-sky-600"></i>
                                     Uploaded Handwritten Solution Photo
                                 </span>
-                                <a href="{{ q.student_image_url }}" target="_blank" class="text-xs font-semibold text-sky-600 hover:text-sky-800 flex items-center space-x-1">
-                                    <span>Open Full Size</span>
-                                    <i data-lucide="external-link" class="w-3.5 h-3.5"></i>
-                                </a>
+                                <div class="flex items-center space-x-2">
+                                    <button type="button" 
+                                            id="btn-eval-{{ q.id }}" 
+                                            data-submission-id="{{ submission.id }}" 
+                                            data-question-id="{{ q.id }}" 
+                                            data-question-text="{{ q.question_text | escape }}" 
+                                            data-max-points="{{ q.points }}" 
+                                            onclick="evaluateQuestionWithAI(this)" 
+                                            class="px-3 py-1 bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg text-xs font-bold shadow-xs transition flex items-center space-x-1 cursor-pointer">
+                                        <i data-lucide="sparkles" class="w-3.5 h-3.5"></i>
+                                        <span>Check with AI</span>
+                                    </button>
+                                    <a href="{{ q.student_image_url }}" target="_blank" class="text-xs font-semibold text-sky-700 hover:text-sky-900 flex items-center space-x-0.5">
+                                        <span>Full Size</span>
+                                        <i data-lucide="external-link" class="w-3.5 h-3.5"></i>
+                                    </a>
+                                </div>
                             </div>
                             <a href="{{ q.student_image_url }}" target="_blank" class="block group relative overflow-hidden rounded-xl border border-slate-200 bg-white">
                                 <img src="{{ q.student_image_url }}" alt="Handwritten Answer Photo" class="max-h-80 w-auto object-contain mx-auto group-hover:scale-102 transition duration-200">
-                                <div class="absolute bottom-2 right-2 bg-slate-900/70 text-white text-[10px] font-semibold px-2 py-0.5 rounded-md flex items-center space-x-1 backdrop-blur-xs">
+                                <div class="absolute bottom-2 right-2 bg-slate-900/70 text-white text-[10px] font-semibold px-2 py-0.5 rounded-md flex items-center space-x-1 backdrop-blur-2xs">
                                     <i data-lucide="zoom-in" class="w-3 h-3"></i>
                                     <span>Click to enlarge</span>
                                 </div>
                             </a>
                         </div>
+                    {% else %}
+                        <!-- Option to evaluate typed response with AI if subjective/short/long -->
+                        {% if q.question_type in ['short', 'descriptive', 'numerical'] and q.student_answer and q.student_answer != 'Not Attempted' %}
+                            <div class="flex items-center justify-end">
+                                <button type="button" 
+                                        id="btn-eval-{{ q.id }}" 
+                                        data-submission-id="{{ submission.id }}" 
+                                        data-question-id="{{ q.id }}" 
+                                        data-question-text="{{ q.question_text | escape }}" 
+                                        data-max-points="{{ q.points }}" 
+                                        onclick="evaluateQuestionWithAI(this)" 
+                                        class="px-3 py-1.5 bg-indigo-50 hover:bg-indigo-100 text-indigo-700 border border-indigo-200 rounded-lg text-xs font-bold transition flex items-center space-x-1.5 cursor-pointer">
+                                    <i data-lucide="sparkles" class="w-3.5 h-3.5 text-indigo-600"></i>
+                                    <span>Evaluate Answer with AI</span>
+                                </button>
+                            </div>
+                        {% endif %}
+                    {% endif %}
+
+                    <!-- AI / Teacher Evaluation Feedback Banner -->
+                    {% if q.is_evaluated and q.eval_feedback %}
+                        <div class="p-3.5 rounded-xl border {% if q.eval_by == 'ai' %}bg-indigo-50/70 border-indigo-200 text-indigo-950{% else %}bg-amber-50/70 border-amber-200 text-amber-950{% endif %} text-xs space-y-1">
+                            <div class="flex items-center justify-between font-bold">
+                                <span class="flex items-center space-x-1.5">
+                                    {% if q.eval_by == 'ai' %}
+                                        <i data-lucide="sparkles" class="w-3.5 h-3.5 text-indigo-600"></i>
+                                        <span>AI Grader Assessment ({{ q.eval_model or 'AI Engine' }})</span>
+                                    {% else %}
+                                        <i data-lucide="user-check" class="w-3.5 h-3.5 text-amber-600"></i>
+                                        <span>Teacher Manual Review</span>
+                                    {% endif %}
+                                </span>
+                                <span class="text-[10px] font-normal text-slate-500 font-mono">{{ q.eval_at }}</span>
+                            </div>
+                            <p class="text-slate-700 leading-relaxed">{{ q.eval_feedback }}</p>
+                        </div>
                     {% endif %}
 
                     {% if q.explanation %}
-                        <p class="text-xs text-slate-500 italic pt-1">{{ q.explanation }}</p>
+                        <p class="text-xs text-slate-500 italic pt-0.5"><span class="font-semibold text-slate-600">Explanation / Rubric:</span> {{ q.explanation }}</p>
                     {% endif %}
                 </div>
             {% endfor %}
@@ -182,11 +275,21 @@
 
 </div>
 
+{% endblock %}
+
+{% block scripts %}
 <script>
-    async function promptEditScore(subId, currentScore, totalPoints) {
+    async function promptEditScore(elOrSubId, currentScore, totalPoints) {
+        let subId = elOrSubId;
+        if (typeof elOrSubId === 'object' && elOrSubId !== null && elOrSubId.dataset) {
+            subId = elOrSubId.dataset.submissionId;
+            currentScore = parseFloat(elOrSubId.dataset.currentScore || 0);
+            totalPoints = parseFloat(elOrSubId.dataset.totalPoints || 0);
+        }
+
         const { value: newScore } = await Swal.fire({
-            title: 'Update Exam Score',
-            text: `Enter awarded score out of ${totalPoints} marks:`,
+            title: 'Update Overall Exam Score',
+            text: `Enter awarded total score out of ${totalPoints} marks:`,
             input: 'number',
             inputValue: currentScore,
             inputAttributes: {
@@ -196,10 +299,10 @@
             },
             showCancelButton: true,
             confirmButtonColor: '#0284c7',
-            confirmButtonText: 'Save Score'
+            confirmButtonText: 'Save Overall Score'
         });
 
-        if (newScore !== undefined && newScore !== null) {
+        if (newScore !== undefined && newScore !== null && newScore !== '') {
             try {
                 const resp = await fetch(`/api/tutor/submission/${subId}/update-score`, {
                     method: 'POST',
@@ -212,14 +315,158 @@
                         icon: 'success', 
                         title: 'Score Updated', 
                         text: `Score updated to ${res.score} (${res.percentage}%).`, 
-                        timer: 1500 
+                        timer: 1400,
+                        showConfirmButton: false 
                     });
-                    setTimeout(() => window.location.reload(), 1500);
+                    setTimeout(() => window.location.reload(), 1400);
                 } else {
                     Swal.fire({ icon: 'error', title: 'Error', text: res.error || 'Could not update score.' });
                 }
             } catch (err) {
                 Swal.fire({ icon: 'error', title: 'Error', text: 'Network error.' });
+            }
+        }
+    }
+
+    async function promptEditQuestionScore(elOrSubId, questionId, currentMarks, maxPoints, questionText) {
+        let subId = elOrSubId;
+        if (typeof elOrSubId === 'object' && elOrSubId !== null && elOrSubId.dataset) {
+            subId = elOrSubId.dataset.submissionId;
+            questionId = elOrSubId.dataset.questionId;
+            currentMarks = parseFloat(elOrSubId.dataset.currentMarks || 0);
+            maxPoints = parseFloat(elOrSubId.dataset.maxPoints || 0);
+            questionText = elOrSubId.dataset.questionText || '';
+        }
+
+        const { value: formValues } = await Swal.fire({
+            title: 'Edit Question Marks',
+            html: `
+                <div class="text-left text-xs space-y-3">
+                    <p class="text-slate-600 line-clamp-2 italic">"${questionText}"</p>
+                    <div>
+                        <label class="block font-bold text-slate-700 mb-1">Award Marks (Max ${maxPoints}):</label>
+                        <input id="swal-marks" type="number" step="0.5" min="0" max="${maxPoints}" value="${currentMarks}" class="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm font-bold focus:ring-2 focus:ring-sky-500">
+                    </div>
+                    <div>
+                        <label class="block font-bold text-slate-700 mb-1">Teacher Feedback / Notes (Optional):</label>
+                        <textarea id="swal-feedback" rows="2" placeholder="e.g. Full marks for correct solution / formula applied." class="w-full px-3 py-1.5 border border-slate-300 rounded-lg text-xs"></textarea>
+                    </div>
+                </div>
+            `,
+            focusConfirm: false,
+            showCancelButton: true,
+            confirmButtonColor: '#4f46e5',
+            confirmButtonText: 'Save Marks',
+            preConfirm: () => {
+                const marksVal = document.getElementById('swal-marks').value;
+                const feedbackVal = document.getElementById('swal-feedback').value;
+                if (marksVal === '' || isNaN(marksVal)) {
+                    Swal.showValidationMessage('Please enter a valid numeric mark.');
+                    return false;
+                }
+                const num = parseFloat(marksVal);
+                if (num < 0 || num > maxPoints) {
+                    Swal.showValidationMessage(`Marks must be between 0 and ${maxPoints}.`);
+                    return false;
+                }
+                return { marks: num, feedback: feedbackVal };
+            }
+        });
+
+        if (formValues) {
+            try {
+                const resp = await fetch(`/api/tutor/submission/${subId}/update-question-score`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        question_id: questionId,
+                        awarded_marks: formValues.marks,
+                        feedback: formValues.feedback || 'Teacher updated mark.'
+                    })
+                });
+                const res = await resp.json();
+                if (res.success) {
+                    Swal.fire({
+                        icon: 'success',
+                        title: 'Marks Saved!',
+                        html: `<p class="text-xs text-slate-600">Question marks updated to <strong>${res.awarded_marks}</strong>. Total student score is now <strong>${res.new_score} / ${res.total_points}</strong> (${res.percentage}%).</p>`,
+                        timer: 1600,
+                        showConfirmButton: false
+                    });
+                    setTimeout(() => window.location.reload(), 1600);
+                } else {
+                    Swal.fire({ icon: 'error', title: 'Error', text: res.error || 'Failed to update marks.' });
+                }
+            } catch (err) {
+                Swal.fire({ icon: 'error', title: 'Error', text: 'Network error occurred.' });
+            }
+        }
+    }
+
+    async function evaluateQuestionWithAI(elOrSubId, questionId, questionText, maxPoints) {
+        let subId = elOrSubId;
+        let btn = null;
+        if (typeof elOrSubId === 'object' && elOrSubId !== null && elOrSubId.dataset) {
+            btn = elOrSubId;
+            subId = elOrSubId.dataset.submissionId;
+            questionId = elOrSubId.dataset.questionId;
+            maxPoints = parseFloat(elOrSubId.dataset.maxPoints || 0);
+            questionText = elOrSubId.dataset.questionText || '';
+        } else {
+            btn = document.getElementById(`btn-eval-${questionId}`);
+        }
+
+        const originalHtml = btn ? btn.innerHTML : '';
+        if (btn) {
+            btn.disabled = true;
+            btn.innerHTML = `<i data-lucide="loader" class="w-3.5 h-3.5 animate-spin mr-1"></i><span>AI Checking...</span>`;
+            if (window.lucide) lucide.createIcons();
+        }
+
+        Swal.fire({
+            title: 'AI Proctor & Examiner is Grading...',
+            html: '<p class="text-xs text-slate-500">Inspecting the student\'s uploaded photo and solution steps...</p>',
+            allowOutsideClick: false,
+            didOpen: () => Swal.showLoading()
+        });
+
+        try {
+            const resp = await fetch(`/api/tutor/submission/${subId}/evaluate-question`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ question_id: questionId })
+            });
+            const res = await resp.json();
+
+            if (res.success) {
+                Swal.fire({
+                    icon: 'success',
+                    title: `AI Awarded: ${res.awarded_marks} / ${maxPoints} Marks`,
+                    html: `
+                        <div class="text-left text-xs bg-slate-50 p-3 rounded-xl border border-slate-200 mt-2 space-y-2">
+                            <p class="font-semibold text-slate-800"><span class="text-indigo-600">AI Feedback:</span> ${res.feedback}</p>
+                            <p class="text-[11px] text-slate-500">Graded by: <span class="font-bold text-slate-700">${res.model_used}</span></p>
+                            <p class="text-[11px] text-slate-500">Total student score updated to: <strong class="text-slate-900">${res.new_score} / ${res.total_points} (${res.percentage}%)</strong></p>
+                            <p class="text-[10px] text-slate-400 italic">You can change or override this mark anytime using "Edit Mark".</p>
+                        </div>
+                    `,
+                    confirmButtonColor: '#4f46e5',
+                    confirmButtonText: 'Great, Apply!'
+                }).then(() => window.location.reload());
+            } else {
+                Swal.fire({
+                    icon: 'error',
+                    title: 'AI Evaluation Failed',
+                    text: res.error || 'Could not evaluate with AI.'
+                });
+            }
+        } catch (err) {
+            Swal.fire({ icon: 'error', title: 'Error', text: 'Network error occurred during AI evaluation.' });
+        } finally {
+            if (btn) {
+                btn.disabled = false;
+                btn.innerHTML = originalHtml;
+                if (window.lucide) lucide.createIcons();
             }
         }
     }

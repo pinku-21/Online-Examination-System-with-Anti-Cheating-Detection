@@ -211,12 +211,11 @@ def generate_questions_with_gemini(api_key, text_content=None, image_paths=None,
                 })
 
     models_to_try = [
-        "gemini-3.5-flash-lite",
         "gemini-3.8-flash",
         "gemini-flash-latest",
         "gemini-3.5-flash",
-        "gemini-2.5-flash-lite",
-        "gemini-2.5-flash"
+        "gemini-3.5-flash-lite",
+        "gemini-flash-lite-latest"
     ]
     
     last_error = None
@@ -414,3 +413,140 @@ def generate_mock_questions(topic_or_context, num_questions=5, question_type="mc
         questions.append(q_obj)
         
     return {"success": True, "questions": questions, "is_mock": True}
+
+
+def evaluate_answer_with_ai(gemini_key, groq_key, question_text, max_points, correct_answer="", student_text="", image_path=None, explanation=""):
+    """
+    Evaluates a student's answer (written text or uploaded handwritten photo) using AI.
+    Returns: {"success": bool, "awarded_marks": float, "feedback": str, "model_used": str}
+    """
+    max_pts = float(max_points) if max_points else 1.0
+
+    eval_prompt = f"""You are a fair, expert academic examiner evaluating a student's answer for an examination.
+
+QUESTION:
+{question_text}
+
+TOTAL MAXIMUM MARKS:
+{max_pts}
+
+MODEL / REFERENCE ANSWER & KEY CRITERIA:
+{correct_answer or 'Grade based on fundamental correctness, clarity, conceptual accuracy, and completeness.'}
+
+GRADING RUBRIC / EXPLANATION:
+{explanation or 'Award marks proportionately based on correctness (0 to ' + str(max_pts) + ').'}
+
+STUDENT'S WRITTEN TEXT:
+{student_text or '(No typed text provided - examine the attached photo/image of the handwritten answer)'}
+
+EVALUATION INSTRUCTIONS:
+1. Carefully inspect the student's submitted response (including handwritten solution photo/diagram if provided).
+2. For 2, 3, 4, 5, or 10-mark questions:
+   - Award full marks if the answer/proof/calculation is complete and correct.
+   - Award partial marks (e.g. 1, 1.5, 2, 2.5, 3, 3.5, 4, etc.) for correct steps, valid method, or partially complete explanations.
+   - Award 0 if completely irrelevant or incorrect.
+3. Awarded marks MUST be between 0.0 and {max_pts}.
+4. Provide constructive, concise feedback explaining what was done well and any missing points.
+
+STRICT JSON OUTPUT FORMAT:
+Return ONLY a JSON object with this exact structure:
+{{
+  "awarded_marks": 2.5,
+  "feedback": "Step 1 and Step 2 are correct. Minor arithmetic error in the final step."
+}}
+"""
+
+    # 1. Try Gemini first (especially if image_path is provided)
+    if gemini_key:
+        parts = [{"text": eval_prompt}]
+        if image_path and os.path.exists(image_path):
+            try:
+                mime, b64_data = encode_image_base64(image_path)
+                parts.append({
+                    "inline_data": {
+                        "mime_type": mime,
+                        "data": b64_data
+                    }
+                })
+            except Exception as e:
+                print(f"Error encoding student answer image: {e}")
+
+        models = [
+            "gemini-3.8-flash",
+            "gemini-flash-latest",
+            "gemini-3.5-flash",
+            "gemini-3.5-flash-lite",
+            "gemini-flash-lite-latest"
+        ]
+
+        for model_name in models:
+            url = f"https://generativelanguage.googleapis.com/v1beta/models/{model_name}:generateContent?key={gemini_key}"
+            payload = {
+                "contents": [{"parts": parts}],
+                "generationConfig": {
+                    "temperature": 0.2,
+                    "response_mime_type": "application/json"
+                }
+            }
+            try:
+                resp = requests.post(url, json=payload, headers={"Content-Type": "application/json"}, timeout=45)
+                if resp.status_code == 200:
+                    raw_text = resp.json()["candidates"][0]["content"]["parts"][0]["text"].strip()
+                    if raw_text.startswith("```json"):
+                        raw_text = raw_text[7:]
+                    if raw_text.startswith("```"):
+                        raw_text = raw_text[3:]
+                    if raw_text.endswith("```"):
+                        raw_text = raw_text[:-3]
+                    raw_text = raw_text.strip()
+                    data = json.loads(raw_text)
+                    awarded = float(data.get("awarded_marks", 0.0))
+                    awarded = max(0.0, min(max_pts, round(awarded, 1)))
+                    feedback = data.get("feedback", "AI evaluated response.")
+                    return {
+                        "success": True,
+                        "awarded_marks": awarded,
+                        "feedback": feedback,
+                        "model_used": f"Google Gemini ({model_name})"
+                    }
+            except Exception as e:
+                print(f"Gemini evaluation error ({model_name}): {e}")
+
+    # 2. Try Groq (if text-based or if Gemini failed and student provided text)
+    if groq_key and student_text:
+        groq_models = ["llama-3.3-70b-versatile", "llama-3.1-8b-instant"]
+        for g_model in groq_models:
+            try:
+                headers = {
+                    "Authorization": f"Bearer {groq_key}",
+                    "Content-Type": "application/json"
+                }
+                payload = {
+                    "model": g_model,
+                    "messages": [
+                        {"role": "system", "content": "You are an academic grader. Return only JSON with 'awarded_marks' and 'feedback'."},
+                        {"role": "user", "content": eval_prompt}
+                    ],
+                    "temperature": 0.2,
+                    "response_format": {"type": "json_object"}
+                }
+                resp = requests.post("https://api.groq.com/openai/v1/chat/completions", headers=headers, json=payload, timeout=30)
+                if resp.status_code == 200:
+                    content = resp.json()["choices"][0]["message"]["content"].strip()
+                    data = json.loads(content)
+                    awarded = float(data.get("awarded_marks", 0.0))
+                    awarded = max(0.0, min(max_pts, round(awarded, 1)))
+                    feedback = data.get("feedback", "AI evaluated response.")
+                    return {
+                        "success": True,
+                        "awarded_marks": awarded,
+                        "feedback": feedback,
+                        "model_used": f"Groq ({g_model})"
+                    }
+            except Exception as e:
+                print(f"Groq evaluation error ({g_model}): {e}")
+
+    return {
+        "success": False,
+        "error": "AI evaluation could not be completed. Please configure a valid Gemini or Groq API key in Tutor Settings."
+    }
