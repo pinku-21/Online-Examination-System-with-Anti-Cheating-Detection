@@ -550,8 +550,30 @@
         const btn = document.getElementById('btn-generate');
         const originalHtml = btn.innerHTML;
         btn.disabled = true;
-        btn.innerHTML = `<i data-lucide="loader" class="w-5 h-5 animate-spin"></i><span>Analyzing & Generating Exam...</span>`;
+
+        // Animated progress messages to keep user informed
+        const progressMessages = [
+            'Analyzing PDF content...',
+            'Building exam blueprint...',
+            'Generating questions with AI...',
+            'Crafting answers & rubrics...',
+            'Almost done, finalizing exam...'
+        ];
+        let msgIdx = 0;
+        btn.innerHTML = `<i data-lucide="loader" class="w-5 h-5 animate-spin"></i><span id="gen-progress-msg">${progressMessages[0]}</span>`;
         lucide.createIcons();
+        const progressInterval = setInterval(() => {
+            msgIdx = (msgIdx + 1) % progressMessages.length;
+            const el = document.getElementById('gen-progress-msg');
+            if (el) el.textContent = progressMessages[msgIdx];
+        }, 4000);
+
+        const resetBtn = () => {
+            clearInterval(progressInterval);
+            btn.disabled = false;
+            btn.innerHTML = originalHtml;
+            lucide.createIcons();
+        };
 
         let numQVal = document.getElementById('num-questions').value;
         if (numQVal === 'custom') {
@@ -589,21 +611,28 @@
         formData.append('difficulty', document.getElementById('difficulty').value);
         formData.append('question_type', questionTypeVal);
 
+        // 120-second client-side timeout
+        const controller = new AbortController();
+        const timeoutId = setTimeout(() => controller.abort(), 120000);
+
         try {
             const resp = await fetch('/api/generate-questions', {
                 method: 'POST',
-                body: formData
+                body: formData,
+                signal: controller.signal
             });
+            clearTimeout(timeoutId);
             if (!resp.ok) {
                 let errorMsg = `Server error (${resp.status})`;
                 if (resp.status === 504 || resp.status === 502) {
-                    errorMsg = 'AI generation took longer than the server timeout. Try requesting fewer questions at a time (e.g., 5-10 questions).';
+                    errorMsg = 'The server took too long. This usually happens with large PDFs. Try: reduce questions to 5, or remove some question types.';
                 } else {
                     try {
                         const errData = await resp.json();
                         if (errData && errData.error) errorMsg = errData.error;
                     } catch (e) {}
                 }
+                resetBtn();
                 Swal.fire({
                     icon: 'error',
                     title: 'Generation Failed',
@@ -630,6 +659,7 @@
                 const totalMarks = questionsData.reduce((sum, q) => sum + (parseFloat(q.points) || 1.0), 0);
                 const figCount = questionsData.filter(q => q.figure_svg || q.figure_url).length;
 
+                resetBtn();
                 Swal.fire({
                     icon: 'success',
                     title: 'Exam Paper Ready!',
@@ -638,6 +668,7 @@
                     showConfirmButton: false
                 });
             } else {
+                resetBtn();
                 Swal.fire({
                     icon: 'error',
                     title: 'Generation Failed',
@@ -645,15 +676,15 @@
                 });
             }
         } catch (err) {
-            Swal.fire({
-                icon: 'error',
-                title: 'Request Failed',
-                text: err.message || 'Unable to communicate with the server. Please check your connection.'
-            });
-        } finally {
-            btn.disabled = false;
-            btn.innerHTML = originalHtml;
-            lucide.createIcons();
+            clearTimeout(timeoutId);
+            resetBtn();
+            let errTitle = 'Request Failed';
+            let errText = err.message || 'An unexpected error occurred.';
+            if (err.name === 'AbortError') {
+                errTitle = 'Generation Timed Out';
+                errText = 'AI is taking too long. Try: fewer questions (5–6), fewer question types, or a shorter PDF.';
+            }
+            Swal.fire({ icon: 'error', title: errTitle, text: errText });
         }
     }
 

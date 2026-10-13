@@ -6,23 +6,31 @@ import requests
 from pypdf import PdfReader
 from database import get_setting
 
-def extract_text_from_pdf(pdf_path):
-    """Extract text content from an uploaded PDF file."""
+def extract_text_from_pdf(pdf_path, max_chars=18000, max_pages=12):
+    """Extract text content from an uploaded PDF file safely and quickly."""
     try:
         reader = PdfReader(pdf_path)
         extracted_text = []
+        total_chars = 0
         for i, page in enumerate(reader.pages):
-            text = page.extract_text()
-            if text:
-                extracted_text.append(f"--- Page {i+1} ---\n{text}")
+            if i >= max_pages or total_chars >= max_chars:
+                break
+            try:
+                text = page.extract_text()
+                if text:
+                    extracted_text.append(f"--- Page {i+1} ---\n{text}")
+                    total_chars += len(text)
+            except Exception as pe:
+                print(f"Skipping page {i+1} due to read error: {pe}")
         return "\n\n".join(extracted_text)
     except Exception as e:
         print(f"Error reading PDF: {e}")
         return ""
 
-def extract_figures_from_pdf(pdf_path, output_base_dir="static/extracted_figures"):
+def extract_figures_from_pdf(pdf_path, output_base_dir="static/extracted_figures", max_figures=8, max_pages=15):
     """
     Extracts embedded figures and diagrams from a PDF file using pypdf.
+    Fast, memory-safe limit (max 8 figures across first 15 pages) to avoid timeouts on large PDFs.
     Saves them to static/extracted_figures/<pdf_stem>/
     Returns list of figure dicts: [{"page": int, "name": str, "url": str, "size": int}]
     """
@@ -35,20 +43,29 @@ def extract_figures_from_pdf(pdf_path, output_base_dir="static/extracted_figures
         
         extracted_figures = []
         for p_idx, page in enumerate(reader.pages):
-            for img_idx, img in enumerate(page.images):
-                # Filter out tiny decoration icons (< 1500 bytes)
-                if len(img.data) > 1500:
-                    filename = f"p{p_idx+1}_{img_idx+1}_{img.name}"
-                    file_path = os.path.join(dest_dir, filename)
-                    with open(file_path, "wb") as f:
-                        f.write(img.data)
-                    rel_url = f"/static/extracted_figures/{safe_folder}/{filename}"
-                    extracted_figures.append({
-                        "page": p_idx + 1,
-                        "name": img.name,
-                        "url": rel_url,
-                        "size": len(img.data)
-                    })
+            if p_idx >= max_pages or len(extracted_figures) >= max_figures:
+                break
+            try:
+                for img_idx, img in enumerate(page.images):
+                    if len(extracted_figures) >= max_figures:
+                        break
+                    # Filter out tiny decoration icons (< 2500 bytes) and huge blobs (> 5MB)
+                    if 2500 < len(img.data) < 5242880:
+                        filename = f"p{p_idx+1}_{img_idx+1}_{img.name}"
+                        file_path = os.path.join(dest_dir, filename)
+                        with open(file_path, "wb") as f:
+                            f.write(img.data)
+                        rel_url = f"/static/extracted_figures/{safe_folder}/{filename}"
+                        extracted_figures.append({
+                            "page": p_idx + 1,
+                            "name": img.name,
+                            "url": rel_url,
+                            "size": len(img.data)
+                        })
+            except Exception as img_err:
+                # Some PDFs contain corrupt inline images; skip safely
+                continue
+
         return extracted_figures
     except Exception as e:
         print(f"Error extracting figures from PDF {pdf_path}: {e}")
@@ -196,7 +213,7 @@ def generate_questions_with_gemini(api_key, text_content=None, image_paths=None,
 
     if text_content and text_content.strip():
         parts.append({
-            "text": f"--- REFERENCE MATERIAL TEXT ---\n{text_content[:35000]}"
+            "text": f"--- REFERENCE MATERIAL TEXT ---\n{text_content[:16000]}"
         })
 
     if image_paths:
@@ -230,7 +247,7 @@ def generate_questions_with_gemini(api_key, text_content=None, image_paths=None,
         }
         
         try:
-            resp = requests.post(url, json=payload, headers={"Content-Type": "application/json"}, timeout=60)
+            resp = requests.post(url, json=payload, headers={"Content-Type": "application/json"}, timeout=90)
             if resp.status_code == 200:
                 result_json = resp.json()
                 raw_text = result_json["candidates"][0]["content"]["parts"][0]["text"].strip()
@@ -252,6 +269,81 @@ def generate_questions_with_gemini(api_key, text_content=None, image_paths=None,
             
     return {"success": False, "error": last_error or "Failed to generate questions with Gemini."}
 
+def generate_questions_with_openai(api_key, text_content=None, image_paths=None, num_questions=5, question_type="mcq", difficulty="Medium", custom_prompt=None, total_marks=None, available_figures=None):
+    """
+    Calls OpenAI API (gpt-4o-mini / gpt-4o) with multimodal vision support and custom prompt blueprints.
+    """
+    system_prompt = build_exam_system_prompt(
+        num_questions=num_questions, 
+        question_type=question_type, 
+        difficulty=difficulty, 
+        custom_prompt=custom_prompt, 
+        total_marks=total_marks,
+        available_figures=available_figures
+    )
+
+    user_text = f"Please generate the exam paper based strictly on this reference material:\n\n{text_content[:14000] if text_content else 'Academic examination questions requested by instructor'}"
+    
+    user_content = []
+    user_content.append({"type": "text", "text": user_text})
+    if image_paths:
+        for img_path in image_paths:
+            if os.path.exists(img_path):
+                mime, b64_data = encode_image_base64(img_path)
+                user_content.append({
+                    "type": "image_url",
+                    "image_url": {
+                        "url": f"data:{mime};base64,{b64_data}"
+                    }
+                })
+
+    models_to_try = ["gpt-4o-mini", "gpt-4o"]
+    last_error = None
+
+    for model in models_to_try:
+        try:
+            resp = requests.post(
+                "https://api.openai.com/v1/chat/completions",
+                headers={
+                    "Authorization": f"Bearer {api_key}",
+                    "Content-Type": "application/json"
+                },
+                json={
+                    "model": model,
+                    "messages": [
+                        {"role": "system", "content": system_prompt},
+                        {"role": "user", "content": user_content if image_paths else user_text}
+                    ],
+                    "temperature": 0.4,
+                    "max_tokens": 4096
+                },
+                timeout=85
+            )
+            if resp.status_code == 200:
+                raw_text = resp.json()["choices"][0]["message"]["content"].strip()
+                if "```json" in raw_text:
+                    raw_text = raw_text.split("```json")[1].split("```")[0].strip()
+                elif "```" in raw_text:
+                    raw_text = raw_text.split("```")[1].split("```")[0].strip()
+                
+                start_idx = raw_text.find("[")
+                end_idx = raw_text.rfind("]")
+                if start_idx != -1 and end_idx != -1:
+                    raw_text = raw_text[start_idx:end_idx + 1]
+                
+                questions = json.loads(raw_text)
+                if isinstance(questions, list) and len(questions) > 0:
+                    return {"success": True, "questions": questions, "model_used": f"OpenAI ({model})"}
+            else:
+                last_error = f"OpenAI ({model}) Error ({resp.status_code}): {resp.text}"
+                if resp.status_code == 429 and ("credit_balance_exhausted" in resp.text or "insufficient_quota" in resp.text):
+                    last_error = "OpenAI Error: Your OpenAI account has 0 credits remaining. Please add credits at https://platform.openai.com/settings/organization/billing/ or use Google Gemini / Groq."
+                    break
+        except Exception as e:
+            last_error = str(e)
+
+    return {"success": False, "error": last_error or "Failed to generate questions with OpenAI."}
+
 def generate_questions_with_groq(api_key, text_content=None, num_questions=5, question_type="mcq", difficulty="Medium", custom_prompt=None, total_marks=None, available_figures=None):
     """
     Calls Groq Cloud API with ultra-fast LLMs and custom prompt blueprints.
@@ -265,7 +357,7 @@ def generate_questions_with_groq(api_key, text_content=None, num_questions=5, qu
         available_figures=available_figures
     )
 
-    user_prompt = f"Please generate the exam paper based strictly on this reference material:\n\n{text_content[:30000] if text_content else 'Academic examination questions requested by instructor'}"
+    user_prompt = f"Please generate the exam paper based strictly on this reference material:\n\n{text_content[:12000] if text_content else 'Academic examination questions requested by instructor'}"
     
     models_to_try = ["qwen/qwen3.8-27b", "openai/gpt-oss-120b", "openai/gpt-oss-20b"]
     last_error = None
@@ -284,9 +376,10 @@ def generate_questions_with_groq(api_key, text_content=None, num_questions=5, qu
                         {"role": "system", "content": system_prompt},
                         {"role": "user", "content": user_prompt}
                     ],
-                    "temperature": 0.4
+                    "temperature": 0.4,
+                    "max_tokens": 4096
                 },
-                timeout=40
+                timeout=55
             )
             if resp.status_code == 200:
                 raw_text = resp.json()["choices"][0]["message"]["content"].strip()
@@ -310,10 +403,28 @@ def generate_questions_with_groq(api_key, text_content=None, num_questions=5, qu
             
     return {"success": False, "error": last_error or "Failed to generate questions with Groq."}
 
-def generate_questions_unified(gemini_key=None, groq_key=None, text_content=None, image_paths=None, num_questions=5, question_type="mcq", difficulty="Medium", custom_prompt=None, total_marks=None, available_figures=None):
+def generate_questions_unified(openai_key=None, gemini_key=None, groq_key=None, text_content=None, image_paths=None, num_questions=5, question_type="mcq", difficulty="Medium", custom_prompt=None, total_marks=None, available_figures=None):
     """
-    Unified AI Orchestrator with custom prompt and blueprint support.
+    Unified AI Orchestrator with fallback across OpenAI (ChatGPT), Gemini, and Groq.
     """
+    openai_err = None
+    if openai_key:
+        result = generate_questions_with_openai(
+            api_key=openai_key,
+            text_content=text_content,
+            image_paths=image_paths,
+            num_questions=num_questions,
+            question_type=question_type,
+            difficulty=difficulty,
+            custom_prompt=custom_prompt,
+            total_marks=total_marks,
+            available_figures=available_figures
+        )
+        if result.get("success"):
+            return result
+        openai_err = result.get("error")
+        print(f"OpenAI attempt failed: {openai_err}. Checking fallback...")
+
     gemini_err = None
     if gemini_key:
         result = generate_questions_with_gemini(
@@ -349,11 +460,18 @@ def generate_questions_unified(gemini_key=None, groq_key=None, text_content=None
         groq_err = result.get("error")
         print(f"Groq attempt failed: {groq_err}")
 
-    # If both failed or no keys: do NOT silently inject pre-made computer science questions!
-    if gemini_key or groq_key:
+    # If keys were provided but all failed:
+    if openai_key or gemini_key or groq_key:
+        errors = []
+        if openai_key:
+            errors.append(f"OpenAI: {openai_err or 'Failed'}")
+        if gemini_key:
+            errors.append(f"Gemini: {gemini_err or 'Failed'}")
+        if groq_key:
+            errors.append(f"Groq: {groq_err or 'Failed'}")
         return {
             "success": False, 
-            "error": f"AI generation could not complete. Gemini: {gemini_err or 'None'}. Groq: {groq_err or 'None'}. Please verify your API key or network connection."
+            "error": "AI generation could not complete. " + " | ".join(errors) + ". Please check API keys or quotas."
         }
 
     return generate_mock_questions(text_content or "", num_questions=num_questions, question_type=question_type, total_marks=total_marks)
@@ -415,9 +533,10 @@ def generate_mock_questions(topic_or_context, num_questions=5, question_type="mc
     return {"success": True, "questions": questions, "is_mock": True}
 
 
-def evaluate_answer_with_ai(gemini_key, groq_key, question_text, max_points, correct_answer="", student_text="", image_path=None, explanation=""):
+def evaluate_answer_with_ai(gemini_key=None, groq_key=None, openai_key=None, question_text="", max_points=1.0, correct_answer="", student_text="", image_path=None, explanation=""):
     """
     Evaluates a student's answer (written text or uploaded handwritten photo) using AI.
+    Supports OpenAI (GPT-4o/mini), Google Gemini, and Groq Cloud.
     Returns: {"success": bool, "awarded_marks": float, "feedback": str, "model_used": str}
     """
     max_pts = float(max_points) if max_points else 1.0
@@ -456,7 +575,54 @@ Return ONLY a JSON object with this exact structure:
 }}
 """
 
-    # 1. Try Gemini first (especially if image_path is provided)
+    # 1. Try OpenAI first if configured (high accuracy + native vision for handwritten photos)
+    if openai_key:
+        user_parts = [{"type": "text", "text": eval_prompt}]
+        if image_path and os.path.exists(image_path):
+            try:
+                mime, b64_data = encode_image_base64(image_path)
+                user_parts.append({
+                    "type": "image_url",
+                    "image_url": {"url": f"data:{mime};base64,{b64_data}"}
+                })
+            except Exception as e:
+                print(f"Error encoding student answer image for OpenAI: {e}")
+
+        openai_models = ["gpt-4o-mini", "gpt-4o"]
+        for o_model in openai_models:
+            try:
+                headers = {
+                    "Authorization": f"Bearer {openai_key}",
+                    "Content-Type": "application/json"
+                }
+                payload = {
+                    "model": o_model,
+                    "messages": [
+                        {"role": "system", "content": "You are an academic grader. Return strictly JSON with 'awarded_marks' and 'feedback'."},
+                        {"role": "user", "content": user_parts if image_path else eval_prompt}
+                    ],
+                    "temperature": 0.2,
+                    "response_format": {"type": "json_object"}
+                }
+                resp = requests.post("https://api.openai.com/v1/chat/completions", headers=headers, json=payload, timeout=40)
+                if resp.status_code == 200:
+                    content = resp.json()["choices"][0]["message"]["content"].strip()
+                    data = json.loads(content)
+                    awarded = float(data.get("awarded_marks", 0.0))
+                    awarded = max(0.0, min(max_pts, round(awarded, 1)))
+                    feedback = data.get("feedback", "AI evaluated response.")
+                    return {
+                        "success": True,
+                        "awarded_marks": awarded,
+                        "feedback": feedback,
+                        "model_used": f"OpenAI ({o_model})"
+                    }
+                else:
+                    print(f"OpenAI error ({o_model}): {resp.status_code} - {resp.text}")
+            except Exception as e:
+                print(f"OpenAI evaluation error ({o_model}): {e}")
+
+    # 2. Try Gemini (multimodal supported)
     if gemini_key:
         parts = [{"text": eval_prompt}]
         if image_path and os.path.exists(image_path):
@@ -512,7 +678,7 @@ Return ONLY a JSON object with this exact structure:
             except Exception as e:
                 print(f"Gemini evaluation error ({model_name}): {e}")
 
-    # 2. Try Groq (if text-based or if Gemini failed and student provided text)
+    # 3. Try Groq (if text-based or if student provided text)
     if groq_key and student_text:
         groq_models = ["llama-3.3-70b-versatile", "llama-3.1-8b-instant"]
         for g_model in groq_models:
@@ -548,5 +714,5 @@ Return ONLY a JSON object with this exact structure:
 
     return {
         "success": False,
-        "error": "AI evaluation could not be completed. Please configure a valid Gemini or Groq API key in Tutor Settings."
+        "error": "AI evaluation could not be completed. Please configure a valid OpenAI, Gemini, or Groq API key in Tutor Settings."
     }
