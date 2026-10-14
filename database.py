@@ -341,19 +341,34 @@ def init_db():
             if column not in columns:
                 cursor.execute(f"ALTER TABLE {table} ADD COLUMN {column} {definition}")
 
-    # Seed an initial admin if none exists and credentials are provided via environment variables.
-    cursor.execute("SELECT id FROM users WHERE role = 'admin' LIMIT 1")
-    if not cursor.fetchone():
-        initial_password = os.environ.get("ADMIN_INITIAL_PASSWORD", "").strip()
-        if initial_password:
-            initial_username = os.environ.get("ADMIN_INITIAL_USERNAME", "admin").strip()
-            initial_email = os.environ.get("ADMIN_INITIAL_EMAIL", f"{initial_username}@examguard.ai").strip()
-            from werkzeug.security import generate_password_hash
+    # Seed initial admin(s) if provided via environment variables.
+    from werkzeug.security import generate_password_hash
+    
+    # Primary Admin
+    initial_password = os.environ.get("ADMIN_INITIAL_PASSWORD", "").strip()
+    if initial_password:
+        initial_username = os.environ.get("ADMIN_INITIAL_USERNAME", "admin").strip()
+        initial_email = os.environ.get("ADMIN_INITIAL_EMAIL", f"{initial_username.lower()}@examguard.ai").strip()
+        cursor.execute("SELECT id FROM users WHERE LOWER(username) = LOWER(?)", (initial_username,))
+        if not cursor.fetchone():
             cursor.execute("INSERT INTO users (username, email, password_hash, full_name, role) VALUES (?, ?, ?, ?, ?)",
                            (initial_username, initial_email, generate_password_hash(initial_password), "ExamGuard Administrator", "admin"))
             print(f"Created initial admin account: {initial_username}")
+
+    # Second Admin
+    sec_password = os.environ.get("ADMIN_SECOND_INITIAL_PASSWORD", "").strip()
+    if sec_password:
+        sec_username = os.environ.get("ADMIN_SECOND_INITIAL_USERNAME", "admin2").strip()
+        sec_email = os.environ.get("ADMIN_SECOND_INITIAL_EMAIL", f"{sec_username.lower()}@examguard.ai").strip()
+        cursor.execute("SELECT id FROM users WHERE LOWER(username) = LOWER(?)", (sec_username,))
+        if not cursor.fetchone():
+            cursor.execute("INSERT INTO users (username, email, password_hash, full_name, role) VALUES (?, ?, ?, ?, ?)",
+                           (sec_username, sec_email, generate_password_hash(sec_password), "ExamGuard Co-Administrator", "admin"))
+            print(f"Created second admin account: {sec_username}")
         else:
-            print("Notice: No admin account created yet. Set ADMIN_INITIAL_PASSWORD to create one.")
+            # If user already exists, ensure role is upgraded to admin
+            cursor.execute("UPDATE users SET role = 'admin' WHERE LOWER(username) = LOWER(?)", (sec_username,))
+
     conn.commit()
     conn.close()
 
