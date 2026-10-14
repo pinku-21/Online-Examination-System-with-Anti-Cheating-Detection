@@ -176,8 +176,26 @@
                                 <span>View Result</span>
                                 <i data-lucide="arrow-right" class="w-3.5 h-3.5"></i>
                             </a>
+                        {% elif ex.time_status == 'expired' %}
+                            {# If exam schedule window has ended, cannot start or resume #}
+                            {% if ex.active_sub_id %}
+                                <span class="text-[11px] text-rose-600 font-semibold flex items-center gap-1">
+                                    <i data-lucide="lock" class="w-3.5 h-3.5"></i> Window ended &bull; Closed
+                                </span>
+                                <button disabled class="px-4 py-2 bg-slate-200 text-slate-500 text-xs font-bold rounded-xl cursor-not-allowed inline-flex items-center gap-1.5 opacity-80" title="Exam time window has expired.">
+                                    <i data-lucide="lock" class="w-3.5 h-3.5"></i>
+                                    <span>Time Window Expired</span>
+                                </button>
+                            {% else %}
+                                <span class="text-[11px] text-slate-400 font-semibold flex items-center gap-1">
+                                    <i data-lucide="lock" class="w-3.5 h-3.5"></i> Exam period has ended
+                                </span>
+                                <button disabled class="px-4 py-2 bg-slate-200 text-slate-400 text-xs font-bold rounded-xl cursor-not-allowed inline-flex items-center gap-1.5">
+                                    <span>Closed</span>
+                                </button>
+                            {% endif %}
                         {% elif ex.active_sub_id %}
-                            {# Student already has an active/paused session — show Resume instead of Start #}
+                            {# Student already has an active/paused session during a valid window — show Resume instead of Start #}
                             {% if ex.active_sub_status == 'paused' %}
                                 <span class="text-[11px] text-sky-700 font-semibold flex items-center gap-1">
                                     <i data-lucide="pause-circle" class="w-3.5 h-3.5"></i> Exam paused — awaiting tutor
@@ -210,13 +228,6 @@
                             <button disabled class="px-4 py-2 bg-amber-50 text-amber-600 text-xs font-bold rounded-xl cursor-not-allowed inline-flex items-center gap-1.5 border border-amber-200 opacity-80">
                                 <i data-lucide="clock" class="w-3.5 h-3.5"></i>
                                 <span>Starts Soon</span>
-                            </button>
-                        {% elif ex.time_status == 'expired' %}
-                            <span class="text-[11px] text-slate-400 font-semibold flex items-center gap-1">
-                                <i data-lucide="lock" class="w-3.5 h-3.5"></i> Exam period has ended
-                            </span>
-                            <button disabled class="px-4 py-2 bg-slate-200 text-slate-400 text-xs font-bold rounded-xl cursor-not-allowed inline-flex items-center gap-1.5">
-                                <span>Closed</span>
                             </button>
                         {% else %}
                             <span class="text-[11px] text-emerald-600 font-semibold flex items-center gap-1">

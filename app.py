@@ -1934,6 +1934,25 @@ def student_exam_room(submission_id):
         conn.close()
         return redirect(url_for("exam_result", submission_id=submission_id))
 
+    # Check if the scheduled exam window has already ended
+    if submission["schedule_type"] == "scheduled" and submission["end_time"]:
+        try:
+            end_dt = datetime.fromisoformat(str(submission["end_time"]))
+            if get_current_time() > end_dt:
+                # Window expired — auto-finalize submission if still in_progress
+                if submission["status"] == "in_progress":
+                    cursor.execute("""
+                        UPDATE submissions
+                        SET status = 'submitted', submitted_at = CURRENT_TIMESTAMP
+                        WHERE id = ?
+                    """, (submission_id,))
+                    conn.commit()
+                conn.close()
+                flash("The scheduled time window for this exam has ended. The exam is now closed.", "warning")
+                return redirect(url_for("student_dashboard"))
+        except Exception:
+            pass
+
     # If paused or awaiting tutor approval, show a waiting screen instead of the exam
     if submission["status"] in ["paused", "pause_requested"]:
         conn.close()
