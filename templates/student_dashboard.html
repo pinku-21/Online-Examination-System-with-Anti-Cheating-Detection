@@ -288,8 +288,8 @@
                                 <td class="px-6 py-4 font-mono text-xs text-sky-700 font-bold">{{ sub.exam_code }}</td>
                                 <td class="px-6 py-4 font-bold text-slate-900">{{ sub.score }} / {{ sub.total_points }}</td>
                                 <td class="px-6 py-4">
-                                    <span class="font-bold {% if sub.percentage >= sub.passing_percentage %}text-emerald-600{% else %}text-rose-600{% endif %}">
-                                        {{ sub.percentage }}%
+                                    <span class="font-bold {% if (sub.percentage | default(0.0)) >= (sub.passing_percentage | default(40.0)) %}text-emerald-600{% else %}text-rose-600{% endif %}">
+                                        {{ sub.percentage | default(0.0) }}%
                                     </span>
                                 </td>
                                 <td class="px-6 py-4">
@@ -303,7 +303,7 @@
                                             Terminated
                                         </span>
                                     {% elif sub.status == 'submitted' %}
-                                        {% if sub.percentage >= sub.passing_percentage %}
+                                        {% if (sub.percentage | default(0.0)) >= (sub.passing_percentage | default(40.0)) %}
                                             <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-[11px] font-bold bg-emerald-100 text-emerald-800">
                                                 Passed ✓
                                             </span>

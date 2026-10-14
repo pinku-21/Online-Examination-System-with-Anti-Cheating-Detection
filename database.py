@@ -468,6 +468,32 @@ def get_student_submissions(user_id, roll_number=None):
 
     results = [dict(r) for r in cursor.fetchall()]
     conn.close()
+    for row in results:
+        if row.get("percentage") is None:
+            row["percentage"] = 0.0
+        else:
+            try:
+                row["percentage"] = float(row["percentage"])
+            except (ValueError, TypeError):
+                row["percentage"] = 0.0
+
+        if row.get("passing_percentage") is None:
+            row["passing_percentage"] = 40.0
+        else:
+            try:
+                row["passing_percentage"] = float(row["passing_percentage"])
+            except (ValueError, TypeError):
+                row["passing_percentage"] = 40.0
+
+        if row.get("score") is None:
+            row["score"] = 0.0
+        if row.get("total_points") is None:
+            row["total_points"] = 0.0
+        if row.get("warnings_count") is None:
+            row["warnings_count"] = 0
+        if row.get("max_warnings") is None:
+            row["max_warnings"] = 10
+
     return results
 
 def get_setting(key, default=""):
