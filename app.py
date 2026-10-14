@@ -460,6 +460,21 @@ def logout():
 def index():
     return render_template("index.html")
 
+@app.route("/portfolio")
+def portfolio():
+    """Portfolio showcase page highlighting project architecture, metrics, and engineering achievements."""
+    return render_template("portfolio.html")
+
+@app.route("/PORTFOLIO_CASE_STUDY.md")
+def portfolio_case_study_markdown():
+    """Serves the raw markdown case study for technical recruiters and reviewers."""
+    from flask import send_file
+    case_study_path = os.path.join(os.path.dirname(__file__), "PORTFOLIO_CASE_STUDY.md")
+    if os.path.exists(case_study_path):
+        return send_file(case_study_path, mimetype="text/markdown")
+    return "Case study not found.", 404
+
+
 # --- TUTOR PORTAL ROUTES (ADMIN ONLY) ---
 
 @app.route("/tutor")
