@@ -402,6 +402,46 @@ def admin_reset_password():
     return jsonify({"success": True, "message": "Password updated successfully."})
 
 
+@app.route("/api/student/change-password", methods=["POST"])
+@login_required
+def student_change_password():
+    """Logged in student changes their own password."""
+    from werkzeug.security import generate_password_hash, check_password_hash
+    data = request.get_json() or {}
+    user_id = session.get("user_id")
+    current_password = data.get("current_password", "").strip()
+    new_password = data.get("new_password", "").strip()
+    confirm_password = data.get("confirm_password", "").strip()
+
+    if not current_password or not new_password:
+        return jsonify({"success": False, "error": "Current password and new password are required."})
+
+    if len(new_password) < 4:
+        return jsonify({"success": False, "error": "New password must be at least 4 characters long."})
+
+    if new_password != confirm_password:
+        return jsonify({"success": False, "error": "New password and confirmation do not match."})
+
+    conn = get_connection()
+    cursor = conn.cursor()
+    cursor.execute("SELECT id, password_hash FROM users WHERE id = ?", (user_id,))
+    user = cursor.fetchone()
+
+    if not user:
+        conn.close()
+        return jsonify({"success": False, "error": "User account not found."})
+
+    if not check_password_hash(user["password_hash"], current_password):
+        conn.close()
+        return jsonify({"success": False, "error": "Current password is incorrect."})
+
+    cursor.execute("UPDATE users SET password_hash = ? WHERE id = ?", (generate_password_hash(new_password), user_id))
+    conn.commit()
+    conn.close()
+
+    return jsonify({"success": True, "message": "Your password has been updated successfully!"})
+
+
 @app.route("/logout")
 def logout():
     session.clear()

@@ -315,6 +315,7 @@
                 <label class="block text-xs font-semibold text-slate-700 mb-1">Username <span class="text-rose-500">*</span></label>
                 <input type="text" id="ns-username" placeholder="e.g. rahul2024  (no spaces, lowercase)"
                     class="w-full px-3 py-2.5 text-sm border border-slate-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-indigo-500 font-mono">
+            </div>
             <div>
                 <label class="block text-xs font-semibold text-slate-700 mb-1">Password <span class="text-rose-500">*</span></label>
                 <input type="text" id="ns-password" placeholder="Min. 4 characters"
@@ -348,8 +349,8 @@
 </div>
 
 <!-- ===== RESET PASSWORD MODAL ===== -->
-<div id="reset-pw-modal" class="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-50 flex items-center justify-center p-4 hidden">
-    <div class="bg-white rounded-2xl max-w-sm w-full p-6 shadow-2xl border border-slate-200">
+<div id="reset-pw-modal" class="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-50 items-center justify-center p-4 hidden" style="display: none;">
+    <div class="bg-white rounded-2xl max-w-sm w-full p-6 shadow-2xl border border-slate-200 animate-in fade-in zoom-in-95 duration-150">
         <div class="flex items-center justify-between mb-4">
             <div class="flex items-center space-x-2">
                 <div class="w-9 h-9 rounded-xl bg-amber-100 text-amber-600 flex items-center justify-center">
@@ -357,10 +358,10 @@
                 </div>
                 <div>
                     <h3 class="font-bold text-slate-900">Reset Password</h3>
-                    <p class="text-xs text-slate-500" id="rp-name-label">Student name</p>
+                    <p class="text-xs text-slate-500 font-medium" id="rp-name-label">Student name</p>
                 </div>
             </div>
-            <button onclick="document.getElementById('reset-pw-modal').classList.add('hidden')" class="text-slate-400 hover:text-slate-600">
+            <button onclick="closeResetPasswordModal()" class="text-slate-400 hover:text-slate-600 p-1 rounded-lg hover:bg-slate-100 transition">
                 <i data-lucide="x" class="w-5 h-5"></i>
             </button>
         </div>
@@ -368,13 +369,13 @@
         <div>
             <label class="block text-xs font-semibold text-slate-700 mb-1.5">New Password</label>
             <input type="text" id="rp-new-password" placeholder="Enter new password (min. 4 chars)"
-                class="w-full px-3 py-2.5 text-sm border border-slate-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-amber-500 font-mono">
+                class="w-full px-3.5 py-2.5 text-sm border border-slate-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-amber-500 font-mono">
         </div>
         <div id="rp-error" class="hidden mt-2 p-2.5 bg-rose-50 border border-rose-200 text-rose-700 text-xs rounded-xl"></div>
         <div class="flex gap-3 mt-5">
-            <button onclick="document.getElementById('reset-pw-modal').classList.add('hidden')"
+            <button onclick="closeResetPasswordModal()"
                 class="flex-1 py-2.5 text-sm font-semibold text-slate-600 hover:bg-slate-100 rounded-xl transition">Cancel</button>
-            <button onclick="submitResetPassword()"
+            <button onclick="submitResetPassword()" id="rp-submit-btn"
                 class="flex-1 py-2.5 bg-amber-500 hover:bg-amber-600 text-white text-sm font-bold rounded-xl shadow-sm transition">
                 Update Password
             </button>
@@ -893,24 +894,49 @@
         }
     }
 
+    function closeResetPasswordModal() {
+        const modal = document.getElementById('reset-pw-modal');
+        if (modal) {
+            modal.classList.add('hidden');
+            modal.style.display = 'none';
+        }
+    }
+
     function openResetPassword(studentId, studentName) {
         document.getElementById('rp-student-id').value = studentId;
-        document.getElementById('rp-name-label').textContent = studentName;
+        document.getElementById('rp-name-label').textContent = studentName || 'Student';
         document.getElementById('rp-new-password').value = '';
         document.getElementById('rp-error').classList.add('hidden');
-        document.getElementById('reset-pw-modal').classList.remove('hidden');
+        const modal = document.getElementById('reset-pw-modal');
+        modal.classList.remove('hidden');
+        modal.style.display = 'flex';
+        setTimeout(() => {
+            document.getElementById('rp-new-password').focus();
+        }, 100);
     }
 
     async function submitResetPassword() {
         const studentId = document.getElementById('rp-student-id').value;
         const newPassword = document.getElementById('rp-new-password').value.trim();
         const errEl = document.getElementById('rp-error');
+        const submitBtn = document.getElementById('rp-submit-btn');
         errEl.classList.add('hidden');
 
         if (!newPassword) {
             errEl.textContent = 'Please enter a new password.';
             errEl.classList.remove('hidden');
             return;
+        }
+
+        if (newPassword.length < 4) {
+            errEl.textContent = 'Password must be at least 4 characters long.';
+            errEl.classList.remove('hidden');
+            return;
+        }
+
+        if (submitBtn) {
+            submitBtn.disabled = true;
+            submitBtn.textContent = 'Updating...';
         }
 
         try {
@@ -921,7 +947,7 @@
             });
             const res = await resp.json();
             if (res.success) {
-                document.getElementById('reset-pw-modal').classList.add('hidden');
+                closeResetPasswordModal();
                 Swal.fire({
                     icon: 'success',
                     title: 'Password Updated!',
@@ -935,6 +961,11 @@
         } catch (err) {
             errEl.textContent = 'Network error.';
             errEl.classList.remove('hidden');
+        } finally {
+            if (submitBtn) {
+                submitBtn.disabled = false;
+                submitBtn.textContent = 'Update Password';
+            }
         }
     }
 
