@@ -1667,17 +1667,19 @@ def student_dashboard():
     if u_row and u_row["profile_photo"]:
         session["profile_photo"] = u_row["profile_photo"]
 
-    # Fetch all active exams
+    # Fetch all active exams, including any in-progress session for this student
     cursor.execute("""
         SELECT e.*,
                (SELECT COUNT(*) FROM questions WHERE exam_id = e.id) as question_count,
                (SELECT id FROM submissions WHERE exam_id = e.id AND (user_id = ? OR roll_number = ?) AND status != 'in_progress' LIMIT 1) as completed_sub_id,
                (SELECT score FROM submissions WHERE exam_id = e.id AND (user_id = ? OR roll_number = ?) AND status != 'in_progress' LIMIT 1) as completed_score,
-               (SELECT percentage FROM submissions WHERE exam_id = e.id AND (user_id = ? OR roll_number = ?) AND status != 'in_progress' LIMIT 1) as completed_pct
+               (SELECT percentage FROM submissions WHERE exam_id = e.id AND (user_id = ? OR roll_number = ?) AND status != 'in_progress' LIMIT 1) as completed_pct,
+               (SELECT id FROM submissions WHERE exam_id = e.id AND (user_id = ? OR roll_number = ?) AND status IN ('in_progress','pause_requested','paused') ORDER BY started_at DESC LIMIT 1) as active_sub_id,
+               (SELECT status FROM submissions WHERE exam_id = e.id AND (user_id = ? OR roll_number = ?) AND status IN ('in_progress','pause_requested','paused') ORDER BY started_at DESC LIMIT 1) as active_sub_status
         FROM exams e
         WHERE e.is_active = 1
         ORDER BY e.created_at DESC
-    """, (user_id, roll_number, user_id, roll_number, user_id, roll_number))
+    """, (user_id, roll_number, user_id, roll_number, user_id, roll_number, user_id, roll_number, user_id, roll_number))
     all_exams = cursor.fetchall()
 
     cursor.execute("SELECT exam_id FROM exam_assignments WHERE user_id = ?", (user_id,))
@@ -1807,7 +1809,21 @@ def student_start():
             except Exception:
                 pass
 
-    # Create new in_progress submission linked to student user_id
+    # Check if student already has an in_progress submission for this exam
+    # (e.g. they refreshed the page or came back after closing the tab)
+    # → redirect straight to it instead of creating a duplicate.
+    cursor.execute("""
+        SELECT id FROM submissions
+        WHERE exam_id = ? AND (user_id = ? OR roll_number = ?)
+          AND status IN ('in_progress', 'pause_requested', 'paused')
+        ORDER BY started_at DESC LIMIT 1
+    """, (exam["id"], user_id, roll_number))
+    existing = cursor.fetchone()
+    if existing:
+        conn.close()
+        return redirect(url_for("student_exam_room", submission_id=existing["id"]))
+
+    # No active session found — create a new in_progress submission
     cursor.execute("""
         INSERT INTO submissions (exam_id, student_name, roll_number, status, started_at, user_id)
         VALUES (?, ?, ?, 'in_progress', CURRENT_TIMESTAMP, ?)

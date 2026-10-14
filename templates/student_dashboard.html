@@ -164,6 +164,33 @@
                                 <span>View Result</span>
                                 <i data-lucide="arrow-right" class="w-3.5 h-3.5"></i>
                             </a>
+                        {% elif ex.active_sub_id %}
+                            {# Student already has an active/paused session — show Resume instead of Start #}
+                            {% if ex.active_sub_status == 'paused' %}
+                                <span class="text-[11px] text-sky-700 font-semibold flex items-center gap-1">
+                                    <i data-lucide="pause-circle" class="w-3.5 h-3.5"></i> Exam paused — awaiting tutor
+                                </span>
+                                <a href="/student/exam/{{ ex.active_sub_id }}" class="px-5 py-2.5 bg-sky-100 hover:bg-sky-200 text-sky-800 text-xs font-bold rounded-xl shadow-sm transition inline-flex items-center gap-1.5 border border-sky-300">
+                                    <i data-lucide="pause-circle" class="w-3.5 h-3.5"></i>
+                                    <span>View Pause Status</span>
+                                </a>
+                            {% elif ex.active_sub_status == 'pause_requested' %}
+                                <span class="text-[11px] text-amber-700 font-semibold flex items-center gap-1">
+                                    <i data-lucide="clock" class="w-3.5 h-3.5"></i> Pause requested
+                                </span>
+                                <a href="/student/exam/{{ ex.active_sub_id }}" class="px-5 py-2.5 bg-amber-100 hover:bg-amber-200 text-amber-800 text-xs font-bold rounded-xl shadow-sm transition inline-flex items-center gap-1.5 border border-amber-300">
+                                    <i data-lucide="clock" class="w-3.5 h-3.5"></i>
+                                    <span>View Status</span>
+                                </a>
+                            {% else %}
+                                <span class="text-[11px] text-amber-700 font-semibold flex items-center gap-1">
+                                    <span class="w-2 h-2 rounded-full bg-amber-500 animate-pulse"></span> Session in progress
+                                </span>
+                                <a href="/student/exam/{{ ex.active_sub_id }}" class="px-5 py-2.5 bg-amber-500 hover:bg-amber-600 text-white text-xs font-bold rounded-xl shadow-sm hover:shadow transition inline-flex items-center gap-1.5">
+                                    <i data-lucide="play-circle" class="w-3.5 h-3.5"></i>
+                                    <span>Resume Exam</span>
+                                </a>
+                            {% endif %}
                         {% elif ex.time_status == 'upcoming' %}
                             <span class="text-[11px] text-amber-700 font-semibold flex items-center gap-1">
                                 <i data-lucide="info" class="w-3.5 h-3.5"></i> Not open yet
