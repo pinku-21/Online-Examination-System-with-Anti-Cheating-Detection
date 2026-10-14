@@ -744,6 +744,7 @@
 
                 if (res.success && res.is_match) {
                     isFaceVerified = true;
+                    customRefPhotoBlob = null; // Clear so subsequent re-scans don't re-upload/override reference
                     if (alertBox) {
                         alertBox.className = 'mt-3.5 p-2.5 rounded-xl text-xs font-medium flex items-center space-x-2 bg-emerald-500/20 text-emerald-200 border border-emerald-500/40';
                     }
@@ -785,6 +786,18 @@
                         showConfirmButton: false
                     });
                 } else if (res.success && !res.is_match) {
+                    isFaceVerified = false; // Lock exam entry on mismatch
+                    customRefPhotoBlob = null;
+                    const enterBtn = document.getElementById('btn-enter-exam');
+                    const enterText = document.getElementById('btn-enter-exam-text');
+                    if (enterBtn) {
+                        enterBtn.disabled = true;
+                        enterBtn.classList.add('disabled:opacity-40', 'disabled:cursor-not-allowed', 'opacity-40', 'cursor-not-allowed');
+                    }
+                    if (enterText) {
+                        enterText.textContent = 'Verify Face to Enter Exam';
+                    }
+
                     if (res.warnings_count !== undefined) {
                         warningsCount = res.warnings_count;
                         const strikeEl = document.getElementById('strike-counter');
@@ -799,7 +812,7 @@
                     }
                     const confPct = Math.round(res.confidence || 0);
                     if (statusText) {
-                        statusText.textContent = `⚠️ Face Mismatch (${confPct}% confidence). ${res.reason || 'Live webcam face does not match registered profile.'}`;
+                        statusText.textContent = `⚠️ Face Mismatch (${confPct}% match). ${res.reason || 'Live webcam face does not match registered profile.'}`;
                     }
                     lucide.createIcons();
 
@@ -824,6 +837,16 @@
                         confirmButtonColor: '#e11d48'
                     });
                 } else {
+                    isFaceVerified = false;
+                    const enterBtn = document.getElementById('btn-enter-exam');
+                    const enterText = document.getElementById('btn-enter-exam-text');
+                    if (enterBtn) {
+                        enterBtn.disabled = true;
+                        enterBtn.classList.add('disabled:opacity-40', 'disabled:cursor-not-allowed', 'opacity-40', 'cursor-not-allowed');
+                    }
+                    if (enterText) {
+                        enterText.textContent = 'Verify Face to Enter Exam';
+                    }
                     if (alertBox) {
                         alertBox.className = 'mt-3.5 p-2.5 rounded-xl text-xs font-medium flex items-center space-x-2 bg-rose-500/25 text-rose-200 border border-rose-500/40';
                     }

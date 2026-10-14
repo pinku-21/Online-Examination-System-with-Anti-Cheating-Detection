@@ -821,7 +821,7 @@ def api_verify_face_ai(submission_id):
     if not ref_photo_url and session.get("profile_photo"):
         ref_photo_url = session.get("profile_photo", "").strip()
 
-    # If first time registering a reference photo during check-in:
+    # If student explicitly uploaded/registered a custom reference photo file:
     custom_ref_file = request.files.get("reference_photo")
     if custom_ref_file and custom_ref_file.filename:
         p_dir = os.path.join(os.path.dirname(__file__), "static", "profile_photos")
@@ -833,9 +833,11 @@ def api_verify_face_ai(submission_id):
         if sub_row["user_id"]:
             cursor.execute("UPDATE users SET profile_photo = ? WHERE id = ?", (ref_photo_url, sub_row["user_id"]))
             conn.commit()
+        session["profile_photo"] = ref_photo_url
 
     if not ref_photo_url:
-        # First time taking exam: save this clean webcam scan as their registered reference photo
+        # First time taking exam and no photo was provided at all:
+        # save this clean webcam scan as their registered reference photo
         p_dir = os.path.join(os.path.dirname(__file__), "static", "profile_photos")
         os.makedirs(p_dir, exist_ok=True)
         p_name = f"user_{sub_row['user_id'] or submission_id}_{int(datetime.now().timestamp())}.jpg"
@@ -846,6 +848,7 @@ def api_verify_face_ai(submission_id):
         if sub_row["user_id"]:
             cursor.execute("UPDATE users SET profile_photo = ? WHERE id = ?", (ref_photo_url, sub_row["user_id"]))
             conn.commit()
+        session["profile_photo"] = ref_photo_url
 
         cursor.execute("""
             UPDATE submissions 

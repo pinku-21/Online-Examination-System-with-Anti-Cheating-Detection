@@ -703,28 +703,31 @@ def verify_faces_with_gemini(gemini_key, reference_image_path, live_snapshot_pat
             ref_mime, ref_b64 = prepare_fast_b64(reference_image_path)
             live_mime, live_b64 = prepare_fast_b64(live_snapshot_path)
 
-            prompt = f"""You are a high-security biometric proctoring verification system.
-TASK: Compare IMAGE 1 (Official registered reference photo of student: {student_name or 'Candidate'}) with IMAGE 2 (Live webcam snapshot captured right now at exam check-in).
+            prompt = f"""You are a high-precision, strict biometric facial verification system for high-stakes online examinations.
+TASK:
+Compare IMAGE 1 (Official registered reference photo of student: {student_name or 'Candidate'}) with IMAGE 2 (Live webcam snapshot captured right now at exam check-in).
 
-Determine whether both images show the EXACT SAME INDIVIDUAL.
-Analyze:
-- Facial features: eye spacing, eyebrow shape, nose bridge/tip, mouth width, lips, ear placement.
-- Facial structure: jawline, cheekbones, chin, forehead, overall face shape.
-- Account for reasonable variations: slight lighting differences, camera angles, glasses, minor expression changes, or hairstyles.
-- Strictly detect impersonation: if someone else (friend, sibling, parent, different person, impostor) is sitting in front of the camera, flag is_match as false.
+CRITICAL REQUIREMENT:
+You must determine whether IMAGE 1 and IMAGE 2 show the EXACT SAME PERSON or DIFFERENT INDIVIDUALS.
+- Look at immutable facial landmarks: eye shape and distance, eyebrow contour, nose bridge width and tip shape, lip fullness and mouth corners, cheekbone structure, ear shape, jawline, and chin.
+- If IMAGE 2 is someone else (a friend, sibling, family member, coworker, or different person of any age/gender):
+  YOU MUST SET "is_match": false and "confidence" MUST BE BETWEEN 5 and 35. NEVER set is_match to true for two different people.
+- Allow ONLY the same human subject under normal variations (slight lighting changes, glasses, smiling/neutral expression, slight angle tilt, minor haircut change).
+- If uncertain or if facial structure differs: REJECT ("is_match": false).
 
-STRICT JSON OUTPUT FORMAT ONLY:
+STRICT JSON OUTPUT ONLY (NO EXPLANATION OUTSIDE JSON):
+If it IS the exact same person:
 {{
   "is_match": true,
   "confidence": 92,
-  "reason": "Facial symmetry, nose bridge, eye spacing, and jawline structure match the registered student."
+  "reason": "Facial geometry, eye spacing, nose contour, and jaw structure match the registered candidate."
 }}
 
-If the person does NOT match:
+If it is SOMEONE ELSE / DIFFERENT PERSON / MISMATCH:
 {{
   "is_match": false,
-  "confidence": 20,
-  "reason": "Different facial geometry, jawline, and nose structure from the registered profile photo."
+  "confidence": 18,
+  "reason": "Different individual detected: facial contours, nose bridge, jawline, and eye landmarks do not match registered photo."
 }}
 """
 
@@ -833,21 +836,23 @@ If the person does NOT match:
 
         norm_corr = max(0.0, corr)
         hist_sim = max(0.0, min(1.0, hist_sim))
-        combined_score = max(0.0, min(1.0, (norm_corr * 0.45 + hist_sim * 0.55)))
+        # Combined score weights structural correlation heavily over lighting/color histograms
+        combined_score = max(0.0, min(1.0, (norm_corr * 0.70 + hist_sim * 0.30)))
 
-        is_m = combined_score >= 0.48
+        # Conservative threshold: two different people in the same room must not pass
+        is_m = combined_score >= 0.72
         if is_m:
-            conf = round(65.0 + ((combined_score - 0.48) / 0.52) * 33.0, 1)
-            conf = min(98.0, max(65.0, conf))
+            conf = round(70.0 + ((combined_score - 0.72) / 0.28) * 25.0, 1)
+            conf = min(95.0, max(70.0, conf))
         else:
-            conf = round(min(55.0, combined_score * 90.0), 1)
+            conf = round(min(45.0, combined_score * 50.0), 1)
 
         return {
             "success": True,
             "is_match": is_m,
             "confidence": conf,
-            "reason": ("Facial structure, skin tone, and features match registered photo." if is_m 
-                       else "Different facial structure, features, or lighting profile from registered candidate."),
+            "reason": ("Facial structural correlation and features match registered photo." if is_m 
+                       else "Different facial structure, feature geometry, or impostor detected."),
             "model_used": "Local Biometric Analyzer (Fallback)"
         }
     except Exception as local_err:
