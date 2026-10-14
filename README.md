@@ -1,7 +1,7 @@
 # 🛡️ ExamGuard AI — Smart Online Examination System with Anti-Cheating Detection & AI Question Generation
 
-> **College Major Project**  
-> **Domain:** EdTech & Cybersecurity / Web Application & AI  
+
+> **Domain:** BTech & Cybersecurity / Web Application & AI  
 > **Target Audience:** Online Tutors, Educators, Academic Institutions, and Students  
 
 ---
