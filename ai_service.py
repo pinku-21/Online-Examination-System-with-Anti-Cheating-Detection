@@ -685,8 +685,23 @@ def verify_faces_with_gemini(gemini_key, reference_image_path, live_snapshot_pat
     # 1. Try Gemini Vision AI if API key is present
     if gemini_key and gemini_key.strip():
         try:
-            ref_mime, ref_b64 = encode_image_base64(reference_image_path)
-            live_mime, live_b64 = encode_image_base64(live_snapshot_path)
+            from PIL import Image
+            import io
+
+            # Optimize and downscale snapshots to 380x380 JPEG for fast network upload and low inference latency
+            def prepare_fast_b64(img_path):
+                try:
+                    with Image.open(img_path) as im:
+                        im = im.convert('RGB')
+                        im.thumbnail((380, 380), Image.Resampling.LANCZOS)
+                        buf = io.BytesIO()
+                        im.save(buf, format='JPEG', quality=82, optimize=True)
+                        return "image/jpeg", base64.b64encode(buf.getvalue()).decode("utf-8")
+                except Exception:
+                    return encode_image_base64(img_path)
+
+            ref_mime, ref_b64 = prepare_fast_b64(reference_image_path)
+            live_mime, live_b64 = prepare_fast_b64(live_snapshot_path)
 
             prompt = f"""You are a high-security biometric proctoring verification system.
 TASK: Compare IMAGE 1 (Official registered reference photo of student: {student_name or 'Candidate'}) with IMAGE 2 (Live webcam snapshot captured right now at exam check-in).
@@ -696,7 +711,7 @@ Analyze:
 - Facial features: eye spacing, eyebrow shape, nose bridge/tip, mouth width, lips, ear placement.
 - Facial structure: jawline, cheekbones, chin, forehead, overall face shape.
 - Account for reasonable variations: slight lighting differences, camera angles, glasses, minor expression changes, or hairstyles.
-- Strictly detect impersonation: if someone else (friend, sibling, different person, impostor) is sitting in front of the camera, flag is_match as false.
+- Strictly detect impersonation: if someone else (friend, sibling, parent, different person, impostor) is sitting in front of the camera, flag is_match as false.
 
 STRICT JSON OUTPUT FORMAT ONLY:
 {{
@@ -721,15 +736,13 @@ If the person does NOT match:
                 {"inline_data": {"mime_type": live_mime, "data": live_b64}}
             ]
 
+            # Fast models ordered by lowest latency and best availability first
             models = [
+                "gemini-flash-lite-latest",
+                "gemini-3.5-flash-lite",
                 "gemini-3.8-flash",
                 "gemini-flash-latest",
-                "gemini-3.5-flash",
-                "gemini-3.5-flash-lite",
-                "gemini-flash-lite-latest",
-                "gemini-2.5-flash",
-                "gemini-2.0-flash",
-                "gemini-1.5-flash"
+                "gemini-3.5-flash"
             ]
 
             for model_name in models:
@@ -742,7 +755,7 @@ If the person does NOT match:
                     }
                 }
                 try:
-                    resp = requests.post(url, json=payload, headers={"Content-Type": "application/json"}, timeout=25)
+                    resp = requests.post(url, json=payload, headers={"Content-Type": "application/json"}, timeout=8)
                     if resp.status_code == 200:
                         raw_text = resp.json()["candidates"][0]["content"]["parts"][0]["text"].strip()
                         if raw_text.startswith("```json"):

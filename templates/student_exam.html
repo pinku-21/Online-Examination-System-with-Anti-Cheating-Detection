@@ -425,6 +425,7 @@
         let isPauseRequested = false;
         let autoSaveInterval = null;
         let timeRemainingSeconds = DURATION_MINUTES * 60;
+        let strikeAckTimer = null; // 10s timer for returning to exam after a strike modal shows
 
         // If exam has a strict scheduled end time, cap the timer so it ends exactly at the scheduled time
         if (SCHEDULE_TYPE === 'scheduled' && END_TIME_STR) {
@@ -594,7 +595,40 @@
                         isBiometricMismatch = true;
                         updateHudBadge('hud-face', 'Mismatch ❌', 'rose');
                         const reasonMsg = res.reason || 'Live face does not match registered student profile.';
-                        triggerViolation('impersonation_mismatch', `Biometric identity mismatch: The person taking the exam does not match the registered student (${Math.round(res.confidence || 0)}% match). ${reasonMsg}`);
+                        
+                        // Update warningsCount from backend response
+                        if (res.warnings_count !== undefined) {
+                            warningsCount = res.warnings_count;
+                            const strikeEl = document.getElementById('strike-counter');
+                            if (strikeEl) strikeEl.innerText = warningsCount;
+                        }
+                        
+                        if (res.is_terminated || warningsCount >= MAX_WARNINGS) {
+                            isTerminated = true;
+                            isExamActive = false;
+                            clearInterval(timerInterval);
+                            clearInterval(aiDetectionInterval);
+                            clearInterval(audioAnalysisInterval);
+                            if (strikeAckTimer) clearInterval(strikeAckTimer);
+
+                            Swal.fire({
+                                icon: 'error',
+                                title: 'EXAM TERMINATED!',
+                                html: `
+                                    <p class="text-sm text-slate-700 font-semibold mb-2">Biometric Impersonation Mismatch</p>
+                                    <p class="text-xs text-rose-600 font-bold">You exceeded the maximum allowed cheating strikes (${warningsCount}/${MAX_WARNINGS}). Your responses have been locked and submitted to the tutor.</p>
+                                `,
+                                allowOutsideClick: false,
+                                showConfirmButton: true,
+                                confirmButtonText: 'View Report',
+                                confirmButtonColor: '#e11d48'
+                            }).then(() => {
+                                window.location.href = `/student/result/${SUBMISSION_ID}`;
+                            });
+                        } else {
+                            // Backend already incremented warning strike, trigger UI warning alert without re-calling backend
+                            showStrikeWarningAlert('impersonation_mismatch', `Biometric identity mismatch: The person taking the exam does not match the registered student (${Math.round(res.confidence || 0)}% match). ${reasonMsg}`);
+                        }
                     } else {
                         isBiometricMismatch = false;
                         updateHudBadge('hud-face', '1 Person ✓', 'emerald');
@@ -1163,7 +1197,7 @@
                                 } else {
                                     drawBoundingBox(ctx, pred.bbox, 'Candidate', '#10b981');
                                 }
-                            } else if (pred.score >= 0.45 && ['cell phone', 'laptop', 'remote', 'book', 'tablet'].includes(pred.class)) {
+                            } else if (['cell phone', 'laptop', 'tablet'].includes(pred.class) ? pred.score >= 0.52 : (pred.class === 'remote' ? pred.score >= 0.65 : pred.score >= 0.72)) {
                                 detectedDevices.push(pred.class);
                                 drawBoundingBox(ctx, pred.bbox, pred.class.toUpperCase(), '#f43f5e');
                             }
@@ -1176,8 +1210,8 @@
                         const nowMs = Date.now();
                         if (ENABLE_VIDEO && totalPersonCount > 0 && !isGracePeriod && !isBrowsingFile) {
                             if (!lastBiometricCheckTime) {
-                                lastBiometricCheckTime = nowMs - 16000; // First check fires ~6-8s after exam starts
-                            } else if (nowMs - lastBiometricCheckTime >= 22000) {
+                                lastBiometricCheckTime = nowMs - 12000; // First check fires ~3-4s after exam starts
+                            } else if (nowMs - lastBiometricCheckTime >= 14000) {
                                 lastBiometricCheckTime = nowMs;
                                 runInExamBiometricVerification(videoEl);
                             }
@@ -1365,6 +1399,85 @@
             });
         }
 
+        // Show strike warning alert with 10s countdown; adds another strike if not clicked in 10s
+        function showStrikeWarningAlert(type, details) {
+            if (isTerminated) return;
+            if (strikeAckTimer) clearInterval(strikeAckTimer);
+
+            // Double check termination condition
+            if (warningsCount >= MAX_WARNINGS) {
+                isTerminated = true;
+                isExamActive = false;
+                clearInterval(timerInterval);
+                clearInterval(aiDetectionInterval);
+                clearInterval(audioAnalysisInterval);
+                if (strikeAckTimer) clearInterval(strikeAckTimer);
+
+                Swal.fire({
+                    icon: 'error',
+                    title: 'EXAM TERMINATED!',
+                    html: `
+                        <p class="text-sm text-slate-700 font-semibold mb-2">Exceeded maximum allowed anti-cheating warnings (${warningsCount}/${MAX_WARNINGS} strikes).</p>
+                        <p class="text-xs text-rose-600 font-bold">Your responses have been locked and submitted to the tutor.</p>
+                    `,
+                    allowOutsideClick: false,
+                    showConfirmButton: true,
+                    confirmButtonText: 'View Report',
+                    confirmButtonColor: '#e11d48'
+                }).then(() => {
+                    window.location.href = `/student/result/${SUBMISSION_ID}`;
+                });
+                return;
+            }
+
+            let countdown = 10;
+            const updateAlertTimerText = () => {
+                const timerSpan = document.getElementById('strike-return-countdown');
+                if (timerSpan) {
+                    timerSpan.innerText = countdown;
+                }
+            };
+
+            Swal.fire({
+                icon: 'warning',
+                title: `⚠️ WARNING (Strike ${warningsCount}/${MAX_WARNINGS})`,
+                html: `
+                    <p class="text-sm font-semibold text-slate-800 mb-1">Violation: ${type.replace('_', ' ').toUpperCase()}</p>
+                    <p class="text-xs text-slate-500 mb-2">${details}</p>
+                    <div class="my-2 p-2 bg-amber-50 border border-amber-200 rounded-lg text-xs text-amber-900 font-medium">
+                        ⏱️ You must click <b>"Return to Exam"</b> within <span id="strike-return-countdown" class="font-bold text-rose-600 text-sm">${countdown}</span> seconds, or an <b>extra strike penalty</b> will be added!
+                    </div>
+                    <p class="text-xs font-bold text-rose-600">Re-enter full-screen and stay on this page! Reaching ${MAX_WARNINGS} strikes will permanently terminate your exam.</p>
+                `,
+                confirmButtonText: 'Return to Exam',
+                confirmButtonColor: '#0284c7',
+                allowOutsideClick: false,
+                didOpen: () => {
+                    strikeAckTimer = setInterval(() => {
+                        countdown--;
+                        updateAlertTimerText();
+                        if (countdown <= 0) {
+                            clearInterval(strikeAckTimer);
+                            strikeAckTimer = null;
+                            if (Swal.isVisible() && !isTerminated) {
+                                // Student did not return to exam within 10s: trigger additional strike penalty
+                                triggerViolation('delayed_return_penalty', 'Student failed to acknowledge warning and return to exam within 10 seconds.');
+                            }
+                        }
+                    }, 1000);
+                }
+            }).then(() => {
+                if (strikeAckTimer) {
+                    clearInterval(strikeAckTimer);
+                    strikeAckTimer = null;
+                }
+                // Re-request fullscreen if lost
+                if (!document.fullscreenElement) {
+                    document.documentElement.requestFullscreen().catch(() => { });
+                }
+            });
+        }
+
         // Send violation report to backend & update warning counter
         async function triggerViolation(type, details) {
             // Silenced completely while browsing/taking photos or in grace/cooldown periods
@@ -1382,22 +1495,24 @@
 
                 if (res.warnings_count !== undefined) {
                     warningsCount = res.warnings_count;
-                    document.getElementById('strike-counter').innerText = warningsCount;
+                    const strikeEl = document.getElementById('strike-counter');
+                    if (strikeEl) strikeEl.innerText = warningsCount;
                 }
 
-                if (res.is_terminated) {
+                if (res.is_terminated || warningsCount >= MAX_WARNINGS) {
                     isTerminated = true;
                     isExamActive = false;
                     clearInterval(timerInterval);
                     clearInterval(aiDetectionInterval);
                     clearInterval(audioAnalysisInterval);
+                    if (strikeAckTimer) clearInterval(strikeAckTimer);
 
                     Swal.fire({
                         icon: 'error',
                         title: 'EXAM TERMINATED!',
                         html: `
-                            <p class="text-sm text-slate-700 font-semibold mb-2">${res.reason}</p>
-                            <p class="text-xs text-rose-600 font-bold">You exceeded the maximum allowed cheating strikes (${warningsCount}/${MAX_WARNINGS}). Your responses have been locked and submitted to the tutor.</p>
+                            <p class="text-sm text-slate-700 font-semibold mb-2">${res.reason || 'Maximum anti-cheating warning limit reached.'}</p>
+                            <p class="text-xs text-rose-600 font-bold">You reached or exceeded the maximum allowed cheating strikes (${warningsCount}/${MAX_WARNINGS}). Your responses have been locked and submitted to the tutor.</p>
                         `,
                         allowOutsideClick: false,
                         showConfirmButton: true,
@@ -1407,23 +1522,7 @@
                         window.location.href = `/student/result/${SUBMISSION_ID}`;
                     });
                 } else {
-                    // Show strike warning alert
-                    Swal.fire({
-                        icon: 'warning',
-                        title: `⚠️ WARNING (Strike ${warningsCount}/${MAX_WARNINGS})`,
-                        html: `
-                            <p class="text-sm font-semibold text-slate-800 mb-1">Violation: ${type.replace('_', ' ').toUpperCase()}</p>
-                            <p class="text-xs text-slate-500 mb-3">${details}</p>
-                            <p class="text-xs font-bold text-rose-600">Re-enter full-screen and stay on this page! Reaching ${MAX_WARNINGS} strikes will permanently terminate your exam.</p>
-                        `,
-                        confirmButtonText: 'Return to Exam',
-                        confirmButtonColor: '#0284c7'
-                    }).then(() => {
-                        // Re-request fullscreen if lost
-                        if (!document.fullscreenElement) {
-                            document.documentElement.requestFullscreen().catch(() => { });
-                        }
-                    });
+                    showStrikeWarningAlert(type, details);
                 }
             } catch (err) {
                 console.error("Violation logging error:", err);
