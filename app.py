@@ -2345,9 +2345,28 @@ def exam_result(submission_id):
     violations = cursor.fetchall()
     conn.close()
     
-    passed = (submission["percentage"] >= submission["passing_percentage"]) and (submission["status"] != "terminated")
+    sub_dict = dict(submission)
+    raw_pct = sub_dict.get("percentage")
+    raw_pass = sub_dict.get("passing_percentage")
+
+    try:
+        pct_val = float(raw_pct) if raw_pct is not None else 0.0
+    except (ValueError, TypeError):
+        pct_val = 0.0
+
+    try:
+        pass_val = float(raw_pass) if raw_pass is not None else 50.0
+    except (ValueError, TypeError):
+        pass_val = 50.0
+
+    # Ensure display values in template are never None
+    sub_dict["percentage"] = round(pct_val, 1)
+    sub_dict["score"] = round(float(sub_dict.get("score") or 0.0), 1)
+    sub_dict["total_points"] = round(float(sub_dict.get("total_points") or 0.0), 1)
+
+    passed = (pct_val >= pass_val) and (sub_dict.get("status") != "terminated")
     
-    return render_template("exam_result.html", submission=submission, violations=violations, passed=passed)
+    return render_template("exam_result.html", submission=sub_dict, violations=violations, passed=passed)
 
 if __name__ == "__main__":
     app.run(host="127.0.0.1", port=5000, debug=True)
