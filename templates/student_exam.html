@@ -29,6 +29,10 @@
     <script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs@latest/dist/tf.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/@tensorflow-models/coco-ssd@latest"></script>
     <script src="https://cdn.jsdelivr.net/npm/@tensorflow-models/blazeface@latest"></script>
+    <!-- KaTeX for crisp mathematical notation rendering (\sqrt, \frac, powers, symbols) -->
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/katex.min.css">
+    <script defer src="https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/katex.min.js"></script>
+    <script defer src="https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/contrib/auto-render.min.js"></script>
     <style>
         @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap');
 
@@ -506,16 +510,22 @@
             isBrowsingFile = true;
             noPersonConsecutiveCount = 0;
             loudAudioConsecutiveCount = 0;
-            clearTimeout(fileBrowseCooldownTimer);
+            if (fileBrowseCooldownTimer) {
+                clearTimeout(fileBrowseCooldownTimer);
+                fileBrowseCooldownTimer = null;
+            }
             updateHudBadge('hud-face', 'Uploading 📷', 'sky');
             updateHudBadge('hud-phone', 'Upload Mode', 'sky');
         }
 
         function notifyFileBrowseEnd() {
-            clearTimeout(fileBrowseCooldownTimer);
-            // 6-second cooldown buffer after returning from camera/upload before resuming strict proctoring
+            if (fileBrowseCooldownTimer) {
+                clearTimeout(fileBrowseCooldownTimer);
+            }
+            // Generous 12-second grace cooldown buffer after returning from camera/upload before resuming strict proctoring
             fileBrowseCooldownTimer = setTimeout(() => {
                 isBrowsingFile = false;
+                fileBrowseCooldownTimer = null;
                 noPersonConsecutiveCount = 0;
                 loudAudioConsecutiveCount = 0;
                 // Re-request fullscreen quietly if exited during photo upload
@@ -527,7 +537,7 @@
                         docEl.webkitRequestFullscreen().catch(() => {});
                     }
                 }
-            }, 6000);
+            }, 12000);
         }
 
         function triggerPhotoUpload(questionId, useCameraDirect) {
@@ -536,6 +546,14 @@
             const input = document.getElementById(inputId);
             if (input) {
                 input.value = ''; // Reset to allow re-selection
+                // Set click listener on window to detect return on mobile Safari/Chrome
+                const onWindowFocusOnce = () => {
+                    setTimeout(() => {
+                        notifyFileBrowseEnd();
+                    }, 1000);
+                    window.removeEventListener('focus', onWindowFocusOnce);
+                };
+                window.addEventListener('focus', onWindowFocusOnce);
                 input.click();
             } else {
                 console.error("Upload input not found for question", questionId);
@@ -1638,11 +1656,23 @@
                 (q.options || []).forEach((opt, optIndex) => {
                     const optBox = document.createElement('label');
                     const isSelected = (currentChoice === opt);
-                    optBox.className = `flex items-center p-4 rounded-2xl border cursor-pointer transition ${isSelected ? 'border-sky-500 bg-sky-50/70 font-semibold text-sky-900 shadow-sm' : 'border-slate-200 hover:bg-slate-50 text-slate-700'}`;
-                    optBox.innerHTML = `
-                        <input type="radio" name="opt_choice" value="${opt.replace(/"/g, '&quot;')}" ${isSelected ? 'checked' : ''} onchange="selectOption('${q.id}', '${opt.replace(/'/g, "\\'")}')" class="w-4 h-4 text-sky-600 focus:ring-sky-500 mr-3">
-                        <span class="text-sm">${opt}</span>
-                    `;
+                    optBox.className = `flex items-center p-4 rounded-2xl border cursor-pointer transition select-none ${isSelected ? 'border-sky-500 bg-sky-50/70 font-semibold text-sky-900 shadow-sm' : 'border-slate-200 hover:bg-slate-50 text-slate-700'}`;
+                    
+                    const radio = document.createElement('input');
+                    radio.type = 'radio';
+                    radio.name = 'opt_choice';
+                    radio.checked = isSelected;
+                    radio.className = 'w-4 h-4 text-sky-600 focus:ring-sky-500 mr-3 flex-shrink-0';
+                    radio.addEventListener('change', () => {
+                        selectOption(q.id, opt);
+                    });
+
+                    const span = document.createElement('span');
+                    span.className = 'text-sm flex-1 leading-relaxed';
+                    span.innerText = opt;
+
+                    optBox.appendChild(radio);
+                    optBox.appendChild(span);
                     container.appendChild(optBox);
                 });
             } else {
@@ -1751,6 +1781,32 @@
 
             renderPalette();
             lucide.createIcons();
+
+            // Auto-render any mathematical formulas (\sqrt, \frac, powers, symbols) cleanly with KaTeX
+            if (typeof renderMathInElement === 'function') {
+                try {
+                    renderMathInElement(document.getElementById('current-question-text'), {
+                        delimiters: [
+                            { left: '$$', right: '$$', display: true },
+                            { left: '$', right: '$', display: false },
+                            { left: '\\(', right: '\\)', display: false },
+                            { left: '\\[', right: '\\]', display: true }
+                        ],
+                        throwOnError: false
+                    });
+                    renderMathInElement(document.getElementById('options-container'), {
+                        delimiters: [
+                            { left: '$$', right: '$$', display: true },
+                            { left: '$', right: '$', display: false },
+                            { left: '\\(', right: '\\)', display: false },
+                            { left: '\\[', right: '\\]', display: true }
+                        ],
+                        throwOnError: false
+                    });
+                } catch (e) {
+                    console.warn("KaTeX render error:", e);
+                }
+            }
         }
 
         function escapeHtml(text) {

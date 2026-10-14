@@ -87,25 +87,38 @@ def _run_generation_job(job_id, fn, kwargs, extracted_figures=None):
         except Exception:
             pass
 
+def _parse_to_ist(val):
+    """Helper to parse a date/time object or string (stored in UTC) into an IST datetime."""
+    if not val:
+        return None
+    try:
+        if isinstance(val, datetime):
+            if val.tzinfo is None:
+                return val.replace(tzinfo=timezone.utc).astimezone(IST)
+            return val.astimezone(IST)
+        val_str = str(val).strip().replace('T', ' ')
+        if '.' in val_str:
+            val_str = val_str.split('.')[0]
+        dt = None
+        if len(val_str) == 16:
+            dt = datetime.strptime(val_str, "%Y-%m-%d %H:%M")
+        elif len(val_str) >= 19:
+            dt = datetime.strptime(val_str[:19], "%Y-%m-%d %H:%M:%S")
+        if dt:
+            return dt.replace(tzinfo=timezone.utc).astimezone(IST)
+    except Exception:
+        pass
+    return None
+
 @app.template_filter('format_datetime_12h')
 def format_datetime_12h_filter(val):
     if not val:
         return '—'
     try:
-        if isinstance(val, datetime):
-            return val.strftime("%b %d, %Y, %I:%M %p")
-        val_str = str(val).strip()
-        # Handle SQLite CURRENT_TIMESTAMP (YYYY-MM-DD HH:MM:SS) or ISO (YYYY-MM-DDTHH:MM)
-        clean = val_str.replace('T', ' ')
-        if '.' in clean:
-            clean = clean.split('.')[0]
-        if len(clean) == 16:
-            dt = datetime.strptime(clean, "%Y-%m-%d %H:%M")
-        elif len(clean) >= 19:
-            dt = datetime.strptime(clean[:19], "%Y-%m-%d %H:%M:%S")
-        else:
-            return val_str
-        return dt.strftime("%b %d, %Y, %I:%M %p")
+        dt_ist = _parse_to_ist(val)
+        if dt_ist:
+            return dt_ist.strftime("%b %d, %Y, %I:%M %p")
+        return str(val)
     except Exception:
         return str(val)
 
@@ -114,8 +127,9 @@ def format_date_filter(val):
     if not val:
         return '—'
     try:
-        if isinstance(val, datetime):
-            return val.strftime("%Y-%m-%d")
+        dt_ist = _parse_to_ist(val)
+        if dt_ist:
+            return dt_ist.strftime("%Y-%m-%d")
         val_str = str(val).strip()
         if len(val_str) >= 10:
             return val_str[:10]
@@ -128,18 +142,10 @@ def format_time_12h_filter(val):
     if not val:
         return '—'
     try:
-        if isinstance(val, datetime):
-            return val.strftime("%I:%M %p")
-        val_str = str(val).strip().replace('T', ' ')
-        if '.' in val_str:
-            val_str = val_str.split('.')[0]
-        if len(val_str) == 16:
-            dt = datetime.strptime(val_str, "%Y-%m-%d %H:%M")
-        elif len(val_str) >= 19:
-            dt = datetime.strptime(val_str[:19], "%Y-%m-%d %H:%M:%S")
-        else:
-            return val_str
-        return dt.strftime("%I:%M %p")
+        dt_ist = _parse_to_ist(val)
+        if dt_ist:
+            return dt_ist.strftime("%I:%M %p")
+        return str(val)
     except Exception:
         return str(val)
 

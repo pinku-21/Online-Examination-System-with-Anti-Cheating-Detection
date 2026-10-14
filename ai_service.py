@@ -189,6 +189,16 @@ STRICT JSON OUTPUT RULES:
    - "explanation": Brief 1-2 sentence grading rubric or explanation.
    - "points": Float mark weightage for this specific question (e.g. 1.0, 2.0, 3.0, 4.0, 5.0, 10.0).
 
+STRICT RULES ON MATHEMATICAL NOTATION & CLARITY (CRITICAL):
+1. Write all mathematical expressions, questions, formulas, and options in standard, natural, readable notation that high school and university students easily understand:
+   - Square roots: write as √4, √2, √(x + 1) or 'square root of 4' (NEVER output raw unrendered LaTeX like \\sqrt{{4}}).
+   - Fractions: write as 22/7, 1/2, (a + b)/c (NEVER output raw LaTeX like \\frac{{22}}{{7}}).
+   - Powers / Exponents: write as x², y³, 2^n or x^(n+1).
+   - Greek symbols and constants: write as π, θ, α, β, Δ, λ, Σ, 3.14 (NEVER output \\pi, \\theta, etc.).
+   - Trigonometry / Functions: write sin(x), cos(θ), tan(45°), log(x).
+2. Clean Options: Every multiple choice option MUST be a clean, human-readable string without broken backslashes or raw LaTeX codes.
+3. If LaTeX is unavoidable, wrap it in clean standard inline delimiters like $...$ so frontend math engines can format it, but prefer clean Unicode/standard text (e.g. '√2', '22/7', 'π').
+
 STRICT RULE ON SOURCE MATERIAL:
 Create questions ONLY from the user's provided uploaded PDF, topic context, or prompt. DO NOT invent unrelated questions or generic placeholder questions.
 """
