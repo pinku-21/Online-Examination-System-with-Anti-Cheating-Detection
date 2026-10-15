@@ -480,93 +480,67 @@ def generate_questions_unified(gemini_key=None, groq_key=None, text_content=None
 
 def build_paper_parser_system_prompt():
     """Prompt specifically engineered to ingest and parse existing question papers directly."""
-    return """You are an accurate, faithful Exam Paper Parser and Transcriber.
-The user will provide an EXISTING, COMPLETED question paper (with questions, sections, marks, multiple choice options, etc.).
-Your mission is to extract EVERY SINGLE question into structured JSON.
+    return """You are an accurate, intelligent Academic Exam Paper Analyzer and Parser.
+The user has pasted a complete exam paper or list of questions.
+Your task is to analyze the content deeply, identify genuine test questions, and transcribe them cleanly into a structured JSON array.
 
-CRITICAL RULES:
-1. DO NOT invent, substitute, rephrase, or hallucinate questions. Keep the instructor's questions, wording, and options EXACTLY as provided.
-2. Question Types:
-   - If a question has options (a, b, c, d), set "question_type": "mcq" and place all choices in the "options" array.
-   - If options are True/False, set "question_type": "tf" and "options": ["True", "False"].
-   - If it is a short question (1-4 marks without options), set "question_type": "short" and "options": [].
-   - If it is an essay, proof, or long question (5+ marks without options), set "question_type": "descriptive" and "options": [].
-3. Marks / Points:
-   - Extract the point value from the paper if specified (e.g. "(16 × 1 = 16 marks)", "1 mark", "2 marks", "3 marks", "5 marks").
-   - If not specified, assign a realistic default (1.0 for MCQs, 2.0 for short, 5.0 for long).
-4. Answers & Explanations:
-   - If the user provided answers or an answer key in the text, extract them into "correct_answer".
-   - If answers are NOT provided in the paper, deduce and populate the standard correct answer for each MCQ or a brief reference answer for short/descriptive questions.
-5. Mathematical Notation:
-   - Convert raw unrendered LaTeX into clean, readable Unicode or standard mathematical symbols:
-     - Use √x instead of \\sqrt{x}
-     - Use 22/7 or a/b instead of \\frac{a}{b}
-     - Use x², y³ instead of x^2
-     - Use °, π, θ instead of raw TeX commands.
-6. Figure/Diagram Support:
-   - If a question involves geometry, shapes, lines, angles, triangles, or graphs, generate a clean SVG in "figure_svg" (with viewBox="0 0 350 220" xmlns="http://www.w3.org/2000/svg"), otherwise set "figure_svg": null. Set "figure_url": null.
+CRITICAL RULES FOR PARSING:
+1. EXCLUDE GENERAL INSTRUCTIONS & METADATA:
+   - Do NOT turn exam instructions, headers, or rules into questions! For example:
+     * "Show all necessary calculations and reasoning."
+     * "Use a ruler, compass and protractor for construction questions."
+     * "All questions are compulsory..."
+     * "Draw graphs and diagrams neatly..."
+     * "Section A — MCQs", "Maximum marks 80", "Time allowed 3 hours"
+     THESE ARE EXAM GUIDELINES, NOT QUESTIONS. SKIP THEM COMPLETELY.
+2. ACCURATE QUESTION SEPARATION:
+   - "question_text": Must contain ONLY the actual question statement/premise (e.g. "Two angles together form a straight angle. If one angle is 68°, the other angle is:").
+   - NEVER place multiple-choice choices inside "question_text".
+   - "options": Put each choice cleanly in the options array as ["(a) 22°", "(b) 112°", "(c) 122°", "(d) 90°"].
+3. CLEAN UP MATHEMATICAL NOTATION:
+   - Convert raw unrendered LaTeX like \\(68^\\circ\\) into clean, readable text like 68°.
+   - Convert \\sqrt{x} into √x, \\frac{a}{b} into a/b, x^2 into x².
+4. QUESTION TYPES & POINTS:
+   - MCQs: "question_type": "mcq", 4 options in "options". Points = 1.0 (or specified in section).
+   - True/False: "question_type": "tf", "options": ["True", "False"].
+   - Short questions: "question_type": "short", "options": [].
+   - Long / Descriptive / Proofs: "question_type": "descriptive", "options": [].
+5. CORRECT ANSWERS:
+   - Solve or identify the correct answer for each MCQ/question and place it in "correct_answer".
+   - Provide a brief 1-sentence rubric in "explanation".
+6. SVG DIAGRAM GENERATION:
+   - If a question is about geometry, shapes, lines, angles, triangles, or graphs:
+     Generate a clean vector SVG in "figure_svg" (<svg viewBox="0 0 350 220" xmlns="http://www.w3.org/2000/svg">...</svg>).
+     Otherwise set "figure_svg": null.
 
-JSON FORMAT SPECIFICATION:
-Return ONLY a valid JSON array of question objects starting with [ and ending with ].
-No markdown backticks, no comments.
-Schema per item:
-{
-  "question_text": "string",
-  "question_type": "mcq" | "short" | "descriptive" | "tf",
-  "options": ["string", "string", ...],
-  "correct_answer": "string",
-  "explanation": "string",
-  "points": 1.0,
-  "figure_svg": "string or null",
-  "figure_url": null
-}"""
-
-def parse_existing_paper_with_groq(api_key, raw_text):
-    """Parses raw pasted exam paper using fast Groq models."""
-    system_prompt = build_paper_parser_system_prompt()
-    user_prompt = f"Parse and extract EVERY question from this question paper verbatim into JSON:\n\n{raw_text[:70000]}"
-    
-    models = ["llama-3.3-70b-versatile", "llama-3.1-70b-versatile"]
-    last_err = None
-    for model in models:
-        try:
-            resp = requests.post(
-                "https://api.groq.com/openai/v1/chat/completions",
-                headers={"Authorization": f"Bearer {api_key}", "Content-Type": "application/json"},
-                json={
-                    "model": model,
-                    "messages": [
-                        {"role": "system", "content": system_prompt},
-                        {"role": "user", "content": user_prompt}
-                    ],
-                    "temperature": 0.1
-                },
-                timeout=120
-            )
-            if resp.status_code == 200:
-                content = resp.json()["choices"][0]["message"]["content"].strip()
-                if "```json" in content:
-                    content = content.split("```json")[1].split("```")[0].strip()
-                elif "```" in content:
-                    content = content.split("```")[1].split("```")[0].strip()
-                s = content.find("[")
-                e = content.rfind("]")
-                if s != -1 and e != -1:
-                    content = content[s:e+1]
-                questions = json.loads(content)
-                if isinstance(questions, list) and len(questions) > 0:
-                    return {"success": True, "questions": questions, "model_used": f"Groq Direct Parser ({model})"}
-            else:
-                last_err = f"Groq error ({resp.status_code}): {resp.text}"
-        except Exception as e:
-            last_err = str(e)
-            
-    return {"success": False, "error": last_err or "Failed to parse with Groq."}
+JSON FORMAT:
+Output ONLY a valid JSON array of question objects starting with [ and ending with ].
+No markdown codeblocks or backticks. Schema:
+[
+  {
+    "question_text": "string",
+    "question_type": "mcq" | "short" | "descriptive" | "tf",
+    "options": ["string", ...],
+    "correct_answer": "string",
+    "explanation": "string",
+    "points": 1.0,
+    "figure_svg": "string or null",
+    "figure_url": null
+  }
+]"""
 
 def parse_existing_paper_with_gemini(api_key, raw_text):
     """Parses raw pasted exam paper using Gemini."""
     system_prompt = build_paper_parser_system_prompt()
-    models = ["gemini-3.8-flash", "gemini-flash-latest", "gemini-3.5-flash"]
+    models = [
+        "gemini-3.8-flash",
+        "gemini-3.5-flash",
+        "gemini-3.7-flash",
+        "gemini-flash-latest",
+        "gemini-3.5-flash-lite",
+        "gemini-3.1-flash-lite",
+        "gemini-flash-lite-latest"
+    ]
     last_err = None
     
     for model_name in models:
@@ -597,7 +571,8 @@ def parse_existing_paper_with_gemini(api_key, raw_text):
                 if isinstance(questions, list) and len(questions) > 0:
                     return {"success": True, "questions": questions, "model_used": f"Google Gemini Parser ({model_name})"}
             else:
-                last_err = f"Gemini ({model_name}) error: {resp.text}"
+                last_err = f"Gemini ({model_name}) HTTP {resp.status_code}: {resp.text[:180]}"
+                print(f"Skipping {model_name} due to: {last_err}")
         except Exception as e:
             last_err = str(e)
             
