@@ -290,4 +290,28 @@
     {% endif %}
 
 </div>
+
+{% if not is_published %}
+<script>
+    // Live Auto-Refresh: When result is pending review, poll the server and reload automatically once published
+    (function() {
+        const submissionId = {{ submission.id }};
+        const pollInterval = setInterval(async () => {
+            try {
+                const resp = await fetch(`/api/submission/${submissionId}/publish-status`);
+                if (resp.ok) {
+                    const data = await resp.json();
+                    if (data.success && data.is_published) {
+                        clearInterval(pollInterval);
+                        // Trigger smooth auto-refresh to display the published evaluation review
+                        window.location.reload();
+                    }
+                }
+            } catch (err) {
+                // Silently wait for next interval
+            }
+        }, 4000);
+    })();
+</script>
+{% endif %}
 {% endblock %}

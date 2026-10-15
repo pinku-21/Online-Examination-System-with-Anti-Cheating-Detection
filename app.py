@@ -603,12 +603,13 @@ def tutor_dashboard():
     students = [dict(r) for r in cursor2.fetchall()]
     distinct_classes = sorted(list(set(s['class_name'] for s in students if s.get('class_name'))))
     
-    # Query recent security incidents across all exams for the SIEM Security Operations Center
+    # Query active/unresolved security incidents across all exams for the SIEM Security Operations Center
     cursor2.execute("""
         SELECT v.*, s.student_name, s.roll_number, s.client_ip, s.exam_id, e.title as exam_title
         FROM violations v
         JOIN submissions s ON v.submission_id = s.id
         JOIN exams e ON s.exam_id = e.id
+        WHERE COALESCE(v.is_resolved, 0) = 0
         ORDER BY v.timestamp DESC
         LIMIT 25
     """)
@@ -2519,6 +2520,15 @@ def api_toggle_exam_results_published(exam_id):
     cursor.execute("UPDATE exams SET results_published = ? WHERE id = ?", (new_val, exam_id))
     # Also sync is_published to all submissions for this exam
     cursor.execute("UPDATE submissions SET is_published = ? WHERE exam_id = ?", (new_val, exam_id))
+
+    # When results are officially published, automatically resolve & archive SOC cyber incidents for this exam
+    if new_val == 1:
+        cursor.execute("""
+            UPDATE violations
+            SET is_resolved = 1
+            WHERE submission_id IN (SELECT id FROM submissions WHERE exam_id = ?)
+        """, (exam_id,))
+
     conn.commit()
     conn.close()
 
@@ -2546,6 +2556,11 @@ def api_toggle_submission_published(submission_id):
     new_val = 0 if current_val == 1 else 1
 
     cursor.execute("UPDATE submissions SET is_published = ? WHERE id = ?", (new_val, submission_id))
+
+    # If published, mark violations for this submission as resolved
+    if new_val == 1:
+        cursor.execute("UPDATE violations SET is_resolved = 1 WHERE submission_id = ?", (submission_id,))
+
     conn.commit()
     conn.close()
 
@@ -2555,6 +2570,27 @@ def api_toggle_submission_published(submission_id):
         "is_published": bool(new_val),
         "message": f"Evaluation report for {sub['student_name']} is now {status_str}."
     })
+
+
+@app.route("/api/submission/<int:submission_id>/publish-status", methods=["GET"])
+def api_submission_publish_status(submission_id):
+    """Allows student result page to poll and automatically refresh once tutor publishes."""
+    conn = get_connection()
+    cursor = conn.cursor()
+    cursor.execute("""
+        SELECT s.id, s.is_published, e.results_published
+        FROM submissions s
+        JOIN exams e ON s.exam_id = e.id
+        WHERE s.id = ?
+    """, (submission_id,))
+    row = cursor.fetchone()
+    conn.close()
+
+    if not row:
+        return jsonify({"success": False, "error": "Submission not found."}), 404
+
+    is_pub = bool(row["is_published"] or row["results_published"])
+    return jsonify({"success": True, "is_published": is_pub})
 
 
 @app.route("/student/result/<int:submission_id>")

@@ -240,6 +240,7 @@ def init_db():
             "ALTER TABLE submissions ADD COLUMN IF NOT EXISTS client_ip TEXT DEFAULT ''",
             "ALTER TABLE violations ADD COLUMN IF NOT EXISTS severity TEXT DEFAULT 'HIGH'",
             "ALTER TABLE violations ADD COLUMN IF NOT EXISTS event_code TEXT DEFAULT 'SEC-ALERT'",
+            "ALTER TABLE violations ADD COLUMN IF NOT EXISTS is_resolved INTEGER DEFAULT 0",
         ]
         for statement in migrations:
             cursor.execute(statement)
@@ -366,6 +367,7 @@ def init_db():
             ("submissions", "client_ip", "TEXT DEFAULT ''"),
             ("violations", "severity", "TEXT DEFAULT 'HIGH'"),
             ("violations", "event_code", "TEXT DEFAULT 'SEC-ALERT'"),
+            ("violations", "is_resolved", "INTEGER DEFAULT 0"),
         ]:
             columns = {row["name"] for row in cursor.execute(f"PRAGMA table_info({table})").fetchall()}
             if column not in columns:
