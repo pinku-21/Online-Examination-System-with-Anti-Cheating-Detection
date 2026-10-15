@@ -93,9 +93,10 @@ def encode_image_base64(image_path):
 def build_exam_system_prompt(num_questions=5, question_type="mcq", difficulty="Medium", custom_prompt=None, total_marks=None, available_figures=None):
     """Builds a rich, dynamic system prompt supporting custom blueprints, mark distributions, and figure/diagram generation."""
     
-    # Handle blueprints
+    # Handle blueprints - only apply preset if explicitly selected or if total_marks is 80/50 AND no custom prompt was provided
     blueprint_instruction = ""
-    if question_type == "blueprint_80" or (total_marks and int(total_marks) == 80):
+    has_custom = bool(custom_prompt and custom_prompt.strip())
+    if question_type == "blueprint_80" or (total_marks and int(total_marks) == 80 and not has_custom and question_type not in ["custom", "mcq", "short", "descriptive"]):
         blueprint_instruction = """
 EXAM BLUEPRINT: COMPREHENSIVE 80-MARK UNIVERSITY EXAMINATION
 Generate questions distributed across three sections:
@@ -104,7 +105,7 @@ Generate questions distributed across three sections:
 - Section C (Long Descriptive / Essay / Architectural): 4 Long In-depth Questions, each worth 10.0 marks (Total: 40 marks).
 OVERALL SUM OF POINTS MUST EQUAL EXACTLY 80.0 MARKS.
 """
-    elif question_type == "blueprint_50" or (total_marks and int(total_marks) == 50):
+    elif question_type == "blueprint_50" or (total_marks and int(total_marks) == 50 and not has_custom and question_type not in ["custom", "mcq", "short", "descriptive"]):
         blueprint_instruction = """
 EXAM BLUEPRINT: 50-MARK MIDTERM EXAMINATION
 Generate questions distributed across:
@@ -139,8 +140,8 @@ Generate {num_questions} questions adhering strictly to the instructor's customi
     custom_section = ""
     if custom_prompt and custom_prompt.strip():
         custom_section = f"""
---- INSTRUCTOR CUSTOM PROMPT & BLUEPRINT INSTRUCTIONS ---
-The instructor has provided specific directives. YOU MUST STRICTLY PRIORITIZE THESE INSTRUCTIONS:
+--- INSTRUCTOR CUSTOM PROMPT & BLUEPRINT INSTRUCTIONS (HIGHEST PRIORITY) ---
+The instructor has provided specific directives. YOU MUST STRICTLY PRIORITIZE THESE INSTRUCTIONS OVER ANY DEFAULT BLUEPRINT:
 \"{custom_prompt.strip()}\"
 """
 
@@ -476,6 +477,245 @@ def generate_questions_unified(gemini_key=None, groq_key=None, text_content=None
         "success": False,
         "error": "AI generation could not complete. " + " | ".join(errors) + ". Please check your API keys or quotas."
     }
+
+def build_paper_parser_system_prompt():
+    """Prompt specifically engineered to ingest and parse existing question papers directly."""
+    return """You are an accurate, faithful Exam Paper Parser and Transcriber.
+The user will provide an EXISTING, COMPLETED question paper (with questions, sections, marks, multiple choice options, etc.).
+Your mission is to extract EVERY SINGLE question into structured JSON.
+
+CRITICAL RULES:
+1. DO NOT invent, substitute, rephrase, or hallucinate questions. Keep the instructor's questions, wording, and options EXACTLY as provided.
+2. Question Types:
+   - If a question has options (a, b, c, d), set "question_type": "mcq" and place all choices in the "options" array.
+   - If options are True/False, set "question_type": "tf" and "options": ["True", "False"].
+   - If it is a short question (1-4 marks without options), set "question_type": "short" and "options": [].
+   - If it is an essay, proof, or long question (5+ marks without options), set "question_type": "descriptive" and "options": [].
+3. Marks / Points:
+   - Extract the point value from the paper if specified (e.g. "(16 × 1 = 16 marks)", "1 mark", "2 marks", "3 marks", "5 marks").
+   - If not specified, assign a realistic default (1.0 for MCQs, 2.0 for short, 5.0 for long).
+4. Answers & Explanations:
+   - If the user provided answers or an answer key in the text, extract them into "correct_answer".
+   - If answers are NOT provided in the paper, deduce and populate the standard correct answer for each MCQ or a brief reference answer for short/descriptive questions.
+5. Mathematical Notation:
+   - Convert raw unrendered LaTeX into clean, readable Unicode or standard mathematical symbols:
+     - Use √x instead of \\sqrt{x}
+     - Use 22/7 or a/b instead of \\frac{a}{b}
+     - Use x², y³ instead of x^2
+     - Use °, π, θ instead of raw TeX commands.
+6. Figure/Diagram Support:
+   - If a question involves geometry, shapes, lines, angles, triangles, or graphs, generate a clean SVG in "figure_svg" (with viewBox="0 0 350 220" xmlns="http://www.w3.org/2000/svg"), otherwise set "figure_svg": null. Set "figure_url": null.
+
+JSON FORMAT SPECIFICATION:
+Return ONLY a valid JSON array of question objects starting with [ and ending with ].
+No markdown backticks, no comments.
+Schema per item:
+{
+  "question_text": "string",
+  "question_type": "mcq" | "short" | "descriptive" | "tf",
+  "options": ["string", "string", ...],
+  "correct_answer": "string",
+  "explanation": "string",
+  "points": 1.0,
+  "figure_svg": "string or null",
+  "figure_url": null
+}"""
+
+def parse_existing_paper_with_groq(api_key, raw_text):
+    """Parses raw pasted exam paper using fast Groq models."""
+    system_prompt = build_paper_parser_system_prompt()
+    user_prompt = f"Parse and extract EVERY question from this question paper verbatim into JSON:\n\n{raw_text[:70000]}"
+    
+    models = ["llama-3.3-70b-versatile", "llama-3.1-70b-versatile"]
+    last_err = None
+    for model in models:
+        try:
+            resp = requests.post(
+                "https://api.groq.com/openai/v1/chat/completions",
+                headers={"Authorization": f"Bearer {api_key}", "Content-Type": "application/json"},
+                json={
+                    "model": model,
+                    "messages": [
+                        {"role": "system", "content": system_prompt},
+                        {"role": "user", "content": user_prompt}
+                    ],
+                    "temperature": 0.1
+                },
+                timeout=120
+            )
+            if resp.status_code == 200:
+                content = resp.json()["choices"][0]["message"]["content"].strip()
+                if "```json" in content:
+                    content = content.split("```json")[1].split("```")[0].strip()
+                elif "```" in content:
+                    content = content.split("```")[1].split("```")[0].strip()
+                s = content.find("[")
+                e = content.rfind("]")
+                if s != -1 and e != -1:
+                    content = content[s:e+1]
+                questions = json.loads(content)
+                if isinstance(questions, list) and len(questions) > 0:
+                    return {"success": True, "questions": questions, "model_used": f"Groq Direct Parser ({model})"}
+            else:
+                last_err = f"Groq error ({resp.status_code}): {resp.text}"
+        except Exception as e:
+            last_err = str(e)
+            
+    return {"success": False, "error": last_err or "Failed to parse with Groq."}
+
+def parse_existing_paper_with_gemini(api_key, raw_text):
+    """Parses raw pasted exam paper using Gemini."""
+    system_prompt = build_paper_parser_system_prompt()
+    models = ["gemini-3.8-flash", "gemini-flash-latest", "gemini-3.5-flash"]
+    last_err = None
+    
+    for model_name in models:
+        url = f"https://generativelanguage.googleapis.com/v1beta/models/{model_name}:generateContent?key={api_key}"
+        payload = {
+            "contents": [{
+                "parts": [
+                    {"text": f"{system_prompt}\n\nPlease parse and transcribe this paper:\n\n{raw_text[:70000]}"}
+                ]
+            }],
+            "generationConfig": {
+                "temperature": 0.1,
+                "response_mime_type": "application/json"
+            }
+        }
+        try:
+            resp = requests.post(url, json=payload, headers={"Content-Type": "application/json"}, timeout=120)
+            if resp.status_code == 200:
+                raw_text_out = resp.json()["candidates"][0]["content"]["parts"][0]["text"].strip()
+                if raw_text_out.startswith("```json"):
+                    raw_text_out = raw_text_out[7:]
+                if raw_text_out.startswith("```"):
+                    raw_text_out = raw_text_out[3:]
+                if raw_text_out.endswith("```"):
+                    raw_text_out = raw_text_out[:-3]
+                raw_text_out = raw_text_out.strip()
+                questions = json.loads(raw_text_out)
+                if isinstance(questions, list) and len(questions) > 0:
+                    return {"success": True, "questions": questions, "model_used": f"Google Gemini Parser ({model_name})"}
+            else:
+                last_err = f"Gemini ({model_name}) error: {resp.text}"
+        except Exception as e:
+            last_err = str(e)
+            
+    return {"success": False, "error": last_err or "Failed to parse with Gemini."}
+
+def parse_pasted_paper_unified(gemini_key=None, groq_key=None, raw_text=""):
+    """
+    Direct Paper Parser: Runs Groq + Gemini in parallel to extract pasted questions verbatim.
+    Falls back to smart regex rule-based parser if neither key is available.
+    """
+    if not raw_text or not raw_text.strip():
+        return {"success": False, "error": "No question text provided to parse."}
+
+    if not gemini_key and not groq_key:
+        return regex_parse_pasted_questions(raw_text)
+
+    futures_map = {}
+    errors = []
+    with concurrent.futures.ThreadPoolExecutor(max_workers=2) as executor:
+        if groq_key:
+            futures_map[executor.submit(parse_existing_paper_with_groq, groq_key, raw_text)] = "Groq"
+        if gemini_key:
+            futures_map[executor.submit(parse_existing_paper_with_gemini, gemini_key, raw_text)] = "Gemini"
+
+        for future in concurrent.futures.as_completed(futures_map, timeout=120):
+            provider = futures_map[future]
+            try:
+                result = future.result()
+                if result.get("success"):
+                    return result
+                else:
+                    errors.append(f"{provider}: {result.get('error')}")
+            except Exception as e:
+                errors.append(f"{provider}: {str(e)}")
+
+    # Fallback to smart rule-based parser if AI fails or rate limits
+    rule_result = regex_parse_pasted_questions(raw_text)
+    if rule_result.get("success") and len(rule_result.get("questions", [])) > 0:
+        rule_result["model_used"] = "Fast Local Rule-based Parser (Fallback)"
+        return rule_result
+
+    return {"success": False, "error": "Could not parse questions: " + " | ".join(errors)}
+
+def regex_parse_pasted_questions(raw_text):
+    """
+    Fast rule-based / regex parser that breaks pasted numbered questions,
+    options (a, b, c, d), and point markers into structured question items.
+    """
+    lines = raw_text.splitlines()
+    questions = []
+    current_q = None
+    
+    # Regex to detect question start: "1.", "1)", "Q1.", "Q1:", "**1."
+    q_start_re = re.compile(r"^(?:\*{0,2})(?:Question|Q)?\s*(\d+)[\.\:\)]\s*(.*)", re.IGNORECASE)
+    opt_re = re.compile(r"^\s*[\(\[]?([a-dA-D])[\)\]\.\:]\s*(.*)")
+    points_re = re.compile(r"\[?\(?\s*(\d+(?:\.\d+)?)\s*(?:marks?|pts?|points?)\s*\)?\]?", re.IGNORECASE)
+
+    for line in lines:
+        stripped = line.strip()
+        if not stripped:
+            continue
+            
+        m_q = q_start_re.match(stripped)
+        if m_q:
+            if current_q:
+                questions.append(current_q)
+            q_text = m_q.group(2).strip().strip("*").strip()
+            pts = 1.0
+            pts_m = points_re.search(stripped)
+            if pts_m:
+                try:
+                    pts = float(pts_m.group(1))
+                except Exception:
+                    pts = 1.0
+            current_q = {
+                "question_text": q_text or f"Question {m_q.group(1)}",
+                "question_type": "mcq",
+                "options": [],
+                "correct_answer": "",
+                "explanation": "",
+                "points": pts,
+                "figure_svg": None,
+                "figure_url": None
+            }
+            continue
+            
+        m_opt = opt_re.match(stripped)
+        if m_opt and current_q:
+            opt_letter = m_opt.group(1).lower()
+            opt_text = m_opt.group(2).strip()
+            current_q["options"].append(f"({opt_letter}) {opt_text}")
+            continue
+
+        if current_q:
+            # Check if answer line
+            if re.match(r"^(?:Answer|Ans|Correct)\s*[\:\-]\s*(.*)", stripped, re.IGNORECASE):
+                ans_match = re.match(r"^(?:Answer|Ans|Correct)\s*[\:\-]\s*(.*)", stripped, re.IGNORECASE)
+                current_q["correct_answer"] = ans_match.group(1).strip()
+            else:
+                current_q["question_text"] += " " + stripped
+
+    if current_q:
+        questions.append(current_q)
+
+    # Post-process types
+    for q in questions:
+        if not q["options"]:
+            if len(q["question_text"]) > 180 or q["points"] >= 5.0:
+                q["question_type"] = "descriptive"
+            else:
+                q["question_type"] = "short"
+        elif len(q["options"]) == 2 and ("true" in q["options"][0].lower() or "false" in q["options"][0].lower()):
+            q["question_type"] = "tf"
+            q["options"] = ["True", "False"]
+
+    if questions:
+        return {"success": True, "questions": questions, "model_used": "Smart Instant Parser"}
+    return {"success": False, "error": "No recognizable numbered questions found in pasted text."}
 
 def generate_mock_questions(topic_or_context, num_questions=5, question_type="mcq", total_marks=None):
     """

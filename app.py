@@ -41,6 +41,7 @@ from ai_service import (
     generate_questions_with_gemini, 
     generate_questions_with_groq,
     generate_questions_unified,
+    parse_pasted_paper_unified,
     generate_mock_questions,
     evaluate_answer_with_ai,
     verify_faces_with_gemini
@@ -798,6 +799,44 @@ def api_generate_questions():
         available_figures=extracted_figures
     )
     t = threading.Thread(target=_run_generation_job, args=(job_id, generate_questions_unified, kwargs, extracted_figures), daemon=True)
+    t.start()
+
+    return jsonify({"job_id": job_id, "status": "running"})
+
+@app.route("/api/parse-pasted-questions", methods=["POST"])
+@admin_required
+def api_parse_pasted_questions():
+    """
+    Direct Paper Parser: Receives raw pasted questions or question papers,
+    and runs fast Groq/Gemini extraction to return structured question objects verbatim.
+    """
+    _cleanup_old_jobs()
+    raw_text = request.form.get("raw_text", "").strip()
+    if not raw_text:
+        return jsonify({"success": False, "error": "Please paste your questions or exam paper text."}), 400
+
+    gemini_key = get_setting("gemini_api_key", "") or os.environ.get("GEMINI_API_KEY", "").strip()
+    groq_key = get_setting("groq_api_key", "") or os.environ.get("GROQ_API_KEY", "").strip()
+
+    job_id = str(uuid.uuid4())
+    with _job_lock:
+        _job_store[job_id] = {
+            "status": "running",
+            "result": None,
+            "created_at": time.time(),
+            "extracted_figures": []
+        }
+    try:
+        save_generation_job(job_id, "running", None)
+    except Exception as db_err:
+        print(f"Warning: Failed to save parse job to DB: {db_err}")
+
+    kwargs = dict(
+        gemini_key=gemini_key,
+        groq_key=groq_key,
+        raw_text=raw_text
+    )
+    t = threading.Thread(target=_run_generation_job, args=(job_id, parse_pasted_paper_unified, kwargs, []), daemon=True)
     t.start()
 
     return jsonify({"job_id": job_id, "status": "running"})

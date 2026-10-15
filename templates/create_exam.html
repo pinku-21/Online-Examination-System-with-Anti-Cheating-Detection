@@ -27,11 +27,24 @@
         <!-- Left: Upload & AI Controls (5 cols) -->
         <div class="lg:col-span-5 space-y-6">
             
-            <div class="bg-white rounded-2xl p-6 border border-slate-200 shadow-sm space-y-5">
+            <!-- Mode Selector Tabs (Option 1 vs Option 2) -->
+            <div class="bg-white p-1.5 rounded-2xl border border-slate-200 shadow-xs grid grid-cols-2 gap-2">
+                <button type="button" id="tab-mode-ai" onclick="switchCreationMode('ai')" class="py-2.5 px-3 rounded-xl text-xs font-bold transition flex items-center justify-center space-x-2 bg-gradient-to-r from-sky-600 to-indigo-600 text-white shadow-sm">
+                    <i data-lucide="sparkles" class="w-4 h-4 text-amber-300"></i>
+                    <span>1. Upload PDF & Generate</span>
+                </button>
+                <button type="button" id="tab-mode-paste" onclick="switchCreationMode('paste')" class="py-2.5 px-3 rounded-xl text-xs font-bold transition flex items-center justify-center space-x-2 bg-slate-50 text-slate-700 hover:bg-slate-100 hover:text-slate-900 border border-slate-200">
+                    <i data-lucide="clipboard-paste" class="w-4 h-4 text-emerald-600"></i>
+                    <span>2. Paste Existing Questions</span>
+                </button>
+            </div>
+
+            <!-- OPTION 1 PANEL: Upload & AI Generator -->
+            <div id="panel-mode-ai" class="bg-white rounded-2xl p-6 border border-slate-200 shadow-sm space-y-5">
                 <div class="flex items-center justify-between border-b border-slate-100 pb-3">
                     <h3 class="font-bold text-slate-900 flex items-center space-x-2">
                         <i data-lucide="file-up" class="w-4 h-4 text-sky-600"></i>
-                        <span>1. Upload Study Material</span>
+                        <span>Upload Study Material & Generate</span>
                     </h3>
                     <span class="text-xs text-sky-700 bg-sky-50 px-2 py-0.5 rounded-full font-medium">PDF or Photos</span>
                 </div>
@@ -200,6 +213,63 @@
                     <i data-lucide="sparkles" class="w-5 h-5 text-amber-300"></i>
                     <span>Generate Complete Exam with AI</span>
                 </button>
+            </div>
+
+            <!-- OPTION 2 PANEL: Paste Existing Questions Directly -->
+            <div id="panel-mode-paste" class="hidden bg-white rounded-2xl p-6 border border-slate-200 shadow-sm space-y-4">
+                <div class="flex items-center justify-between border-b border-slate-100 pb-3">
+                    <h3 class="font-bold text-slate-900 flex items-center space-x-2">
+                        <i data-lucide="clipboard-check" class="w-4 h-4 text-emerald-600"></i>
+                        <span>Paste Existing Questions / Exam Paper</span>
+                    </h3>
+                    <span class="text-xs text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded-full font-bold">Direct Ingestion</span>
+                </div>
+
+                <div class="p-3 bg-emerald-50/70 border border-emerald-200 rounded-xl text-xs text-emerald-950 space-y-1">
+                    <p class="font-bold flex items-center space-x-1.5">
+                        <i data-lucide="check-circle" class="w-3.5 h-3.5 text-emerald-600"></i>
+                        <span>Already have questions or a ready question paper?</span>
+                    </p>
+                    <p class="text-emerald-800 leading-relaxed">
+                        Paste your entire paper (MCQs, short, essay questions, CBSE/NCERT papers, or tests) below. The parser extracts your questions <strong>verbatim</strong> into the exam editor with exact marks and choices, without generating random questions!
+                    </p>
+                </div>
+
+                <div>
+                    <div class="flex items-center justify-between mb-1.5">
+                        <label class="block text-xs font-bold text-slate-800">Paste Question Paper / Questions Text *</label>
+                        <span class="text-[10px] text-slate-400">Supports numbered questions, (a)(b)(c)(d) choices & marks</span>
+                    </div>
+                    <textarea id="pasted-paper-text" rows="14" placeholder="Paste your questions here... e.g.:
+
+1. Patterns in Mathematics
+The sequence of triangular numbers begins 1, 3, 6, 10, 15... What is the next term?
+(a) 18
+(b) 20
+(c) 21
+(d) 25
+(1 mark)
+
+2. Lines and Angles
+Two angles together form a straight angle. If one angle is 68°, the other angle is:
+(a) 112°
+(b) 122°
+(c) 22°
+(d) 90°
+
+Section B - Short Questions (3 marks each)
+17. Find the perimeter of a regular hexagon with each side measuring 6.5 cm. Show all steps." class="w-full px-3 py-2.5 text-xs font-mono border border-slate-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-emerald-500 leading-relaxed bg-slate-50/50"></textarea>
+                </div>
+
+                <div class="flex items-center space-x-2">
+                    <button type="button" onclick="clearPastedText()" class="px-3 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-semibold rounded-xl transition">
+                        Clear
+                    </button>
+                    <button id="btn-parse-pasted" onclick="parsePastedQuestions()" class="flex-1 py-3 bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-700 hover:to-teal-700 text-white font-bold rounded-xl shadow-md transition flex items-center justify-center space-x-2">
+                        <i data-lucide="arrow-right-circle" class="w-4 h-4 text-emerald-200"></i>
+                        <span>Import & Parse My Questions Now</span>
+                    </button>
+                </div>
             </div>
 
             <!-- Exam Parameters Card -->
@@ -478,6 +548,167 @@
             };
             thumbs.appendChild(item);
         });
+    }
+
+    // Switch between Option 1 (Upload & Generate) and Option 2 (Paste Existing Questions)
+    function switchCreationMode(mode) {
+        const tabAi = document.getElementById('tab-mode-ai');
+        const tabPaste = document.getElementById('tab-mode-paste');
+        const panelAi = document.getElementById('panel-mode-ai');
+        const panelPaste = document.getElementById('panel-mode-paste');
+
+        if (mode === 'ai') {
+            tabAi.className = 'py-2.5 px-3 rounded-xl text-xs font-bold transition flex items-center justify-center space-x-2 bg-gradient-to-r from-sky-600 to-indigo-600 text-white shadow-sm';
+            tabPaste.className = 'py-2.5 px-3 rounded-xl text-xs font-bold transition flex items-center justify-center space-x-2 bg-slate-50 text-slate-700 hover:bg-slate-100 hover:text-slate-900 border border-slate-200';
+            panelAi.classList.remove('hidden');
+            panelPaste.classList.add('hidden');
+        } else {
+            tabPaste.className = 'py-2.5 px-3 rounded-xl text-xs font-bold transition flex items-center justify-center space-x-2 bg-gradient-to-r from-emerald-600 to-teal-600 text-white shadow-sm';
+            tabAi.className = 'py-2.5 px-3 rounded-xl text-xs font-bold transition flex items-center justify-center space-x-2 bg-slate-50 text-slate-700 hover:bg-slate-100 hover:text-slate-900 border border-slate-200';
+            panelPaste.classList.remove('hidden');
+            panelAi.classList.add('hidden');
+            document.getElementById('pasted-paper-text').focus();
+        }
+        lucide.createIcons();
+    }
+
+    function clearPastedText() {
+        document.getElementById('pasted-paper-text').value = '';
+    }
+
+    async function parsePastedQuestions() {
+        const rawText = document.getElementById('pasted-paper-text').value.trim();
+        if (!rawText) {
+            Swal.fire({
+                icon: 'warning',
+                title: 'No Questions Pasted',
+                text: 'Please paste your questions or question paper in the text box first.'
+            });
+            return;
+        }
+
+        const btn = document.getElementById('btn-parse-pasted');
+        const originalHtml = btn.innerHTML;
+        btn.disabled = true;
+
+        const parseMessages = [
+            'Analyzing question format & numbering...',
+            'Extracting questions & options...',
+            'Calculating marks distribution...',
+            'Transcribing paper verbatim...',
+            'Populating question workspace...'
+        ];
+        let msgIdx = 0;
+        btn.innerHTML = `<i data-lucide="loader" class="w-4 h-4 animate-spin"></i><span id="parse-progress-msg">${parseMessages[0]}</span>`;
+        lucide.createIcons();
+
+        const progressInterval = setInterval(() => {
+            msgIdx = (msgIdx + 1) % parseMessages.length;
+            const el = document.getElementById('parse-progress-msg');
+            if (el) el.textContent = parseMessages[msgIdx];
+        }, 2200);
+
+        const resetBtn = () => {
+            clearInterval(progressInterval);
+            btn.disabled = false;
+            btn.innerHTML = originalHtml;
+            lucide.createIcons();
+        };
+
+        const handleParseSuccess = (data) => {
+            resetBtn();
+            if (data.success && data.questions && data.questions.length > 0) {
+                questionsData = data.questions;
+                renderQuestions();
+                
+                // Auto-suggest title if blank
+                if (!document.getElementById('exam-title').value.trim()) {
+                    const firstLine = rawText.split('\n')[0].replace(/[\#\*\=\-]/g, '').trim();
+                    document.getElementById('exam-title').value = firstLine.slice(0, 45) || `Imported Exam - ${new Date().toLocaleDateString()}`;
+                }
+
+                const totalMarks = questionsData.reduce((sum, q) => sum + (parseFloat(q.points) || 1.0), 0);
+                const figCount = questionsData.filter(q => q.figure_svg || q.figure_url).length;
+
+                Swal.fire({
+                    icon: 'success',
+                    title: 'Questions Successfully Imported!',
+                    text: `Imported ${questionsData.length} questions verbatim (${totalMarks} total marks) into the question workspace via ${data.model_used || 'Smart Parser'}.`,
+                    confirmButtonText: 'Review Questions',
+                    confirmButtonColor: '#059669'
+                });
+            } else {
+                Swal.fire({
+                    icon: 'error',
+                    title: 'Could Not Parse Questions',
+                    text: data.error || 'Failed to detect structured questions. Please verify your pasted text.'
+                });
+            }
+        };
+
+        try {
+            const formData = new FormData();
+            formData.append('raw_text', rawText);
+
+            const startResp = await fetch('/api/parse-pasted-questions', {
+                method: 'POST',
+                body: formData
+            });
+
+            if (!startResp.ok) {
+                resetBtn();
+                Swal.fire({
+                    icon: 'error',
+                    title: 'Server Error',
+                    text: `Error ${startResp.status} while parsing questions.`
+                });
+                return;
+            }
+
+            const startData = await startResp.json();
+            if (!startData.job_id) {
+                handleParseSuccess(startData.result || startData);
+                return;
+            }
+
+            const jobId = startData.job_id;
+            let failures = 0;
+            const pollInterval = setInterval(async () => {
+                try {
+                    const pollResp = await fetch(`/api/job-status/${jobId}`);
+                    if (!pollResp.ok) {
+                        failures++;
+                        if (failures >= 6) {
+                            clearInterval(pollInterval);
+                            resetBtn();
+                            Swal.fire({ icon: 'error', title: 'Parsing Error', text: 'Lost track of parse job.' });
+                        }
+                        return;
+                    }
+                    failures = 0;
+                    const pollData = await pollResp.json();
+                    if (pollData.status === 'done' || pollData.status === 'error') {
+                        clearInterval(pollInterval);
+                        handleParseSuccess(pollData.result || {});
+                    }
+                } catch (e) {
+                    failures++;
+                    if (failures >= 6) {
+                        clearInterval(pollInterval);
+                        resetBtn();
+                        Swal.fire({ icon: 'error', title: 'Connection Lost', text: 'Lost connection while parsing.' });
+                    }
+                }
+            }, 2500);
+
+        } catch (err) {
+            resetBtn();
+            Swal.fire({
+                icon: 'error',
+                title: 'Request Failed',
+                text: err.message || 'Network error occurred.'
+            });
+        }
     }
 
     function handleQuestionCountChange(val) {
