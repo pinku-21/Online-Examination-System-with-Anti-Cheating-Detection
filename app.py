@@ -55,6 +55,32 @@ def get_current_time():
 app = Flask(__name__, static_url_path=None)
 app.secret_key = os.environ.get("SECRET_KEY", "examguard-super-secret-key-2026")
 
+# Cookie & Session Security Hardening
+app.config.update(
+    SESSION_COOKIE_HTTPONLY=True,
+    SESSION_COOKIE_SAMESITE="Lax",
+    SESSION_COOKIE_SECURE=os.environ.get("FLASK_ENV") == "production" or bool(os.environ.get("RENDER")),
+    PERMANENT_SESSION_LIFETIME=timedelta(hours=8)
+)
+
+@app.after_request
+def apply_security_headers(response):
+    """
+    Enforces defense-in-depth HTTP security headers and masks server headers
+    to prevent fingerprinting and automated scanner version heuristics.
+    """
+    response.headers["Server"] = "WebServer"
+    response.headers["X-Content-Type-Options"] = "nosniff"
+    response.headers["X-Frame-Options"] = "SAMEORIGIN"
+    response.headers["X-XSS-Protection"] = "1; mode=block"
+    response.headers["Referrer-Policy"] = "strict-origin-when-cross-origin"
+    
+    # Apply HSTS over HTTPS / Render reverse proxy
+    if request.is_secure or request.headers.get("X-Forwarded-Proto", "").lower() == "https":
+        response.headers["Strict-Transport-Security"] = "max-age=31536000; includeSubDomains"
+        
+    return response
+
 # --- CYBERSECURITY HELPERS (Integrity & SIEM Classification) ---
 SECURITY_EVENT_CLASSIFICATION = {
     "virtual_camera_detected": {"code": "SEC-001", "severity": "CRITICAL", "desc": "Virtual Video Device / Stream Spoofing Attempt"},
@@ -657,6 +683,7 @@ def tutor_save_settings():
     return redirect(url_for("tutor_dashboard"))
 
 @app.route("/api/tutor/set-public-url", methods=["POST"])
+@admin_required
 def api_set_public_url():
     data = request.get_json() or {}
     url = data.get("public_url", "").strip().rstrip("/")
@@ -683,6 +710,7 @@ def new_exam():
     return render_template("create_exam.html", has_api_key=has_api_key, students=students, classes=distinct_classes)
 
 @app.route("/api/generate-questions", methods=["POST"])
+@admin_required
 def api_generate_questions():
     """
     Accepts PDF/image/text, starts AI generation in a background thread,
@@ -803,6 +831,7 @@ def api_job_status(job_id):
     return jsonify({"status": "not_found"}), 404
 
 @app.route("/api/upload-figure", methods=["POST"])
+@admin_required
 def api_upload_figure():
     """Uploads a standalone question diagram or image directly from the user's computer."""
     if "figure_file" not in request.files:
@@ -826,6 +855,7 @@ def api_upload_figure():
     return jsonify({"success": True, "figure_url": f"/static/question_figures/{unique_name}"})
 
 @app.route("/api/submission/<int:submission_id>/upload-answer-image", methods=["POST"])
+@login_required
 def api_upload_answer_image(submission_id):
     """Allows student to upload handwritten answer photo/diagram for subjective questions."""
     conn = get_connection()
@@ -836,6 +866,10 @@ def api_upload_answer_image(submission_id):
     
     if not submission or submission["status"] != "in_progress":
         return jsonify({"success": False, "error": "Exam session is not currently active."}), 400
+        
+    # Student authorization: must own this exam session
+    if session.get("user_role") == "student" and submission["user_id"] != session.get("user_id"):
+        return jsonify({"success": False, "error": "Access denied."}), 403
         
     uploaded_file = request.files.get("answer_image") or request.files.get("file")
     if not uploaded_file or not uploaded_file.filename:
@@ -973,6 +1007,11 @@ def api_verify_face_ai(submission_id):
     if not sub_row:
         conn.close()
         return jsonify({"success": False, "error": "Submission not found."}), 404
+
+    # Authorization Check: Student must own this submission
+    if session.get("user_role") == "student" and sub_row["user_id"] and sub_row["user_id"] != session.get("user_id"):
+        conn.close()
+        return jsonify({"success": False, "error": "Access denied."}), 403
 
     # Extract webcam snapshot
     live_file = request.files.get("snapshot")
@@ -1519,6 +1558,7 @@ def api_tutor_update_question_score(submission_id):
     })
 
 @app.route("/api/save-exam", methods=["POST"])
+@admin_required
 def api_save_exam():
     """Saves the tutor's configured exam and questions."""
     data = request.get_json()
@@ -2182,6 +2222,7 @@ def student_exam_room(submission_id):
     )
 
 @app.route("/api/submission/<int:submission_id>/violation", methods=["POST"])
+@login_required
 def api_log_violation(submission_id):
     """
     Called by anti-cheating JS engine when a violation occurs:
@@ -2213,6 +2254,11 @@ def api_log_violation(submission_id):
     if not submission or submission["status"] != "in_progress":
         conn.close()
         return jsonify({"terminated": True, "reason": "Exam is already closed or invalid"})
+
+    # Student ownership check: prevents tampering with other candidates' exams
+    if session.get("user_role") == "student" and submission["user_id"] != session.get("user_id"):
+        conn.close()
+        return jsonify({"terminated": False, "error": "Access denied."}), 403
         
     # Insert violation log with SIEM classification
     cursor.execute("""
@@ -2269,6 +2315,7 @@ def api_log_violation(submission_id):
     })
 
 @app.route("/api/submission/<int:submission_id>/submit", methods=["POST"])
+@login_required
 def api_submit_exam(submission_id):
     """Calculates final score, records completion, and computes cryptographic integrity hash."""
     data = request.get_json() or {}
@@ -2286,6 +2333,11 @@ def api_submit_exam(submission_id):
     if not submission or submission["status"] not in ["in_progress"]:
         conn.close()
         return jsonify({"success": False, "error": "Submission is already finalized."})
+
+    # Student ownership check: prevents unauthorized submission of other candidates' exams
+    if session.get("user_role") == "student" and submission["user_id"] != session.get("user_id"):
+        conn.close()
+        return jsonify({"success": False, "error": "Access denied."}), 403
         
     cursor.execute("SELECT * FROM questions WHERE exam_id = ?", (submission["exam_id"],))
     questions = cursor.fetchall()
