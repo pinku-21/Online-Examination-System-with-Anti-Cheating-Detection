@@ -605,41 +605,28 @@ def parse_existing_paper_with_gemini(api_key, raw_text):
 
 def parse_pasted_paper_unified(gemini_key=None, groq_key=None, raw_text=""):
     """
-    Direct Paper Parser: Runs Groq + Gemini in parallel to extract pasted questions verbatim.
-    Falls back to smart regex rule-based parser if neither key is available.
+    Direct Paper Parser: Exclusively powered by Google Gemini (gemini-3.8-flash, gemini-flash-latest, gemini-3.5-flash)
+    to transcribe and extract pasted questions verbatim.
+    Falls back to smart local regex rule-based parser if no Gemini API key is configured or upon error.
     """
     if not raw_text or not raw_text.strip():
         return {"success": False, "error": "No question text provided to parse."}
 
-    if not gemini_key and not groq_key:
-        return regex_parse_pasted_questions(raw_text)
+    if gemini_key:
+        result = parse_existing_paper_with_gemini(gemini_key, raw_text)
+        if result.get("success"):
+            return result
+        gemini_err = result.get("error", "Unknown Gemini error")
+    else:
+        gemini_err = "No Gemini API key configured."
 
-    futures_map = {}
-    errors = []
-    with concurrent.futures.ThreadPoolExecutor(max_workers=2) as executor:
-        if groq_key:
-            futures_map[executor.submit(parse_existing_paper_with_groq, groq_key, raw_text)] = "Groq"
-        if gemini_key:
-            futures_map[executor.submit(parse_existing_paper_with_gemini, gemini_key, raw_text)] = "Gemini"
-
-        for future in concurrent.futures.as_completed(futures_map, timeout=120):
-            provider = futures_map[future]
-            try:
-                result = future.result()
-                if result.get("success"):
-                    return result
-                else:
-                    errors.append(f"{provider}: {result.get('error')}")
-            except Exception as e:
-                errors.append(f"{provider}: {str(e)}")
-
-    # Fallback to smart rule-based parser if AI fails or rate limits
+    # Fallback to local rule-based regex parser if Gemini key is missing or fails
     rule_result = regex_parse_pasted_questions(raw_text)
     if rule_result.get("success") and len(rule_result.get("questions", [])) > 0:
         rule_result["model_used"] = "Fast Local Rule-based Parser (Fallback)"
         return rule_result
 
-    return {"success": False, "error": "Could not parse questions: " + " | ".join(errors)}
+    return {"success": False, "error": f"Could not parse questions with Gemini: {gemini_err}"}
 
 def regex_parse_pasted_questions(raw_text):
     """
