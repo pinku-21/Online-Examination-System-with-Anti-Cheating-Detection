@@ -579,13 +579,78 @@
         let faceOccludedConsecutiveCount = 0;
         let loudAudioConsecutiveCount = 0;
 
-        // Biometric Face Verification Variables
+        // Biometric Face Verification & Self-Trained Baseline Variables
         let activeWebcamStream = null;
         let isFaceVerified = Number(metaEl.dataset.isFaceVerified || 0) === 1;
         let customRefPhotoBlob = null;
         let isBiometricMismatch = false;
         let lastBiometricCheckTime = 0;
         let isBiometricChecking = false;
+
+        // Machine Learning: Self-Trained Student Face Biometric Profile
+        let trainedStudentBaseline = null; // Centroid geometric landmark vector
+        let trainedSampleCount = 0;
+
+        // Extract normalized geometric landmark vector from BlazeFace detection
+        function extractFaceBiometricVector(face) {
+            if (!face || !face.landmarks || face.landmarks.length < 4) return null;
+            const tl = face.topLeft;
+            const br = face.bottomRight;
+            const w = Math.max(1, br[0] - tl[0]);
+            const h = Math.max(1, br[1] - tl[1]);
+            
+            const rEye = face.landmarks[0]; // right eye [x, y]
+            const lEye = face.landmarks[1]; // left eye [x, y]
+            const nose = face.landmarks[2]; // nose tip [x, y]
+            const mouth = face.landmarks[3]; // mouth center [x, y]
+
+            // 1. Inter-pupillary distance normalized by face width
+            const eyeDist = Math.hypot(lEye[0] - rEye[0], lEye[1] - rEye[1]) / w;
+            // 2. Eye midpoint
+            const eyeMidX = (rEye[0] + lEye[0]) / 2;
+            const eyeMidY = (rEye[1] + lEye[1]) / 2;
+            // 3. Eye-to-nose vertical distance ratio
+            const eyeToNose = Math.abs(nose[1] - eyeMidY) / h;
+            // 4. Nose-to-mouth vertical distance ratio
+            const noseToMouth = Math.abs(mouth[1] - nose[1]) / h;
+            // 5. Eye-to-mouth triangular height ratio
+            const eyeToMouth = Math.abs(mouth[1] - eyeMidY) / h;
+            // 6. Facial bounding box aspect ratio
+            const faceAspect = w / h;
+            // 7. Horizontal symmetry (nose relative to eye midpoint)
+            const noseSymmetry = (nose[0] - eyeMidX) / w;
+
+            return [eyeDist, eyeToNose, noseToMouth, eyeToMouth, faceAspect, noseSymmetry];
+        }
+
+        // Calculate cosine similarity between two geometric vectors
+        function computeVectorSimilarity(v1, v2) {
+            if (!v1 || !v2 || v1.length !== v2.length) return 0.0;
+            let dot = 0, norm1 = 0, norm2 = 0;
+            for (let i = 0; i < v1.length; i++) {
+                dot += v1[i] * v2[i];
+                norm1 += v1[i] * v1[i];
+                norm2 += v2[i] * v2[i];
+            }
+            if (norm1 === 0 || norm2 === 0) return 0.0;
+            return dot / (Math.sqrt(norm1) * Math.sqrt(norm2));
+        }
+
+        // Train / update student baseline vector
+        function learnStudentFaceSample(vec) {
+            if (!vec) return;
+            if (!trainedStudentBaseline) {
+                trainedStudentBaseline = [...vec];
+                trainedSampleCount = 1;
+            } else {
+                // Running moving average update
+                const alpha = trainedSampleCount < 10 ? 0.25 : 0.05;
+                for (let i = 0; i < trainedStudentBaseline.length; i++) {
+                    trainedStudentBaseline[i] = (1 - alpha) * trainedStudentBaseline[i] + alpha * vec[i];
+                }
+                trainedSampleCount++;
+            }
+        }
 
         // Periodic in-exam biometric verification against registered student photo
         async function runInExamBiometricVerification(videoEl) {
@@ -797,11 +862,24 @@
                         enterText.textContent = 'Agree & Enter Fullscreen Exam';
                     }
 
+                    // Self-train ML Baseline: extract student's verified facial geometry
+                    if (blazeFaceModel) {
+                        try {
+                            const initialFaces = await blazeFaceModel.estimateFaces(video, false);
+                            if (initialFaces && initialFaces.length === 1) {
+                                const vec = extractFaceBiometricVector(initialFaces[0]);
+                                if (vec) learnStudentFaceSample(vec);
+                            }
+                        } catch (trainErr) {
+                            console.warn("Initial ML baseline training error:", trainErr);
+                        }
+                    }
+
                     lucide.createIcons();
                     Swal.fire({
                         icon: 'success',
-                        title: 'Face Verified!',
-                        text: res.reason || 'Candidate identity confirmed with Gemini Vision AI.',
+                        title: 'Face Verified & Calibrated!',
+                        text: 'Biometric profile trained and locked to candidate.',
                         timer: 2000,
                         showConfirmButton: false
                     });
@@ -1267,8 +1345,30 @@
                                         drawBoundingBox(ctx, [tl[0], tl[1], w, h], '⚠️ Face/Eyes Hidden', '#f59e0b');
                                     } else {
                                         validVisibleFaceCount++;
-                                        if (isBiometricMismatch) {
-                                            drawBoundingBox(ctx, [tl[0], tl[1], w, h], '⚠️ Impostor Mismatch', '#f43f5e');
+
+                                        // --- Machine Learning Biometric Vector Comparison ---
+                                        const liveVec = extractFaceBiometricVector(face);
+                                        let isMLPersonMatch = true;
+
+                                        if (liveVec) {
+                                            if (!trainedStudentBaseline && !isBiometricMismatch) {
+                                                // Self-train first clean baseline sample
+                                                learnStudentFaceSample(liveVec);
+                                            } else if (trainedStudentBaseline) {
+                                                const similarity = computeVectorSimilarity(trainedStudentBaseline, liveVec);
+                                                // If geometric proportions diverge below 0.82, it is a different person
+                                                if (similarity < 0.82) {
+                                                    isMLPersonMatch = false;
+                                                } else {
+                                                    // Continuous learning: update running baseline with matching angles
+                                                    learnStudentFaceSample(liveVec);
+                                                }
+                                            }
+                                        }
+
+                                        if (isBiometricMismatch || !isMLPersonMatch) {
+                                            isBiometricMismatch = true;
+                                            drawBoundingBox(ctx, [tl[0], tl[1], w, h], '⚠️ Impostor Detected', '#f43f5e');
                                         } else {
                                             drawBoundingBox(ctx, [tl[0], tl[1], w, h], 'Face ✓', '#10b981');
                                         }
@@ -1392,6 +1492,7 @@
                             noPersonConsecutiveCount = 0;
                             imposterConsecutiveCount = 0;
                             faceOccludedConsecutiveCount = 0;
+                            isBiometricMismatch = false; // Reset mismatch state when valid student face is confirmed
                             updateHudBadge('hud-face', '1 Person ✓', 'emerald');
                         }
 
