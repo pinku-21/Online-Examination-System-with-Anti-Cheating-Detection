@@ -41,7 +41,27 @@
                 <i data-lucide="play-circle" class="w-3.5 h-3.5"></i>
                 <span>Approve Resume</span>
             </button>
+            {% if submission.status in ['in_progress', 'paused', 'pause_requested'] %}
+            <button type="button"
+                    data-submission-id="{{ submission.id }}"
+                    data-student-name="{{ submission.student_name | e }}"
+                    onclick="approveDeviceSwitch(this)"
+                    class="px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-bold rounded-xl shadow-sm transition flex items-center space-x-1.5 cursor-pointer"
+                    title="Allow student to login from a new device for this active exam">
+                <i data-lucide="smartphone" class="w-3.5 h-3.5"></i>
+                <span>Allow Device Switch</span>
+            </button>
             {% endif %}
+
+            <button type="button"
+                    data-submission-id="{{ submission.id }}"
+                    data-published="{{ 1 if submission.is_published in [1, True, '1'] else 0 }}"
+                    onclick="toggleSubmissionPublish(this)"
+                    class="px-4 py-2 {% if submission.is_published in [1, True, '1'] %}bg-emerald-600 hover:bg-emerald-700{% else %}bg-slate-800 hover:bg-slate-900{% endif %} text-white text-xs font-bold rounded-xl shadow-sm transition flex items-center space-x-1.5 cursor-pointer"
+                    title="Publish or hide detailed answers and mistakes for this student">
+                <i data-lucide="{% if submission.is_published in [1, True, '1'] %}eye{% else %}eye-off{% endif %}" class="w-3.5 h-3.5"></i>
+                <span>{% if submission.is_published in [1, True, '1'] %}Result Published{% else %}Publish Result{% endif %}</span>
+            </button>
 
             <button type="button"
                     data-submission-id="{{ submission.id }}"
@@ -837,6 +857,82 @@
                 btn.innerHTML = originalHtml;
                 if (window.lucide) lucide.createIcons();
             }
+        }
+    }
+
+    async function toggleSubmissionPublish(btn) {
+        const subId = btn.dataset.submissionId;
+        const isCurrentlyPublished = btn.dataset.published === '1';
+        const actionText = isCurrentlyPublished ? 'hide this student\'s detailed evaluation review and model answers' : 'publish the detailed evaluation review and model answers to this student';
+
+        const result = await Swal.fire({
+            icon: 'question',
+            title: isCurrentlyPublished ? 'Unpublish Result?' : 'Publish Result?',
+            text: `Are you sure you want to ${actionText}?`,
+            showCancelButton: true,
+            confirmButtonText: isCurrentlyPublished ? 'Yes, Hide Result' : 'Yes, Publish to Student',
+            confirmButtonColor: isCurrentlyPublished ? '#475569' : '#059669',
+            cancelButtonText: 'Cancel'
+        });
+        if (!result.isConfirmed) return;
+
+        try {
+            const resp = await fetch(`/api/tutor/submission/${subId}/toggle-publish`, { method: 'POST' });
+            const data = await resp.json();
+            if (data.success) {
+                await Swal.fire({
+                    icon: 'success',
+                    title: 'Updated!',
+                    text: data.message,
+                    timer: 1400,
+                    showConfirmButton: false
+                });
+                window.location.reload();
+            } else {
+                Swal.fire({ icon: 'error', title: 'Error', text: data.error || 'Failed to update.' });
+            }
+        } catch (err) {
+            Swal.fire({ icon: 'error', title: 'Error', text: 'Network connection failed.' });
+        }
+    }
+
+    async function approveDeviceSwitch(btn) {
+        const subId = btn.dataset.submissionId;
+        const studentName = btn.dataset.studentName;
+
+        const result = await Swal.fire({
+            icon: 'question',
+            title: 'Allow Device Switch?',
+            html: `
+                <p class="text-sm text-slate-600 mb-2">Grant <strong>${studentName}</strong> permission to switch to another device?</p>
+                <p class="text-xs text-sky-700 bg-sky-50 p-2.5 rounded-lg border border-sky-200">
+                    Once approved, their single-device login lock will be temporarily cleared so they can sign in from another browser or device and resume their exam without being blocked.
+                </p>
+            `,
+            showCancelButton: true,
+            confirmButtonText: 'Yes, Grant Approval',
+            confirmButtonColor: '#4f46e5',
+            cancelButtonText: 'Cancel'
+        });
+        if (!result.isConfirmed) return;
+
+        try {
+            const resp = await fetch(`/api/tutor/submission/${subId}/approve-device-switch`, { method: 'POST' });
+            const data = await resp.json();
+            if (data.success) {
+                await Swal.fire({
+                    icon: 'success',
+                    title: 'Approved!',
+                    text: data.message,
+                    timer: 2000,
+                    showConfirmButton: false
+                });
+                window.location.reload();
+            } else {
+                Swal.fire({ icon: 'error', title: 'Error', text: data.error || 'Failed to approve.' });
+            }
+        } catch (err) {
+            Swal.fire({ icon: 'error', title: 'Error', text: 'Network connection failed.' });
         }
     }
 </script>

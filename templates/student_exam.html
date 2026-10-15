@@ -575,6 +575,7 @@
         let aiDetectionInterval = null;
         let audioAnalysisInterval = null;
         let noPersonConsecutiveCount = 0;
+        let imposterConsecutiveCount = 0;
         let loudAudioConsecutiveCount = 0;
 
         // Biometric Face Verification Variables
@@ -1229,6 +1230,10 @@
                         let personCount = 0;
                         let detectedDevices = [];
 
+                        // ONLY detect genuine electronic devices (cell phone, laptop, tv, tablet)
+                        // Ignore background household items like balls, fans, wall photos, books, cups, chairs, etc.
+                        const ALLOWED_DEVICE_CLASSES = ['cell phone', 'laptop', 'tv', 'tablet'];
+
                         predictions.forEach(pred => {
                             // Lower threshold to 0.25 for persons (helps with close-up cam angles)
                             if (pred.class === 'person' && pred.score >= 0.25) {
@@ -1238,7 +1243,7 @@
                                 } else {
                                     drawBoundingBox(ctx, pred.bbox, 'Candidate', '#10b981');
                                 }
-                            } else if (['cell phone', 'laptop', 'tablet'].includes(pred.class) ? pred.score >= 0.52 : (pred.class === 'remote' ? pred.score >= 0.65 : pred.score >= 0.72)) {
+                            } else if (ALLOWED_DEVICE_CLASSES.includes(pred.class) && pred.score >= 0.50) {
                                 detectedDevices.push(pred.class);
                                 drawBoundingBox(ctx, pred.bbox, pred.class.toUpperCase(), '#f43f5e');
                             }
@@ -1261,6 +1266,7 @@
                         // Skip violation alerts during initial startup grace period OR while taking/uploading photos
                         if (isGracePeriod || isBrowsingFile) {
                             noPersonConsecutiveCount = 0;
+                            imposterConsecutiveCount = 0;
                             if (isBrowsingFile) {
                                 updateHudBadge('hud-face', 'Uploading 📷', 'sky');
                                 updateHudBadge('hud-phone', 'Upload Mode', 'sky');
@@ -1268,7 +1274,7 @@
                             return;
                         }
 
-                        // Rule A: Mobile Phone / Device Detection
+                        // Rule A: Mobile Phone / Electronic Device Detection
                         if (detectedDevices.length > 0) {
                             updateHudBadge('hud-phone', 'Phone Alert! 🚨', 'rose');
                             triggerViolation('mobile_phone_detected', `Unauthorized electronic device detected: ${detectedDevices[0].toUpperCase()}`);
@@ -1276,24 +1282,44 @@
                             updateHudBadge('hud-phone', 'Clear ✓', 'emerald');
                         }
 
-                        // Rule B: Face / Person Detection
-                        // Requires 8 consecutive misses (~12 seconds) before flagging (allows looking down to write on paper)
+                        // Rule B: Face / Person & Impostor Detection
+                        // Requires 8 consecutive misses (~12 seconds) before flagging absent desk
                         if (totalPersonCount === 0) {
                             noPersonConsecutiveCount++;
+                            imposterConsecutiveCount = 0;
                             updateHudBadge('hud-face', 'No Person ❌', 'rose');
                             if (noPersonConsecutiveCount >= 8) {
                                 triggerViolation('no_face', 'No candidate face detected in webcam feed. Candidate left desk or covered camera.');
                             }
-                        } else if (totalPersonCount > 1 && blazeFaceCount <= 1) {
-                            // Only flag multiple people if BlazeFace also confirms >1 face
+                        } else if (totalPersonCount > 1 || isBiometricMismatch) {
                             noPersonConsecutiveCount = 0;
-                            updateHudBadge('hud-face', `${totalPersonCount} People ⚠️`, 'rose');
-                            triggerViolation('multiple_faces', `Multiple persons (${totalPersonCount}) detected in webcam feed.`);
-                        } else if (isBiometricMismatch) {
-                            noPersonConsecutiveCount = 0;
-                            updateHudBadge('hud-face', 'Mismatch ❌', 'rose');
+                            imposterConsecutiveCount++;
+                            
+                            // Visual prompt on HUD
+                            const alertLabel = totalPersonCount > 1 ? `${totalPersonCount} People ⚠️` : 'Mismatch ❌';
+                            updateHudBadge('hud-face', alertLabel, 'rose');
+
+                            // Instant Red Warning on canvas / toast if impostor appears:
+                            // Do NOT strike immediately — only strike if they persist > 3-5 seconds (>= 3 consecutive cycles @ 1.4s = ~4.2s)
+                            if (imposterConsecutiveCount < 3) {
+                                // Draw prominent banner on webcam overlay
+                                ctx.fillStyle = 'rgba(225, 29, 72, 0.85)';
+                                ctx.fillRect(10, 10, canvas.width - 20, 28);
+                                ctx.fillStyle = '#ffffff';
+                                ctx.font = 'bold 12px Inter, sans-serif';
+                                ctx.fillText('⚠️ UNRECOGNIZED / EXTRA PERSON IN VIEW — PLEASE CLEAR CAMERA (STRIKE IN 3s)', 18, 28);
+                            } else {
+                                // Persisted >= 3 cycles (approx 4.2 seconds): now trigger official strike
+                                imposterConsecutiveCount = 0;
+                                if (totalPersonCount > 1) {
+                                    triggerViolation('multiple_faces', `Multiple persons (${totalPersonCount}) detected in webcam feed for more than 4 seconds.`);
+                                } else {
+                                    triggerViolation('impersonation_mismatch', `Impostor detected in webcam feed continuously for over 4 seconds.`);
+                                }
+                            }
                         } else {
                             noPersonConsecutiveCount = 0;
+                            imposterConsecutiveCount = 0;
                             updateHudBadge('hud-face', '1 Person ✓', 'emerald');
                         }
 

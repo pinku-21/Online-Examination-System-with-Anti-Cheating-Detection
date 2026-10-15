@@ -5,6 +5,7 @@ import string
 import threading
 import uuid
 import time
+import secrets
 from functools import wraps
 from datetime import datetime, timezone, timedelta
 from flask import Flask, render_template, request, jsonify, redirect, url_for, flash, session
@@ -27,7 +28,9 @@ from database import (
     create_user,
     authenticate_user,
     get_user_by_id,
-    get_student_submissions
+    get_student_submissions,
+    save_persistent_asset,
+    get_persistent_asset
 )
 import base64
 from ai_service import (
@@ -167,9 +170,24 @@ def generate_exam_code(length=6):
 def login_required(f):
     @wraps(f)
     def decorated_function(*args, **kwargs):
-        if not session.get("user_id"):
+        user_id = session.get("user_id")
+        if not user_id:
             flash("Please sign in to access this page.", "warning")
             return redirect(url_for("login", next=request.path))
+        
+        # Single-device session verification for students
+        if session.get("user_role") == "student":
+            my_token = session.get("session_token")
+            if my_token:
+                conn = get_connection()
+                cursor = conn.cursor()
+                cursor.execute("SELECT active_session_token FROM users WHERE id = ?", (user_id,))
+                urow = cursor.fetchone()
+                conn.close()
+                if urow and urow["active_session_token"] and urow["active_session_token"] != my_token:
+                    session.clear()
+                    flash("You have been signed out because your account was logged in from another device. Multiple simultaneous logins are not permitted.", "danger")
+                    return redirect(url_for("login"))
         return f(*args, **kwargs)
     return decorated_function
 
@@ -197,6 +215,43 @@ def login():
 
         user = authenticate_user(identifier, password)
         if user:
+            # Check single-device & active-exam security rules for student accounts
+            if user["role"] == "student":
+                conn = get_connection()
+                cursor = conn.cursor()
+                
+                # Check if this student currently has an active in_progress or paused exam
+                cursor.execute("""
+                    SELECT s.id, s.exam_id, s.status, s.device_switch_approved, e.title as exam_title
+                    FROM submissions s
+                    JOIN exams e ON s.exam_id = e.id
+                    WHERE (s.user_id = ? OR s.roll_number = ?)
+                      AND s.status IN ('in_progress', 'paused', 'pause_requested')
+                    ORDER BY s.started_at DESC LIMIT 1
+                """, (user["id"], user.get("roll_number") or ""))
+                active_exam = cursor.fetchone()
+
+                existing_token = user.get("active_session_token")
+                # If student is already attempting an exam and attempts to login from a new session without permission
+                if active_exam and existing_token and not active_exam["device_switch_approved"]:
+                    conn.close()
+                    flash(f"⚠️ Exam In Progress: You are already taking '{active_exam['exam_title']}' on another device! Simultaneous logins are blocked. To switch devices during an exam, please contact your tutor to approve a Device Switch.", "danger")
+                    return render_template("login.html", role=role, prefill=identifier, next_url=next_url)
+
+                # Reset device_switch_approved flag once student uses it to log in
+                if active_exam and active_exam["device_switch_approved"]:
+                    cursor.execute("UPDATE submissions SET device_switch_approved = 0 WHERE id = ?", (active_exam["id"],))
+
+                # Generate new single-device session token and record in user profile
+                new_session_token = secrets.token_hex(20)
+                cursor.execute("UPDATE users SET active_session_token = ? WHERE id = ?", (new_session_token, user["id"]))
+                conn.commit()
+                conn.close()
+                session["session_token"] = new_session_token
+            else:
+                new_session_token = secrets.token_hex(20)
+                session["session_token"] = new_session_token
+
             session["user_id"] = user["id"]
             session["username"] = user["username"]
             session["user_name"] = user["full_name"]
@@ -250,7 +305,10 @@ def register():
             photo_filename = f"reg_{safe_roll}_{int(datetime.now().timestamp())}{ext}"
             photo_dir = os.path.join(os.path.dirname(__file__), "static", "profile_photos")
             os.makedirs(photo_dir, exist_ok=True)
-            photo_file.save(os.path.join(photo_dir, photo_filename))
+            photo_bytes = photo_file.read()
+            with open(os.path.join(photo_dir, photo_filename), "wb") as f:
+                f.write(photo_bytes)
+            save_persistent_asset(f"profile_photos/{photo_filename}", photo_file.mimetype or "image/jpeg", photo_bytes)
             profile_photo_url = f"/static/profile_photos/{photo_filename}"
 
         res = create_user(username, email, password, full_name, role="student", 
@@ -744,13 +802,29 @@ def api_upload_answer_image(submission_id):
     upload_dir = os.path.join(os.path.dirname(__file__), "static", "student_answers")
     os.makedirs(upload_dir, exist_ok=True)
     
+    file_bytes = uploaded_file.read()
     save_path = os.path.join(upload_dir, unique_name)
-    uploaded_file.save(save_path)
+    with open(save_path, "wb") as f:
+        f.write(file_bytes)
+    
+    # Also save permanently to database so it never vanishes on Render restarts
+    mime_type = uploaded_file.mimetype or "image/jpeg"
+    save_persistent_asset(f"student_answers/{unique_name}", mime_type, file_bytes)
     
     return jsonify({
         "success": True, 
         "image_url": f"/static/student_answers/{unique_name}"
     })
+
+@app.route("/asset/<path:asset_key>")
+def serve_persistent_asset(asset_key):
+    """Fallback endpoint that serves images directly from database if local ephemeral file was erased."""
+    res = get_persistent_asset(asset_key)
+    if not res:
+        return "Asset not found", 404
+    mime_type, raw_bytes = res
+    from flask import Response
+    return Response(raw_bytes, mimetype=mime_type)
 
 @app.route("/api/student/upload-profile-photo", methods=["POST"])
 @login_required
@@ -774,8 +848,15 @@ def api_upload_profile_photo():
     unique_name = f"user_{user_id}_{int(datetime.now().timestamp())}{ext}"
     upload_dir = os.path.join(os.path.dirname(__file__), "static", "profile_photos")
     os.makedirs(upload_dir, exist_ok=True)
+    
+    file_bytes = uploaded_file.read()
     save_path = os.path.join(upload_dir, unique_name)
-    uploaded_file.save(save_path)
+    with open(save_path, "wb") as f:
+        f.write(file_bytes)
+    
+    # Save permanently to database persistent_assets
+    mime_type = uploaded_file.mimetype or "image/jpeg"
+    save_persistent_asset(f"profile_photos/{unique_name}", mime_type, file_bytes)
     rel_url = f"/static/profile_photos/{unique_name}"
 
     conn = get_connection()
@@ -2312,6 +2393,83 @@ def api_manage_pause(submission_id):
     return jsonify({"success": True, "message": msg})
 
 
+@app.route("/api/tutor/submission/<int:submission_id>/approve-device-switch", methods=["POST"])
+@admin_required
+def api_approve_device_switch(submission_id):
+    """Admin grants permission for a student to switch devices while their exam is in progress."""
+    conn = get_connection()
+    cursor = conn.cursor()
+    cursor.execute("SELECT id, student_name FROM submissions WHERE id = ?", (submission_id,))
+    sub = cursor.fetchone()
+    if not sub:
+        conn.close()
+        return jsonify({"success": False, "error": "Submission not found."}), 404
+
+    cursor.execute("UPDATE submissions SET device_switch_approved = 1 WHERE id = ?", (submission_id,))
+    conn.commit()
+    conn.close()
+    return jsonify({
+        "success": True,
+        "message": f"Device switch approved for {sub['student_name']}. They can now sign in and continue their exam on a new device."
+    })
+
+
+@app.route("/api/tutor/exam/<int:exam_id>/toggle-publish-results", methods=["POST"])
+@admin_required
+def api_toggle_exam_results_published(exam_id):
+    """Admin publishes or unpublishes answers & detailed mistakes/evaluation for all students in an exam."""
+    conn = get_connection()
+    cursor = conn.cursor()
+    cursor.execute("SELECT id, title, results_published FROM exams WHERE id = ?", (exam_id,))
+    exam = cursor.fetchone()
+    if not exam:
+        conn.close()
+        return jsonify({"success": False, "error": "Exam not found."}), 404
+
+    current_val = int(exam.get("results_published") or 0)
+    new_val = 0 if current_val == 1 else 1
+
+    cursor.execute("UPDATE exams SET results_published = ? WHERE id = ?", (new_val, exam_id))
+    # Also sync is_published to all submissions for this exam
+    cursor.execute("UPDATE submissions SET is_published = ? WHERE exam_id = ?", (new_val, exam_id))
+    conn.commit()
+    conn.close()
+
+    status_str = "Published to Students" if new_val == 1 else "Hidden from Students (Awaiting Evaluation)"
+    return jsonify({
+        "success": True,
+        "results_published": bool(new_val),
+        "message": f"Results and question review are now {status_str}."
+    })
+
+
+@app.route("/api/tutor/submission/<int:submission_id>/toggle-publish", methods=["POST"])
+@admin_required
+def api_toggle_submission_published(submission_id):
+    """Admin publishes or unpublishes evaluation review for an individual student."""
+    conn = get_connection()
+    cursor = conn.cursor()
+    cursor.execute("SELECT id, student_name, is_published FROM submissions WHERE id = ?", (submission_id,))
+    sub = cursor.fetchone()
+    if not sub:
+        conn.close()
+        return jsonify({"success": False, "error": "Submission not found."}), 404
+
+    current_val = int(sub.get("is_published") or 0)
+    new_val = 0 if current_val == 1 else 1
+
+    cursor.execute("UPDATE submissions SET is_published = ? WHERE id = ?", (new_val, submission_id))
+    conn.commit()
+    conn.close()
+
+    status_str = "Published" if new_val == 1 else "Unpublished"
+    return jsonify({
+        "success": True,
+        "is_published": bool(new_val),
+        "message": f"Evaluation report for {sub['student_name']} is now {status_str}."
+    })
+
+
 @app.route("/student/result/<int:submission_id>")
 @login_required
 def exam_result(submission_id):
@@ -2366,7 +2524,77 @@ def exam_result(submission_id):
 
     passed = (pct_val >= pass_val) and (sub_dict.get("status") != "terminated")
     
-    return render_template("exam_result.html", submission=sub_dict, violations=violations, passed=passed)
+    # Check if tutor has published the evaluated results to the student
+    is_published = bool(sub_dict.get("is_published") or sub_dict.get("results_published"))
+    # Admin / Tutor can always preview full questions
+    if session.get("user_role") == "admin":
+        is_published = True
+
+    questions_review = []
+    if is_published:
+        conn = get_connection()
+        cursor = conn.cursor()
+        cursor.execute("SELECT * FROM questions WHERE exam_id = ? ORDER BY id ASC", (submission["exam_id"],))
+        raw_questions = cursor.fetchall()
+        conn.close()
+
+        student_answers = json.loads(submission["answers_json"]) if submission["answers_json"] else {}
+        manual_eval = json.loads(submission["manual_evaluation_json"]) if submission["manual_evaluation_json"] else {}
+
+        for q in raw_questions:
+            q_dict = dict(q)
+            q_dict["options"] = json.loads(q["options_json"]) if q["options_json"] else []
+            q_id_str = str(q["id"])
+            ans_raw = student_answers.get(q_id_str)
+
+            student_text = ""
+            student_img = ""
+            student_imgs = []
+            if isinstance(ans_raw, dict):
+                student_text = (ans_raw.get("text") or "").strip()
+                student_img = (ans_raw.get("image_url") or "").strip()
+                raw_list = ans_raw.get("image_urls") or []
+                if isinstance(raw_list, list):
+                    student_imgs = [u.strip() for u in raw_list if isinstance(u, str) and u.strip()]
+                if student_img and student_img not in student_imgs:
+                    student_imgs.insert(0, student_img)
+                elif not student_img and student_imgs:
+                    student_img = student_imgs[0]
+            elif isinstance(ans_raw, str):
+                student_text = ans_raw.strip()
+
+            page_suffix = f" ({len(student_imgs)} Pages)" if len(student_imgs) > 1 else (" (1 Page)" if student_imgs else "")
+            q_dict["student_answer"] = student_text if student_text else (f"Handwritten Solution{page_suffix}" if student_imgs else "Not Attempted")
+            q_dict["student_image_url"] = student_img
+            q_dict["student_image_urls"] = student_imgs
+
+            correct_ans = (q["correct_answer"] or "").strip().lower()
+            if correct_ans:
+                q_dict["is_correct"] = (student_text.lower() == correct_ans)
+            else:
+                q_dict["is_correct"] = False
+
+            eval_item = manual_eval.get(q_id_str)
+            if eval_item:
+                q_dict["awarded_marks"] = float(eval_item.get("awarded_marks", 0.0))
+                q_dict["eval_feedback"] = eval_item.get("feedback", "")
+                q_dict["eval_by"] = eval_item.get("evaluated_by", "ai")
+                q_dict["is_evaluated"] = True
+            else:
+                default_pts = float(q["points"]) if q_dict["is_correct"] else 0.0
+                q_dict["awarded_marks"] = default_pts
+                q_dict["eval_feedback"] = ""
+                q_dict["eval_by"] = "auto"
+                q_dict["is_evaluated"] = False
+
+            questions_review.append(q_dict)
+
+    return render_template("exam_result.html", 
+                           submission=sub_dict, 
+                           violations=violations, 
+                           passed=passed, 
+                           is_published=is_published,
+                           questions=questions_review)
 
 if __name__ == "__main__":
     app.run(host="127.0.0.1", port=5000, debug=True)

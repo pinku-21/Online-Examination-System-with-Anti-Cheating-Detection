@@ -201,6 +201,12 @@ def init_db():
             result_json TEXT,
             created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
         )""")
+        cursor.execute("""CREATE TABLE IF NOT EXISTS persistent_assets (
+            asset_key TEXT PRIMARY KEY,
+            mime_type TEXT NOT NULL,
+            data_base64 TEXT NOT NULL,
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        )""")
         # Safe, repeatable migrations for databases created by an earlier version.
         migrations = [
             "ALTER TABLE users ADD COLUMN IF NOT EXISTS class_name TEXT DEFAULT ''",
@@ -225,6 +231,11 @@ def init_db():
             "ALTER TABLE submissions ADD COLUMN IF NOT EXISTS pause_requested_at TIMESTAMP",
             "ALTER TABLE submissions ADD COLUMN IF NOT EXISTS pause_reason TEXT",
             "ALTER TABLE submissions ADD COLUMN IF NOT EXISTS current_question_index INTEGER DEFAULT 0",
+            # Results publishing and single-device session enforcement
+            "ALTER TABLE exams ADD COLUMN IF NOT EXISTS results_published INTEGER DEFAULT 0",
+            "ALTER TABLE submissions ADD COLUMN IF NOT EXISTS is_published INTEGER DEFAULT 0",
+            "ALTER TABLE submissions ADD COLUMN IF NOT EXISTS device_switch_approved INTEGER DEFAULT 0",
+            "ALTER TABLE users ADD COLUMN IF NOT EXISTS active_session_token TEXT DEFAULT ''",
         ]
         for statement in migrations:
             cursor.execute(statement)
@@ -312,6 +323,12 @@ def init_db():
             result_json TEXT,
             created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
         )""")
+        cursor.execute("""CREATE TABLE IF NOT EXISTS persistent_assets (
+            asset_key TEXT PRIMARY KEY,
+            mime_type TEXT NOT NULL,
+            data_base64 TEXT NOT NULL,
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        )""")
         # Repair older SQLite databases using the same idempotent migration style.
         for table, column, definition in [
             ("users", "class_name", "TEXT DEFAULT ''"),
@@ -336,6 +353,11 @@ def init_db():
             ("submissions", "pause_requested_at", "TIMESTAMP"),
             ("submissions", "pause_reason", "TEXT"),
             ("submissions", "current_question_index", "INTEGER DEFAULT 0"),
+            # Results publishing and single-device session enforcement
+            ("exams", "results_published", "INTEGER DEFAULT 0"),
+            ("submissions", "is_published", "INTEGER DEFAULT 0"),
+            ("submissions", "device_switch_approved", "INTEGER DEFAULT 0"),
+            ("users", "active_session_token", "TEXT DEFAULT ''"),
         ]:
             columns = {row["name"] for row in cursor.execute(f"PRAGMA table_info({table})").fetchall()}
             if column not in columns:
@@ -565,6 +587,37 @@ def get_generation_job(job_id):
         return None
     res = json.loads(row["result_json"]) if row["result_json"] else None
     return {"job_id": row["job_id"], "status": row["status"], "result": res}
+
+def save_persistent_asset(asset_key, mime_type, data_bytes):
+    """Saves an image/asset as base64 in database so it survives Render ephemeral restarts."""
+    import base64
+    b64_str = base64.b64encode(data_bytes).decode("ascii")
+    conn = get_connection()
+    cursor = conn.cursor()
+    # Upsert pattern
+    cursor.execute("SELECT asset_key FROM persistent_assets WHERE asset_key = ?", (asset_key,))
+    if cursor.fetchone():
+        cursor.execute("UPDATE persistent_assets SET mime_type = ?, data_base64 = ? WHERE asset_key = ?", (mime_type, b64_str, asset_key))
+    else:
+        cursor.execute("INSERT INTO persistent_assets (asset_key, mime_type, data_base64) VALUES (?, ?, ?)", (asset_key, mime_type, b64_str))
+    conn.commit()
+    conn.close()
+
+def get_persistent_asset(asset_key):
+    """Retrieves an asset (mime_type, raw_bytes) by key."""
+    import base64
+    conn = get_connection()
+    cursor = conn.cursor()
+    cursor.execute("SELECT mime_type, data_base64 FROM persistent_assets WHERE asset_key = ?", (asset_key,))
+    row = cursor.fetchone()
+    conn.close()
+    if not row or not row["data_base64"]:
+        return None
+    try:
+        raw = base64.b64decode(row["data_base64"])
+        return row["mime_type"], raw
+    except Exception:
+        return None
 
 if __name__ == "__main__":
     init_db()

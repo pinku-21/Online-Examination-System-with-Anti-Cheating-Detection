@@ -12,18 +12,20 @@
         <div class="flex flex-col md:flex-row md:items-center justify-between gap-6 relative z-10">
             <div class="flex items-center space-x-5">
                 <!-- Profile Avatar / Upload Box -->
-                <div class="relative group flex-shrink-0 cursor-pointer" onclick="document.getElementById('dash-photo-upload').click()" title="Click to upload profile photo">
-                    <div class="w-16 h-16 sm:w-20 sm:h-20 rounded-2xl overflow-hidden bg-white/20 border-2 border-white/40 shadow-md flex items-center justify-center hover:border-white/80 transition">
-                        {% if student.profile_photo %}
-                            <img id="dash-avatar-img" src="{{ student.profile_photo }}" alt="Profile" class="w-full h-full object-cover">
-                        {% else %}
-                            <i id="dash-avatar-placeholder" data-lucide="user" class="w-9 h-9 text-white/80"></i>
-                        {% endif %}
-                    </div>
-                    <label for="dash-photo-upload" title="Upload biometric reference photo" class="absolute -bottom-1 -right-1 bg-white text-sky-700 hover:text-sky-900 p-1.5 rounded-xl shadow-lg cursor-pointer border border-sky-100 transition hover:scale-110">
-                        <i data-lucide="camera" class="w-3.5 h-3.5"></i>
+                <div class="relative group flex-shrink-0">
+                    <label for="dash-photo-upload" class="cursor-pointer block" title="Click to upload profile photo">
+                        <div class="w-16 h-16 sm:w-20 sm:h-20 rounded-2xl overflow-hidden bg-white/20 border-2 border-white/40 shadow-md flex items-center justify-center hover:border-white/80 transition">
+                            {% if student.profile_photo %}
+                                <img id="dash-avatar-img" src="{{ student.profile_photo }}" alt="Profile" class="w-full h-full object-cover">
+                            {% else %}
+                                <i id="dash-avatar-placeholder" data-lucide="user" class="w-9 h-9 text-white/80"></i>
+                            {% endif %}
+                        </div>
+                        <span title="Upload biometric reference photo" class="absolute -bottom-1 -right-1 bg-white text-sky-700 hover:text-sky-900 p-1.5 rounded-xl shadow-lg cursor-pointer border border-sky-100 transition hover:scale-110 flex items-center justify-center">
+                            <i data-lucide="camera" class="w-3.5 h-3.5"></i>
+                        </span>
                     </label>
-                    <input type="file" id="dash-photo-upload" accept="image/png,image/jpeg,image/jpg,image/webp" class="hidden" onchange="uploadDashboardProfilePhoto(event)" onclick="this.value=null">
+                    <input type="file" id="dash-photo-upload" accept="image/*" capture="user" style="position:absolute;width:1px;height:1px;opacity:0;pointer-events:none;" onchange="uploadDashboardProfilePhoto(event)">
                 </div>
 
                 <div>
@@ -35,17 +37,17 @@
                                 <i data-lucide="check-circle" class="w-3 h-3"></i> Biometrics Registered
                             </span>
                         {% else %}
-                            <button type="button" onclick="document.getElementById('dash-photo-upload').click()" class="text-amber-300 hover:text-amber-200 font-bold ml-1 underline flex items-center gap-1">
+                            <label for="dash-photo-upload" class="text-amber-300 hover:text-amber-200 font-bold ml-1 underline flex items-center gap-1 cursor-pointer">
                                 <i data-lucide="alert-circle" class="w-3 h-3"></i> Photo Pending &bull; Click to Upload
-                            </button>
+                            </label>
                         {% endif %}
                     </div>
                     <h1 class="text-2xl sm:text-3xl font-black tracking-tight">Welcome, {{ student.user_name }}!</h1>
                     <div class="flex flex-wrap items-center gap-2 mt-1">
                         <p class="text-sky-100 text-xs sm:text-sm">Roll: <strong class="text-white font-mono bg-white/20 px-2 py-0.5 rounded">{{ student.roll_number or 'N/A' }}</strong> &nbsp;|&nbsp; Class: <strong class="text-white bg-white/20 px-2 py-0.5 rounded">{{ student.class_name or 'General' }}</strong> &nbsp;|&nbsp; User: <span class="font-mono">{{ student.username }}</span></p>
-                        <button onclick="document.getElementById('dash-photo-upload').click()" class="px-2.5 py-1 bg-white/20 hover:bg-white/30 text-white rounded-lg text-xs font-semibold transition inline-flex items-center gap-1 border border-white/25 ml-1">
+                        <label for="dash-photo-upload" class="px-2.5 py-1 bg-white/20 hover:bg-white/30 text-white rounded-lg text-xs font-semibold transition inline-flex items-center gap-1 border border-white/25 ml-1 cursor-pointer">
                             <i data-lucide="camera" class="w-3 h-3"></i> {% if student.profile_photo %}Change Photo{% else %}Upload Photo{% endif %}
-                        </button>
+                        </label>
                         <button onclick="openChangePasswordModal()" class="px-2.5 py-1 bg-white/20 hover:bg-white/30 text-white rounded-lg text-xs font-semibold transition inline-flex items-center gap-1 border border-white/25">
                             <i data-lucide="key-round" class="w-3 h-3"></i> Change Password
                         </button>
@@ -512,13 +514,14 @@ async function uploadDashboardProfilePhoto(event) {
         return;
     }
 
-    // Check file type
-    const validTypes = ['image/jpeg', 'image/jpg', 'image/png', 'image/webp'];
-    if (file.type && !validTypes.includes(file.type.toLowerCase())) {
+    // Check file type: allow any image/* or standard extensions
+    const isImage = (file.type && file.type.startsWith('image/')) ||
+                    /\.(jpe?g|png|webp|bmp|heic|heif)$/i.test(file.name || '');
+    if (!isImage) {
         Swal.fire({
             icon: 'warning',
             title: 'Invalid Format',
-            text: 'Please upload a JPG, PNG, or WEBP image of your face.',
+            text: 'Please upload an image file (JPG, PNG, or WEBP) of your face.',
             confirmButtonColor: '#0284c7'
         });
         return;

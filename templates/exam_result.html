@@ -1,10 +1,12 @@
 {% extends "base.html" %}
 
-{% block title %}Exam Results - ExamGuard AI{% endblock %}
+{% block title %}Exam Results - {{ submission.title }} - ExamGuard AI{% endblock %}
 
 {% block content %}
-<div class="min-h-[80vh] flex items-center justify-center px-4 py-12">
-    <div class="max-w-xl w-full bg-white rounded-3xl border border-slate-200/80 p-8 sm:p-10 shadow-xl">
+<div class="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 py-10">
+
+    <!-- Top Status Card -->
+    <div class="bg-white rounded-3xl border border-slate-200/90 p-8 sm:p-10 shadow-xl mb-8">
         
         <!-- Status Icon & Banner -->
         <div class="text-center mb-8">
@@ -41,17 +43,17 @@
         </div>
 
         <!-- Student Info Card -->
-        <div class="bg-slate-50 rounded-2xl p-5 border border-slate-200 mb-6 space-y-2 text-xs">
-            <div class="flex justify-between items-center text-slate-600">
-                <span>Student Name:</span>
+        <div class="bg-slate-50 rounded-2xl p-5 border border-slate-200 mb-6 grid grid-cols-1 sm:grid-cols-3 gap-3 text-xs">
+            <div>
+                <span class="text-slate-500 block">Student:</span>
                 <strong class="text-slate-900 text-sm">{{ submission.student_name }}</strong>
             </div>
-            <div class="flex justify-between items-center text-slate-600">
-                <span>Roll Number:</span>
+            <div>
+                <span class="text-slate-500 block">Roll Number:</span>
                 <strong class="text-slate-900 font-mono">{{ submission.roll_number }}</strong>
             </div>
-            <div class="flex justify-between items-center text-slate-600">
-                <span>Exam Title:</span>
+            <div>
+                <span class="text-slate-500 block">Exam:</span>
                 <strong class="text-slate-900">{{ submission.title }}</strong>
             </div>
         </div>
@@ -78,7 +80,7 @@
                     <i data-lucide="alert-triangle" class="w-4 h-4 mr-1 text-rose-600"></i>
                     Recorded Anti-Cheat Incidents ({{ violations|length }})
                 </h4>
-                <div class="space-y-1.5 max-h-32 overflow-y-auto pr-1">
+                <div class="space-y-1.5 max-h-36 overflow-y-auto pr-1">
                     {% for v in violations %}
                         <div class="text-[11px] text-slate-600 flex justify-between items-center bg-white p-2 rounded-lg border border-rose-100">
                             <span class="font-semibold text-rose-700 uppercase">{{ v.violation_type.replace('_', ' ') }}</span>
@@ -89,12 +91,166 @@
             </div>
         {% endif %}
 
-        <!-- Return button -->
-        <a href="/" class="w-full py-3.5 bg-slate-900 hover:bg-black text-white font-bold rounded-xl shadow-md transition flex items-center justify-center space-x-2 text-sm">
-            <i data-lucide="home" class="w-4 h-4"></i>
-            <span>Return to Home</span>
-        </a>
-
+        <!-- Navigation Buttons -->
+        <div class="flex items-center justify-between gap-4 pt-2 border-t border-slate-100">
+            <a href="/student/dashboard" class="flex-1 py-3 bg-slate-900 hover:bg-black text-white font-bold rounded-xl shadow-md transition flex items-center justify-center space-x-2 text-sm">
+                <i data-lucide="layout-dashboard" class="w-4 h-4"></i>
+                <span>Student Dashboard</span>
+            </a>
+            <a href="/" class="px-5 py-3 bg-slate-100 hover:bg-slate-200 text-slate-700 font-semibold rounded-xl transition flex items-center justify-center space-x-1.5 text-sm">
+                <i data-lucide="home" class="w-4 h-4"></i>
+                <span>Home</span>
+            </a>
+        </div>
     </div>
+
+    <!-- Answers & Evaluation Section -->
+    {% if not is_published %}
+        <!-- PENDING EVALUATION NOTICE -->
+        <div class="bg-gradient-to-br from-amber-50 to-orange-50 border border-amber-200 rounded-3xl p-8 sm:p-10 text-center shadow-md">
+            <div class="w-16 h-16 rounded-2xl bg-amber-100 text-amber-700 flex items-center justify-center mx-auto mb-4 shadow-sm">
+                <i data-lucide="clock" class="w-8 h-8 animate-pulse"></i>
+            </div>
+            <h2 class="text-xl font-extrabold text-slate-900 mb-2">Evaluation Under Review by Tutor</h2>
+            <p class="text-sm text-slate-600 max-w-lg mx-auto mb-4">
+                Your submitted responses, uploaded handwritten sheets, and detailed mistake reviews are currently being evaluated by the instructor. 
+                Full question-by-question analysis, model answers, and teacher remarks will be unlocked right here as soon as the tutor publishes the official evaluation.
+            </p>
+            <div class="inline-flex items-center space-x-2 px-4 py-2 bg-white/80 border border-amber-300 rounded-full text-xs font-semibold text-amber-900 shadow-xs">
+                <i data-lucide="shield-check" class="w-4 h-4 text-amber-600"></i>
+                <span>Your submission is safely locked and archived</span>
+            </div>
+        </div>
+    {% else %}
+        <!-- PUBLISHED DETAILED QUESTION REVIEW -->
+        <div class="bg-white rounded-3xl border border-slate-200/90 p-6 sm:p-10 shadow-xl space-y-8">
+            <div class="flex items-center justify-between border-b border-slate-200 pb-5">
+                <div class="flex items-center space-x-3">
+                    <div class="w-10 h-10 rounded-xl bg-emerald-100 text-emerald-700 flex items-center justify-center">
+                        <i data-lucide="check-circle-2" class="w-6 h-6"></i>
+                    </div>
+                    <div>
+                        <h2 class="text-xl font-extrabold text-slate-900">Published Evaluation & Answer Review</h2>
+                        <p class="text-xs text-slate-500">Official evaluation results, correct solutions, and feedback from your tutor</p>
+                    </div>
+                </div>
+                <span class="px-3 py-1 bg-emerald-100 text-emerald-800 text-xs font-bold rounded-full border border-emerald-200">
+                    Verified & Published
+                </span>
+            </div>
+
+            <div class="space-y-6">
+                {% for q in questions %}
+                    <div class="p-6 rounded-2xl border {% if q.is_correct or (q.awarded_marks and q.awarded_marks > 0) %}border-slate-200 bg-white{% else %}border-rose-200 bg-rose-50/20{% endif %} shadow-xs space-y-4">
+                        
+                        <!-- Question Header -->
+                        <div class="flex items-start justify-between gap-4">
+                            <div class="space-y-1">
+                                <span class="text-xs font-bold uppercase tracking-wider text-sky-600">Question {{ loop.index }}</span>
+                                <h3 class="text-base font-bold text-slate-900">{{ q.question_text }}</h3>
+                            </div>
+                            <div class="text-right flex-shrink-0">
+                                <span class="px-3 py-1 rounded-full text-xs font-black {% if q.awarded_marks >= q.points %}bg-emerald-100 text-emerald-800{% elif q.awarded_marks > 0 %}bg-amber-100 text-amber-800{% else %}bg-rose-100 text-rose-800{% endif %}">
+                                    {{ q.awarded_marks }} / {{ q.points }} Marks
+                                </span>
+                            </div>
+                        </div>
+
+                        <!-- Diagram if any -->
+                        {% if q.figure_svg %}
+                            <div class="my-2 p-3 bg-slate-50 border border-slate-200 rounded-xl max-w-sm flex flex-col items-center">
+                                <span class="text-[9px] font-bold text-sky-800 uppercase tracking-wider mb-1">Figure Diagram</span>
+                                <div class="w-full max-w-xs flex justify-center">
+                                    {{ q.figure_svg | safe }}
+                                </div>
+                            </div>
+                        {% elif q.figure_url %}
+                            <div class="my-2 p-3 bg-slate-50 border border-slate-200 rounded-xl max-w-sm flex flex-col items-center">
+                                <span class="text-[9px] font-bold text-indigo-800 uppercase tracking-wider mb-1">Figure Diagram</span>
+                                <img src="{{ q.figure_url }}" alt="Figure" class="max-h-48 object-contain rounded-lg">
+                            </div>
+                        {% endif %}
+
+                        <!-- Options for MCQ -->
+                        {% if q.options %}
+                            <div class="grid grid-cols-1 sm:grid-cols-2 gap-2 pt-1">
+                                {% for opt in q.options %}
+                                    <div class="px-3.5 py-2.5 rounded-xl text-xs font-medium border 
+                                        {% if opt == q.correct_answer %}bg-emerald-50 border-emerald-300 text-emerald-900 font-bold
+                                        {% elif opt == q.student_answer and opt != q.correct_answer %}bg-rose-50 border-rose-300 text-rose-900 font-bold
+                                        {% else %}bg-slate-50 border-slate-200 text-slate-700{% endif %} flex items-center justify-between">
+                                        <span>{{ opt }}</span>
+                                        {% if opt == q.correct_answer %}
+                                            <span class="text-[10px] text-emerald-700 font-bold flex items-center"><i data-lucide="check" class="w-3.5 h-3.5 mr-1"></i> Correct Answer</span>
+                                        {% elif opt == q.student_answer %}
+                                            <span class="text-[10px] text-rose-700 font-bold flex items-center"><i data-lucide="x" class="w-3.5 h-3.5 mr-1"></i> Your Choice</span>
+                                        {% endif %}
+                                    </div>
+                                {% endfor %}
+                            </div>
+                        {% endif %}
+
+                        <!-- Student's Written / Uploaded Answer -->
+                        <div class="p-4 rounded-xl bg-slate-50 border border-slate-200 space-y-2">
+                            <span class="text-xs font-bold text-slate-700 uppercase tracking-wider block">Your Submitted Answer:</span>
+                            {% if q.student_answer and q.student_answer != 'Not Attempted' %}
+                                <p class="text-xs text-slate-800 bg-white p-3 rounded-lg border border-slate-200 whitespace-pre-line">{{ q.student_answer }}</p>
+                            {% else %}
+                                <p class="text-xs text-slate-400 italic">No text response submitted.</p>
+                            {% endif %}
+
+                            <!-- Uploaded Answer Sheet Images -->
+                            {% if q.student_image_urls %}
+                                <div class="pt-2">
+                                    <span class="text-[11px] font-bold text-sky-800 block mb-2">Uploaded Answer Sheets ({{ q.student_image_urls|length }}):</span>
+                                    <div class="grid grid-cols-2 sm:grid-cols-3 gap-3">
+                                        {% for img_url in q.student_image_urls %}
+                                            <a href="{{ img_url }}" target="_blank" class="block group relative rounded-xl overflow-hidden border border-slate-300 bg-white aspect-[3/4] shadow-xs hover:shadow-md transition">
+                                                <img src="{{ img_url }}" alt="Answer Page {{ loop.index }}" class="w-full h-full object-cover group-hover:scale-105 transition duration-200" loading="lazy">
+                                                <div class="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition flex items-center justify-center text-white text-xs font-bold">
+                                                    <i data-lucide="zoom-in" class="w-4 h-4 mr-1"></i> Page {{ loop.index }}
+                                                </div>
+                                            </a>
+                                        {% endfor %}
+                                    </div>
+                                </div>
+                            {% endif %}
+                        </div>
+
+                        <!-- Tutor Feedback & Correct Answer Analysis -->
+                        <div class="grid grid-cols-1 md:grid-cols-2 gap-3 pt-1">
+                            <div class="p-3.5 rounded-xl bg-emerald-50 border border-emerald-200">
+                                <span class="text-xs font-bold text-emerald-800 flex items-center mb-1">
+                                    <i data-lucide="check-circle" class="w-3.5 h-3.5 mr-1 text-emerald-600"></i>
+                                    Model / Correct Solution
+                                </span>
+                                <p class="text-xs text-emerald-950 font-medium whitespace-pre-line">{{ q.correct_answer or 'See instructor notes.' }}</p>
+                                {% if q.explanation %}
+                                    <p class="text-[11px] text-emerald-800 mt-2 pt-2 border-t border-emerald-200/70 italic">
+                                        <strong>Explanation:</strong> {{ q.explanation }}
+                                    </p>
+                                {% endif %}
+                            </div>
+
+                            <div class="p-3.5 rounded-xl bg-sky-50 border border-sky-200">
+                                <span class="text-xs font-bold text-sky-800 flex items-center mb-1">
+                                    <i data-lucide="message-square" class="w-3.5 h-3.5 mr-1 text-sky-600"></i>
+                                    Instructor / AI Evaluation Feedback
+                                </span>
+                                {% if q.eval_feedback %}
+                                    <p class="text-xs text-sky-950 font-medium whitespace-pre-line">{{ q.eval_feedback }}</p>
+                                    <span class="text-[10px] text-sky-600 mt-1 block">Evaluated by: {{ q.eval_by | upper }}</span>
+                                {% else %}
+                                    <p class="text-xs text-slate-500 italic">No additional remarks provided.</p>
+                                {% endif %}
+                            </div>
+                        </div>
+
+                    </div>
+                {% endfor %}
+            </div>
+        </div>
+    {% endif %}
+
 </div>
 {% endblock %}

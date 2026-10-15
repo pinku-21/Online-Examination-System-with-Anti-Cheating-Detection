@@ -50,6 +50,15 @@
                 <span class="text-[11px] font-bold tracking-wider text-sky-700 uppercase block mb-1">Student Access Code</span>
                 <span class="text-3xl font-mono font-extrabold text-slate-900 tracking-wider block mb-3">{{ exam.exam_code }}</span>
                 <div class="flex items-center justify-center space-x-2">
+                    <button type="button" 
+                            data-exam-id="{{ exam.id }}" 
+                            data-published="{{ 1 if exam.results_published in [1, True, '1'] else 0 }}"
+                            onclick="toggleExamResultsPublish(this)" 
+                            class="px-3.5 py-1.5 {% if exam.results_published in [1, True, '1'] %}bg-emerald-600 hover:bg-emerald-700 text-white{% else %}bg-slate-800 hover:bg-slate-900 text-white{% endif %} text-xs font-semibold rounded-lg shadow-sm transition flex items-center space-x-1 cursor-pointer"
+                            title="Publish or hide evaluation and model answers from students">
+                        <i data-lucide="{% if exam.results_published in [1, True, '1'] %}eye{% else %}eye-off{% endif %}" class="w-3.5 h-3.5"></i>
+                        <span>{% if exam.results_published in [1, True, '1'] %}Results Published{% else %}Publish Results{% endif %}</span>
+                    </button>
                     <button onclick="copyDirectLink('{{ exam.exam_code }}')" class="px-3.5 py-1.5 bg-sky-600 hover:bg-sky-700 text-white text-xs font-semibold rounded-lg shadow-sm transition flex items-center space-x-1">
                         <i data-lucide="copy" class="w-3.5 h-3.5"></i>
                         <span>Copy Link</span>
@@ -141,6 +150,17 @@
                                     <td class="px-6 py-4 text-xs text-slate-500 font-medium">{{ sub.started_at | format_datetime_12h }}</td>
                                     <td class="px-6 py-4 text-right">
                                         <div class="flex items-center justify-end gap-2">
+                                            {% if sub.status in ['in_progress', 'paused', 'pause_requested'] %}
+                                                <button type="button"
+                                                        data-submission-id="{{ sub.id }}"
+                                                        data-student-name="{{ sub.student_name | e }}"
+                                                        onclick="approveDeviceSwitch(this)"
+                                                        class="px-3 py-1.5 bg-indigo-50 hover:bg-indigo-100 text-indigo-700 border border-indigo-200 text-xs font-semibold rounded-lg transition inline-flex items-center space-x-1 cursor-pointer"
+                                                        title="Allow student to login from a new device for this active exam">
+                                                    <i data-lucide="smartphone" class="w-3.5 h-3.5"></i>
+                                                    <span>Allow Device Switch</span>
+                                                </button>
+                                            {% endif %}
                                             <a href="/tutor/submission/{{ sub.id }}" class="px-3 py-1.5 bg-slate-100 hover:bg-sky-50 hover:text-sky-700 text-slate-700 text-xs font-semibold rounded-lg transition inline-flex items-center space-x-1">
                                                 <i data-lucide="eye" class="w-3.5 h-3.5"></i>
                                                 <span>Audit Report</span>
@@ -704,6 +724,82 @@
             }
         } catch (err) {
             Swal.fire({ icon: 'error', title: 'Error', text: 'Network error occurred.' });
+        }
+    }
+
+    async function toggleExamResultsPublish(btn) {
+        const examId = btn.dataset.examId;
+        const isCurrentlyPublished = btn.dataset.published === '1';
+        const actionText = isCurrentlyPublished ? 'hide results and mistakes from students' : 'publish all evaluated answers and mistakes to students';
+
+        const result = await Swal.fire({
+            icon: 'question',
+            title: isCurrentlyPublished ? 'Unpublish Results?' : 'Publish Results?',
+            text: `Are you sure you want to ${actionText}?`,
+            showCancelButton: true,
+            confirmButtonText: isCurrentlyPublished ? 'Yes, Hide Results' : 'Yes, Publish to Students',
+            confirmButtonColor: isCurrentlyPublished ? '#475569' : '#059669',
+            cancelButtonText: 'Cancel'
+        });
+        if (!result.isConfirmed) return;
+
+        try {
+            const resp = await fetch(`/api/tutor/exam/${examId}/toggle-publish-results`, { method: 'POST' });
+            const data = await resp.json();
+            if (data.success) {
+                await Swal.fire({
+                    icon: 'success',
+                    title: 'Updated!',
+                    text: data.message,
+                    timer: 1400,
+                    showConfirmButton: false
+                });
+                window.location.reload();
+            } else {
+                Swal.fire({ icon: 'error', title: 'Error', text: data.error || 'Failed to update.' });
+            }
+        } catch (err) {
+            Swal.fire({ icon: 'error', title: 'Error', text: 'Network connection failed.' });
+        }
+    }
+
+    async function approveDeviceSwitch(btn) {
+        const subId = btn.dataset.submissionId;
+        const studentName = btn.dataset.studentName;
+
+        const result = await Swal.fire({
+            icon: 'question',
+            title: 'Allow Device Switch?',
+            html: `
+                <p class="text-sm text-slate-600 mb-2">Grant <strong>${studentName}</strong> permission to switch to another device?</p>
+                <p class="text-xs text-sky-700 bg-sky-50 p-2.5 rounded-lg border border-sky-200">
+                    Once approved, their single-device login lock will be temporarily cleared so they can sign in from their phone, tablet, or secondary laptop and resume their exam.
+                </p>
+            `,
+            showCancelButton: true,
+            confirmButtonText: 'Yes, Grant Approval',
+            confirmButtonColor: '#4f46e5',
+            cancelButtonText: 'Cancel'
+        });
+        if (!result.isConfirmed) return;
+
+        try {
+            const resp = await fetch(`/api/tutor/submission/${subId}/approve-device-switch`, { method: 'POST' });
+            const data = await resp.json();
+            if (data.success) {
+                await Swal.fire({
+                    icon: 'success',
+                    title: 'Approved!',
+                    text: data.message,
+                    timer: 2000,
+                    showConfirmButton: false
+                });
+                window.location.reload();
+            } else {
+                Swal.fire({ icon: 'error', title: 'Error', text: data.error || 'Failed to approve.' });
+            }
+        } catch (err) {
+            Swal.fire({ icon: 'error', title: 'Error', text: 'Network connection failed.' });
         }
     }
 </script>
