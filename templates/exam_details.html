@@ -108,7 +108,14 @@
                         <tbody class="divide-y divide-slate-100">
                             {% for sub in submissions %}
                                 <tr class="hover:bg-slate-50/80 transition">
-                                    <td class="px-6 py-4 font-semibold text-slate-900">{{ sub.student_name }}</td>
+                                    <td class="px-6 py-4">
+                                        <div class="font-semibold text-slate-900">{{ sub.student_name }}</div>
+                                        {% if sub.client_ip %}
+                                            <span class="inline-flex items-center gap-1 text-[11px] font-mono text-slate-400 mt-0.5">
+                                                <i data-lucide="globe" class="w-3 h-3 text-slate-400"></i> {{ sub.client_ip }}
+                                            </span>
+                                        {% endif %}
+                                    </td>
                                     <td class="px-6 py-4 font-mono text-xs text-slate-600">{{ sub.roll_number }}</td>
                                     <td class="px-6 py-4">
                                         <div class="font-bold text-slate-900">{{ sub.score }} / {{ sub.total_points }}</div>
