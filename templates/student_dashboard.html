@@ -16,7 +16,9 @@
                     <label for="dash-photo-upload" class="cursor-pointer block" title="Click to upload profile photo">
                         <div class="w-16 h-16 sm:w-20 sm:h-20 rounded-2xl overflow-hidden bg-white/20 border-2 border-white/40 shadow-md flex items-center justify-center hover:border-white/80 transition">
                             {% if student.profile_photo %}
-                                <img id="dash-avatar-img" src="{{ student.profile_photo }}" alt="Profile" class="w-full h-full object-cover">
+                                <img id="dash-avatar-img" src="{{ student.profile_photo }}" alt="Profile" class="w-full h-full object-cover"
+                                     onerror="this.style.display='none'; document.getElementById('dash-avatar-placeholder')?.classList.remove('hidden');">
+                                <i id="dash-avatar-placeholder" data-lucide="user" class="w-9 h-9 text-white/80 hidden"></i>
                             {% else %}
                                 <i id="dash-avatar-placeholder" data-lucide="user" class="w-9 h-9 text-white/80"></i>
                             {% endif %}

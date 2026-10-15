@@ -56,6 +56,11 @@ def extract_figures_from_pdf(pdf_path, output_base_dir="static/extracted_figures
                         file_path = os.path.join(dest_dir, filename)
                         with open(file_path, "wb") as f:
                             f.write(img.data)
+                        try:
+                            from database import save_persistent_asset
+                            save_persistent_asset(f"extracted_figures/{safe_folder}/{filename}", "image/png", img.data)
+                        except Exception:
+                            pass
                         rel_url = f"/static/extracted_figures/{safe_folder}/{filename}"
                         extracted_figures.append({
                             "page": p_idx + 1,

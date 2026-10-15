@@ -601,25 +601,43 @@ def get_generation_job(job_id):
 def save_persistent_asset(asset_key, mime_type, data_bytes):
     """Saves an image/asset as base64 in database so it survives Render ephemeral restarts."""
     import base64
+    if not asset_key or not data_bytes:
+        return
+    clean_key = str(asset_key).replace("\\", "/").lstrip("/")
+    if clean_key.startswith("static/"):
+        clean_key = clean_key[len("static/"):]
     b64_str = base64.b64encode(data_bytes).decode("ascii")
     conn = get_connection()
     cursor = conn.cursor()
-    # Upsert pattern
-    cursor.execute("SELECT asset_key FROM persistent_assets WHERE asset_key = ?", (asset_key,))
+    # Upsert pattern (stores both with and without static/ to ensure compatibility)
+    cursor.execute("SELECT asset_key FROM persistent_assets WHERE asset_key = ?", (clean_key,))
     if cursor.fetchone():
-        cursor.execute("UPDATE persistent_assets SET mime_type = ?, data_base64 = ? WHERE asset_key = ?", (mime_type, b64_str, asset_key))
+        cursor.execute("UPDATE persistent_assets SET mime_type = ?, data_base64 = ? WHERE asset_key = ?", (mime_type, b64_str, clean_key))
     else:
-        cursor.execute("INSERT INTO persistent_assets (asset_key, mime_type, data_base64) VALUES (?, ?, ?)", (asset_key, mime_type, b64_str))
+        cursor.execute("INSERT INTO persistent_assets (asset_key, mime_type, data_base64) VALUES (?, ?, ?)", (clean_key, mime_type, b64_str))
     conn.commit()
     conn.close()
 
 def get_persistent_asset(asset_key):
-    """Retrieves an asset (mime_type, raw_bytes) by key."""
+    """Retrieves an asset (mime_type, raw_bytes) by key with flexible normalization."""
     import base64
+    if not asset_key:
+        return None
+    clean_key = str(asset_key).replace("\\", "/").lstrip("/")
+    candidates = [clean_key]
+    if clean_key.startswith("static/"):
+        candidates.append(clean_key[len("static/"):])
+    else:
+        candidates.append(f"static/{clean_key}")
+
     conn = get_connection()
     cursor = conn.cursor()
-    cursor.execute("SELECT mime_type, data_base64 FROM persistent_assets WHERE asset_key = ?", (asset_key,))
-    row = cursor.fetchone()
+    row = None
+    for cand in candidates:
+        cursor.execute("SELECT mime_type, data_base64 FROM persistent_assets WHERE asset_key = ?", (cand,))
+        row = cursor.fetchone()
+        if row:
+            break
     conn.close()
     if not row or not row["data_base64"]:
         return None

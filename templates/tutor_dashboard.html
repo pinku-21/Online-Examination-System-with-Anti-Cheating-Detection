@@ -228,7 +228,8 @@
                         <td class="px-6 py-4 font-semibold text-slate-900">
                             <div class="flex items-center gap-2.5">
                                 {% if s.profile_photo %}
-                                    <img src="{{ s.profile_photo }}" alt="{{ s.full_name }}" class="w-8 h-8 rounded-full object-cover border border-indigo-200 shadow-xs flex-shrink-0" title="Biometric reference photo registered">
+                                    <img src="{{ s.profile_photo }}" alt="{{ s.full_name }}" class="w-8 h-8 rounded-full object-cover border border-indigo-200 shadow-xs flex-shrink-0" title="Biometric reference photo registered"
+                                         onerror="this.onerror=null; this.outerHTML='<div class=\'w-8 h-8 rounded-full bg-indigo-100 text-indigo-700 font-bold text-xs flex items-center justify-center border border-indigo-200 flex-shrink-0\'>{{ (s.full_name or \'S\')[:1].upper() }}</div>';">
                                 {% else %}
                                     <div class="w-8 h-8 rounded-full bg-slate-100 border border-slate-200 flex items-center justify-center text-slate-400 flex-shrink-0" title="No reference photo uploaded yet">
                                         <i data-lucide="user" class="w-4 h-4"></i>

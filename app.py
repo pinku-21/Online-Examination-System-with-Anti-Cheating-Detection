@@ -849,8 +849,13 @@ def api_upload_figure():
     figures_dir = os.path.join(os.path.dirname(__file__), "static", "question_figures")
     os.makedirs(figures_dir, exist_ok=True)
     
+    file_bytes = file.read()
     save_path = os.path.join(figures_dir, unique_name)
-    file.save(save_path)
+    with open(save_path, "wb") as f:
+        f.write(file_bytes)
+        
+    mime_type = file.mimetype or "image/png"
+    save_persistent_asset(f"question_figures/{unique_name}", mime_type, file_bytes)
     
     return jsonify({"success": True, "figure_url": f"/static/question_figures/{unique_name}"})
 
@@ -909,32 +914,43 @@ def api_upload_answer_image(submission_id):
         "image_url": f"/static/student_answers/{unique_name}"
     })
 
-@app.route("/static/<path:filename>")
-def custom_static_serve(filename):
+def _send_static_file_with_persistence(filename):
     """
-    Serves static files from local disk if present.
-    If Render restarted and an ephemeral upload (e.g. profile_photos/..., student_answers/...)
-    was wiped from disk, automatically restores and serves it from database persistent_assets.
+    Overrides Flask's default static file handler so that if an uploaded file
+    (profile photo, answer image, figure) was wiped from disk by Render's ephemeral filesystem,
+    it automatically restores and serves it from the database persistent_assets table.
     """
-    file_path = os.path.join(app.static_folder or os.path.join(os.path.dirname(__file__), "static"), filename)
+    from flask import send_from_directory, abort, Response
+    clean_filename = str(filename).replace("\\", "/").lstrip("/")
+    static_root = app.static_folder or os.path.join(os.path.dirname(__file__), "static")
+    file_path = os.path.join(static_root, clean_filename)
+    
     if os.path.exists(file_path):
-        return send_from_directory(app.static_folder or os.path.join(os.path.dirname(__file__), "static"), filename)
+        return send_from_directory(static_root, clean_filename)
 
-    # Check database persistent assets
-    res = get_persistent_asset(filename)
+    # Check database persistent assets (PostgreSQL Neon / Render)
+    res = get_persistent_asset(clean_filename)
     if res:
         mime_type, raw_bytes = res
-        # Re-materialize to disk for fast subsequent reads
+        # Re-materialize to local disk for fast subsequent reads
         try:
             os.makedirs(os.path.dirname(file_path), exist_ok=True)
             with open(file_path, "wb") as f:
                 f.write(raw_bytes)
         except Exception:
             pass
-        from flask import Response
-        return Response(raw_bytes, mimetype=mime_type)
+        resp = Response(raw_bytes, mimetype=mime_type)
+        resp.headers["Cache-Control"] = "public, max-age=86400"
+        return resp
 
     abort(404)
+
+# Hook into Flask's static handler
+app.send_static_file = _send_static_file_with_persistence
+
+@app.route("/static/<path:filename>")
+def custom_static_serve(filename):
+    return app.send_static_file(filename)
 
 @app.route("/asset/<path:asset_key>")
 def serve_persistent_asset(asset_key):
@@ -944,7 +960,9 @@ def serve_persistent_asset(asset_key):
         return "Asset not found", 404
     mime_type, raw_bytes = res
     from flask import Response
-    return Response(raw_bytes, mimetype=mime_type)
+    resp = Response(raw_bytes, mimetype=mime_type)
+    resp.headers["Cache-Control"] = "public, max-age=86400"
+    return resp
 
 @app.route("/api/student/upload-profile-photo", methods=["POST"])
 @login_required
@@ -1023,20 +1041,27 @@ def api_verify_face_ai(submission_id):
     snapshot_path = os.path.join(upload_dir, snapshot_filename)
     snapshot_rel_url = f"/static/verified_faces/{snapshot_filename}"
 
+    snap_bytes = None
     if live_file and live_file.filename:
-        live_file.save(snapshot_path)
+        snap_bytes = live_file.read()
+        with open(snapshot_path, "wb") as f:
+            f.write(snap_bytes)
     elif live_b64:
         if "," in live_b64:
             live_b64 = live_b64.split(",", 1)[1]
         try:
+            snap_bytes = base64.b64decode(live_b64)
             with open(snapshot_path, "wb") as f:
-                f.write(base64.b64decode(live_b64))
+                f.write(snap_bytes)
         except Exception as b64_err:
             conn.close()
             return jsonify({"success": False, "error": f"Invalid snapshot image: {b64_err}"}), 400
     else:
         conn.close()
         return jsonify({"success": False, "error": "No webcam snapshot provided."}), 400
+
+    if snap_bytes:
+        save_persistent_asset(f"verified_faces/{snapshot_filename}", "image/jpeg", snap_bytes)
 
     # Check for reference photo (by linked user, roll number, or session)
     ref_photo_url = (sub_row["profile_photo"] or "").strip()
