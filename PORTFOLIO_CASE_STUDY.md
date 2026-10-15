@@ -1,7 +1,7 @@
 # 🛡️ ExamGuard AI: Executive Portfolio & Engineering Case Study
 
 **Project Name:** ExamGuard AI — Smart Online Examination System with Multi-Sensor Anti-Cheating & AI Question Generation  
-**Engineering Domain:** B.Tech Major Project / EdTech & Cybersecurity / Computer Vision & Applied Generative AI  
+**Engineering Domain:** B.Tech / EdTech & Cybersecurity / Computer Vision & Applied Generative AI  
 **Author / Developer:** Prashanta Kumar Das  
 **Live Application:** [https://online-examination-system-with-anti.onrender.com/](https://online-examination-system-with-anti.onrender.com/)  
 **Source Code Repository:** [GitHub Repository](https://github.com/pinku-21/Online-Examination-System-with-Anti-Cheating-Detection)
