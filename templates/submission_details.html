@@ -41,6 +41,8 @@
                 <i data-lucide="play-circle" class="w-3.5 h-3.5"></i>
                 <span>Approve Resume</span>
             </button>
+            {% endif %}
+
             {% if submission.status in ['in_progress', 'paused', 'pause_requested'] %}
             <button type="button"
                     data-submission-id="{{ submission.id }}"
