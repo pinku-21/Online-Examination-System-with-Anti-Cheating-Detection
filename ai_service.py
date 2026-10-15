@@ -713,31 +713,31 @@ def verify_faces_with_gemini(gemini_key, reference_image_path, live_snapshot_pat
             ref_mime, ref_b64 = prepare_fast_b64(reference_image_path)
             live_mime, live_b64 = prepare_fast_b64(live_snapshot_path)
 
-            prompt = f"""You are a high-precision, strict biometric facial verification system for high-stakes online examinations.
+            prompt = f"""You are a zero-tolerance forensic biometric identity verification AI for high-stakes university and enterprise exams.
 TASK:
 Compare IMAGE 1 (Official registered reference photo of student: {student_name or 'Candidate'}) with IMAGE 2 (Live webcam snapshot captured right now at exam check-in).
 
-CRITICAL REQUIREMENT:
-You must determine whether IMAGE 1 and IMAGE 2 show the EXACT SAME PERSON or DIFFERENT INDIVIDUALS.
-- Look at immutable facial landmarks: eye shape and distance, eyebrow contour, nose bridge width and tip shape, lip fullness and mouth corners, cheekbone structure, ear shape, jawline, and chin.
-- If IMAGE 2 is someone else (a friend, sibling, family member, coworker, or different person of any age/gender):
-  YOU MUST SET "is_match": false and "confidence" MUST BE BETWEEN 5 and 35. NEVER set is_match to true for two different people.
-- Allow ONLY the same human subject under normal variations (slight lighting changes, glasses, smiling/neutral expression, slight angle tilt, minor haircut change).
-- If uncertain or if facial structure differs: REJECT ("is_match": false).
+MANDATORY RULES:
+1. Examine fine biometric landmarks:
+   - Craniofacial bone structure, head width, jawline shape and chin contour.
+   - Inter-pupillary distance (distance between eyes), eye socket shape, eyebrow arch and thickness.
+   - Nose bridge width, nasal tip contour, and nostril shape.
+   - Mouth width, lip thickness, and ear position/shape.
+2. DIFFERENT PERSON RULE (CRITICAL):
+   - If IMAGE 1 and IMAGE 2 show TWO DIFFERENT INDIVIDUALS (even if they share similar age, skin complexion, hair color, or gender):
+     YOU MUST REJECT IMMEDIATELY.
+     Set "is_match": false
+     Set "confidence": 0
+     Provide a clear reason identifying the structural differences (e.g., different facial shape, different nose structure, different eye spacing).
+3. SAME PERSON RULE:
+   - ONLY return "is_match": true IF YOU ARE 100% CERTAIN beyond any reasonable doubt that it is the exact same human subject (allowing only normal camera lighting or slight facial angle variations).
+   - If you have ANY doubt or if the features belong to another person, you MUST return "is_match": false and "confidence": 0.
 
-STRICT JSON OUTPUT ONLY (NO EXPLANATION OUTSIDE JSON):
-If it IS the exact same person:
-{{
-  "is_match": true,
-  "confidence": 92,
-  "reason": "Facial geometry, eye spacing, nose contour, and jaw structure match the registered candidate."
-}}
-
-If it is SOMEONE ELSE / DIFFERENT PERSON / MISMATCH:
+OUTPUT FORMAT (Respond ONLY with valid JSON):
 {{
   "is_match": false,
-  "confidence": 18,
-  "reason": "Different individual detected: facial contours, nose bridge, jawline, and eye landmarks do not match registered photo."
+  "confidence": 0,
+  "reason": "Biometric mismatch: Facial bone structure, nose bridge width, and eye distance belong to a different individual."
 }}
 """
 
@@ -749,13 +749,14 @@ If it is SOMEONE ELSE / DIFFERENT PERSON / MISMATCH:
                 {"inline_data": {"mime_type": live_mime, "data": live_b64}}
             ]
 
-            # Fast models ordered by lowest latency and best availability first
+            # Fast vision models ordered by accuracy and availability
             models = [
-                "gemini-flash-lite-latest",
-                "gemini-3.5-flash-lite",
-                "gemini-3.8-flash",
+                "gemini-2.5-flash",
+                "gemini-2.0-flash",
                 "gemini-flash-latest",
-                "gemini-3.5-flash"
+                "gemini-1.5-flash",
+                "gemini-flash-lite-latest",
+                "gemini-3.5-flash-lite"
             ]
 
             for model_name in models:
@@ -763,7 +764,7 @@ If it is SOMEONE ELSE / DIFFERENT PERSON / MISMATCH:
                 payload = {
                     "contents": [{"parts": parts}],
                     "generationConfig": {
-                        "temperature": 0.1,
+                        "temperature": 0.0,
                         "response_mime_type": "application/json"
                     }
                 }
@@ -782,6 +783,9 @@ If it is SOMEONE ELSE / DIFFERENT PERSON / MISMATCH:
                         is_match = bool(data.get("is_match", False))
                         confidence = float(data.get("confidence", 0.0))
                         reason = data.get("reason", "Face verification evaluated by Gemini AI.")
+                        if not is_match:
+                            # User requirement: Mismatched or different individuals must show 0%
+                            confidence = 0.0
                         return {
                             "success": True,
                             "is_match": is_match,
@@ -846,16 +850,16 @@ If it is SOMEONE ELSE / DIFFERENT PERSON / MISMATCH:
 
         norm_corr = max(0.0, corr)
         hist_sim = max(0.0, min(1.0, hist_sim))
-        # Combined score weights structural correlation heavily over lighting/color histograms
-        combined_score = max(0.0, min(1.0, (norm_corr * 0.70 + hist_sim * 0.30)))
+        # Combined score weights structural correlation (85%) over color/background histograms (15%)
+        combined_score = max(0.0, min(1.0, (norm_corr * 0.85 + hist_sim * 0.15)))
 
-        # Conservative threshold: two different people in the same room must not pass
-        is_m = combined_score >= 0.72
+        # Strict threshold: two different people in the same room must never pass
+        is_m = (combined_score >= 0.84 and norm_corr >= 0.80)
         if is_m:
-            conf = round(70.0 + ((combined_score - 0.72) / 0.28) * 25.0, 1)
-            conf = min(95.0, max(70.0, conf))
+            conf = round(80.0 + ((combined_score - 0.84) / 0.16) * 18.0, 1)
+            conf = min(98.0, max(80.0, conf))
         else:
-            conf = round(min(45.0, combined_score * 50.0), 1)
+            conf = 0.0
 
         return {
             "success": True,
