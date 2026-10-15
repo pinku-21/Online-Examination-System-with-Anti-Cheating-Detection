@@ -52,7 +52,7 @@ def get_current_time():
     """Returns the current datetime in IST (Indian Standard Time, UTC+5:30) naive representation for comparison."""
     return datetime.now(IST).replace(tzinfo=None)
 
-app = Flask(__name__)
+app = Flask(__name__, static_url_path=None)
 app.secret_key = os.environ.get("SECRET_KEY", "examguard-super-secret-key-2026")
 
 # --- CYBERSECURITY HELPERS (Integrity & SIEM Classification) ---
@@ -1064,9 +1064,25 @@ def api_verify_face_ai(submission_id):
     # Resolve local reference image path
     clean_ref = ref_photo_url.lstrip("/").replace("/", os.sep)
     abs_ref_path = os.path.join(os.path.dirname(__file__), clean_ref)
+
+    # If Render ephemeral disk cleared the file, automatically restore it from persistent_assets
+    if not os.path.exists(abs_ref_path):
+        asset_key = ref_photo_url.replace("/static/", "").lstrip("/")
+        db_asset = get_persistent_asset(asset_key)
+        if db_asset:
+            try:
+                os.makedirs(os.path.dirname(abs_ref_path), exist_ok=True)
+                with open(abs_ref_path, "wb") as rf:
+                    rf.write(db_asset[1])
+            except Exception as w_err:
+                print(f"Failed to restore reference photo from persistent assets: {w_err}")
+
     if not os.path.exists(abs_ref_path):
         conn.close()
-        return jsonify({"success": False, "error": "Reference photo file not found on server."}), 400
+        return jsonify({
+            "success": False, 
+            "error": "Reference photo file not found on server. Please click 'Upload/Change Photo' to register your photo."
+        }), 400
 
     gemini_key = get_setting("gemini_api_key", "").strip() or os.environ.get("GEMINI_API_KEY", "").strip()
     student_name = sub_row["registered_full_name"] or sub_row["student_name"] or ""
