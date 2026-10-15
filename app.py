@@ -1735,9 +1735,9 @@ def student_dashboard():
     cursor.execute("""
         SELECT e.*,
                (SELECT COUNT(*) FROM questions WHERE exam_id = e.id) as question_count,
-               (SELECT id FROM submissions WHERE exam_id = e.id AND (user_id = ? OR roll_number = ?) AND status != 'in_progress' LIMIT 1) as completed_sub_id,
-               (SELECT score FROM submissions WHERE exam_id = e.id AND (user_id = ? OR roll_number = ?) AND status != 'in_progress' LIMIT 1) as completed_score,
-               (SELECT percentage FROM submissions WHERE exam_id = e.id AND (user_id = ? OR roll_number = ?) AND status != 'in_progress' LIMIT 1) as completed_pct,
+               (SELECT id FROM submissions WHERE exam_id = e.id AND (user_id = ? OR roll_number = ?) AND status NOT IN ('in_progress','pause_requested','paused') ORDER BY started_at DESC LIMIT 1) as completed_sub_id,
+               (SELECT score FROM submissions WHERE exam_id = e.id AND (user_id = ? OR roll_number = ?) AND status NOT IN ('in_progress','pause_requested','paused') ORDER BY started_at DESC LIMIT 1) as completed_score,
+               (SELECT percentage FROM submissions WHERE exam_id = e.id AND (user_id = ? OR roll_number = ?) AND status NOT IN ('in_progress','pause_requested','paused') ORDER BY started_at DESC LIMIT 1) as completed_pct,
                (SELECT id FROM submissions WHERE exam_id = e.id AND (user_id = ? OR roll_number = ?) AND status IN ('in_progress','pause_requested','paused') ORDER BY started_at DESC LIMIT 1) as active_sub_id,
                (SELECT status FROM submissions WHERE exam_id = e.id AND (user_id = ? OR roll_number = ?) AND status IN ('in_progress','pause_requested','paused') ORDER BY started_at DESC LIMIT 1) as active_sub_status
         FROM exams e
