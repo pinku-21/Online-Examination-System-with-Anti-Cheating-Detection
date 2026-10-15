@@ -413,7 +413,10 @@ def admin_create_student():
         photo_filename = f"reg_{safe_roll}_{int(datetime.now().timestamp())}{ext}"
         photo_dir = os.path.join(os.path.dirname(__file__), "static", "profile_photos")
         os.makedirs(photo_dir, exist_ok=True)
-        photo_file.save(os.path.join(photo_dir, photo_filename))
+        photo_bytes = photo_file.read()
+        with open(os.path.join(photo_dir, photo_filename), "wb") as f:
+            f.write(photo_bytes)
+        save_persistent_asset(f"profile_photos/{photo_filename}", photo_file.mimetype or "image/jpeg", photo_bytes)
         profile_photo_url = f"/static/profile_photos/{photo_filename}"
 
     res = create_user(username, email, password, full_name, role="student",
@@ -872,6 +875,33 @@ def api_upload_answer_image(submission_id):
         "image_url": f"/static/student_answers/{unique_name}"
     })
 
+@app.route("/static/<path:filename>")
+def custom_static_serve(filename):
+    """
+    Serves static files from local disk if present.
+    If Render restarted and an ephemeral upload (e.g. profile_photos/..., student_answers/...)
+    was wiped from disk, automatically restores and serves it from database persistent_assets.
+    """
+    file_path = os.path.join(app.static_folder or os.path.join(os.path.dirname(__file__), "static"), filename)
+    if os.path.exists(file_path):
+        return send_from_directory(app.static_folder or os.path.join(os.path.dirname(__file__), "static"), filename)
+
+    # Check database persistent assets
+    res = get_persistent_asset(filename)
+    if res:
+        mime_type, raw_bytes = res
+        # Re-materialize to disk for fast subsequent reads
+        try:
+            os.makedirs(os.path.dirname(file_path), exist_ok=True)
+            with open(file_path, "wb") as f:
+                f.write(raw_bytes)
+        except Exception:
+            pass
+        from flask import Response
+        return Response(raw_bytes, mimetype=mime_type)
+
+    abort(404)
+
 @app.route("/asset/<path:asset_key>")
 def serve_persistent_asset(asset_key):
     """Fallback endpoint that serves images directly from database if local ephemeral file was erased."""
@@ -986,7 +1016,10 @@ def api_verify_face_ai(submission_id):
         os.makedirs(p_dir, exist_ok=True)
         p_name = f"user_{sub_row['user_id'] or submission_id}_{int(datetime.now().timestamp())}.jpg"
         p_path = os.path.join(p_dir, p_name)
-        custom_ref_file.save(p_path)
+        ref_bytes = custom_ref_file.read()
+        with open(p_path, "wb") as pf:
+            pf.write(ref_bytes)
+        save_persistent_asset(f"profile_photos/{p_name}", custom_ref_file.mimetype or "image/jpeg", ref_bytes)
         ref_photo_url = f"/static/profile_photos/{p_name}"
         if sub_row["user_id"]:
             cursor.execute("UPDATE users SET profile_photo = ? WHERE id = ?", (ref_photo_url, sub_row["user_id"]))
@@ -1000,8 +1033,11 @@ def api_verify_face_ai(submission_id):
         os.makedirs(p_dir, exist_ok=True)
         p_name = f"user_{sub_row['user_id'] or submission_id}_{int(datetime.now().timestamp())}.jpg"
         p_path = os.path.join(p_dir, p_name)
-        with open(snapshot_path, "rb") as sf, open(p_path, "wb") as df:
-            df.write(sf.read())
+        with open(snapshot_path, "rb") as sf:
+            snap_bytes = sf.read()
+        with open(p_path, "wb") as df:
+            df.write(snap_bytes)
+        save_persistent_asset(f"profile_photos/{p_name}", "image/jpeg", snap_bytes)
         ref_photo_url = f"/static/profile_photos/{p_name}"
         if sub_row["user_id"]:
             cursor.execute("UPDATE users SET profile_photo = ? WHERE id = ?", (ref_photo_url, sub_row["user_id"]))
