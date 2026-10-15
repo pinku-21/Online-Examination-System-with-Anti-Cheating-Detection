@@ -236,6 +236,10 @@ def init_db():
             "ALTER TABLE submissions ADD COLUMN IF NOT EXISTS is_published INTEGER DEFAULT 0",
             "ALTER TABLE submissions ADD COLUMN IF NOT EXISTS device_switch_approved INTEGER DEFAULT 0",
             "ALTER TABLE users ADD COLUMN IF NOT EXISTS active_session_token TEXT DEFAULT ''",
+            "ALTER TABLE submissions ADD COLUMN IF NOT EXISTS integrity_hash TEXT DEFAULT ''",
+            "ALTER TABLE submissions ADD COLUMN IF NOT EXISTS client_ip TEXT DEFAULT ''",
+            "ALTER TABLE violations ADD COLUMN IF NOT EXISTS severity TEXT DEFAULT 'HIGH'",
+            "ALTER TABLE violations ADD COLUMN IF NOT EXISTS event_code TEXT DEFAULT 'SEC-ALERT'",
         ]
         for statement in migrations:
             cursor.execute(statement)
@@ -358,6 +362,10 @@ def init_db():
             ("submissions", "is_published", "INTEGER DEFAULT 0"),
             ("submissions", "device_switch_approved", "INTEGER DEFAULT 0"),
             ("users", "active_session_token", "TEXT DEFAULT ''"),
+            ("submissions", "integrity_hash", "TEXT DEFAULT ''"),
+            ("submissions", "client_ip", "TEXT DEFAULT ''"),
+            ("violations", "severity", "TEXT DEFAULT 'HIGH'"),
+            ("violations", "event_code", "TEXT DEFAULT 'SEC-ALERT'"),
         ]:
             columns = {row["name"] for row in cursor.execute(f"PRAGMA table_info({table})").fetchall()}
             if column not in columns:

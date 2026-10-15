@@ -171,6 +171,29 @@
                 </div>
             </div>
         {% endif %}
+
+        <!-- Cryptographic Submission Integrity Verification (CIA Triad: Non-repudiation) -->
+        <div class="mt-6 p-4 rounded-xl bg-slate-900 text-slate-100 flex flex-col sm:flex-row sm:items-center justify-between gap-3 border border-slate-800 shadow-sm">
+            <div class="flex items-center space-x-3">
+                <div class="w-8 h-8 rounded-lg bg-emerald-500/20 text-emerald-400 flex items-center justify-center flex-shrink-0">
+                    <i data-lucide="binary" class="w-4 h-4"></i>
+                </div>
+                <div>
+                    <div class="flex items-center gap-2">
+                        <span class="text-xs font-bold uppercase tracking-wider text-slate-200">Cryptographic Integrity Hash</span>
+                        <span class="px-2 py-0.5 rounded text-[10px] font-extrabold bg-emerald-950 text-emerald-300 border border-emerald-500/30">HMAC-SHA256 SIGNED</span>
+                    </div>
+                    <span class="font-mono text-[11px] text-emerald-400 break-all select-all block mt-0.5">
+                        {{ submission.integrity_hash or 'Generating cryptographic verification token...' }}
+                    </span>
+                </div>
+            </div>
+            {% if submission.client_ip %}
+            <div class="text-right flex-shrink-0 text-[11px] font-mono text-slate-400">
+                <span>Verified Origin: <strong class="text-slate-200">{{ submission.client_ip }}</strong></span>
+            </div>
+            {% endif %}
+        </div>
     </div>
 
     <!-- Biometric Face Verification Audit Card -->
@@ -258,19 +281,37 @@
         {% if violations %}
             <div class="space-y-3">
                 {% for v in violations %}
-                    <div class="flex items-start justify-between p-3.5 rounded-xl border border-rose-100 bg-rose-50/40 text-xs">
+                    <div class="flex items-start justify-between p-3.5 rounded-xl border border-rose-100 bg-rose-50/40 text-xs gap-3">
                         <div class="flex items-start space-x-3">
-                            <span class="w-6 h-6 rounded-full bg-rose-200 text-rose-800 font-bold flex items-center justify-center flex-shrink-0 mt-0.5">
+                            <span class="w-6 h-6 rounded-full bg-rose-200 text-rose-800 font-bold flex items-center justify-center flex-shrink-0 mt-0.5 text-[11px]">
                                 {{ loop.index }}
                             </span>
                             <div>
-                                <span class="font-bold text-slate-900 text-sm uppercase tracking-wide">
-                                    {{ v.violation_type.replace('_', ' ') }}
-                                </span>
+                                <div class="flex items-center gap-2 mb-1">
+                                    <span class="font-bold text-slate-900 text-sm uppercase tracking-wide">
+                                        {{ v.violation_type.replace('_', ' ') }}
+                                    </span>
+                                    <span class="px-2 py-0.5 rounded font-mono text-[10px] font-bold bg-slate-200 text-slate-700">
+                                        {{ v.event_code or 'SEC-001' }}
+                                    </span>
+                                    {% set sev = (v.severity or 'HIGH') | upper %}
+                                    {% if sev == 'CRITICAL' %}
+                                        <span class="px-2 py-0.2 rounded-full text-[9px] font-extrabold bg-rose-200 text-rose-900">CRITICAL</span>
+                                    {% elif sev == 'HIGH' %}
+                                        <span class="px-2 py-0.2 rounded-full text-[9px] font-extrabold bg-amber-200 text-amber-900">HIGH</span>
+                                    {% else %}
+                                        <span class="px-2 py-0.2 rounded-full text-[9px] font-extrabold bg-sky-200 text-sky-900">MEDIUM</span>
+                                    {% endif %}
+                                </div>
                                 <p class="text-slate-600 mt-0.5">{{ v.details or 'Student triggered an anti-cheating warning.' }}</p>
                             </div>
                         </div>
-                        <span class="font-mono text-slate-400 text-[11px] flex-shrink-0">{{ v.timestamp | format_datetime_12h }}</span>
+                        <div class="text-right flex-shrink-0">
+                            <span class="font-mono text-slate-400 text-[11px] block">{{ v.timestamp | format_datetime_12h }}</span>
+                            {% if submission.client_ip %}
+                                <span class="font-mono text-slate-400 text-[10px] block mt-0.5">IP: {{ submission.client_ip }}</span>
+                            {% endif %}
+                        </div>
                     </div>
                 {% endfor %}
             </div>

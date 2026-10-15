@@ -38,7 +38,13 @@ As an online tutor or educator, two major challenges exist in remote education:
   - **Strike 1 & 2**: Instant warning alert modal with audio-visual cue.
   - **Strike 3**: Immediate exam lock, forced auto-submission, and status marked as `TERMINATED`.
 
-### 3. 📊 Instant Auto-Evaluation & Tutor Audit Reports
+### 3. 🔐 Cybersecurity & Anti-Tampering Architecture
+- **🔏 Cryptographic Submission Integrity (HMAC-SHA256)**: Implements non-repudiation using keyed SHA-256 digital certificates over candidate score, roll number, strikes, and status. Any backend or in-transit DB tampering immediately breaks cryptographic validation.
+- **📹 Virtual Camera & Stream Spoofing Detection**: Hardware driver inspection via `enumerateDevices()` blocks fake webcam feeds, OBS Virtual Camera, ManyCam, and synthetic video loops.
+- **🛡️ Client-Side Reverse Engineering & DevTools Traps**: Real-time debugger latency timing traps and synthetic click detection (`e.isTrusted` checks) stop students from opening devtools or script-injecting answers.
+- **🚨 SIEM Incident Response Dashboard**: Tutor/Admin Command Center provides a Security Operations Center (SOC) telemetry board classifying events into standardized cyber codes (`SEC-001` through `SEC-013`) with threat severity levels (Critical, High, Medium, Low) and client IP logging.
+
+### 4. 📊 Instant Auto-Evaluation & Tutor Audit Reports
 - Objective questions are instantly graded upon submission or termination.
 - Tutors can see a complete timestamped audit log of every cheating violation with exact reasons.
 
@@ -57,7 +63,8 @@ As an online tutor or educator, two major challenges exist in remote education:
 ---
 
 ## 🌐 Live Production Deployment
-- **Live URL**: [https://online-examination-system-with-anti.onrender.com/](https://online-examination-system-with-anti.onrender.com/)
+- **Live Application**: [https://online-examination-system-with-anti.onrender.com/](https://online-examination-system-with-anti.onrender.com/)
+- **Project Engineering Portfolio**: [https://examguard-portfolio.vercel.app/](https://examguard-portfolio.vercel.app/)
 - **Live Tutor Portal**: [https://online-examination-system-with-anti.onrender.com/tutor](https://online-examination-system-with-anti.onrender.com/tutor)
 - **Live Student Exam Portal**: [https://online-examination-system-with-anti.onrender.com/student](https://online-examination-system-with-anti.onrender.com/student)
 

@@ -1112,6 +1112,25 @@
                 return;
             }
 
+            // Anti-Spoofing Check: Scan connected video input device labels for virtual drivers
+            try {
+                if (navigator.mediaDevices.enumerateDevices) {
+                    const devices = await navigator.mediaDevices.enumerateDevices();
+                    const videoDevices = devices.filter(d => d.kind === 'videoinput');
+                    const virtualKeywords = ['obs', 'virtual', 'manycam', 'fake', 'droidcam', 'vcam', 'splitcam', 'ip camera', 'streamlabs'];
+                    for (const dev of videoDevices) {
+                        const lbl = (dev.label || '').toLowerCase();
+                        if (virtualKeywords.some(kw => lbl.includes(kw))) {
+                            console.warn("Virtual Camera Spoofing Detected:", dev.label);
+                            triggerViolation('virtual_camera_detected', `Hardware anomaly: Virtual Camera / Media Stream Spoofing software detected (${dev.label || 'Virtual Driver'}).`);
+                            break;
+                        }
+                    }
+                }
+            } catch (enumErr) {
+                console.warn("Media device enumeration note:", enumErr);
+            }
+
             let stream = null;
             if (ENABLE_AUDIO) {
                 // Audio detection enabled: request both video and audio
@@ -1464,6 +1483,35 @@
                     triggerViolation('devtools_attempt', 'Attempted to open developer inspection tools.');
                 }
             });
+
+            // 7. Active DevTools Timing Trap (Detects docked or undocked DevTools opening via debugger latency)
+            let devtoolsThreshold = 160;
+            let devtoolsCheckInterval = setInterval(() => {
+                if (!isExamActive || isTerminated || isGracePeriod) return;
+                const start = performance.now();
+                // If DevTools is open, debugger statement causes significant delay
+                (function() {
+                    const img = new Image();
+                    Object.defineProperty(img, 'id', {
+                        get: function() {
+                            triggerViolation('devtools_tamper', 'Client-side inspection trap triggered: Browser console or DevTools opened.');
+                        }
+                    });
+                    console.dir(img);
+                })();
+                const duration = performance.now() - start;
+                if (duration > devtoolsThreshold) {
+                    triggerViolation('devtools_tamper', 'Debugger latency anomaly detected (Console / DevTools inspection active).');
+                }
+            }, 3000);
+
+            // 8. Synthetic Input Attack Prevention (Detects script-based click injection via e.isTrusted)
+            document.addEventListener('click', (e) => {
+                if (e.isTrusted === false) {
+                    e.preventDefault();
+                    triggerViolation('devtools_tamper', 'Synthetic input injection attack detected (scripted mouse click).');
+                }
+            }, true);
         }
 
         // Show strike warning alert with 10s countdown; adds another strike if not clicked in 10s

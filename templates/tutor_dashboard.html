@@ -25,7 +25,7 @@
     </div>
 
     <!-- Quick Stats Cards -->
-    <div class="grid grid-cols-1 sm:grid-cols-3 gap-5 mb-8">
+    <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-5 mb-8">
         <div class="bg-white rounded-2xl p-6 border border-slate-200/80 shadow-sm flex items-center space-x-4">
             <div class="w-12 h-12 rounded-xl bg-sky-100 text-sky-600 flex items-center justify-center">
                 <i data-lucide="file-text" class="w-6 h-6"></i>
@@ -50,13 +50,30 @@
 
         <div class="bg-white rounded-2xl p-6 border border-slate-200/80 shadow-sm flex items-center space-x-4">
             <div class="w-12 h-12 rounded-xl bg-rose-100 text-rose-600 flex items-center justify-center">
-                <i data-lucide="shield-alert" class="w-6 h-6"></i>
+                <i data-lucide="shield-x" class="w-6 h-6"></i>
             </div>
             <div>
                 <p class="text-xs font-medium text-slate-500 uppercase tracking-wider">Cheating Terminations</p>
                 <h3 class="text-2xl font-bold text-slate-900 mt-0.5">
                     {{ exams|sum(attribute='terminated_count') if exams else 0 }}
                 </h3>
+            </div>
+        </div>
+
+        <div class="bg-white rounded-2xl p-6 border border-slate-200/80 shadow-sm flex items-center space-x-4">
+            <div class="w-12 h-12 rounded-xl bg-violet-100 text-violet-700 flex items-center justify-center">
+                <i data-lucide="activity" class="w-6 h-6"></i>
+            </div>
+            <div>
+                <p class="text-xs font-medium text-slate-500 uppercase tracking-wider">SOC Cyber Alerts</p>
+                <div class="flex items-center gap-2 mt-0.5">
+                    <h3 class="text-2xl font-bold text-slate-900">{{ security_incidents|length }}</h3>
+                    {% if sec_critical_count > 0 %}
+                        <span class="px-2 py-0.5 bg-rose-100 text-rose-700 rounded text-[11px] font-extrabold">{{ sec_critical_count }} Crit</span>
+                    {% else %}
+                        <span class="px-2 py-0.5 bg-emerald-100 text-emerald-700 rounded text-[11px] font-extrabold">Active</span>
+                    {% endif %}
+                </div>
             </div>
         </div>
     </div>
@@ -259,6 +276,105 @@
                 class="px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white text-sm font-semibold rounded-xl transition">
                 Add First Student
             </button>
+        </div>
+        {% endif %}
+    </div>
+
+    <!-- SIEM Security Operations Center (SOC) & Incident Response Telemetry -->
+    <div class="bg-white rounded-2xl border border-slate-200/80 shadow-sm overflow-hidden mb-8">
+        <div class="p-6 border-b border-slate-200 flex flex-col sm:flex-row sm:items-center justify-between gap-3 bg-gradient-to-r from-slate-900 via-slate-850 to-slate-800 text-white">
+            <div class="flex items-center space-x-3">
+                <div class="w-10 h-10 rounded-xl bg-violet-500/20 text-violet-400 flex items-center justify-center border border-violet-500/30">
+                    <i data-lucide="shield-alert" class="w-5 h-5"></i>
+                </div>
+                <div>
+                    <div class="flex items-center gap-2">
+                        <h2 class="text-base sm:text-lg font-bold">Cyber Security Operations Center (SOC)</h2>
+                        <span class="px-2 py-0.5 rounded text-[10px] font-extrabold bg-violet-500/30 text-violet-200 border border-violet-400/30 uppercase tracking-wider">SIEM Incident Log</span>
+                    </div>
+                    <p class="text-xs text-slate-300">Live security event auditing, threat classifications, device spoofing, and client tampering telemetry</p>
+                </div>
+            </div>
+            <div class="flex items-center gap-2">
+                <span class="text-xs px-3 py-1 rounded-full bg-slate-800 border border-slate-700 text-slate-300 font-mono">
+                    {{ security_incidents|length }} Recent Incidents
+                </span>
+            </div>
+        </div>
+
+        {% if security_incidents %}
+        <div class="overflow-x-auto">
+            <table class="w-full text-xs">
+                <thead>
+                    <tr class="bg-slate-50 text-[11px] font-bold text-slate-500 uppercase tracking-wider border-b border-slate-200">
+                        <th class="px-5 py-3 text-left">Event ID</th>
+                        <th class="px-5 py-3 text-left">Threat Level</th>
+                        <th class="px-5 py-3 text-left">Classification & Details</th>
+                        <th class="px-5 py-3 text-left">Candidate & Roll</th>
+                        <th class="px-5 py-3 text-left">Client IP / Origin</th>
+                        <th class="px-5 py-3 text-left">Exam</th>
+                        <th class="px-5 py-3 text-right">Timestamp</th>
+                    </tr>
+                </thead>
+                <tbody class="divide-y divide-slate-100 font-sans">
+                    {% for inc in security_incidents %}
+                    <tr class="hover:bg-slate-50/80 transition">
+                        <td class="px-5 py-3 font-mono font-bold text-slate-600">
+                            {{ inc.event_code or 'SEC-001' }}
+                        </td>
+                        <td class="px-5 py-3">
+                            {% set sev = (inc.severity or 'HIGH') | upper %}
+                            {% if sev == 'CRITICAL' %}
+                                <span class="px-2 py-0.5 rounded-full text-[10px] font-extrabold bg-rose-100 text-rose-800 border border-rose-200 flex items-center w-max gap-1">
+                                    <span class="w-1.5 h-1.5 rounded-full bg-rose-600 animate-pulse"></span> CRITICAL
+                                </span>
+                            {% elif sev == 'HIGH' %}
+                                <span class="px-2 py-0.5 rounded-full text-[10px] font-extrabold bg-amber-100 text-amber-800 border border-amber-200 flex items-center w-max gap-1">
+                                    <span class="w-1.5 h-1.5 rounded-full bg-amber-600"></span> HIGH
+                                </span>
+                            {% elif sev == 'MEDIUM' %}
+                                <span class="px-2 py-0.5 rounded-full text-[10px] font-extrabold bg-sky-100 text-sky-800 border border-sky-200 flex items-center w-max gap-1">
+                                    <span class="w-1.5 h-1.5 rounded-full bg-sky-600"></span> MEDIUM
+                                </span>
+                            {% else %}
+                                <span class="px-2 py-0.5 rounded-full text-[10px] font-extrabold bg-slate-100 text-slate-700 border border-slate-200 flex items-center w-max gap-1">
+                                    <span class="w-1.5 h-1.5 rounded-full bg-slate-500"></span> LOW
+                                </span>
+                            {% endif %}
+                        </td>
+                        <td class="px-5 py-3">
+                            <span class="font-bold text-slate-900 uppercase block tracking-wide text-[11px]">
+                                {{ inc.violation_type.replace('_', ' ') }}
+                            </span>
+                            <span class="text-slate-500 text-[11px] block mt-0.5 max-w-sm truncate" title="{{ inc.details }}">
+                                {{ inc.details or 'Security boundary violation detected.' }}
+                            </span>
+                        </td>
+                        <td class="px-5 py-3">
+                            <strong class="text-slate-800 block">{{ inc.student_name }}</strong>
+                            <span class="font-mono text-[10px] text-slate-500">{{ inc.roll_number }}</span>
+                        </td>
+                        <td class="px-5 py-3 font-mono text-[11px] text-slate-600">
+                            {{ inc.client_ip or '127.0.0.1 (Local)' }}
+                        </td>
+                        <td class="px-5 py-3 text-slate-600">
+                            <a href="/tutor/exam/{{ inc.exam_id }}" class="hover:text-sky-600 font-medium truncate block max-w-xs">
+                                {{ inc.exam_title }}
+                            </a>
+                        </td>
+                        <td class="px-5 py-3 text-right font-mono text-slate-400 text-[10px]">
+                            {{ inc.timestamp | format_datetime_12h }}
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+        {% else %}
+        <div class="p-8 text-center text-slate-500">
+            <i data-lucide="shield-check" class="w-8 h-8 text-emerald-500 mx-auto mb-2"></i>
+            <p class="font-semibold text-slate-700 text-sm">Security Perimeter Clean</p>
+            <p class="text-xs text-slate-400 mt-0.5">No cyber anomalies or anti-tamper security alerts recorded yet.</p>
         </div>
         {% endif %}
     </div>

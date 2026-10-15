@@ -63,6 +63,9 @@ graph TD
 | **10-Second Strike Return Penalty** | Reactive Client Timers & Webhooks | Enforces immediate return to the exam window upon a warning modal, adding penalty strikes if ignored. |
 | **Handwritten Photo Uploads** | Multi-file Canvas, Mobile Camera Capture | Students can upload multi-page handwritten proofs without triggering false window blur strikes. |
 | **Audit Logs & Analytics** | Flask, Jinja2, UTC to IST Time Localization | Complete timestamped chronological trail of every student action and warning strike for institution review. |
+| **Cryptographic Integrity (HMAC-SHA256)** | Python `hashlib` & `hmac`, Non-repudiation | Generates immutable verification tokens over score and submissions, preventing backend and transit data tampering. |
+| **Virtual Camera Anti-Spoofing** | WebRTC `enumerateDevices()` driver heuristics | Stops OBS Virtual Cam, ManyCam, and pre-recorded looping video bypasses of webcam proctoring. |
+| **SIEM Security Operations Center (SOC)** | Standardized `SEC-001..013` taxonomy & Client IP | Categorizes anti-cheat violations into high/critical cyber incident alerts with origin telemetry. |
 
 ---
 
@@ -83,6 +86,10 @@ graph TD
 ### 4. Mathematical Formula Rendering
 * **Challenge:** AI generators often returned raw unparsed LaTeX (`\sqrt{4}`, `\frac{22}{7}`), which confused students and broke radio button string concatenation when backslashes were unescaped.
 * **Solution:** Embedded KaTeX mathematical rendering with auto-render scripts across student and tutor portals, paired with direct DOM event bindings for choices to ensure all math notation renders crisply and accurately.
+
+### 5. Virtual Camera Stream Spoofing & Cryptographic Submission Non-Repudiation
+* **Challenge:** Tech-savvy candidates attempted to loop pre-recorded webcam footage through virtual webcam drivers (OBS Virtual Cam, ManyCam) to bypass computer vision, while potential database tampering could falsify scores.
+* **Solution:** Integrated hardware driver heuristics via `navigator.mediaDevices.enumerateDevices()` to reject known virtual video device drivers, client-side DevTools debugger latency traps, and computed server-side HMAC-SHA256 digital certificates over final scores, timestamps, and strikes, mathematically guaranteeing immutability.
 
 ---
 

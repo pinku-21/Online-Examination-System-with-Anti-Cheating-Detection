@@ -6,6 +6,8 @@ import threading
 import uuid
 import time
 import secrets
+import hashlib
+import hmac
 from functools import wraps
 from datetime import datetime, timezone, timedelta
 from flask import Flask, render_template, request, jsonify, redirect, url_for, flash, session
@@ -52,6 +54,41 @@ def get_current_time():
 
 app = Flask(__name__)
 app.secret_key = os.environ.get("SECRET_KEY", "examguard-super-secret-key-2026")
+
+# --- CYBERSECURITY HELPERS (Integrity & SIEM Classification) ---
+SECURITY_EVENT_CLASSIFICATION = {
+    "virtual_camera_detected": {"code": "SEC-001", "severity": "CRITICAL", "desc": "Virtual Video Device / Stream Spoofing Attempt"},
+    "devtools_tamper": {"code": "SEC-002", "severity": "CRITICAL", "desc": "Client-Side DOM / JS Reverse Engineering & Tampering"},
+    "devtools_attempt": {"code": "SEC-002", "severity": "HIGH", "desc": "Developer Inspection Shortcut Triggered"},
+    "impersonation_mismatch": {"code": "SEC-003", "severity": "CRITICAL", "desc": "Biometric Identity Mismatch / Impersonation"},
+    "multiple_faces": {"code": "SEC-004", "severity": "HIGH", "desc": "Physical Perimeter Breach: Multiple Persons Detected"},
+    "no_face": {"code": "SEC-005", "severity": "MEDIUM", "desc": "Webcam Feed Obscured / Candidate Absence"},
+    "mobile_phone_detected": {"code": "SEC-006", "severity": "CRITICAL", "desc": "Unauthorized Communication Device Detected"},
+    "tab_switch": {"code": "SEC-007", "severity": "HIGH", "desc": "Session Window Blur / Unauthorized Tab Switch"},
+    "window_blur": {"code": "SEC-008", "severity": "MEDIUM", "desc": "Operating System Focus Loss / External Overlay"},
+    "fullscreen_exit": {"code": "SEC-009", "severity": "HIGH", "desc": "Kiosk Environment / Fullscreen Sandbox Escape"},
+    "clipboard_attempt": {"code": "SEC-010", "severity": "MEDIUM", "desc": "Restricted Clipboard Injection / Extraction"},
+    "right_click": {"code": "SEC-011", "severity": "LOW", "desc": "Unauthorized Context Menu Invocation"},
+    "voice_detected": {"code": "SEC-012", "severity": "MEDIUM", "desc": "Acoustic Anomaly / Unauthorized Speech Detected"},
+    "session_anomaly": {"code": "SEC-013", "severity": "CRITICAL", "desc": "Concurrent Session / Device Hijacking Attempt"}
+}
+
+def generate_submission_integrity_hash(submission_id, roll_number, score, total_points, warnings_count, status):
+    """
+    Computes an HMAC-SHA-256 cryptographic verification token for the submission.
+    Ensures non-repudiation and detects unauthorized tampering in database or transit.
+    """
+    secret = app.secret_key.encode('utf-8')
+    payload = f"EXAMGUARD_V1|SUB:{submission_id}|ROLL:{roll_number}|SCORE:{score}/{total_points}|STRK:{warnings_count}|STATUS:{status}".encode('utf-8')
+    return hmac.new(secret, payload, hashlib.sha256).hexdigest()
+
+def classify_security_event(violation_type):
+    """SIEM-style classification for anti-cheat and security violations."""
+    return SECURITY_EVENT_CLASSIFICATION.get(violation_type, {
+        "code": "SEC-999",
+        "severity": "MEDIUM",
+        "desc": violation_type.replace('_', ' ').title()
+    })
 
 # --- BACKGROUND JOB STORE (thread-safe + database persistent) ---
 # Stores AI generation jobs in memory and in the database so any Gunicorn worker process can poll it
@@ -520,8 +557,8 @@ def index():
 
 @app.route("/portfolio")
 def portfolio():
-    """Portfolio showcase page highlighting project architecture, metrics, and engineering achievements."""
-    return render_template("portfolio.html")
+    """Redirects to the independently deployed portfolio website on Vercel."""
+    return redirect("https://examguard-portfolio.vercel.app/")
 
 @app.route("/PORTFOLIO_CASE_STUDY.md")
 def portfolio_case_study_markdown():
@@ -565,7 +602,22 @@ def tutor_dashboard():
     cursor2.execute("SELECT id, full_name, username, roll_number, email, class_name, profile_photo, created_at FROM users WHERE role = 'student' ORDER BY created_at DESC")
     students = [dict(r) for r in cursor2.fetchall()]
     distinct_classes = sorted(list(set(s['class_name'] for s in students if s.get('class_name'))))
+    
+    # Query recent security incidents across all exams for the SIEM Security Operations Center
+    cursor2.execute("""
+        SELECT v.*, s.student_name, s.roll_number, s.client_ip, s.exam_id, e.title as exam_title
+        FROM violations v
+        JOIN submissions s ON v.submission_id = s.id
+        JOIN exams e ON s.exam_id = e.id
+        ORDER BY v.timestamp DESC
+        LIMIT 25
+    """)
+    security_incidents = [dict(r) for r in cursor2.fetchall()]
     conn2.close()
+
+    # Calculate SOC stats
+    sec_critical_count = sum(1 for inc in security_incidents if (inc.get('severity') or '').upper() == 'CRITICAL')
+    sec_high_count = sum(1 for inc in security_incidents if (inc.get('severity') or '').upper() == 'HIGH')
 
     return render_template(
         "tutor_dashboard.html", 
@@ -577,7 +629,10 @@ def tutor_dashboard():
         has_groq_key=bool(groq_key and len(groq_key.strip()) > 10),
         gemini_key_mask=(gemini_key[:4] + "..." + gemini_key[-4:]) if len(gemini_key) > 8 else "",
         groq_key_mask=(groq_key[:4] + "..." + groq_key[-4:]) if len(groq_key) > 8 else "",
-        public_url=public_url
+        public_url=public_url,
+        security_incidents=security_incidents,
+        sec_critical_count=sec_critical_count,
+        sec_high_count=sec_high_count
     )
 
 @app.route("/tutor/settings", methods=["GET", "POST"])
@@ -2083,6 +2138,13 @@ def api_log_violation(submission_id):
     data = request.get_json() or {}
     violation_type = data.get("type", "unknown")
     details = data.get("details", "")
+    client_ip = request.headers.get("X-Forwarded-For", request.remote_addr or "")
+    if "," in client_ip:
+        client_ip = client_ip.split(",")[0].strip()
+    
+    sec_meta = classify_security_event(violation_type)
+    event_code = sec_meta.get("code", "SEC-ALERT")
+    severity = sec_meta.get("severity", "HIGH")
     
     conn = get_connection()
     cursor = conn.cursor()
@@ -2099,11 +2161,11 @@ def api_log_violation(submission_id):
         conn.close()
         return jsonify({"terminated": True, "reason": "Exam is already closed or invalid"})
         
-    # Insert violation log
+    # Insert violation log with SIEM classification
     cursor.execute("""
-        INSERT INTO violations (submission_id, violation_type, details)
-        VALUES (?, ?, ?)
-    """, (submission_id, violation_type, details))
+        INSERT INTO violations (submission_id, violation_type, details, severity, event_code)
+        VALUES (?, ?, ?, ?, ?)
+    """, (submission_id, violation_type, details, severity, event_code))
     
     new_warnings = submission["warnings_count"] + 1
     max_allowed = submission["max_warnings"]
@@ -2114,11 +2176,22 @@ def api_log_violation(submission_id):
     if new_warnings >= max_allowed:
         is_terminated = True
         termination_reason = f"Exceeded maximum allowed anti-cheating warnings ({new_warnings}/{max_allowed} strikes). Violation: {violation_type.replace('_', ' ').title()}"
+        
+        # Calculate cryptographic integrity token for the terminated record
+        term_hash = generate_submission_integrity_hash(
+            submission_id, 
+            submission["roll_number"], 
+            submission.get("score") or 0.0, 
+            submission.get("total_points") or 0.0, 
+            new_warnings, 
+            'terminated'
+        )
+        
         # Save any partially-answered questions (from progress_answers_json) into answers_json
-        # so the tutor can see and award marks, and admin can optionally restore from this point.
         cursor.execute("""
             UPDATE submissions 
             SET warnings_count = ?, status = 'terminated', termination_reason = ?, submitted_at = CURRENT_TIMESTAMP,
+                client_ip = ?, integrity_hash = ?,
                 answers_json = COALESCE(
                     CASE WHEN (answers_json IS NULL OR answers_json = '' OR answers_json = '{}') 
                          THEN progress_answers_json 
@@ -2127,9 +2200,9 @@ def api_log_violation(submission_id):
                     '{}'
                 )
             WHERE id = ?
-        """, (new_warnings, termination_reason, submission_id))
+        """, (new_warnings, termination_reason, client_ip, term_hash, submission_id))
     else:
-        cursor.execute("UPDATE submissions SET warnings_count = ? WHERE id = ?", (new_warnings, submission_id))
+        cursor.execute("UPDATE submissions SET warnings_count = ?, client_ip = ? WHERE id = ?", (new_warnings, client_ip, submission_id))
         
     conn.commit()
     conn.close()
@@ -2144,9 +2217,12 @@ def api_log_violation(submission_id):
 
 @app.route("/api/submission/<int:submission_id>/submit", methods=["POST"])
 def api_submit_exam(submission_id):
-    """Calculates final score and records completion."""
+    """Calculates final score, records completion, and computes cryptographic integrity hash."""
     data = request.get_json() or {}
     answers = data.get("answers", {})  # {str(question_id): selected_answer}
+    client_ip = request.headers.get("X-Forwarded-For", request.remote_addr or "")
+    if "," in client_ip:
+        client_ip = client_ip.split(",")[0].strip()
     
     conn = get_connection()
     cursor = conn.cursor()
@@ -2179,16 +2255,27 @@ def api_submit_exam(submission_id):
             
     percentage = (total_score / total_points * 100) if total_points > 0 else 0.0
     
+    # Generate cryptographic SHA-256 HMAC for submission integrity & tamper detection
+    integrity_token = generate_submission_integrity_hash(
+        submission_id, 
+        submission["roll_number"], 
+        total_score, 
+        total_points, 
+        submission.get("warnings_count", 0), 
+        'submitted'
+    )
+    
     cursor.execute("""
         UPDATE submissions 
-        SET answers_json = ?, score = ?, total_points = ?, percentage = ?, status = 'submitted', submitted_at = CURRENT_TIMESTAMP
+        SET answers_json = ?, score = ?, total_points = ?, percentage = ?, status = 'submitted', 
+            submitted_at = CURRENT_TIMESTAMP, client_ip = ?, integrity_hash = ?
         WHERE id = ?
-    """, (json.dumps(answers), total_score, total_points, round(percentage, 1), submission_id))
+    """, (json.dumps(answers), total_score, total_points, round(percentage, 1), client_ip, integrity_token, submission_id))
     
     conn.commit()
     conn.close()
     
-    return jsonify({"success": True, "submission_id": submission_id})
+    return jsonify({"success": True, "submission_id": submission_id, "integrity_hash": integrity_token})
 
 
 # ---------------------------------------------------------------------------
@@ -2589,12 +2676,39 @@ def exam_result(submission_id):
 
             questions_review.append(q_dict)
 
+    # Cryptographic Tamper Verification Check (CIA Integrity)
+    expected_hash = generate_submission_integrity_hash(
+        sub_dict["id"],
+        sub_dict["roll_number"],
+        sub_dict.get("score") or 0.0,
+        sub_dict.get("total_points") or 0.0,
+        sub_dict.get("warnings_count") or 0,
+        sub_dict.get("status") or "submitted"
+    )
+    
+    stored_hash = sub_dict.get("integrity_hash") or ""
+    # If not previously stored (historical submission), persist current valid hash
+    if not stored_hash and sub_dict.get("status") in ("submitted", "terminated"):
+        try:
+            conn = get_connection()
+            conn.cursor().execute("UPDATE submissions SET integrity_hash = ? WHERE id = ?", (expected_hash, sub_dict["id"]))
+            conn.commit()
+            conn.close()
+            stored_hash = expected_hash
+            sub_dict["integrity_hash"] = expected_hash
+        except Exception:
+            stored_hash = expected_hash
+            
+    is_tamper_verified = bool(stored_hash and hmac.compare_digest(stored_hash, expected_hash))
+
     return render_template("exam_result.html", 
                            submission=sub_dict, 
                            violations=violations, 
                            passed=passed, 
                            is_published=is_published,
-                           questions=questions_review)
+                           questions=questions_review,
+                           integrity_hash=stored_hash or expected_hash,
+                           is_tamper_verified=is_tamper_verified)
 
 if __name__ == "__main__":
     app.run(host="127.0.0.1", port=5000, debug=True)
