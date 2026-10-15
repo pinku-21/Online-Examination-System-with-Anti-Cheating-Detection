@@ -292,26 +292,33 @@
 </div>
 
 {% if not is_published %}
+<div id="publish-poll-sentinel" data-submission-id="{{ submission.id | default(0) }}" class="hidden"></div>
 <script>
     // Live Auto-Refresh: When result is pending review, poll the server and reload automatically once published
-    (function() {
-        const submissionId = {{ submission.id }};
-        const pollInterval = setInterval(async () => {
-            try {
-                const resp = await fetch(`/api/submission/${submissionId}/publish-status`);
-                if (resp.ok) {
-                    const data = await resp.json();
-                    if (data.success && data.is_published) {
+    document.addEventListener('DOMContentLoaded', function() {
+        var sentinel = document.getElementById('publish-poll-sentinel');
+        var subId = sentinel ? sentinel.getAttribute('data-submission-id') : '0';
+        if (!subId || subId === '0') return;
+
+        var pollInterval = setInterval(function() {
+            fetch('/api/submission/' + subId + '/publish-status')
+                .then(function(resp) {
+                    if (resp.ok) {
+                        return resp.json();
+                    }
+                    throw new Error('Network response not ok');
+                })
+                .then(function(data) {
+                    if (data && data.success && data.is_published) {
                         clearInterval(pollInterval);
-                        // Trigger smooth auto-refresh to display the published evaluation review
                         window.location.reload();
                     }
-                }
-            } catch (err) {
-                // Silently wait for next interval
-            }
+                })
+                .catch(function() {
+                    // Silently wait for next interval
+                });
         }, 4000);
-    })();
+    });
 </script>
 {% endif %}
 {% endblock %}
