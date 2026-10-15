@@ -205,20 +205,8 @@ STRICT RULES ON MATHEMATICAL NOTATION & CLARITY (CRITICAL):
 2. Clean Options: Every multiple choice option MUST be a clean, human-readable string without broken backslashes or raw LaTeX codes.
 3. If LaTeX is unavoidable, wrap it in clean standard inline delimiters like $...$ so frontend math engines can format it, but prefer clean Unicode/standard text (e.g. '√2', '22/7', 'π').
 
-STRICT RULE ON SOURCE MATERIAL & NEGATIVE CONSTRAINTS (CRITICAL):
-1. UNDERSTAND THE TEXT DEEPLY: Digest the concepts, theorems, problems, formulas, and definitions from the reference text and create insightful, syllabus-aligned questions.
-2. DO NOT TURN INSTRUCTIONS/HEADERS INTO QUESTIONS:
-   - NEVER create a question out of instructions, rules, or guidelines like "All questions are compulsory", "Maximum marks 80", "Time allowed 3 hours", "Choose the correct option", or section headers.
-   - ONLY create genuine questions testing academic subject knowledge!
-3. SEPARATION OF QUESTION TEXT & OPTIONS:
-   - For MCQs, "question_text" MUST contain ONLY the question premise/problem statement.
-   - NEVER embed the choices "(a) ..., (b) ..., (c) ..., (d) ..." inside "question_text". Place each choice separately in the "options" array.
-4. AUTO-GENERATE HIGH-QUALITY SVG DIAGRAMS WHEN NEEDED:
-   - For ANY question involving geometry (angles, parallel lines, triangles, quadrilaterals, circles), coordinate axes, graphs, number lines, patterns, circuits, or physics:
-     YOU MUST generate a complete, valid vector SVG diagram in "figure_svg"!
-   - Format: <svg viewBox="0 0 350 220" xmlns="http://www.w3.org/2000/svg">...</svg> with clear geometric lines, labeled points, angle arcs, and text.
-5. NO RAW LATEX:
-   - Convert all LaTeX (like \\(68^\\circ\\), \\sqrt{x}, \\frac{a}{b}) into clean Unicode/natural text (e.g. 68°, √x, a/b).
+STRICT RULE ON SOURCE MATERIAL:
+Create questions ONLY from the user's provided uploaded PDF, topic context, or prompt. DO NOT invent unrelated questions or generic placeholder questions.
 """
     return prompt
 
@@ -257,10 +245,11 @@ def generate_questions_with_gemini(api_key, text_content=None, image_paths=None,
                 })
 
     models_to_try = [
-        "gemini-2.5-flash",
-        "gemini-2.0-flash",
-        "gemini-1.5-flash",
-        "gemini-flash-latest"
+        "gemini-3.8-flash",
+        "gemini-flash-latest",
+        "gemini-3.5-flash",
+        "gemini-3.5-flash-lite",
+        "gemini-flash-lite-latest"
     ]
     
     last_error = None
@@ -269,7 +258,7 @@ def generate_questions_with_gemini(api_key, text_content=None, image_paths=None,
         payload = {
             "contents": [{"parts": parts}],
             "generationConfig": {
-                "temperature": 0.3,
+                "temperature": 0.4,
                 "response_mime_type": "application/json"
             }
         }
@@ -492,46 +481,30 @@ def generate_questions_unified(gemini_key=None, groq_key=None, text_content=None
 def build_paper_parser_system_prompt():
     """Prompt specifically engineered to ingest and parse existing question papers directly."""
     return """You are an accurate, faithful Exam Paper Parser and Transcriber.
-The user will provide an EXISTING question paper (with questions, sections, marks, multiple choice options, instructions, etc.).
-Your mission is to extract EVERY SINGLE real question into structured JSON.
+The user will provide an EXISTING, COMPLETED question paper (with questions, sections, marks, multiple choice options, etc.).
+Your mission is to extract EVERY SINGLE question into structured JSON.
 
 CRITICAL RULES:
-1. FILTER OUT GENERAL INSTRUCTIONS & PAPER HEADERS:
-   - DO NOT create questions out of paper metadata or guidelines like:
-     "Maximum marks", "Time allowed", "General instructions", "All questions are compulsory", "Show all necessary calculations", "Use a ruler, compass and protractor", "Section A", "Section B".
-   - Start extracting ONLY where actual questions begin!
-
-2. SEPARATION OF QUESTION TEXT AND CHOICES:
-   - "question_text": Must contain ONLY the problem statement/question itself. Strip topic sub-headers (like "**1. Patterns in Mathematics**" -> clean to the actual question statement).
-   - NEVER place the choices "(a) ..., (b) ..., (c) ..., (d) ..." inside "question_text".
-   - "options": For MCQs, populate an array with 4 clean choices: ["(a) 18", "(b) 20", "(c) 21", "(d) 25"].
-
-3. QUESTION TYPES:
+1. DO NOT invent, substitute, rephrase, or hallucinate questions. Keep the instructor's questions, wording, and options EXACTLY as provided.
+2. Question Types:
    - If a question has options (a, b, c, d), set "question_type": "mcq" and place all choices in the "options" array.
    - If options are True/False, set "question_type": "tf" and "options": ["True", "False"].
    - If it is a short question (1-4 marks without options), set "question_type": "short" and "options": [].
    - If it is an essay, proof, or long question (5+ marks without options), set "question_type": "descriptive" and "options": [].
-
-4. MATHEMATICAL NOTATION & CLEAN SYMBOLS:
-   - Convert all LaTeX and backslashed markup into clean natural Unicode:
-     - Convert \\(68^\\circ\\) or \\(68^\\circ) into 68°
-     - Convert \\(22^\\circ\\) into 22°
-     - Convert \\sqrt{...} into √...
-     - Convert \\frac{a}{b} into a/b
-     - Convert x^2 into x²
-     - Convert \\pi into π, \\theta into θ.
-
-5. FIGURE & SVG DIAGRAM GENERATION (CRITICAL):
-   - If a question involves geometry, lines, angles, triangles, shapes, coordinate axes, or graphs:
-     YOU MUST generate a complete, valid vector SVG in "figure_svg"!
-     Example for "Two angles together form a straight angle. If one angle is 68°, the other angle is...":
-     Generate an SVG showing a straight line with a ray creating a 68° angle and the unknown angle!
-     - SVG Structure: <svg viewBox="0 0 350 200" xmlns="http://www.w3.org/2000/svg">...</svg> with clear stroke="#0284c7" / "#1e293b", labeled angle arcs and values!
-   - If no diagram is needed for a question, set "figure_svg": null. Set "figure_url": null.
-
-6. ANSWERS & POINTS:
-   - Extract points if mentioned in section/question headers (e.g. 1 mark, 2 marks, 3 marks, 5 marks).
-   - If answers are not provided in the paper, solve and provide the correct answer in "correct_answer" and a brief 1-sentence step in "explanation".
+3. Marks / Points:
+   - Extract the point value from the paper if specified (e.g. "(16 × 1 = 16 marks)", "1 mark", "2 marks", "3 marks", "5 marks").
+   - If not specified, assign a realistic default (1.0 for MCQs, 2.0 for short, 5.0 for long).
+4. Answers & Explanations:
+   - If the user provided answers or an answer key in the text, extract them into "correct_answer".
+   - If answers are NOT provided in the paper, deduce and populate the standard correct answer for each MCQ or a brief reference answer for short/descriptive questions.
+5. Mathematical Notation:
+   - Convert raw unrendered LaTeX into clean, readable Unicode or standard mathematical symbols:
+     - Use √x instead of \\sqrt{x}
+     - Use 22/7 or a/b instead of \\frac{a}{b}
+     - Use x², y³ instead of x^2
+     - Use °, π, θ instead of raw TeX commands.
+6. Figure/Diagram Support:
+   - If a question involves geometry, shapes, lines, angles, triangles, or graphs, generate a clean SVG in "figure_svg" (with viewBox="0 0 350 220" xmlns="http://www.w3.org/2000/svg"), otherwise set "figure_svg": null. Set "figure_url": null.
 
 JSON FORMAT SPECIFICATION:
 Return ONLY a valid JSON array of question objects starting with [ and ending with ].
@@ -593,7 +566,7 @@ def parse_existing_paper_with_groq(api_key, raw_text):
 def parse_existing_paper_with_gemini(api_key, raw_text):
     """Parses raw pasted exam paper using Gemini."""
     system_prompt = build_paper_parser_system_prompt()
-    models = ["gemini-2.5-flash", "gemini-2.0-flash", "gemini-1.5-flash", "gemini-flash-latest"]
+    models = ["gemini-3.8-flash", "gemini-flash-latest", "gemini-3.5-flash"]
     last_err = None
     
     for model_name in models:
@@ -668,58 +641,6 @@ def parse_pasted_paper_unified(gemini_key=None, groq_key=None, raw_text=""):
 
     return {"success": False, "error": "Could not parse questions: " + " | ".join(errors)}
 
-def clean_math_text(text):
-    """Cleans LaTeX, escaped symbols, and markdown noise into natural readable Unicode."""
-    if not text:
-        return ""
-    t = text
-    # Replace LaTeX degree symbols e.g. \(68^\circ\) or (68^\circ)
-    t = re.sub(r"\\?\([0-9\.\s]*\^\\?circ\\?\)", lambda m: re.sub(r"[^\d\.]", "", m.group(0)) + "°", t)
-    t = t.replace(r"^\circ", "°").replace(r"^\circ\)", "°").replace(r"\circ", "°")
-    # Roots and fractions
-    t = re.sub(r"\\sqrt\{([^}]+)\}", r"√\1", t)
-    t = re.sub(r"\\frac\{([^}]+)\}\{([^}]+)\}", r"\1/\2", t)
-    # Greek letters
-    t = t.replace(r"\pi", "π").replace(r"\theta", "θ").replace(r"\alpha", "α").replace(r"\beta", "β")
-    # Clean powers
-    t = t.replace("^2", "²").replace("^3", "³")
-    # Clean remaining escaped delimiters
-    t = t.replace(r"\(", "").replace(r"\)", "").replace(r"\[", "").replace(r"\]", "")
-    return t.strip()
-
-def generate_geometry_svg_fallback(question_text):
-    """Auto-generates clean vector SVG if question mentions geometric angles, triangles, or lines."""
-    lower_t = question_text.lower()
-    if "straight angle" in lower_t or ("angle" in lower_t and "68" in lower_t):
-        return """<svg viewBox="0 0 350 180" xmlns="http://www.w3.org/2000/svg">
-  <line x1="30" y1="130" x2="320" y2="130" stroke="#1e293b" stroke-width="2.5" stroke-linecap="round" />
-  <circle cx="175" cy="130" r="4" fill="#0284c7" />
-  <!-- Ray at approx 68 degrees -->
-  <line x1="175" y1="130" x2="230" y2="35" stroke="#0284c7" stroke-width="2.5" stroke-linecap="round" />
-  <!-- Arc for 68 deg -->
-  <path d="M 215 130 A 40 40 0 0 0 195 95" fill="none" stroke="#0284c7" stroke-width="1.8" />
-  <text x="215" y="110" font-family="sans-serif" font-size="13" font-weight="bold" fill="#0284c7">68°</text>
-  <!-- Arc for unknown angle x -->
-  <path d="M 195 95 A 40 40 0 0 0 135 130" fill="none" stroke="#e11d48" stroke-width="1.8" stroke-dasharray="3,2" />
-  <text x="140" y="105" font-family="sans-serif" font-size="14" font-weight="bold" fill="#e11d48">x = ?</text>
-  <text x="25" y="150" font-family="sans-serif" font-size="12" font-weight="bold" fill="#64748b">A</text>
-  <text x="172" y="150" font-family="sans-serif" font-size="12" font-weight="bold" fill="#64748b">O</text>
-  <text x="320" y="150" font-family="sans-serif" font-size="12" font-weight="bold" fill="#64748b">B</text>
-</svg>"""
-    elif "triangle" in lower_t or "triangular" in lower_t:
-        return """<svg viewBox="0 0 350 180" xmlns="http://www.w3.org/2000/svg">
-  <polygon points="175,25 60,150 290,150" fill="#f0f9ff" stroke="#0284c7" stroke-width="2.5" />
-  <text x="170" y="18" font-family="sans-serif" font-size="13" font-weight="bold" fill="#0f172a">A</text>
-  <text x="45" y="160" font-family="sans-serif" font-size="13" font-weight="bold" fill="#0f172a">B</text>
-  <text x="295" y="160" font-family="sans-serif" font-size="13" font-weight="bold" fill="#0f172a">C</text>
-</svg>"""
-    elif "hexagon" in lower_t or "perimeter" in lower_t:
-        return """<svg viewBox="0 0 350 180" xmlns="http://www.w3.org/2000/svg">
-  <polygon points="175,25 250,65 250,135 175,175 100,135 100,65" fill="#f8fafc" stroke="#4f46e5" stroke-width="2.5" />
-  <text x="260" y="105" font-family="sans-serif" font-size="12" font-weight="bold" fill="#4f46e5">s = 6.5 cm</text>
-</svg>"""
-    return None
-
 def regex_parse_pasted_questions(raw_text):
     """
     Fast rule-based / regex parser that breaks pasted numbered questions,
@@ -734,39 +655,16 @@ def regex_parse_pasted_questions(raw_text):
     opt_re = re.compile(r"^\s*[\(\[]?([a-dA-D])[\)\]\.\:]\s*(.*)")
     points_re = re.compile(r"\[?\(?\s*(\d+(?:\.\d+)?)\s*(?:marks?|pts?|points?)\s*\)?\]?", re.IGNORECASE)
 
-    # General instructions skip patterns
-    ignore_patterns = [
-        re.compile(r"^maximum\s+marks", re.IGNORECASE),
-        re.compile(r"^time\s+allowed", re.IGNORECASE),
-        re.compile(r"^general\s+instructions", re.IGNORECASE),
-        re.compile(r"^choose\s+the\s+correct", re.IGNORECASE),
-        re.compile(r"^section\s+[a-z]", re.IGNORECASE),
-        re.compile(r"^part\s+[i|v|x]+", re.IGNORECASE),
-        re.compile(r"^all\s+questions\s+are\s+compulsory", re.IGNORECASE),
-        re.compile(r"^show\s+all\s+necessary", re.IGNORECASE),
-        re.compile(r"^use\s+a\s+ruler", re.IGNORECASE),
-        re.compile(r"^draw\s+graphs", re.IGNORECASE),
-        re.compile(r"^no\s+answers\s+are\s+provided", re.IGNORECASE)
-    ]
-
     for line in lines:
         stripped = line.strip()
         if not stripped:
             continue
-
-        # Skip general instructions if line is boilerplate
-        if any(p.search(stripped) for p in ignore_patterns):
-            continue
             
         m_q = q_start_re.match(stripped)
         if m_q:
-            q_text = m_q.group(2).strip().strip("*").strip()
-            # If the numbered item is actually a general instruction, skip it!
-            if any(p.search(q_text) for p in ignore_patterns):
-                continue
-
             if current_q:
                 questions.append(current_q)
+            q_text = m_q.group(2).strip().strip("*").strip()
             pts = 1.0
             pts_m = points_re.search(stripped)
             if pts_m:
@@ -775,7 +673,7 @@ def regex_parse_pasted_questions(raw_text):
                 except Exception:
                     pts = 1.0
             current_q = {
-                "question_text": clean_math_text(q_text) or f"Question {m_q.group(1)}",
+                "question_text": q_text or f"Question {m_q.group(1)}",
                 "question_type": "mcq",
                 "options": [],
                 "correct_answer": "",
@@ -789,58 +687,23 @@ def regex_parse_pasted_questions(raw_text):
         m_opt = opt_re.match(stripped)
         if m_opt and current_q:
             opt_letter = m_opt.group(1).lower()
-            opt_text = clean_math_text(m_opt.group(2))
+            opt_text = m_opt.group(2).strip()
             current_q["options"].append(f"({opt_letter}) {opt_text}")
             continue
 
         if current_q:
-            # Check for inline options like "\(a) \(22^\circ\) \(b) \(112^\circ\)" or "(a) 22 (b) 112"
-            inline_matches = list(re.finditer(r"(?:\\?\(|\b)([a-dA-D])[\)\.]", stripped))
-            if len(inline_matches) >= 2:
-                for idx, m_opt_inline in enumerate(inline_matches):
-                    opt_let = m_opt_inline.group(1).lower()
-                    start_pos = m_opt_inline.end()
-                    end_pos = inline_matches[idx + 1].start() if idx + 1 < len(inline_matches) else len(stripped)
-                    opt_val = clean_math_text(stripped[start_pos:end_pos])
-                    current_q["options"].append(f"({opt_let}) {opt_val}")
-                first_opt_start = inline_matches[0].start()
-                if first_opt_start > 0:
-                    current_q["question_text"] += " " + clean_math_text(stripped[:first_opt_start])
-                continue
-
             # Check if answer line
             if re.match(r"^(?:Answer|Ans|Correct)\s*[\:\-]\s*(.*)", stripped, re.IGNORECASE):
                 ans_match = re.match(r"^(?:Answer|Ans|Correct)\s*[\:\-]\s*(.*)", stripped, re.IGNORECASE)
-                current_q["correct_answer"] = clean_math_text(ans_match.group(1))
+                current_q["correct_answer"] = ans_match.group(1).strip()
             else:
-                cleaned_line = clean_math_text(stripped)
-                # Ignore repetitive topic headers like "**Patterns in Mathematics**"
-                if not (cleaned_line.startswith("**") and cleaned_line.endswith("**") and len(cleaned_line) < 40):
-                    current_q["question_text"] += " " + cleaned_line
+                current_q["question_text"] += " " + stripped
 
     if current_q:
         questions.append(current_q)
 
-    # Post-process types, clean question text, and attach SVG figures if relevant
+    # Post-process types
     for q in questions:
-        # Check if question text has embedded options like "(a) ... (b) ..."
-        embed_matches = list(re.finditer(r"(?:\\?\(|\b)([a-dA-D])[\)\.]", q["question_text"]))
-        if len(embed_matches) >= 2 and not q["options"]:
-            first_start = embed_matches[0].start()
-            for idx, m_opt_embed in enumerate(embed_matches):
-                opt_let = m_opt_embed.group(1).lower()
-                start_pos = m_opt_embed.end()
-                end_pos = embed_matches[idx + 1].start() if idx + 1 < len(embed_matches) else len(q["question_text"])
-                opt_val = clean_math_text(q["question_text"][start_pos:end_pos])
-                q["options"].append(f"({opt_let}) {opt_val}")
-            q["question_text"] = clean_math_text(q["question_text"][:first_start])
-
-        q["question_text"] = clean_math_text(q["question_text"])
-
-        # Auto-detect geometry and generate diagram if missing
-        if not q.get("figure_svg"):
-            q["figure_svg"] = generate_geometry_svg_fallback(q["question_text"])
-
         if not q["options"]:
             if len(q["question_text"]) > 180 or q["points"] >= 5.0:
                 q["question_type"] = "descriptive"
@@ -849,8 +712,6 @@ def regex_parse_pasted_questions(raw_text):
         elif len(q["options"]) == 2 and ("true" in q["options"][0].lower() or "false" in q["options"][0].lower()):
             q["question_type"] = "tf"
             q["options"] = ["True", "False"]
-        else:
-            q["question_type"] = "mcq"
 
     if questions:
         return {"success": True, "questions": questions, "model_used": "Smart Instant Parser"}
@@ -984,10 +845,11 @@ Return ONLY a JSON object with this exact structure:
                 print(f"Error encoding student answer image {img_p}: {e}")
 
         models = [
-            "gemini-2.5-flash",
-            "gemini-2.0-flash",
-            "gemini-1.5-flash",
-            "gemini-flash-latest"
+            "gemini-3.8-flash",
+            "gemini-flash-latest",
+            "gemini-3.5-flash",
+            "gemini-3.5-flash-lite",
+            "gemini-flash-lite-latest"
         ]
 
         for model_name in models:
