@@ -699,6 +699,7 @@ def parse_existing_paper_with_gemini(api_key, raw_text, image_paths=None, availa
                 if isinstance(questions, list) and len(questions) > 0:
                     processed_questions = []
                     for q in questions:
+                        q_text = (q.get("question_text") or "").strip()
                         # Match OR markers: newlines with OR, inline ' OR ', ' (OR) ', '--- OR ---', or header 'Students to attempt either option A or B'
                         # e.g.:
                         # "Students to attempt either option A or B.\nA. ...\nOR\nB. ..."
