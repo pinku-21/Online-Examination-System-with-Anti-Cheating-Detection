@@ -212,14 +212,17 @@
                         {% if q.options %}
                             <div class="grid grid-cols-1 sm:grid-cols-2 gap-2 pt-1">
                                 {% for opt in q.options %}
+                                    {% set is_corr = (q.correct_answer and (opt == q.correct_answer or opt.startswith('(' ~ q.correct_answer ~ ')') or opt.startswith(q.correct_answer ~ ')') or opt.startswith(q.correct_answer ~ '.'))) %}
+                                    {% set is_selected = (q.student_answer and (opt == q.student_answer or opt.startswith('(' ~ q.student_answer ~ ')') or opt.startswith(q.student_answer ~ ')') or opt.startswith(q.student_answer ~ '.'))) %}
+                                    {% set is_marked_correct = is_corr or (is_selected and (q.is_correct or q.awarded_marks > 0)) %}
                                     <div class="px-3.5 py-2.5 rounded-xl text-xs font-medium border 
-                                        {% if opt == q.correct_answer %}bg-emerald-50 border-emerald-300 text-emerald-900 font-bold
-                                        {% elif opt == q.student_answer and opt != q.correct_answer %}bg-rose-50 border-rose-300 text-rose-900 font-bold
+                                        {% if is_marked_correct %}bg-emerald-50 border-emerald-300 text-emerald-900 font-bold
+                                        {% elif is_selected and not is_marked_correct and q.awarded_marks == 0 %}bg-rose-50 border-rose-300 text-rose-900 font-bold
                                         {% else %}bg-slate-50 border-slate-200 text-slate-700{% endif %} flex items-center justify-between">
                                         <span>{{ opt }}</span>
-                                        {% if opt == q.correct_answer %}
+                                        {% if is_marked_correct %}
                                             <span class="text-[10px] text-emerald-700 font-bold flex items-center"><i data-lucide="check" class="w-3.5 h-3.5 mr-1"></i> Correct Answer</span>
-                                        {% elif opt == q.student_answer %}
+                                        {% elif is_selected %}
                                             <span class="text-[10px] text-rose-700 font-bold flex items-center"><i data-lucide="x" class="w-3.5 h-3.5 mr-1"></i> Your Choice</span>
                                         {% endif %}
                                     </div>

@@ -277,6 +277,18 @@
                     </button>
                 </div>
 
+                <!-- Section Announcement Banner (Only displayed when section changes or on first question of a section) -->
+                <div id="section-header-banner" class="hidden mb-4 p-3 bg-indigo-50/80 border border-indigo-200 rounded-2xl flex items-center justify-between text-indigo-950 shadow-2xs">
+                    <div class="flex items-center space-x-2.5">
+                        <span class="w-7 h-7 rounded-lg bg-indigo-600 text-white flex items-center justify-center font-bold text-xs flex-shrink-0">§</span>
+                        <div>
+                            <span class="text-[10px] font-bold text-indigo-600 uppercase tracking-wider block">Exam Section</span>
+                            <h4 id="section-banner-title" class="text-xs font-black text-indigo-950">Section A</h4>
+                        </div>
+                    </div>
+                    <span id="section-banner-tag" class="px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-white text-indigo-700 border border-indigo-200">Starting Here</span>
+                </div>
+
                 <!-- OR Alternative Guidance Banner -->
                 <div id="or-choice-banner" class="hidden mb-4 p-3.5 bg-gradient-to-r from-amber-50 to-orange-50 border border-amber-300 rounded-2xl flex items-center justify-between gap-3 text-amber-900 shadow-xs">
                     <div class="flex items-center space-x-2.5">
@@ -598,6 +610,7 @@
         let noPersonConsecutiveCount = 0;
         let imposterConsecutiveCount = 0;
         let faceOccludedConsecutiveCount = 0;
+        let lookingAwayConsecutiveCount = 0;
         let loudAudioConsecutiveCount = 0;
 
         // Biometric Face Verification & Self-Trained Baseline Variables
@@ -1329,6 +1342,7 @@
                         let blazeFaceCount = 0;
                         let validVisibleFaceCount = 0;
                         let isFacePartiallyOccluded = false;
+                        let hasAnyFaceLookingAway = false;
 
                         if (blazeFaceModel) {
                             try {
@@ -1341,8 +1355,9 @@
                                     const w = br[0] - tl[0];
                                     const h = br[1] - tl[1];
                                     
-                                    // Check if key landmarks (eyes, nose) are present and inside frame boundaries
+                                     // Check if key landmarks (eyes, nose) are present and inside frame boundaries
                                     let hasVisibleEyes = false;
+                                    let isLookingAway = false;
                                     if (face.landmarks && face.landmarks.length >= 3) {
                                         const rEye = face.landmarks[0]; // right eye [x, y]
                                         const lEye = face.landmarks[1]; // left eye [x, y]
@@ -1356,6 +1371,18 @@
                                         
                                         if (rEyeInView && lEyeInView && noseInView) {
                                             hasVisibleEyes = true;
+                                            
+                                            // Head Turn / Gaze Anomaly Detection:
+                                            // Distance from nose to left eye vs nose to right eye horizontally
+                                            const distToL = Math.abs(nose[0] - lEye[0]);
+                                            const distToR = Math.abs(nose[0] - rEye[0]);
+                                            if (distToL > 0 && distToR > 0) {
+                                                const yawRatio = distToL / distToR;
+                                                // When looking completely left or right, yawRatio diverges heavily (> 3.2 or < 0.31)
+                                                if (yawRatio > 3.2 || yawRatio < 0.31) {
+                                                    isLookingAway = true;
+                                                }
+                                            }
                                         }
                                     }
 
@@ -1364,6 +1391,11 @@
                                     if (!hasVisibleEyes || isCroppedEdge) {
                                         isFacePartiallyOccluded = true;
                                         drawBoundingBox(ctx, [tl[0], tl[1], w, h], '⚠️ Face/Eyes Hidden', '#f59e0b');
+                                    } else if (isLookingAway) {
+                                        drawBoundingBox(ctx, [tl[0], tl[1], w, h], '⚠️ Head Turned Away', '#f97316');
+                                        validVisibleFaceCount++;
+                                        hasAnyFaceLookingAway = true;
+                                        face.isLookingAway = true;
                                     } else {
                                         validVisibleFaceCount++;
 
@@ -1493,6 +1525,7 @@
                             // Candidate is at the desk, but face/eyes are dipped out of frame or covered
                             noPersonConsecutiveCount = 0;
                             imposterConsecutiveCount = 0;
+                            lookingAwayConsecutiveCount = 0;
                             faceOccludedConsecutiveCount++;
 
                             updateHudBadge('hud-face', 'Eyes Hidden ⚠️', 'rose');
@@ -1509,10 +1542,30 @@
                                 faceOccludedConsecutiveCount = 0;
                                 triggerViolation('face_occluded', 'Candidate face and eyes are partially hidden or out of camera frame. Keep full face and eyes visible.');
                             }
+                        } else if (hasAnyFaceLookingAway) {
+                            // Candidate is turning their head sideways or looking completely away from the exam
+                            noPersonConsecutiveCount = 0;
+                            imposterConsecutiveCount = 0;
+                            faceOccludedConsecutiveCount = 0;
+                            lookingAwayConsecutiveCount++;
+
+                            updateHudBadge('hud-face', 'Looking Away ⚠️', 'amber');
+
+                            ctx.fillStyle = 'rgba(249, 115, 22, 0.90)';
+                            ctx.fillRect(10, 10, canvas.width - 20, 28);
+                            ctx.fillStyle = '#ffffff';
+                            ctx.font = 'bold 12px Inter, sans-serif';
+                            ctx.fillText('⚠️ HEAD TURNED SIDEWAYS — PLEASE LOOK DIRECTLY AT THE SCREEN (STRIKE IN 3s)', 18, 28);
+
+                            if (lookingAwayConsecutiveCount >= 3) {
+                                lookingAwayConsecutiveCount = 0;
+                                triggerViolation('looking_away', 'Candidate repeatedly or continuously looked away from the exam screen.');
+                            }
                         } else {
                             noPersonConsecutiveCount = 0;
                             imposterConsecutiveCount = 0;
                             faceOccludedConsecutiveCount = 0;
+                            lookingAwayConsecutiveCount = 0;
                             isBiometricMismatch = false; // Reset mismatch state when valid student face is confirmed
                             updateHudBadge('hud-face', '1 Person ✓', 'emerald');
                         }
@@ -1901,7 +1954,26 @@
             if (displayText.trim().startsWith('[OR Alternative]')) {
                 displayText = displayText.replace(/^\[OR\s*Alternative\]\s*/i, '').trim();
             }
+            // Auto-format carets and powers in question statement
+            const supMap = {'0':'⁰','1':'¹','2':'²','3':'³','4':'⁴','5':'⁵','6':'⁶','7':'⁷','8':'⁸','9':'⁹','+':'⁺','-':'⁻','n':'ⁿ','x':'ˣ','y':'ʸ'};
+            displayText = displayText.replace(/\^([0-9\+\-nxy]+)/g, (m, p) => p.split('').map(c => supMap[c] || c).join(''));
+            displayText = displayText.replace(/\s\*\s/g, ' × ');
             document.getElementById('current-question-text').innerText = displayText;
+
+            // Handle Section Announcement Banner (Only shows when section starts or changes)
+            const sectionBanner = document.getElementById('section-header-banner');
+            if (sectionBanner) {
+                const currentSec = (q.section || '').trim();
+                const prevSec = index > 0 ? (QUESTIONS[index - 1].section || '').trim() : '';
+                const isSectionStart = currentSec && (index === 0 || currentSec !== prevSec);
+                if (isSectionStart) {
+                    sectionBanner.classList.remove('hidden');
+                    const secTitleEl = document.getElementById('section-banner-title');
+                    if (secTitleEl) secTitleEl.innerText = currentSec;
+                } else {
+                    sectionBanner.classList.add('hidden');
+                }
+            }
 
             // Handle OR Alternative Banner
             const orBanner = document.getElementById('or-choice-banner');

@@ -636,11 +636,21 @@ CRITICAL RULES FOR PARSING:
          3) Both have the same marks (e.g., 2.0 marks each).
          4) Give each question its OWN diagram if applicable.
 
+8. SECTION EXTRACTION & CLEANING (CRITICAL):
+   - Papers are divided into sections like "Section A: Multiple Choice Questions", "Section B: Very Short Answer", "Section C: Short Answer", "Section D: Long Answer".
+   - Extract the current section name into the "section" field (e.g. "Section A: MCQs", "Section B", "Section C").
+   - NEVER let section headers bleed or append into the question text! For example:
+     WRONG: "Draw the quadrilateral whose vertices are ... Section C – Short Answer Questions Questions 26–31 · 3 marks each"
+     RIGHT question_text: "Draw the quadrilateral whose vertices are (1, 1), (2, 4), (8, 4) and (10, 1)."
+     RIGHT section: "Section B" (or the active section)
+   - NEVER drop coordinate numbers, equations, or variables in math questions. If a sentence has blank holes like "Reflect on the role of and .", inspect the scan carefully to retrieve the equations (e.g. y = mx + c) or coordinates.
+
 JSON FORMAT:
 Output ONLY a valid JSON array of question objects starting with [ and ending with ].
 No markdown codeblocks or backticks. Schema:
 [
   {{
+    "section": "string",
     "question_text": "string",
     "question_type": "mcq" | "short" | "descriptive" | "tf",
     "options": ["string", ...],
@@ -714,6 +724,12 @@ def parse_existing_paper_with_gemini(api_key, raw_text, image_paths=None, availa
                         # "A. ... OR B. ..."
                         # "A. ...\nOR\nB. ..."
                         clean_text = re.sub(r"^(?:Students\s+to\s+attempt\s+either\s+option\s+[A-Za-z]\s+or\s+[A-Za-z][\.\:\s]*|Attempt\s+either\s+option\s+[A-Za-z]\s+or\s+[A-Za-z][\.\:\s]*)\n*", "", q_text, flags=re.IGNORECASE).strip()
+                        # Also strip bleeding section trailers like: ". Section C – Short Answer Questions Questions 26–31 · 3 marks each"
+                        section_bleed_match = re.search(r"(?:\n|\.\s+)(?:Section\s+[A-Z]|Part\s+[A-Z])\s*[\-–—\:]\s*.*$", clean_text, flags=re.IGNORECASE)
+                        if section_bleed_match:
+                            clean_text = clean_text[:section_bleed_match.start()].strip()
+                            if not clean_text.endswith('.'):
+                                clean_text += '.'
 
                         or_pattern = re.compile(r"(?:\n\s*(?:OR|\(OR\)|---\s*OR\s*---)\s*\n|\s+OR\s+(?=[B-Z]\.|\(b\)|\(B\))|\n\s*OR\s+(?=[B-Z]\.|\(b\)|\(B\)))", re.IGNORECASE)
                         has_merged_or = bool(or_pattern.search(clean_text))
