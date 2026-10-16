@@ -358,7 +358,7 @@
 
         <div class="space-y-6">
             {% for q in questions %}
-                <div class="p-5 sm:p-6 rounded-2xl border {% if q.is_evaluated and q.awarded_marks > 0 %}border-indigo-200 bg-indigo-50/15{% elif q.is_correct %}border-emerald-200 bg-emerald-50/20{% elif q.is_evaluated and q.awarded_marks == 0 %}border-rose-200 bg-rose-50/25{% else %}border-slate-200 bg-white{% endif %} space-y-3.5 transition">
+                <div data-question-card="{{ q.id }}" data-question-id="{{ q.id }}" class="p-5 sm:p-6 rounded-2xl border {% if q.is_evaluated and q.awarded_marks > 0 %}border-indigo-200 bg-indigo-50/15{% elif q.is_correct %}border-emerald-200 bg-emerald-50/20{% elif q.is_evaluated and q.awarded_marks == 0 %}border-rose-200 bg-rose-50/25{% else %}border-slate-200 bg-white{% endif %} space-y-3.5 transition">
                     
                     <!-- Header: Question No, Text, and Marks Badges -->
                     <div class="flex flex-col sm:flex-row sm:items-start justify-between gap-3">
@@ -876,37 +876,110 @@
             if (window.lucide) lucide.createIcons();
         }
 
+        // Collect all question IDs present on page
+        const questionCards = Array.from(document.querySelectorAll('[data-question-card]'));
+        const totalCount = questionCards.length;
+
+        if (totalCount === 0) {
+            if (btn) {
+                btn.disabled = false;
+                btn.innerHTML = originalHtml;
+                if (window.lucide) lucide.createIcons();
+            }
+            Swal.fire({ icon: 'info', title: 'No Questions Found', text: 'No questions available to evaluate.' });
+            return;
+        }
+
         Swal.fire({
-            title: 'AI is Grading All Answers...',
-            html: '<p class="text-xs text-slate-500">Evaluating every answer including uploaded photos. This may take 20–40 seconds.</p><div id="eval-progress" class="mt-3 text-sm font-bold text-indigo-600">Starting...</div>',
+            title: 'AI is Grading Answers...',
+            html: `
+                <div class="text-left space-y-3">
+                    <p class="text-xs text-slate-500">Evaluating student solutions, proofs, and handwritten pages progressively without timeouts.</p>
+                    <div class="w-full bg-slate-100 rounded-full h-2.5 overflow-hidden">
+                        <div id="eval-progress-bar" class="bg-gradient-to-r from-indigo-600 to-sky-500 h-2.5 rounded-full transition-all duration-300" style="width: 0%"></div>
+                    </div>
+                    <div class="flex justify-between items-center text-xs">
+                        <span id="eval-progress-status" class="font-bold text-indigo-700">Starting evaluation...</span>
+                        <span id="eval-progress-count" class="font-mono text-slate-500">0 / ${totalCount}</span>
+                    </div>
+                </div>
+            `,
             allowOutsideClick: false,
             showConfirmButton: false,
             didOpen: () => Swal.showLoading()
         });
 
-        try {
-            const resp = await fetch(`/api/tutor/submission/${submissionId}/evaluate-all`, {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' }
-            });
-            const res = await resp.json();
+        const results = [];
+        let completed = 0;
+        let lastNewScore = null;
+        let lastTotalPoints = null;
+        let lastPercentage = null;
 
-            if (res.success) {
-                const lines = (res.results || []).map(r =>
-                    `<div class="flex justify-between text-xs py-0.5"><span class="text-slate-700 truncate max-w-[200px]">${r.question_text || 'Q'}</span><span class="font-bold ${r.success ? 'text-emerald-700' : 'text-rose-600'}">${r.success ? r.awarded_marks + ' / ' + r.max_points + ' pts' : 'Skipped'}</span></div>`
-                ).join('');
-                Swal.fire({
-                    icon: 'success',
-                    title: `All Done! Score: ${res.new_score} / ${res.total_points} (${res.percentage}%)`,
-                    html: `<div class="text-left space-y-1 mt-2 max-h-60 overflow-y-auto">${lines}</div><p class="text-[11px] text-slate-400 mt-3 italic">You can edit any individual mark using "Edit Mark" on each question.</p>`,
-                    confirmButtonColor: '#4f46e5',
-                    confirmButtonText: 'Great, view results'
-                }).then(() => window.location.reload());
-            } else {
-                Swal.fire({ icon: 'error', title: 'Evaluation Failed', text: res.error || 'Could not evaluate answers.' });
+        try {
+            for (let i = 0; i < totalCount; i++) {
+                const card = questionCards[i];
+                const qId = card.dataset.questionId;
+                const statusEl = document.getElementById('eval-progress-status');
+                const countEl = document.getElementById('eval-progress-count');
+                const barEl = document.getElementById('eval-progress-bar');
+
+                if (statusEl) statusEl.textContent = `Grading Question ${i + 1} of ${totalCount}...`;
+                if (countEl) countEl.textContent = `${i} / ${totalCount}`;
+                if (barEl) barEl.style.width = `${Math.round((i / totalCount) * 100)}%`;
+
+                try {
+                    const resp = await fetch(`/api/tutor/submission/${submissionId}/evaluate-question`, {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ question_id: qId })
+                    });
+                    const res = await resp.json();
+                    if (res.success) {
+                        completed++;
+                        lastNewScore = res.new_score;
+                        lastTotalPoints = res.total_points;
+                        lastPercentage = res.percentage;
+                        results.push({
+                            question_id: qId,
+                            success: true,
+                            awarded_marks: res.awarded_marks,
+                            model_used: res.model_used
+                        });
+                    } else {
+                        results.push({
+                            question_id: qId,
+                            success: false,
+                            error: res.error || 'Failed'
+                        });
+                    }
+                } catch (err) {
+                    results.push({
+                        question_id: qId,
+                        success: false,
+                        error: 'Network/Timeout on single question'
+                    });
+                }
             }
+
+            const barEl = document.getElementById('eval-progress-bar');
+            if (barEl) barEl.style.width = '100%';
+
+            Swal.fire({
+                icon: 'success',
+                title: 'Grading Complete!',
+                html: `
+                    <div class="text-left text-xs bg-slate-50 p-3.5 rounded-xl border border-slate-200 mt-2 space-y-2">
+                        <p class="font-bold text-slate-800">Evaluated ${completed} of ${totalCount} questions with AI.</p>
+                        ${lastNewScore !== null ? `<p class="text-sm font-black text-indigo-700">Updated Score: ${lastNewScore} / ${lastTotalPoints} (${lastPercentage}%)</p>` : ''}
+                        <p class="text-[11px] text-slate-400 italic">Page will refresh to show all updated marks and feedbacks.</p>
+                    </div>
+                `,
+                confirmButtonColor: '#4f46e5',
+                confirmButtonText: 'Great, View Results'
+            }).then(() => window.location.reload());
+
         } catch (err) {
-            Swal.fire({ icon: 'error', title: 'Error', text: 'Network error during AI evaluation.' });
+            Swal.fire({ icon: 'error', title: 'Evaluation Interrupted', text: 'An unexpected error occurred during evaluation.' });
         } finally {
             if (btn) {
                 btn.disabled = false;
