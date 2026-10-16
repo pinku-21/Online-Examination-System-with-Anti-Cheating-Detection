@@ -1184,15 +1184,9 @@ Section B - Short Questions (3 marks each)
                         </div>
                     </div>
 
-                    <div class="flex items-center space-x-1.5 flex-shrink-0">
-                        <button type="button" onclick="duplicateAsOrChoice(${qIndex})" class="px-2 py-0.5 text-[11px] bg-sky-50 border border-sky-300 text-sky-700 hover:bg-sky-100 font-bold rounded-lg transition shadow-2xs flex items-center space-x-1" title="Duplicate this question as an internal OR option (e.g. for second diagram)">
-                            <i data-lucide="git-branch" class="w-3 h-3 text-sky-600"></i>
-                            <span>+ OR Option</span>
-                        </button>
-                        <button onclick="deleteQuestion(${qIndex})" class="text-rose-400 hover:text-rose-600 p-1 flex-shrink-0" title="Delete Question">
-                            <i data-lucide="trash-2" class="w-4 h-4"></i>
-                        </button>
-                    </div>
+                    <button onclick="deleteQuestion(${qIndex})" class="text-rose-400 hover:text-rose-600 p-1 flex-shrink-0" title="Delete Question">
+                        <i data-lucide="trash-2" class="w-4 h-4"></i>
+                    </button>
                 </div>
 
                 <div>
@@ -1435,46 +1429,6 @@ Section B - Short Questions (3 marks each)
             figure_url: null
         });
         renderQuestions();
-    }
-
-    function duplicateAsOrChoice(qIndex) {
-        const original = questionsData[qIndex];
-        if (!original) return;
-
-        // Clean original question text to prefix with [Option A / Main] if not already
-        if (!original.question_text.startsWith('[Option A') && !original.question_text.startsWith('(A)')) {
-            original.question_text = `[Option A] ${original.question_text}`;
-        }
-
-        const orQuestion = {
-            question_text: `[Option B / OR Choice] Enter question text for alternative OR option here...`,
-            question_type: original.question_type || 'descriptive',
-            options: original.options ? JSON.parse(JSON.stringify(original.options)) : [],
-            correct_answer: '',
-            explanation: original.explanation || '',
-            points: original.points || 5.0,
-            figure_svg: null,
-            figure_url: null
-        };
-
-        // Insert right after original
-        questionsData.splice(qIndex + 1, 0, orQuestion);
-        renderQuestions();
-
-        // Prompt user to pick second diagram
-        Swal.fire({
-            icon: 'info',
-            title: 'OR Option Added!',
-            text: 'Created an internal OR alternative card. Would you like to pick or upload the diagram for this OR choice now?',
-            showCancelButton: true,
-            confirmButtonText: 'Pick Diagram',
-            cancelButtonText: 'Later',
-            confirmButtonColor: '#0284c7'
-        }).then((result) => {
-            if (result.isConfirmed) {
-                openFigurePickerModal(qIndex + 1);
-            }
-        });
     }
 
     let currentAccessType = 'all';

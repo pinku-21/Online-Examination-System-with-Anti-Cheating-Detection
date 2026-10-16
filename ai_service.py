@@ -28,7 +28,7 @@ def extract_text_from_pdf(pdf_path, max_chars=50000, max_pages=30):
         print(f"Error reading PDF: {e}")
         return ""
 
-def extract_figures_from_pdf(pdf_path, output_base_dir="static/extracted_figures", max_figures=40, max_pages=40):
+def extract_figures_from_pdf(pdf_path, output_base_dir="static/extracted_figures", max_figures=15, max_pages=20):
     """
     Extracts embedded figures and diagrams from a PDF file using pypdf and PIL.
     Safely normalizes color spaces (converting CMYK/LA/RGBA to standard web RGB JPEG/PNG).
@@ -530,14 +530,14 @@ def build_paper_parser_system_prompt(available_figures=None):
     """Prompt specifically engineered to ingest and parse existing question papers directly."""
     figures_section = ""
     if available_figures and len(available_figures) > 0:
-        sample_figures = available_figures[:40]
+        sample_figures = available_figures[:20]
         figures_list_text = "\n".join([f"- Page {f['page']}: {f['url']}" for f in sample_figures])
         figures_section = f"""
 EXTRACTED DIAGRAMS/FIGURES AVAILABLE FROM THE UPLOADED DOCUMENT:
 {figures_list_text}
 
 MANDATORY FIGURE LINKING RULE:
-- If a question references or requires a diagram, figure, setup, image, or illustration (e.g. "Shown below are four setups", "Refer to the diagram below", "In the figure given", "Observe both diagrams A and B", "Study the graph", "Apparatus setup"):
+- If a question references or requires a diagram, figure, setup, image, or illustration (e.g. "Shown below are four setups", "Refer to the diagram below", "In the figure given", "As shown in the circuit/diagram"):
   1. Check the list of EXTRACTED DIAGRAMS above.
   2. If an extracted image corresponds to that page or question setup, YOU MUST set "figure_url" to its exact URL (e.g. "/static/extracted_figures/...").
   3. If no extracted image matches but the question describes a geometric setup, experiment setup, or circuit, generate a clear vector SVG in "figure_svg".
@@ -556,32 +556,24 @@ CRITICAL RULES FOR PARSING:
      * "Draw graphs and diagrams neatly..."
      * "Section A — MCQs", "Maximum marks 80", "Time allowed 3 hours"
      THESE ARE EXAM GUIDELINES, NOT QUESTIONS. SKIP THEM COMPLETELY.
-2. HANDLING "OR" / INTERNAL CHOICE QUESTIONS (MANDATORY & CRITICAL):
-   - In academic exam papers, questions often have internal alternatives separated by "OR" (e.g. Question 16: "Attempt either option A or B" where Part A has a heart diagram, and Part B [OR] has an inhalation diagram; or Question 28 with sub-part C OR D).
-   - NEVER lump the "OR" choice together with the first choice into one single question card! If you do, the "OR" diagram gets lost!
-   - When an "OR" choice exists with its own question or diagram:
-     * Split them into TWO distinct question cards in the JSON array:
-       - Item 1: "question_text": "[Option A] <Statement of Part A...>", with its matching "figure_url" (e.g. the heart diagram).
-       - Item 2: "question_text": "[Option B / OR Choice] <Statement of Part B...>", with its matching "figure_url" (e.g. the inhalation diaphragm diagram)!
-     * Both questions receive the full point weight (e.g. points: 5.0) so the student or teacher can choose, view both diagrams, and grade them accurately.
-3. ACCURATE QUESTION SEPARATION:
+2. ACCURATE QUESTION SEPARATION:
    - "question_text": Must contain ONLY the actual question statement/premise (e.g. "Two angles together form a straight angle. If one angle is 68°, the other angle is:").
    - NEVER place multiple-choice choices inside "question_text".
    - "options": Put each choice cleanly in the options array as ["(a) 22°", "(b) 112°", "(c) 122°", "(d) 90°"].
-4. CLEAN UP MATHEMATICAL NOTATION:
+3. CLEAN UP MATHEMATICAL NOTATION:
    - Powers / Exponents: ALWAYS use proper Unicode superscripts like 2², 3², 5³, x², y³, 2ⁿ (NEVER write raw caret notation like 3^2, 5^2, or 2^2).
    - Multiplication: ALWAYS use the proper multiplication symbol '×' or standard dot (e.g. write "2 × 3² × 5" — NEVER write raw asterisks like "2 * 3^2 * 5").
    - Convert raw unrendered LaTeX like \\(68^\\circ\\) into clean, readable text like 68°.
    - Convert \\sqrt{{x}} into √x, \\frac{{a}}{{b}} into a/b.
-5. QUESTION TYPES & POINTS:
+4. QUESTION TYPES & POINTS:
    - MCQs: "question_type": "mcq", 4 options in "options". Points = 1.0 (or specified in section).
    - True/False: "question_type": "tf", "options": ["True", "False"].
    - Short questions: "question_type": "short", "options": [].
    - Long / Descriptive / Proofs: "question_type": "descriptive", "options": [].
-6. CORRECT ANSWERS:
+5. CORRECT ANSWERS:
    - Solve or identify the correct answer for each MCQ/question and place it in "correct_answer".
    - Provide a brief 1-sentence rubric in "explanation".
-7. FIGURE & DIAGRAM LINKING (CRITICAL):
+6. FIGURE & DIAGRAM LINKING (CRITICAL):
 {figures_section}
    - If a question is about geometry, shapes, lines, angles, triangles, or graphs and has no matching extracted figure URL:
      Generate a clean vector SVG in "figure_svg" (<svg viewBox="0 0 350 220" xmlns="http://www.w3.org/2000/svg">...</svg>).
