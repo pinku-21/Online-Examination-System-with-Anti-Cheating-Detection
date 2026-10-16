@@ -28,18 +28,25 @@ def extract_text_from_pdf(pdf_path, max_chars=50000, max_pages=30):
         print(f"Error reading PDF: {e}")
         return ""
 
-def extract_figures_from_pdf(pdf_path, output_base_dir="static/extracted_figures", max_figures=8, max_pages=15):
+def extract_figures_from_pdf(pdf_path, output_base_dir="static/extracted_figures", max_figures=15, max_pages=20):
     """
-    Extracts embedded figures and diagrams from a PDF file using pypdf.
-    Fast, memory-safe limit (max 8 figures across first 15 pages) to avoid timeouts on large PDFs.
-    Saves them to static/extracted_figures/<pdf_stem>/
+    Extracts embedded figures and diagrams from a PDF file using pypdf and PIL.
+    Safely normalizes color spaces (converting CMYK/LA/RGBA to standard web RGB JPEG/PNG).
+    Saves them to static/extracted_figures/<pdf_stem>/ and stores in persistent assets.
     Returns list of figure dicts: [{"page": int, "name": str, "url": str, "size": int}]
     """
     try:
+        from PIL import Image
+        import io
+        from database import save_persistent_asset
+
         reader = PdfReader(pdf_path)
         base_name = os.path.splitext(os.path.basename(pdf_path))[0]
         safe_folder = "".join(c for c in base_name if c.isalnum() or c in ("-", "_")) or "pdf_figures"
-        dest_dir = os.path.join(output_base_dir, safe_folder)
+        
+        # Ensure absolute destination path
+        abs_base_dir = os.path.join(os.path.dirname(os.path.abspath(__file__)), output_base_dir)
+        dest_dir = os.path.join(abs_base_dir, safe_folder)
         os.makedirs(dest_dir, exist_ok=True)
         
         extracted_figures = []
@@ -50,26 +57,67 @@ def extract_figures_from_pdf(pdf_path, output_base_dir="static/extracted_figures
                 for img_idx, img in enumerate(page.images):
                     if len(extracted_figures) >= max_figures:
                         break
-                    # Filter out tiny decoration icons (< 2500 bytes) and huge blobs (> 5MB)
-                    if 2500 < len(img.data) < 5242880:
-                        filename = f"p{p_idx+1}_{img_idx+1}_{img.name}"
+                    raw_data = img.data
+                    # Filter out tiny icon noise (< 1.5KB) and massive blobs (> 8MB)
+                    if not (1500 < len(raw_data) < 8388608):
+                        continue
+
+                    try:
+                        pil_img = Image.open(io.BytesIO(raw_data))
+                        w, h = pil_img.size
+                        # Skip tiny tracking pixels or thin lines
+                        if w < 75 or h < 45:
+                            continue
+
+                        # Convert unsupported web modes (CMYK, LA, 1, P) to clean standard web RGB
+                        mode = pil_img.mode
+                        raw_fmt = (pil_img.format or "").lower()
+                        if mode in ("CMYK", "LA", "1") or (mode == "RGBA" and raw_fmt != "png"):
+                            rgb_img = pil_img.convert("RGB")
+                            buf = io.BytesIO()
+                            rgb_img.save(buf, format="JPEG", quality=92)
+                            final_bytes = buf.getvalue()
+                            ext = "jpg"
+                            mime_type = "image/jpeg"
+                        elif raw_fmt in ("jpeg", "jpg"):
+                            ext = "jpg"
+                            mime_type = "image/jpeg"
+                            final_bytes = raw_data
+                        elif raw_fmt == "png":
+                            ext = "png"
+                            mime_type = "image/png"
+                            final_bytes = raw_data
+                        else:
+                            # Fallback convert to JPEG
+                            rgb_img = pil_img.convert("RGB")
+                            buf = io.BytesIO()
+                            rgb_img.save(buf, format="JPEG", quality=90)
+                            final_bytes = buf.getvalue()
+                            ext = "jpg"
+                            mime_type = "image/jpeg"
+
+                        filename = f"p{p_idx+1}_{img_idx+1}.{ext}"
                         file_path = os.path.join(dest_dir, filename)
                         with open(file_path, "wb") as f:
-                            f.write(img.data)
+                            f.write(final_bytes)
+
                         try:
-                            from database import save_persistent_asset
-                            save_persistent_asset(f"extracted_figures/{safe_folder}/{filename}", "image/png", img.data)
-                        except Exception:
+                            save_persistent_asset(f"extracted_figures/{safe_folder}/{filename}", mime_type, final_bytes)
+                        except Exception as pass_err:
                             pass
+
                         rel_url = f"/static/extracted_figures/{safe_folder}/{filename}"
                         extracted_figures.append({
                             "page": p_idx + 1,
-                            "name": img.name,
+                            "name": filename,
                             "url": rel_url,
-                            "size": len(img.data)
+                            "size": len(final_bytes)
                         })
-            except Exception as img_err:
-                # Some PDFs contain corrupt inline images; skip safely
+                    except Exception as pil_err:
+                        print(f"Skipping unparseable image p{p_idx+1}_img{img_idx+1}: {pil_err}")
+                        continue
+            except Exception as page_err:
+                print(f"Skipping image scanning for page {p_idx+1}: {page_err}")
                 continue
 
         return extracted_figures

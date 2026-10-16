@@ -1139,8 +1139,12 @@ Section B - Short Questions (3 marks each)
                                 <button type="button" onclick="removeFigure(${qIndex})" class="px-2 py-0.5 text-[11px] bg-white border border-rose-200 text-rose-600 font-bold rounded-lg hover:bg-rose-50 shadow-2xs">Remove</button>
                             </div>
                         </div>
-                        <div class="bg-white p-2 rounded-lg border border-slate-200 flex justify-center max-w-md mx-auto overflow-hidden shadow-2xs">
-                            <img src="${q.figure_url}" class="max-h-48 object-contain rounded" alt="Question Figure">
+                        <div class="bg-white p-2 rounded-lg border border-slate-200 flex flex-col items-center justify-center max-w-md mx-auto overflow-hidden shadow-2xs">
+                            <img src="${q.figure_url}" 
+                                 class="max-h-56 max-w-full object-contain rounded cursor-pointer hover:opacity-90 transition" 
+                                 alt="Question Figure"
+                                 onclick="window.open('${q.figure_url}', '_blank')"
+                                 onerror="this.onerror=null; this.parentElement.innerHTML='<div class=\'py-4 text-center text-rose-500 text-xs font-semibold space-y-1\'><i data-lucide=\'image-off\' class=\'w-6 h-6 mx-auto\'></i><p>Diagram could not be loaded directly.</p><button type=\'button\' onclick=\'openFigurePickerModal(${qIndex})\' class=\'px-2.5 py-1 bg-indigo-50 border border-indigo-200 text-indigo-700 rounded text-xs font-bold hover:bg-indigo-100\'>Pick / Upload Replacement</button></div>'; lucide.createIcons();">
                         </div>
                     </div>
                 `;
