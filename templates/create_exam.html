@@ -1241,6 +1241,12 @@ Section B - Short Questions (3 marks each)
                     </div>
 
                     <div class="flex items-center space-x-1.5 flex-shrink-0">
+                        ${qIndex > 0 ? `
+                            <button type="button" onclick="toggleOrStatus(${qIndex})" class="px-2 py-1 text-[11px] ${isOr ? 'bg-amber-100 border-amber-400 text-amber-900' : 'bg-slate-50 border-slate-300 text-slate-700 hover:bg-slate-100'} border font-bold rounded-lg transition shadow-2xs flex items-center space-x-1" title="${isOr ? 'Make Standalone Question' : 'Make OR choice of Question above'}">
+                                <i data-lucide="${isOr ? 'check-circle' : 'git-merge'}" class="w-3.5 h-3.5 ${isOr ? 'text-amber-700' : 'text-slate-500'}"></i>
+                                <span>${isOr ? 'OR Choice Active' : 'Make OR Choice'}</span>
+                            </button>
+                        ` : ''}
                         <button type="button" onclick="insertOrAlternative(${qIndex})" class="px-2 py-1 text-[11px] bg-amber-50 hover:bg-amber-100 border border-amber-300 text-amber-800 font-bold rounded-lg transition shadow-2xs flex items-center space-x-1" title="Add an internal alternative OR option for this question">
                             <i data-lucide="git-branch" class="w-3.5 h-3.5 text-amber-600"></i>
                             <span>+ OR Question</span>
@@ -1596,6 +1602,28 @@ Section B - Short Questions (3 marks each)
                 }
             }
         }, 120);
+    }
+
+    function toggleOrStatus(qIndex) {
+        if (!questionsData[qIndex]) return;
+        const q = questionsData[qIndex];
+        const isCurrentlyOr = Boolean(q.is_or_choice || (q.question_text && q.question_text.trim().startsWith('[OR Alternative]')));
+
+        if (isCurrentlyOr) {
+            // Convert to standalone normal question
+            q.is_or_choice = false;
+            q.question_text = q.question_text.replace(/^\[OR\s*Alternative\]\s*/i, '').trim();
+        } else {
+            // Convert to OR alternative choice of preceding question
+            q.is_or_choice = true;
+            if (!q.question_text.trim().startsWith('[OR Alternative]')) {
+                q.question_text = `[OR Alternative] ${q.question_text.trim()}`;
+            }
+            if (qIndex > 0 && questionsData[qIndex - 1]) {
+                q.points = parseFloat(questionsData[qIndex - 1].points) || q.points;
+            }
+        }
+        renderQuestions();
     }
 
     let currentAccessType = 'all';

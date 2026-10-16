@@ -605,38 +605,28 @@ CRITICAL RULES FOR PARSING:
      Otherwise set "figure_svg": null.
    - If a question does not need or have any diagram, set both "figure_url": null and "figure_svg": null.
 
-7. OR / ALTERNATIVE QUESTION DETECTION (CRITICAL):
-   - When a question has an internal alternative separated by "OR" or "Attempt either option A or B" or "Either ... OR ...":
-     * DO NOT merge them into one question.
-     * DO NOT drop either question.
-     * SPLIT them into TWO consecutive question objects:
-       1) The primary question (e.g., Option A or the first question). Set "is_or_choice": false.
-       2) The alternative question (Option B or the second question after "OR"). YOU MUST prefix its "question_text" with "[OR Alternative] " AND set "is_or_choice": true.
-       3) Give BOTH the same points (e.g. 5.0 marks each).
-       4) Link each question to its OWN figure diagram! (e.g., Option A gets its diagram in figure_url/figure_svg, and Option B gets its diagram in its own figure_url/figure_svg).
-   - Example:
-     [
-       {{
-         "question_text": "A. Observe the structure of hearts A, B and C shown above and answer the following questions: I. Which of the hearts depicted above is present in both birds and Mammals...",
-         "question_type": "descriptive",
-         "options": [],
-         "correct_answer": "...",
-         "points": 5.0,
-         "figure_url": "/static/extracted_figures/page16_fig1.png",
-         "figure_svg": null,
-         "is_or_choice": false
-       }},
-       {{
-         "question_text": "[OR Alternative] B. Observe both the diagrams A and B. Which diagram indicates inhalation? Describe how it occurs...",
-         "question_type": "descriptive",
-         "options": [],
-         "correct_answer": "...",
-         "points": 5.0,
-         "figure_url": "/static/extracted_figures/page16_fig2.png",
-         "figure_svg": null,
-         "is_or_choice": true
-       }}
-     ]
+7. SUB-QUESTIONS (A / B) AND OR / ALTERNATIVE QUESTION DETECTION (CRITICAL):
+   - Pay very close attention to question boxes and numbering in the paper:
+     * Case 1: SUB-QUESTIONS UNDER THE SAME NUMBER (e.g. Question 10 contains sub-part A and sub-part B):
+       Look at Question 10 in the paper. It has:
+       "A. Due to narrowing of the bile duct..."
+       "B. How does the length of the intestine depend..."
+       These are parts of Question 10 (or sub-questions 10.a and 10.b).
+       DO NOT number Part B as a completely new Question 11!
+       Keep Question 10's parts together, or if separating as sub-questions, mark:
+       - Part A as "A. Due to narrowing of the bile duct..."
+       - Part B as "B. How does the length of the intestine depend..."
+     * Case 2: OR ALTERNATIVE CHOICE (e.g. Question 11: "Students to attempt either option A or B" with "OR" in between):
+       Option A: "A. Which parts of the brain perform certain actions..."
+       Option B: "B. How is the information of touch in the 'sensitive plant'..."
+       When you see "Students to attempt either option A or B" or "OR" between Option A and Option B:
+       - DO NOT merge them into one question.
+       - DO NOT drop either question.
+       - Output TWO separate question objects:
+         1) The first option: Set "is_or_choice": false.
+         2) The second option: YOU MUST set "is_or_choice": true AND start "question_text" with "[OR Alternative] ".
+         3) Both have the same marks (e.g., 2.0 marks each).
+         4) Give each question its OWN diagram if applicable.
 
 JSON FORMAT:
 Output ONLY a valid JSON array of question objects starting with [ and ending with ].
@@ -709,13 +699,18 @@ def parse_existing_paper_with_gemini(api_key, raw_text, image_paths=None, availa
                 if isinstance(questions, list) and len(questions) > 0:
                     processed_questions = []
                     for q in questions:
-                        q_text = (q.get("question_text") or "").strip()
-                        # If AI merged question with an internal " OR " or "\nOR\n" or "\n(OR)\n"
-                        or_pattern = re.compile(r"\n\s*(?:OR|\(OR\)|---\s*OR\s*---)\s*\n", re.IGNORECASE)
-                        has_merged_or = bool(or_pattern.search(q_text))
+                        # Match OR markers: newlines with OR, inline ' OR ', ' (OR) ', '--- OR ---', or header 'Students to attempt either option A or B'
+                        # e.g.:
+                        # "Students to attempt either option A or B.\nA. ...\nOR\nB. ..."
+                        # "A. ... OR B. ..."
+                        # "A. ...\nOR\nB. ..."
+                        clean_text = re.sub(r"^(?:Students\s+to\s+attempt\s+either\s+option\s+[A-Za-z]\s+or\s+[A-Za-z][\.\:\s]*|Attempt\s+either\s+option\s+[A-Za-z]\s+or\s+[A-Za-z][\.\:\s]*)\n*", "", q_text, flags=re.IGNORECASE).strip()
+
+                        or_pattern = re.compile(r"(?:\n\s*(?:OR|\(OR\)|---\s*OR\s*---)\s*\n|\s+OR\s+(?=[B-Z]\.|\(b\)|\(B\))|\n\s*OR\s+(?=[B-Z]\.|\(b\)|\(B\)))", re.IGNORECASE)
+                        has_merged_or = bool(or_pattern.search(clean_text))
 
                         if has_merged_or:
-                            parts = or_pattern.split(q_text, maxsplit=1)
+                            parts = or_pattern.split(clean_text, maxsplit=1)
                             # Part 1: Primary question
                             q_copy1 = dict(q)
                             q_copy1["question_text"] = parts[0].strip()
@@ -729,15 +724,15 @@ def parse_existing_paper_with_gemini(api_key, raw_text, image_paths=None, availa
                                 part2_text = f"[OR Alternative] {part2_text}"
                             q_copy2["question_text"] = part2_text
                             q_copy2["is_or_choice"] = True
-                            # If second question has a different figure or diagram, keep it
                             processed_questions.append(q_copy2)
                         else:
                             # Check if flagged as is_or_choice or starts with [OR Alternative]
-                            is_or = bool(q.get("is_or_choice") or q_text.startswith("[OR Alternative]"))
+                            is_or = bool(q.get("is_or_choice") or clean_text.startswith("[OR Alternative]"))
+                            q["question_text"] = clean_text
                             if is_or:
                                 q["is_or_choice"] = True
-                                if not q_text.startswith("[OR Alternative]"):
-                                    q["question_text"] = f"[OR Alternative] {q_text}"
+                                if not clean_text.startswith("[OR Alternative]"):
+                                    q["question_text"] = f"[OR Alternative] {clean_text}"
                             else:
                                 q["is_or_choice"] = False
                             processed_questions.append(q)
