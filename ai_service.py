@@ -531,8 +531,8 @@ No markdown codeblocks or backticks. Schema:
   }
 ]"""
 
-def parse_existing_paper_with_gemini(api_key, raw_text):
-    """Parses raw pasted exam paper using Gemini."""
+def parse_existing_paper_with_gemini(api_key, raw_text, image_paths=None):
+    """Parses raw pasted exam paper or uploaded photos/scans using Gemini multimodal vision."""
     system_prompt = build_paper_parser_system_prompt()
     models = [
         "gemini-3.8-flash",
@@ -544,14 +544,26 @@ def parse_existing_paper_with_gemini(api_key, raw_text):
         "gemini-flash-lite-latest"
     ]
     last_err = None
+
+    parts = [
+        {"text": f"{system_prompt}\n\nPlease parse and transcribe this paper verbatim:\n\n{raw_text[:70000] if raw_text else 'Transcribe all questions from the attached photo/document.'}"}
+    ]
+    if image_paths:
+        for img_path in image_paths:
+            if os.path.exists(img_path):
+                mime, b64_data = encode_image_base64(img_path)
+                parts.append({
+                    "inline_data": {
+                        "mime_type": mime,
+                        "data": b64_data
+                    }
+                })
     
     for model_name in models:
         url = f"https://generativelanguage.googleapis.com/v1beta/models/{model_name}:generateContent?key={api_key}"
         payload = {
             "contents": [{
-                "parts": [
-                    {"text": f"{system_prompt}\n\nPlease parse and transcribe this paper:\n\n{raw_text[:70000]}"}
-                ]
+                "parts": parts
             }],
             "generationConfig": {
                 "temperature": 0.1,
@@ -580,28 +592,31 @@ def parse_existing_paper_with_gemini(api_key, raw_text):
             
     return {"success": False, "error": last_err or "Failed to parse with Gemini."}
 
-def parse_pasted_paper_unified(gemini_key=None, groq_key=None, raw_text=""):
+def parse_pasted_paper_unified(gemini_key=None, groq_key=None, raw_text="", image_paths=None):
     """
     Direct Paper Parser: Exclusively powered by Google Gemini (gemini-3.8-flash, gemini-flash-latest, gemini-3.5-flash)
-    to transcribe and extract pasted questions verbatim.
+    to transcribe and extract pasted questions or uploaded images/PDFs verbatim.
     Falls back to smart local regex rule-based parser if no Gemini API key is configured or upon error.
     """
-    if not raw_text or not raw_text.strip():
-        return {"success": False, "error": "No question text provided to parse."}
+    has_text = bool(raw_text and raw_text.strip())
+    has_images = bool(image_paths and len(image_paths) > 0)
+    if not has_text and not has_images:
+        return {"success": False, "error": "No question text or file provided to parse."}
 
     if gemini_key:
-        result = parse_existing_paper_with_gemini(gemini_key, raw_text)
+        result = parse_existing_paper_with_gemini(gemini_key, raw_text, image_paths=image_paths)
         if result.get("success"):
             return result
         gemini_err = result.get("error", "Unknown Gemini error")
     else:
         gemini_err = "No Gemini API key configured."
 
-    # Fallback to local rule-based regex parser if Gemini key is missing or fails
-    rule_result = regex_parse_pasted_questions(raw_text)
-    if rule_result.get("success") and len(rule_result.get("questions", [])) > 0:
-        rule_result["model_used"] = "Fast Local Rule-based Parser (Fallback)"
-        return rule_result
+    # Fallback to local rule-based regex parser if Gemini key is missing or fails (text-only)
+    if has_text:
+        rule_result = regex_parse_pasted_questions(raw_text)
+        if rule_result.get("success") and len(rule_result.get("questions", [])) > 0:
+            rule_result["model_used"] = "Fast Local Rule-based Parser (Fallback)"
+            return rule_result
 
     return {"success": False, "error": f"Could not parse questions with Gemini: {gemini_err}"}
 

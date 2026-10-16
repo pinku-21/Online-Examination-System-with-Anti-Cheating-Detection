@@ -807,13 +807,36 @@ def api_generate_questions():
 @admin_required
 def api_parse_pasted_questions():
     """
-    Direct Paper Parser: Receives raw pasted questions or question papers,
-    and runs fast Groq/Gemini extraction to return structured question objects verbatim.
+    Direct Paper Parser: Receives raw pasted questions or uploaded PDF / photos,
+    and runs fast Gemini multimodal extraction to return structured question objects verbatim.
     """
     _cleanup_old_jobs()
     raw_text = request.form.get("raw_text", "").strip()
-    if not raw_text:
-        return jsonify({"success": False, "error": "Please paste your questions or exam paper text."}), 400
+    uploaded_files = request.files.getlist("files") or request.files.getlist("file")
+    
+    saved_images = []
+    extracted_pdf_texts = []
+    
+    for f in uploaded_files:
+        if f and f.filename:
+            filename = secure_filename(f.filename)
+            file_path = os.path.join(app.config["UPLOAD_FOLDER"], filename)
+            f.save(file_path)
+            
+            ext = os.path.splitext(filename)[1].lower()
+            if ext == ".pdf":
+                pdf_text = extract_text_from_pdf(file_path)
+                if pdf_text:
+                    extracted_pdf_texts.append(pdf_text)
+            elif ext in [".jpg", ".jpeg", ".png", ".webp", ".bmp"]:
+                saved_images.append(file_path)
+
+    if extracted_pdf_texts:
+        pdf_combined = "\n\n".join(extracted_pdf_texts)
+        raw_text = f"{raw_text}\n\n{pdf_combined}".strip() if raw_text else pdf_combined
+
+    if not raw_text and not saved_images:
+        return jsonify({"success": False, "error": "Please paste questions or upload a question paper PDF/photo."}), 400
 
     gemini_key = get_setting("gemini_api_key", "") or os.environ.get("GEMINI_API_KEY", "").strip()
     groq_key = get_setting("groq_api_key", "") or os.environ.get("GROQ_API_KEY", "").strip()
@@ -834,7 +857,8 @@ def api_parse_pasted_questions():
     kwargs = dict(
         gemini_key=gemini_key,
         groq_key=groq_key,
-        raw_text=raw_text
+        raw_text=raw_text,
+        image_paths=saved_images
     )
     t = threading.Thread(target=_run_generation_job, args=(job_id, parse_pasted_paper_unified, kwargs, []), daemon=True)
     t.start()

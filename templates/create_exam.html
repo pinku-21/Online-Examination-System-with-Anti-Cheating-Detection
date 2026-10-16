@@ -35,7 +35,7 @@
                 </button>
                 <button type="button" id="tab-mode-paste" onclick="switchCreationMode('paste')" class="py-2.5 px-3 rounded-xl text-xs font-bold transition flex items-center justify-center space-x-2 bg-slate-50 text-slate-700 hover:bg-slate-100 hover:text-slate-900 border border-slate-200">
                     <i data-lucide="clipboard-paste" class="w-4 h-4 text-emerald-600"></i>
-                    <span>2. Paste Existing Questions</span>
+                    <span>2. Upload / Paste Question Paper</span>
                 </button>
             </div>
 
@@ -219,12 +219,34 @@
                     </p>
                 </div>
 
+                <!-- File Upload / Dropzone for Question Papers (PDF or Photo) -->
+                <div>
+                    <label class="block text-xs font-bold text-slate-800 mb-1.5 flex items-center justify-between">
+                        <span>Upload Question Paper (PDF, Photos, or Scans)</span>
+                        <span class="text-[10px] text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded-full font-bold">Auto-Extracts Questions</span>
+                    </label>
+                    <div id="paste-drop-zone" class="border-2 border-dashed border-emerald-300 hover:border-emerald-500 rounded-xl p-4 text-center cursor-pointer transition bg-emerald-50/30 hover:bg-emerald-50/60" onclick="document.getElementById('paste-file-input').click()">
+                        <i data-lucide="upload-cloud" class="w-8 h-8 text-emerald-600 mx-auto mb-1.5"></i>
+                        <p class="text-xs font-bold text-slate-800">Click or Drag & Drop Question Paper PDF or Photos</p>
+                        <p class="text-[11px] text-slate-500 mt-0.5">Supports PDF question papers, JPG, PNG, WEBP camera photos of printed papers</p>
+                        <input type="file" id="paste-file-input" multiple accept=".pdf,image/*" class="hidden" onchange="handlePasteFileSelect(event)">
+                    </div>
+                    <!-- Uploaded paper files list -->
+                    <div id="paste-file-list" class="mt-2 space-y-1.5"></div>
+                </div>
+
+                <div class="flex items-center space-x-2 my-1">
+                    <hr class="flex-1 border-slate-200">
+                    <span class="text-[10px] font-bold text-slate-400 uppercase tracking-wider">or paste question text below</span>
+                    <hr class="flex-1 border-slate-200">
+                </div>
+
                 <div>
                     <div class="flex items-center justify-between mb-1.5">
-                        <label class="block text-xs font-bold text-slate-800">Paste Question Paper / Questions Text *</label>
+                        <label class="block text-xs font-bold text-slate-800">Paste Question Paper / Questions Text (Optional if uploading PDF/photo)</label>
                         <span class="text-[10px] text-slate-400">Supports numbered questions, (a)(b)(c)(d) choices & marks</span>
                     </div>
-                    <textarea id="pasted-paper-text" rows="14" placeholder="Paste your questions here... e.g.:
+                    <textarea id="pasted-paper-text" rows="10" placeholder="Paste your questions here... e.g.:
 
 1. Patterns in Mathematics
 The sequence of triangular numbers begins 1, 3, 6, 10, 15... What is the next term?
@@ -247,7 +269,7 @@ Section B - Short Questions (3 marks each)
 
                 <div class="flex items-center space-x-2">
                     <button type="button" onclick="clearPastedText()" class="px-3 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-semibold rounded-xl transition">
-                        Clear
+                        Clear All
                     </button>
                     <button id="btn-parse-pasted" onclick="parsePastedQuestions()" class="flex-1 py-3 bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-700 hover:to-teal-700 text-white font-bold rounded-xl shadow-md transition flex items-center justify-center space-x-2">
                         <i data-lucide="arrow-right-circle" class="w-4 h-4 text-emerald-200"></i>
@@ -463,6 +485,7 @@ Section B - Short Questions (3 marks each)
 {% block scripts %}
 <script>
     let selectedFiles = [];
+    let selectedPasteFiles = [];
     let questionsData = [];
     let extractedFiguresList = [];
 
@@ -475,6 +498,39 @@ Section B - Short Questions (3 marks each)
     function removeFile(index) {
         selectedFiles.splice(index, 1);
         renderFileList();
+    }
+
+    function handlePasteFileSelect(e) {
+        const files = Array.from(e.target.files);
+        selectedPasteFiles = selectedPasteFiles.concat(files);
+        renderPasteFileList();
+    }
+
+    function removePasteFile(index) {
+        selectedPasteFiles.splice(index, 1);
+        renderPasteFileList();
+    }
+
+    function renderPasteFileList() {
+        const listEl = document.getElementById('paste-file-list');
+        if (!listEl) return;
+        listEl.innerHTML = '';
+        selectedPasteFiles.forEach((file, index) => {
+            const item = document.createElement('div');
+            item.className = 'flex items-center justify-between p-2 bg-emerald-50 border border-emerald-200 rounded-lg text-xs';
+            item.innerHTML = `
+                <div class="flex items-center space-x-2 truncate">
+                    <i data-lucide="${file.type.includes('pdf') ? 'file-text' : 'image'}" class="w-4 h-4 text-emerald-600 flex-shrink-0"></i>
+                    <span class="truncate font-semibold text-emerald-950">${file.name}</span>
+                    <span class="text-emerald-600 text-[11px]">(${(file.size / 1024).toFixed(0)} KB)</span>
+                </div>
+                <button type="button" onclick="removePasteFile(${index})" class="text-rose-500 hover:text-rose-700 ml-2" title="Remove file">
+                    <i data-lucide="trash-2" class="w-3.5 h-3.5"></i>
+                </button>
+            `;
+            listEl.appendChild(item);
+        });
+        lucide.createIcons();
     }
 
     function renderFileList() {
@@ -558,15 +614,21 @@ Section B - Short Questions (3 marks each)
 
     function clearPastedText() {
         document.getElementById('pasted-paper-text').value = '';
+        selectedPasteFiles = [];
+        renderPasteFileList();
+        const inputEl = document.getElementById('paste-file-input');
+        if (inputEl) inputEl.value = '';
     }
 
     async function parsePastedQuestions() {
         const rawText = document.getElementById('pasted-paper-text').value.trim();
-        if (!rawText) {
+        const hasFiles = selectedPasteFiles && selectedPasteFiles.length > 0;
+
+        if (!rawText && !hasFiles) {
             Swal.fire({
                 icon: 'warning',
-                title: 'No Questions Pasted',
-                text: 'Please paste your questions or question paper in the text box first.'
+                title: 'No Questions or Files Provided',
+                text: 'Please upload a question paper (PDF or photo) or paste your questions in the text box.'
             });
             return;
         }
@@ -576,10 +638,10 @@ Section B - Short Questions (3 marks each)
         btn.disabled = true;
 
         const parseMessages = [
-            'Analyzing question format & numbering...',
-            'Extracting questions & options...',
-            'Calculating marks distribution...',
-            'Transcribing paper verbatim...',
+            hasFiles ? 'Uploading question paper document/photos...' : 'Analyzing question format & numbering...',
+            'Extracting questions & choices verbatim...',
+            'Reading marks and question hierarchy...',
+            'Formatting mathematical notation & formulas...',
             'Populating question workspace...'
         ];
         let msgIdx = 0;
@@ -607,8 +669,13 @@ Section B - Short Questions (3 marks each)
                 
                 // Auto-suggest title if blank
                 if (!document.getElementById('exam-title').value.trim()) {
-                    const firstLine = rawText.split('\n')[0].replace(/[\#\*\=\-]/g, '').trim();
-                    document.getElementById('exam-title').value = firstLine.slice(0, 45) || `Imported Exam - ${new Date().toLocaleDateString()}`;
+                    let firstTitle = '';
+                    if (rawText) {
+                        firstTitle = rawText.split('\n')[0].replace(/[\#\*\=\-]/g, '').trim().slice(0, 45);
+                    } else if (hasFiles) {
+                        firstTitle = selectedPasteFiles[0].name.replace(/\.[^/.]+$/, '').slice(0, 45);
+                    }
+                    document.getElementById('exam-title').value = firstTitle || `Imported Exam - ${new Date().toLocaleDateString()}`;
                 }
 
                 const totalMarks = questionsData.reduce((sum, q) => sum + (parseFloat(q.points) || 1.0), 0);
@@ -625,14 +692,21 @@ Section B - Short Questions (3 marks each)
                 Swal.fire({
                     icon: 'error',
                     title: 'Could Not Parse Questions',
-                    text: data.error || 'Failed to detect structured questions. Please verify your pasted text.'
+                    text: data.error || 'Failed to detect structured questions. Please verify your file or text.'
                 });
             }
         };
 
         try {
             const formData = new FormData();
-            formData.append('raw_text', rawText);
+            if (rawText) {
+                formData.append('raw_text', rawText);
+            }
+            if (hasFiles) {
+                selectedPasteFiles.forEach(file => {
+                    formData.append('files', file);
+                });
+            }
 
             const startResp = await fetch('/api/parse-pasted-questions', {
                 method: 'POST',
