@@ -1184,9 +1184,15 @@ Section B - Short Questions (3 marks each)
                         </div>
                     </div>
 
-                    <button onclick="deleteQuestion(${qIndex})" class="text-rose-400 hover:text-rose-600 p-1 flex-shrink-0" title="Delete Question">
-                        <i data-lucide="trash-2" class="w-4 h-4"></i>
-                    </button>
+                    <div class="flex items-center space-x-1.5 flex-shrink-0">
+                        <button type="button" onclick="insertQuestionAfter(${qIndex})" class="px-2 py-1 text-[11px] bg-sky-50 hover:bg-sky-100 border border-sky-200 text-sky-700 font-bold rounded-lg transition shadow-2xs flex items-center space-x-1" title="Insert a new question immediately after this question">
+                            <i data-lucide="plus" class="w-3.5 h-3.5 text-sky-600"></i>
+                            <span>Insert Below</span>
+                        </button>
+                        <button type="button" onclick="deleteQuestion(${qIndex})" class="text-rose-400 hover:text-rose-600 p-1 flex-shrink-0 transition" title="Delete Question">
+                            <i data-lucide="trash-2" class="w-4 h-4"></i>
+                        </button>
+                    </div>
                 </div>
 
                 <div>
@@ -1202,6 +1208,22 @@ Section B - Short Questions (3 marks each)
                 </div>
             `;
             container.appendChild(card);
+
+            // In-between insert divider button if not the last question
+            if (qIndex < questionsData.length - 1) {
+                const divider = document.createElement('div');
+                divider.className = 'relative flex items-center justify-center my-1 group py-1';
+                divider.innerHTML = `
+                    <div class="absolute inset-0 flex items-center" aria-hidden="true">
+                        <div class="w-full border-t border-slate-200 group-hover:border-sky-300 transition"></div>
+                    </div>
+                    <button type="button" onclick="insertQuestionAfter(${qIndex})" class="relative inline-flex items-center space-x-1 px-3 py-1 text-[11px] font-bold text-slate-500 group-hover:text-sky-700 bg-white group-hover:bg-sky-50 border border-slate-200 group-hover:border-sky-400 rounded-full shadow-2xs transition transform group-hover:scale-105">
+                        <i data-lucide="plus-circle" class="w-3.5 h-3.5 text-slate-400 group-hover:text-sky-600"></i>
+                        <span>Add Question Between ${qIndex + 1} & ${qIndex + 2}</span>
+                    </button>
+                `;
+                container.appendChild(divider);
+            }
         });
         lucide.createIcons();
     }
@@ -1429,6 +1451,37 @@ Section B - Short Questions (3 marks each)
             figure_url: null
         });
         renderQuestions();
+    }
+
+    function insertQuestionAfter(afterIndex) {
+        const newQuestion = {
+            question_text: "",
+            question_type: "mcq",
+            options: ["Option A", "Option B", "Option C", "Option D"],
+            correct_answer: "Option A",
+            explanation: "",
+            points: 1.0,
+            figure_svg: null,
+            figure_url: null
+        };
+        // Insert immediately after afterIndex
+        questionsData.splice(afterIndex + 1, 0, newQuestion);
+        renderQuestions();
+
+        // Scroll to the newly inserted question and focus its textarea
+        setTimeout(() => {
+            const container = document.getElementById('questions-container');
+            if (container && container.children) {
+                // Account for divider elements (every question card except the last has a divider)
+                // Card index i corresponds to child index (i * 2)
+                const targetCard = container.children[(afterIndex + 1) * 2];
+                if (targetCard) {
+                    targetCard.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                    const txt = targetCard.querySelector('textarea');
+                    if (txt) txt.focus();
+                }
+            }
+        }, 120);
     }
 
     let currentAccessType = 'all';
