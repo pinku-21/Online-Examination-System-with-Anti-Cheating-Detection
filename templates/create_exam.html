@@ -1185,6 +1185,10 @@ Section B - Short Questions (3 marks each)
                     </div>
 
                     <div class="flex items-center space-x-1.5 flex-shrink-0">
+                        <button type="button" onclick="insertOrAlternative(${qIndex})" class="px-2 py-1 text-[11px] bg-amber-50 hover:bg-amber-100 border border-amber-300 text-amber-800 font-bold rounded-lg transition shadow-2xs flex items-center space-x-1" title="Add an internal alternative OR question (e.g., Question ${qIndex + 1} OR choice with its own diagram)">
+                            <i data-lucide="git-branch" class="w-3.5 h-3.5 text-amber-600"></i>
+                            <span>+ OR Question</span>
+                        </button>
                         <button type="button" onclick="insertQuestionAfter(${qIndex})" class="px-2 py-1 text-[11px] bg-sky-50 hover:bg-sky-100 border border-sky-200 text-sky-700 font-bold rounded-lg transition shadow-2xs flex items-center space-x-1" title="Insert a new question immediately after this question">
                             <i data-lucide="plus" class="w-3.5 h-3.5 text-sky-600"></i>
                             <span>Insert Below</span>
@@ -1209,18 +1213,25 @@ Section B - Short Questions (3 marks each)
             `;
             container.appendChild(card);
 
-            // In-between insert divider button if not the last question
+            // In-between insert divider buttons if not the last question
             if (qIndex < questionsData.length - 1) {
                 const divider = document.createElement('div');
-                divider.className = 'relative flex items-center justify-center my-1 group py-1';
+                divider.className = 'relative flex items-center justify-center my-1.5 group py-1';
                 divider.innerHTML = `
                     <div class="absolute inset-0 flex items-center" aria-hidden="true">
                         <div class="w-full border-t border-slate-200 group-hover:border-sky-300 transition"></div>
                     </div>
-                    <button type="button" onclick="insertQuestionAfter(${qIndex})" class="relative inline-flex items-center space-x-1 px-3 py-1 text-[11px] font-bold text-slate-500 group-hover:text-sky-700 bg-white group-hover:bg-sky-50 border border-slate-200 group-hover:border-sky-400 rounded-full shadow-2xs transition transform group-hover:scale-105">
-                        <i data-lucide="plus-circle" class="w-3.5 h-3.5 text-slate-400 group-hover:text-sky-600"></i>
-                        <span>Add Question Between ${qIndex + 1} & ${qIndex + 2}</span>
-                    </button>
+                    <div class="relative inline-flex items-center space-x-2 bg-white px-2 py-0.5 rounded-full border border-slate-200 shadow-2xs">
+                        <button type="button" onclick="insertQuestionAfter(${qIndex})" class="inline-flex items-center space-x-1 px-2.5 py-0.5 text-[11px] font-bold text-slate-600 hover:text-sky-700 hover:bg-sky-50 rounded-full transition">
+                            <i data-lucide="plus-circle" class="w-3.5 h-3.5 text-sky-600"></i>
+                            <span>+ Question Between ${qIndex + 1} & ${qIndex + 2}</span>
+                        </button>
+                        <span class="text-slate-300 text-xs">|</span>
+                        <button type="button" onclick="insertOrAlternative(${qIndex})" class="inline-flex items-center space-x-1 px-2.5 py-0.5 text-[11px] font-bold text-amber-700 hover:text-amber-900 hover:bg-amber-50 rounded-full transition" title="Add an OR alternative choice for Question ${qIndex + 1}">
+                            <i data-lucide="git-branch" class="w-3 h-3 text-amber-600"></i>
+                            <span>+ OR Choice for Q${qIndex + 1}</span>
+                        </button>
+                    </div>
                 `;
                 container.appendChild(divider);
             }
@@ -1479,6 +1490,43 @@ Section B - Short Questions (3 marks each)
                     targetCard.scrollIntoView({ behavior: 'smooth', block: 'center' });
                     const txt = targetCard.querySelector('textarea');
                     if (txt) txt.focus();
+                }
+            }
+        }, 120);
+    }
+
+    function insertOrAlternative(afterIndex) {
+        const original = questionsData[afterIndex];
+        const originalType = original ? (original.question_type || 'descriptive') : 'descriptive';
+        const originalPoints = original ? (parseFloat(original.points) || 1.0) : 1.0;
+
+        const orQuestion = {
+            question_text: `[OR Alternative] `,
+            question_type: originalType,
+            options: (original && original.options && original.options.length > 0) ? JSON.parse(JSON.stringify(original.options)) : [],
+            correct_answer: "",
+            explanation: "",
+            points: originalPoints,
+            figure_svg: null,
+            figure_url: null
+        };
+
+        // Insert immediately after afterIndex
+        questionsData.splice(afterIndex + 1, 0, orQuestion);
+        renderQuestions();
+
+        // Scroll and prompt to pick diagram or edit
+        setTimeout(() => {
+            const container = document.getElementById('questions-container');
+            if (container && container.children) {
+                const targetCard = container.children[(afterIndex + 1) * 2];
+                if (targetCard) {
+                    targetCard.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                    const txt = targetCard.querySelector('textarea');
+                    if (txt) {
+                        txt.focus();
+                        txt.setSelectionRange(txt.value.length, txt.value.length);
+                    }
                 }
             }
         }, 120);
