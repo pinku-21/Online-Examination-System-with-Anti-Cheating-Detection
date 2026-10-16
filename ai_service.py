@@ -478,10 +478,25 @@ def generate_questions_unified(gemini_key=None, groq_key=None, text_content=None
         "error": "AI generation could not complete. " + " | ".join(errors) + ". Please check your API keys or quotas."
     }
 
-def build_paper_parser_system_prompt():
+def build_paper_parser_system_prompt(available_figures=None):
     """Prompt specifically engineered to ingest and parse existing question papers directly."""
-    return """You are an accurate, intelligent Academic Exam Paper Analyzer and Parser.
-The user has pasted a complete exam paper or list of questions.
+    figures_section = ""
+    if available_figures and len(available_figures) > 0:
+        sample_figures = available_figures[:20]
+        figures_list_text = "\n".join([f"- Page {f['page']}: {f['url']}" for f in sample_figures])
+        figures_section = f"""
+EXTRACTED DIAGRAMS/FIGURES AVAILABLE FROM THE UPLOADED DOCUMENT:
+{figures_list_text}
+
+MANDATORY FIGURE LINKING RULE:
+- If a question references or requires a diagram, figure, setup, image, or illustration (e.g. "Shown below are four setups", "Refer to the diagram below", "In the figure given", "As shown in the circuit/diagram"):
+  1. Check the list of EXTRACTED DIAGRAMS above.
+  2. If an extracted image corresponds to that page or question setup, YOU MUST set "figure_url" to its exact URL (e.g. "/static/extracted_figures/...").
+  3. If no extracted image matches but the question describes a geometric setup, experiment setup, or circuit, generate a clear vector SVG in "figure_svg".
+"""
+
+    return f"""You are an accurate, intelligent Academic Exam Paper Analyzer and Parser.
+The user has pasted a complete exam paper or uploaded a question paper document/photo.
 Your task is to analyze the content deeply, identify genuine test questions, and transcribe them cleanly into a structured JSON array.
 
 CRITICAL RULES FOR PARSING:
@@ -501,7 +516,7 @@ CRITICAL RULES FOR PARSING:
    - Powers / Exponents: ALWAYS use proper Unicode superscripts like 2², 3², 5³, x², y³, 2ⁿ (NEVER write raw caret notation like 3^2, 5^2, or 2^2).
    - Multiplication: ALWAYS use the proper multiplication symbol '×' or standard dot (e.g. write "2 × 3² × 5" — NEVER write raw asterisks like "2 * 3^2 * 5").
    - Convert raw unrendered LaTeX like \\(68^\\circ\\) into clean, readable text like 68°.
-   - Convert \\sqrt{x} into √x, \\frac{a}{b} into a/b.
+   - Convert \\sqrt{{x}} into √x, \\frac{{a}}{{b}} into a/b.
 4. QUESTION TYPES & POINTS:
    - MCQs: "question_type": "mcq", 4 options in "options". Points = 1.0 (or specified in section).
    - True/False: "question_type": "tf", "options": ["True", "False"].
@@ -510,16 +525,18 @@ CRITICAL RULES FOR PARSING:
 5. CORRECT ANSWERS:
    - Solve or identify the correct answer for each MCQ/question and place it in "correct_answer".
    - Provide a brief 1-sentence rubric in "explanation".
-6. SVG DIAGRAM GENERATION:
-   - If a question is about geometry, shapes, lines, angles, triangles, or graphs:
+6. FIGURE & DIAGRAM LINKING (CRITICAL):
+{figures_section}
+   - If a question is about geometry, shapes, lines, angles, triangles, or graphs and has no matching extracted figure URL:
      Generate a clean vector SVG in "figure_svg" (<svg viewBox="0 0 350 220" xmlns="http://www.w3.org/2000/svg">...</svg>).
      Otherwise set "figure_svg": null.
+   - If a question does not need or have any diagram, set both "figure_url": null and "figure_svg": null.
 
 JSON FORMAT:
 Output ONLY a valid JSON array of question objects starting with [ and ending with ].
 No markdown codeblocks or backticks. Schema:
 [
-  {
+  {{
     "question_text": "string",
     "question_type": "mcq" | "short" | "descriptive" | "tf",
     "options": ["string", ...],
@@ -527,13 +544,13 @@ No markdown codeblocks or backticks. Schema:
     "explanation": "string",
     "points": 1.0,
     "figure_svg": "string or null",
-    "figure_url": null
-  }
+    "figure_url": "string or null"
+  }}
 ]"""
 
-def parse_existing_paper_with_gemini(api_key, raw_text, image_paths=None):
+def parse_existing_paper_with_gemini(api_key, raw_text, image_paths=None, available_figures=None):
     """Parses raw pasted exam paper or uploaded photos/scans using Gemini multimodal vision."""
-    system_prompt = build_paper_parser_system_prompt()
+    system_prompt = build_paper_parser_system_prompt(available_figures=available_figures)
     models = [
         "gemini-3.8-flash",
         "gemini-3.5-flash",
@@ -592,7 +609,7 @@ def parse_existing_paper_with_gemini(api_key, raw_text, image_paths=None):
             
     return {"success": False, "error": last_err or "Failed to parse with Gemini."}
 
-def parse_pasted_paper_unified(gemini_key=None, groq_key=None, raw_text="", image_paths=None):
+def parse_pasted_paper_unified(gemini_key=None, groq_key=None, raw_text="", image_paths=None, available_figures=None):
     """
     Direct Paper Parser: Exclusively powered by Google Gemini (gemini-3.8-flash, gemini-flash-latest, gemini-3.5-flash)
     to transcribe and extract pasted questions or uploaded images/PDFs verbatim.
@@ -604,7 +621,7 @@ def parse_pasted_paper_unified(gemini_key=None, groq_key=None, raw_text="", imag
         return {"success": False, "error": "No question text or file provided to parse."}
 
     if gemini_key:
-        result = parse_existing_paper_with_gemini(gemini_key, raw_text, image_paths=image_paths)
+        result = parse_existing_paper_with_gemini(gemini_key, raw_text, image_paths=image_paths, available_figures=available_figures)
         if result.get("success"):
             return result
         gemini_err = result.get("error", "Unknown Gemini error")

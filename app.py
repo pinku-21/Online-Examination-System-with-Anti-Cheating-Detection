@@ -816,6 +816,7 @@ def api_parse_pasted_questions():
     
     saved_images = []
     extracted_pdf_texts = []
+    extracted_figures = []
     
     for f in uploaded_files:
         if f and f.filename:
@@ -828,17 +829,19 @@ def api_parse_pasted_questions():
                 pdf_text = extract_text_from_pdf(file_path)
                 if pdf_text and len(pdf_text.strip()) > 30:
                     extracted_pdf_texts.append(pdf_text)
-                else:
-                    # PDF may be a scanned document or image-only PDF: extract images for Gemini Vision
-                    try:
-                        figs = extract_figures_from_pdf(file_path)
-                        for fig in (figs or []):
-                            # Resolve local file path
+                
+                # Always extract embedded figures and diagrams from PDF
+                try:
+                    figs = extract_figures_from_pdf(file_path)
+                    if figs:
+                        extracted_figures.extend(figs)
+                        # Also feed figure images into vision context so Gemini can see the diagrams
+                        for fig in figs:
                             local_fig = os.path.join(os.path.dirname(__file__), fig["url"].lstrip("/"))
-                            if os.path.exists(local_fig):
+                            if os.path.exists(local_fig) and local_fig not in saved_images:
                                 saved_images.append(local_fig)
-                    except Exception as e:
-                        print("Error extracting images from scanned PDF:", e)
+                except Exception as e:
+                    print("Error extracting figures from PDF:", e)
             elif ext in [".jpg", ".jpeg", ".png", ".webp", ".bmp"]:
                 saved_images.append(file_path)
 
@@ -858,7 +861,7 @@ def api_parse_pasted_questions():
             "status": "running",
             "result": None,
             "created_at": time.time(),
-            "extracted_figures": []
+            "extracted_figures": extracted_figures
         }
     try:
         save_generation_job(job_id, "running", None)
@@ -869,9 +872,10 @@ def api_parse_pasted_questions():
         gemini_key=gemini_key,
         groq_key=groq_key,
         raw_text=raw_text,
-        image_paths=saved_images
+        image_paths=saved_images,
+        available_figures=extracted_figures
     )
-    t = threading.Thread(target=_run_generation_job, args=(job_id, parse_pasted_paper_unified, kwargs, []), daemon=True)
+    t = threading.Thread(target=_run_generation_job, args=(job_id, parse_pasted_paper_unified, kwargs, extracted_figures), daemon=True)
     t.start()
 
     return jsonify({"job_id": job_id, "status": "running"})

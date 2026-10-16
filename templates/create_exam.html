@@ -664,6 +664,12 @@ Section B - Short Questions (3 marks each)
         const handleParseSuccess = (data) => {
             resetBtn();
             if (data.success && data.questions && data.questions.length > 0) {
+                // Populate extracted PDF figures gallery and picker modal
+                if (data.extracted_figures && data.extracted_figures.length > 0) {
+                    extractedFiguresList = data.extracted_figures;
+                    renderPdfFiguresGallery();
+                }
+
                 questionsData = data.questions;
                 renderQuestions();
                 
@@ -680,11 +686,12 @@ Section B - Short Questions (3 marks each)
 
                 const totalMarks = questionsData.reduce((sum, q) => sum + (parseFloat(q.points) || 1.0), 0);
                 const figCount = questionsData.filter(q => q.figure_svg || q.figure_url).length;
+                const figMsg = figCount > 0 ? ` (${figCount} figure${figCount > 1 ? 's' : ''} attached)` : '';
 
                 Swal.fire({
                     icon: 'success',
                     title: 'Questions Successfully Imported!',
-                    text: `Imported ${questionsData.length} questions verbatim (${totalMarks} total marks) into the question workspace via ${data.model_used || 'Smart Parser'}.`,
+                    text: `Imported ${questionsData.length} questions verbatim (${totalMarks} total marks)${figMsg} into the question workspace via ${data.model_used || 'Smart Parser'}.`,
                     confirmButtonText: 'Review Questions',
                     confirmButtonColor: '#059669'
                 });
