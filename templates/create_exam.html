@@ -671,6 +671,25 @@ Section B - Short Questions (3 marks each)
                 }
 
                 questionsData = data.questions;
+
+                // Smart Check: If rawText clearly declared a "Total Marks: X" or section multiplier (e.g. 5 x 1 = 5)
+                // verify if the extracted points exceed declared total marks and normalize if needed
+                if (rawText) {
+                    const totalMarksMatch = rawText.match(/(?:Total\s*Marks?|Max(?:imum)?\s*Marks?)\s*[\:\=]\s*(\d+(?:\.\d+)?)/i);
+                    if (totalMarksMatch) {
+                        const declaredTotal = parseFloat(totalMarksMatch[1]);
+                        const currentSum = questionsData.reduce((s, q) => s + (parseFloat(q.points) || 1.0), 0);
+                        if (declaredTotal > 0 && Math.abs(currentSum - declaredTotal) > 0.01) {
+                            // If currentSum is an exact multiple (e.g. 40 vs 20) or all questions got default points
+                            const ratio = declaredTotal / currentSum;
+                            questionsData.forEach(q => {
+                                const newPts = Math.round((parseFloat(q.points || 1.0) * ratio) * 10) / 10;
+                                q.points = newPts > 0 ? newPts : 1.0;
+                            });
+                        }
+                    }
+                }
+
                 renderQuestions();
                 
                 // Auto-suggest title if blank
@@ -684,7 +703,11 @@ Section B - Short Questions (3 marks each)
                     document.getElementById('exam-title').value = firstTitle || `Imported Exam - ${new Date().toLocaleDateString()}`;
                 }
 
-                const totalMarks = questionsData.reduce((sum, q) => sum + (parseFloat(q.points) || 1.0), 0);
+                const labelsInfo = getQuestionDisplayLabels(questionsData);
+                const totalMarks = questionsData.reduce((sum, q, idx) => {
+                    if (labelsInfo[idx] && labelsInfo[idx].isOr) return sum;
+                    return sum + (parseFloat(q.points) || 1.0);
+                }, 0);
                 const figCount = questionsData.filter(q => q.figure_svg || q.figure_url).length;
                 const figMsg = figCount > 0 ? ` (${figCount} figure${figCount > 1 ? 's' : ''} attached)` : '';
 

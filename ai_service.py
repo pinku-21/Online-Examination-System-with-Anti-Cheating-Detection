@@ -590,11 +590,19 @@ CRITICAL RULES FOR PARSING:
    - Multiplication: ALWAYS use the proper multiplication symbol '×' or standard dot (e.g. write "2 × 3² × 5" — NEVER write raw asterisks like "2 * 3^2 * 5").
    - Convert raw unrendered LaTeX like \\(68^\\circ\\) into clean, readable text like 68°.
    - Convert \\sqrt{{x}} into √x, \\frac{{a}}{{b}} into a/b.
-4. QUESTION TYPES & POINTS:
-   - MCQs: "question_type": "mcq", 4 options in "options". Points = 1.0 (or specified in section).
-   - True/False: "question_type": "tf", "options": ["True", "False"].
-   - Short questions: "question_type": "short", "options": [].
-   - Long / Descriptive / Proofs: "question_type": "descriptive", "options": [].
+4. ACCURATE MARKS / POINTS EXTRACTION (CRITICAL):
+   - Check headers, section titles, and question markers for points allocation:
+     * e.g., "**Total Marks: 20**", "**5 × 1 = 5 Marks**", "[1 Mark]", "[2 Marks]", "(3 pts)".
+     * If a section says "**5 × 1 = 5 Marks**", each question in that section is exactly 1.0 point (NOT 2 points).
+     * If the document declares "**Total Marks: 20**" with 20 questions, each question is 1.0 point.
+     * NEVER assign random points (like 2.0 or 5.0) if the paper specifies 1 mark or a total marks budget.
+     * The sum of points across all parsed questions MUST accurately reflect the paper's specified section breakdown and Total Marks.
+     * Default to 1.0 point if no specific mark is indicated.
+   - Question Types:
+     * MCQs: "question_type": "mcq", 4 options in "options".
+     * True/False: "question_type": "tf", "options": ["True", "False"].
+     * Short questions: "question_type": "short", "options": [].
+     * Long / Descriptive / Proofs: "question_type": "descriptive", "options": [].
 5. CORRECT ANSWERS:
    - Solve or identify the correct answer for each MCQ/question and place it in "correct_answer".
    - Provide a brief 1-sentence rubric in "explanation".
