@@ -242,6 +242,7 @@ STRICT JSON OUTPUT RULES:
    - "correct_answer": For MCQ/TF, the exact matching option string. For short/descriptive, the comprehensive reference answer or key grading points.
    - "explanation": Brief 1-2 sentence grading rubric or explanation.
    - "points": Float mark weightage for this specific question (e.g. 1.0, 2.0, 3.0, 4.0, 5.0, 10.0).
+   - "is_or_choice": Optional boolean. Set to true if this question is an alternate OR choice to the preceding question (and prefix question_text with "[OR Alternative] ").
 
 STRICT RULES ON MATHEMATICAL NOTATION & CLARITY (CRITICAL):
 1. Write all mathematical expressions, questions, formulas, and options in standard, natural, readable notation that high school and university students easily understand:
@@ -326,7 +327,31 @@ def generate_questions_with_gemini(api_key, text_content=None, image_paths=None,
                 
                 questions = json.loads(raw_text)
                 if isinstance(questions, list) and len(questions) > 0:
-                    return {"success": True, "questions": questions, "model_used": f"Google Gemini ({model_name})"}
+                    processed_questions = []
+                    for q in questions:
+                        q_text = (q.get("question_text") or "").strip()
+                        or_pattern = re.compile(r"\n\s*(?:OR|\(OR\)|---\s*OR\s*---)\s*\n", re.IGNORECASE)
+                        if or_pattern.search(q_text):
+                            parts = or_pattern.split(q_text, maxsplit=1)
+                            q1 = dict(q)
+                            q1["question_text"] = parts[0].strip()
+                            q1["is_or_choice"] = False
+                            processed_questions.append(q1)
+
+                            q2 = dict(q)
+                            p2_text = parts[1].strip()
+                            if not p2_text.startswith("[OR Alternative]"):
+                                p2_text = f"[OR Alternative] {p2_text}"
+                            q2["question_text"] = p2_text
+                            q2["is_or_choice"] = True
+                            processed_questions.append(q2)
+                        else:
+                            is_or = bool(q.get("is_or_choice") or q_text.startswith("[OR Alternative]"))
+                            q["is_or_choice"] = is_or
+                            if is_or and not q_text.startswith("[OR Alternative]"):
+                                q["question_text"] = f"[OR Alternative] {q_text}"
+                            processed_questions.append(q)
+                    return {"success": True, "questions": processed_questions, "model_used": f"Google Gemini ({model_name})"}
             else:
                 last_error = f"Gemini ({model_name}) Error ({resp.status_code}): {resp.text}"
         except Exception as e:
@@ -580,6 +605,39 @@ CRITICAL RULES FOR PARSING:
      Otherwise set "figure_svg": null.
    - If a question does not need or have any diagram, set both "figure_url": null and "figure_svg": null.
 
+7. OR / ALTERNATIVE QUESTION DETECTION (CRITICAL):
+   - When a question has an internal alternative separated by "OR" or "Attempt either option A or B" or "Either ... OR ...":
+     * DO NOT merge them into one question.
+     * DO NOT drop either question.
+     * SPLIT them into TWO consecutive question objects:
+       1) The primary question (e.g., Option A or the first question). Set "is_or_choice": false.
+       2) The alternative question (Option B or the second question after "OR"). YOU MUST prefix its "question_text" with "[OR Alternative] " AND set "is_or_choice": true.
+       3) Give BOTH the same points (e.g. 5.0 marks each).
+       4) Link each question to its OWN figure diagram! (e.g., Option A gets its diagram in figure_url/figure_svg, and Option B gets its diagram in its own figure_url/figure_svg).
+   - Example:
+     [
+       {{
+         "question_text": "A. Observe the structure of hearts A, B and C shown above and answer the following questions: I. Which of the hearts depicted above is present in both birds and Mammals...",
+         "question_type": "descriptive",
+         "options": [],
+         "correct_answer": "...",
+         "points": 5.0,
+         "figure_url": "/static/extracted_figures/page16_fig1.png",
+         "figure_svg": null,
+         "is_or_choice": false
+       }},
+       {{
+         "question_text": "[OR Alternative] B. Observe both the diagrams A and B. Which diagram indicates inhalation? Describe how it occurs...",
+         "question_type": "descriptive",
+         "options": [],
+         "correct_answer": "...",
+         "points": 5.0,
+         "figure_url": "/static/extracted_figures/page16_fig2.png",
+         "figure_svg": null,
+         "is_or_choice": true
+       }}
+     ]
+
 JSON FORMAT:
 Output ONLY a valid JSON array of question objects starting with [ and ending with ].
 No markdown codeblocks or backticks. Schema:
@@ -592,7 +650,8 @@ No markdown codeblocks or backticks. Schema:
     "explanation": "string",
     "points": 1.0,
     "figure_svg": "string or null",
-    "figure_url": "string or null"
+    "figure_url": "string or null",
+    "is_or_choice": boolean
   }}
 ]"""
 
@@ -648,7 +707,42 @@ def parse_existing_paper_with_gemini(api_key, raw_text, image_paths=None, availa
                 raw_text_out = raw_text_out.strip()
                 questions = json.loads(raw_text_out)
                 if isinstance(questions, list) and len(questions) > 0:
-                    return {"success": True, "questions": questions, "model_used": f"Google Gemini Parser ({model_name})"}
+                    processed_questions = []
+                    for q in questions:
+                        q_text = (q.get("question_text") or "").strip()
+                        # If AI merged question with an internal " OR " or "\nOR\n" or "\n(OR)\n"
+                        or_pattern = re.compile(r"\n\s*(?:OR|\(OR\)|---\s*OR\s*---)\s*\n", re.IGNORECASE)
+                        has_merged_or = bool(or_pattern.search(q_text))
+
+                        if has_merged_or:
+                            parts = or_pattern.split(q_text, maxsplit=1)
+                            # Part 1: Primary question
+                            q_copy1 = dict(q)
+                            q_copy1["question_text"] = parts[0].strip()
+                            q_copy1["is_or_choice"] = False
+                            processed_questions.append(q_copy1)
+
+                            # Part 2: OR alternative question
+                            q_copy2 = dict(q)
+                            part2_text = parts[1].strip()
+                            if not part2_text.startswith("[OR Alternative]"):
+                                part2_text = f"[OR Alternative] {part2_text}"
+                            q_copy2["question_text"] = part2_text
+                            q_copy2["is_or_choice"] = True
+                            # If second question has a different figure or diagram, keep it
+                            processed_questions.append(q_copy2)
+                        else:
+                            # Check if flagged as is_or_choice or starts with [OR Alternative]
+                            is_or = bool(q.get("is_or_choice") or q_text.startswith("[OR Alternative]"))
+                            if is_or:
+                                q["is_or_choice"] = True
+                                if not q_text.startswith("[OR Alternative]"):
+                                    q["question_text"] = f"[OR Alternative] {q_text}"
+                            else:
+                                q["is_or_choice"] = False
+                            processed_questions.append(q)
+
+                    return {"success": True, "questions": processed_questions, "model_used": f"Google Gemini Parser ({model_name})"}
             else:
                 last_err = f"Gemini ({model_name}) HTTP {resp.status_code}: {resp.text[:180]}"
                 print(f"Skipping {model_name} due to: {last_err}")
@@ -746,19 +840,45 @@ def regex_parse_pasted_questions(raw_text):
     if current_q:
         questions.append(current_q)
 
-    # Post-process types
+    # Post-process types and split internal OR questions
+    final_questions = []
     for q in questions:
-        if not q["options"]:
-            if len(q["question_text"]) > 180 or q["points"] >= 5.0:
+        q_text = (q.get("question_text") or "").strip()
+        or_match = re.search(r"(?:\n|\s+)(?:OR|\(OR\)|---\s*OR\s*---)(?:\n|\s+)(?:[B-Z]\.?\s*)?", q_text, re.IGNORECASE)
+        if or_match:
+            split_idx = or_match.start()
+            part1 = q_text[:split_idx].strip()
+            part2 = q_text[or_match.end():].strip()
+            if part1 and part2:
+                q1 = dict(q)
+                q1["question_text"] = part1
+                q1["is_or_choice"] = False
+                final_questions.append(q1)
+
+                q2 = dict(q)
+                q2["question_text"] = f"[OR Alternative] {part2}"
+                q2["is_or_choice"] = True
+                final_questions.append(q2)
+                continue
+
+        is_or = bool(q.get("is_or_choice") or q_text.startswith("[OR Alternative]"))
+        q["is_or_choice"] = is_or
+        if is_or and not q_text.startswith("[OR Alternative]"):
+            q["question_text"] = f"[OR Alternative] {q_text}"
+        final_questions.append(q)
+
+    for q in final_questions:
+        if not q.get("options"):
+            if len(q.get("question_text", "")) > 180 or float(q.get("points") or 1.0) >= 5.0:
                 q["question_type"] = "descriptive"
             else:
                 q["question_type"] = "short"
-        elif len(q["options"]) == 2 and ("true" in q["options"][0].lower() or "false" in q["options"][0].lower()):
+        elif len(q.get("options", [])) == 2 and ("true" in q["options"][0].lower() or "false" in q["options"][0].lower()):
             q["question_type"] = "tf"
             q["options"] = ["True", "False"]
 
-    if questions:
-        return {"success": True, "questions": questions, "model_used": "Smart Instant Parser"}
+    if final_questions:
+        return {"success": True, "questions": final_questions, "model_used": "Smart Instant Parser"}
     return {"success": False, "error": "No recognizable numbered questions found in pasted text."}
 
 def generate_mock_questions(topic_or_context, num_questions=5, question_type="mcq", total_marks=None):
