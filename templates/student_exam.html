@@ -277,6 +277,18 @@
                     </button>
                 </div>
 
+                <!-- OR Alternative Guidance Banner -->
+                <div id="or-choice-banner" class="hidden mb-4 p-3.5 bg-gradient-to-r from-amber-50 to-orange-50 border border-amber-300 rounded-2xl flex items-center justify-between gap-3 text-amber-900 shadow-xs">
+                    <div class="flex items-center space-x-2.5">
+                        <span class="w-8 h-8 rounded-xl bg-amber-500 text-white flex items-center justify-center font-black text-xs flex-shrink-0 shadow-xs">OR</span>
+                        <div>
+                            <h4 id="or-banner-title" class="text-xs font-black uppercase tracking-wider text-amber-900">Alternative Choice Question</h4>
+                            <p id="or-banner-desc" class="text-[11px] text-amber-800 leading-snug">You only need to answer either Part A or Part B. Only one answer will be counted for marks.</p>
+                        </div>
+                    </div>
+                    <span id="or-banner-tag" class="px-2.5 py-1 rounded-full text-[10px] font-black bg-amber-200 text-amber-900 flex-shrink-0">Attempt 1 Only</span>
+                </div>
+
                 <!-- Question Text -->
                 <h3 id="current-question-text"
                     class="text-base sm:text-lg font-bold text-slate-900 leading-relaxed mb-4">
@@ -1840,15 +1852,73 @@
             });
         }
 
+        // Helper to compute sub-question labels (e.g., 17.a and 17.b for OR alternatives)
+        function getQuestionDisplayLabels(list) {
+            let mainNum = 0;
+            const labels = [];
+            for (let i = 0; i < list.length; i++) {
+                const q = list[i];
+                const isOr = Boolean(q.is_or_choice || (q.question_text && q.question_text.trim().startsWith('[OR Alternative]')));
+                if (!isOr) {
+                    mainNum++;
+                    const nextIsOr = (i + 1 < list.length) && Boolean(list[i + 1].is_or_choice || (list[i + 1].question_text && list[i + 1].question_text.trim().startsWith('[OR Alternative]')));
+                    if (nextIsOr) {
+                        labels.push({ label: `${mainNum}.a`, mainNum: mainNum, sub: 'a', isOr: false, hasOrAlternative: true });
+                    } else {
+                        labels.push({ label: `${mainNum}`, mainNum: mainNum, sub: '', isOr: false, hasOrAlternative: false });
+                    }
+                } else {
+                    let subIdx = 1;
+                    for (let k = i - 1; k >= 0; k--) {
+                        if (labels[k] && labels[k].mainNum === mainNum) {
+                            subIdx++;
+                        } else {
+                            break;
+                        }
+                    }
+                    const letter = String.fromCharCode(97 + subIdx - 1); // 97 = 'a', 98 = 'b', etc.
+                    labels.push({ label: `${mainNum}.${letter}`, mainNum: mainNum, sub: letter, isOr: true, hasOrAlternative: true });
+                }
+            }
+            return labels;
+        }
+
         // Question Rendering
         function renderQuestion(index) {
             currentQuestionIndex = index;
             const q = QUESTIONS[index];
             if (!q) return;
 
-            document.getElementById('q-number-pill').innerText = `Question ${index + 1} of ${QUESTIONS.length}`;
+            const labelsInfo = getQuestionDisplayLabels(QUESTIONS);
+            const currentLabelInfo = labelsInfo[index] || { label: String(index + 1), mainNum: index + 1, isOr: false, hasOrAlternative: false };
+            const totalMainQuestions = labelsInfo.length > 0 ? (labelsInfo[labelsInfo.length - 1].mainNum || QUESTIONS.length) : QUESTIONS.length;
+
+            document.getElementById('q-number-pill').innerText = `Question ${currentLabelInfo.label} of ${totalMainQuestions}`;
             document.getElementById('q-points-pill').innerText = `${q.points || 1.0} Mark${parseFloat(q.points) > 1 ? 's' : ''}`;
-            document.getElementById('current-question-text').innerText = q.question_text;
+
+            // Clean up question text display if it starts with [OR Alternative]
+            let displayText = q.question_text || '';
+            if (displayText.trim().startsWith('[OR Alternative]')) {
+                displayText = displayText.replace(/^\[OR\s*Alternative\]\s*/i, '').trim();
+            }
+            document.getElementById('current-question-text').innerText = displayText;
+
+            // Handle OR Alternative Banner
+            const orBanner = document.getElementById('or-choice-banner');
+            if (orBanner) {
+                if (currentLabelInfo.hasOrAlternative || currentLabelInfo.isOr) {
+                    orBanner.classList.remove('hidden');
+                    const bannerTitle = document.getElementById('or-banner-title');
+                    const bannerDesc = document.getElementById('or-banner-desc');
+                    const bannerTag = document.getElementById('or-banner-tag');
+                    
+                    if (bannerTitle) bannerTitle.innerText = `Question ${currentLabelInfo.mainNum} - Sub-Question Option (${currentLabelInfo.label})`;
+                    if (bannerDesc) bannerDesc.innerText = `You only need to answer either ${currentLabelInfo.mainNum}.a OR ${currentLabelInfo.mainNum}.b. If you answer both, only one will be counted for marks.`;
+                    if (bannerTag) bannerTag.innerText = currentLabelInfo.isOr ? `Option ${currentLabelInfo.sub.toUpperCase()} (OR Choice)` : `Option ${currentLabelInfo.sub.toUpperCase() || 'A'}`;
+                } else {
+                    orBanner.classList.add('hidden');
+                }
+            }
 
             // Render Figure / Diagram if present
             const figContainer = document.getElementById('figure-container');
@@ -2248,21 +2318,28 @@
         function renderPalette() {
             const grid = document.getElementById('palette-grid');
             grid.innerHTML = '';
-            let answeredCount = 0;
+            const labelsInfo = getQuestionDisplayLabels(QUESTIONS);
+
+            // Group by main question to compute answered main questions
+            const mainAnsweredMap = {};
+            const totalMainQuestions = labelsInfo.length > 0 ? (labelsInfo[labelsInfo.length - 1].mainNum || QUESTIONS.length) : QUESTIONS.length;
 
             QUESTIONS.forEach((q, idx) => {
                 const ans = studentAnswers[String(q.id)];
                 let isAnswered = false;
                 if (typeof ans === 'object' && ans !== null) {
-                    isAnswered = Boolean((ans.text && ans.text.trim()) || ans.image_url);
+                    isAnswered = Boolean((ans.text && ans.text.trim()) || ans.image_url || (Array.isArray(ans.image_urls) && ans.image_urls.length > 0));
                 } else if (typeof ans === 'string') {
                     isAnswered = Boolean(ans.trim());
                 }
 
+                const info = labelsInfo[idx] || { label: String(idx + 1), mainNum: idx + 1 };
+                if (isAnswered) {
+                    mainAnsweredMap[info.mainNum] = true;
+                }
+
                 const isFlagged = flaggedQuestions.has(q.id);
                 const isCurrent = (idx === currentQuestionIndex);
-
-                if (isAnswered) answeredCount++;
 
                 let bgClass = 'bg-slate-100 text-slate-700 hover:bg-slate-200';
                 if (isCurrent) {
@@ -2276,30 +2353,42 @@
                 }
 
                 const btn = document.createElement('button');
-                btn.className = `w-10 h-10 rounded-xl text-xs flex items-center justify-center transition shadow-sm ${bgClass}`;
-                btn.innerText = idx + 1;
+                btn.className = `min-w-10 h-10 px-1.5 rounded-xl text-xs flex items-center justify-center transition shadow-sm ${bgClass}`;
+                btn.innerText = info.label;
+                btn.title = info.isOr ? `Question ${info.label} (OR Choice)` : `Question ${info.label}`;
                 btn.onclick = () => renderQuestion(idx);
                 grid.appendChild(btn);
             });
 
-            document.getElementById('answered-stat').innerText = `${answeredCount} / ${QUESTIONS.length} Answered`;
+            const answeredCount = Object.keys(mainAnsweredMap).length;
+            document.getElementById('answered-stat').innerText = `${answeredCount} / ${totalMainQuestions} Questions Answered`;
         }
 
         function confirmSubmitExam() {
-            let answeredCount = 0;
-            QUESTIONS.forEach(q => {
+            const labelsInfo = getQuestionDisplayLabels(QUESTIONS);
+            const totalMainQuestions = labelsInfo.length > 0 ? (labelsInfo[labelsInfo.length - 1].mainNum || QUESTIONS.length) : QUESTIONS.length;
+            const mainAnsweredMap = {};
+
+            QUESTIONS.forEach((q, idx) => {
                 const ans = studentAnswers[String(q.id)];
+                let isAnswered = false;
                 if (typeof ans === 'object' && ans !== null) {
-                    if ((ans.text && ans.text.trim()) || ans.image_url) answeredCount++;
-                } else if (typeof ans === 'string' && ans.trim()) {
-                    answeredCount++;
+                    isAnswered = Boolean((ans.text && ans.text.trim()) || ans.image_url || (Array.isArray(ans.image_urls) && ans.image_urls.length > 0));
+                } else if (typeof ans === 'string') {
+                    isAnswered = Boolean(ans.trim());
+                }
+                const info = labelsInfo[idx] || { label: String(idx + 1), mainNum: idx + 1 };
+                if (isAnswered) {
+                    mainAnsweredMap[info.mainNum] = true;
                 }
             });
-            const unanswered = QUESTIONS.length - answeredCount;
+
+            const answeredCount = Object.keys(mainAnsweredMap).length;
+            const unanswered = totalMainQuestions - answeredCount;
 
             Swal.fire({
                 title: 'Submit Examination?',
-                text: unanswered > 0 ? `You still have ${unanswered} unanswered question(s). Are you sure you want to finish?` : 'Are you sure you want to finalize and submit your exam?',
+                text: unanswered > 0 ? `You still have ${unanswered} unanswered question(s). For OR choice questions (e.g. .a or .b), answering one is sufficient. Are you sure you want to finish?` : 'Are you sure you want to finalize and submit your exam?',
                 icon: 'question',
                 showCancelButton: true,
                 confirmButtonColor: '#059669',

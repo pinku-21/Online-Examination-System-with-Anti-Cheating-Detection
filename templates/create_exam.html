@@ -1038,13 +1038,58 @@ Section B - Short Questions (3 marks each)
         return s;
     }
 
+    function getQuestionDisplayLabels(list) {
+        let mainNum = 0;
+        const labels = [];
+        for (let i = 0; i < list.length; i++) {
+            const q = list[i];
+            const isOr = Boolean(q.is_or_choice || (q.question_text && q.question_text.trim().startsWith('[OR Alternative]')));
+            if (!isOr) {
+                mainNum++;
+                // Check if immediately followed by an OR choice
+                const nextIsOr = (i + 1 < list.length) && Boolean(list[i + 1].is_or_choice || (list[i + 1].question_text && list[i + 1].question_text.trim().startsWith('[OR Alternative]')));
+                if (nextIsOr) {
+                    labels.push({ label: `${mainNum}.a`, mainNum: mainNum, sub: 'a', isOr: false });
+                } else {
+                    labels.push({ label: `${mainNum}`, mainNum: mainNum, sub: '', isOr: false });
+                }
+            } else {
+                // Determine sub-letter based on how many OR choices preceded for the same mainNum
+                let subIdx = 1;
+                for (let k = i - 1; k >= 0; k--) {
+                    if (labels[k] && labels[k].mainNum === mainNum) {
+                        subIdx++;
+                    } else {
+                        break;
+                    }
+                }
+                const letter = String.fromCharCode(97 + subIdx - 1); // 97 = 'a', 98 = 'b', etc.
+                labels.push({ label: `${mainNum}.${letter}`, mainNum: mainNum, sub: letter, isOr: true });
+            }
+        }
+        return labels;
+    }
+
     function renderQuestions() {
         const container = document.getElementById('questions-container');
         const emptyState = document.getElementById('questions-empty');
         const badge = document.getElementById('question-count-badge');
 
-        const totalMarks = questionsData.reduce((sum, q) => sum + (parseFloat(q.points) || 1.0), 0);
-        badge.innerHTML = `<span class="font-bold">${questionsData.length} Questions</span> • <span class="text-emerald-700 font-extrabold">${totalMarks} Marks</span>`;
+        const labelsInfo = getQuestionDisplayLabels(questionsData);
+
+        // For total marks, only count the primary question once for OR choices
+        const totalMarks = questionsData.reduce((sum, q, idx) => {
+            if (labelsInfo[idx] && labelsInfo[idx].isOr) {
+                return sum; // Do not double-count OR alternative marks
+            }
+            return sum + (parseFloat(q.points) || 1.0);
+        }, 0);
+
+        const uniqueMainQuestionsCount = labelsInfo.length > 0 ? (labelsInfo[labelsInfo.length - 1].mainNum || questionsData.length) : 0;
+        const orCount = labelsInfo.filter(l => l.isOr).length;
+        const orBadge = orCount > 0 ? ` <span class="text-amber-700 bg-amber-50 px-2 py-0.5 rounded-full text-xs font-bold border border-amber-200">Includes ${orCount} OR Choice${orCount > 1 ? 's' : ''}</span>` : '';
+
+        badge.innerHTML = `<span class="font-bold">${questionsData.length} Cards (${uniqueMainQuestionsCount} Main Questions)</span> • <span class="text-emerald-700 font-extrabold">${totalMarks} Total Marks</span>${orBadge}`;
 
         if (questionsData.length === 0) {
             container.classList.add('hidden');
@@ -1058,7 +1103,12 @@ Section B - Short Questions (3 marks each)
 
         questionsData.forEach((q, qIndex) => {
             const card = document.createElement('div');
-            card.className = 'border border-slate-200 rounded-xl p-5 bg-slate-50/50 hover:bg-white transition relative space-y-3';
+            const info = labelsInfo[qIndex] || { label: `${qIndex + 1}`, isOr: false };
+            const isOr = info.isOr;
+
+            card.className = isOr 
+                ? 'border-2 border-amber-300 rounded-xl p-5 bg-amber-50/40 hover:bg-white transition relative space-y-3 ml-4 shadow-2xs'
+                : 'border border-slate-200 rounded-xl p-5 bg-slate-50/50 hover:bg-white transition relative space-y-3 shadow-2xs';
 
             const qType = q.question_type || 'mcq';
             const isObjective = (qType === 'mcq' || qType === 'tf' || (q.options && q.options.length > 0));
@@ -1164,12 +1214,18 @@ Section B - Short Questions (3 marks each)
                 `;
             }
 
+            const badgeBg = isOr ? 'bg-amber-100 text-amber-900 border border-amber-300' : 'bg-sky-100 text-sky-800 border border-sky-200';
+            const orTag = isOr 
+                ? `<span class="px-2 py-0.5 bg-amber-500 text-white font-extrabold text-[10px] rounded uppercase tracking-wide shadow-2xs">OR Choice</span>`
+                : (info.sub === 'a' ? `<span class="px-2 py-0.5 bg-sky-500 text-white font-extrabold text-[10px] rounded uppercase tracking-wide shadow-2xs">Main Choice</span>` : '');
+
             card.innerHTML = `
                 <div class="flex items-start justify-between gap-3">
                     <div class="flex items-center space-x-2">
-                        <span class="w-7 h-7 rounded-lg bg-sky-100 text-sky-800 font-extrabold text-xs flex items-center justify-center flex-shrink-0">
-                            ${qIndex + 1}
+                        <span class="px-2.5 py-1 rounded-lg ${badgeBg} font-extrabold text-xs flex items-center justify-center flex-shrink-0">
+                            ${info.label}
                         </span>
+                        ${orTag}
                         <!-- Question Type Dropdown -->
                         <select onchange="updateQuestionType(${qIndex}, this.value)" class="text-xs px-2.5 py-1 rounded-lg border border-slate-300 bg-white font-bold text-slate-700">
                             <option value="mcq" ${qType === 'mcq' ? 'selected' : ''}>MCQ (Multiple Choice)</option>
@@ -1185,7 +1241,7 @@ Section B - Short Questions (3 marks each)
                     </div>
 
                     <div class="flex items-center space-x-1.5 flex-shrink-0">
-                        <button type="button" onclick="insertOrAlternative(${qIndex})" class="px-2 py-1 text-[11px] bg-amber-50 hover:bg-amber-100 border border-amber-300 text-amber-800 font-bold rounded-lg transition shadow-2xs flex items-center space-x-1" title="Add an internal alternative OR question (e.g., Question ${qIndex + 1} OR choice with its own diagram)">
+                        <button type="button" onclick="insertOrAlternative(${qIndex})" class="px-2 py-1 text-[11px] bg-amber-50 hover:bg-amber-100 border border-amber-300 text-amber-800 font-bold rounded-lg transition shadow-2xs flex items-center space-x-1" title="Add an internal alternative OR option for this question">
                             <i data-lucide="git-branch" class="w-3.5 h-3.5 text-amber-600"></i>
                             <span>+ OR Question</span>
                         </button>
@@ -1224,12 +1280,12 @@ Section B - Short Questions (3 marks each)
                     <div class="relative inline-flex items-center space-x-2 bg-white px-2 py-0.5 rounded-full border border-slate-200 shadow-2xs">
                         <button type="button" onclick="insertQuestionAfter(${qIndex})" class="inline-flex items-center space-x-1 px-2.5 py-0.5 text-[11px] font-bold text-slate-600 hover:text-sky-700 hover:bg-sky-50 rounded-full transition">
                             <i data-lucide="plus-circle" class="w-3.5 h-3.5 text-sky-600"></i>
-                            <span>+ Question Between ${qIndex + 1} & ${qIndex + 2}</span>
+                            <span>+ Question Between ${info.label} & Next</span>
                         </button>
                         <span class="text-slate-300 text-xs">|</span>
-                        <button type="button" onclick="insertOrAlternative(${qIndex})" class="inline-flex items-center space-x-1 px-2.5 py-0.5 text-[11px] font-bold text-amber-700 hover:text-amber-900 hover:bg-amber-50 rounded-full transition" title="Add an OR alternative choice for Question ${qIndex + 1}">
+                        <button type="button" onclick="insertOrAlternative(${qIndex})" class="inline-flex items-center space-x-1 px-2.5 py-0.5 text-[11px] font-bold text-amber-700 hover:text-amber-900 hover:bg-amber-50 rounded-full transition" title="Add an OR alternative choice">
                             <i data-lucide="git-branch" class="w-3 h-3 text-amber-600"></i>
-                            <span>+ OR Choice for Q${qIndex + 1}</span>
+                            <span>+ OR Choice for Q${info.mainNum}</span>
                         </button>
                     </div>
                 `;
@@ -1401,9 +1457,19 @@ Section B - Short Questions (3 marks each)
     }
 
     function updateQuestionPoints(qIndex, newPoints) {
-        questionsData[qIndex].points = parseFloat(newPoints) || 1.0;
-        const totalMarks = questionsData.reduce((sum, q) => sum + (parseFloat(q.points) || 1.0), 0);
-        document.getElementById('question-count-badge').innerHTML = `<span class="font-bold">${questionsData.length} Questions</span> • <span class="text-emerald-700 font-extrabold">${totalMarks} Marks</span>`;
+        const pts = parseFloat(newPoints) || 1.0;
+        questionsData[qIndex].points = pts;
+        // If this question is part of an OR pair/group, keep points aligned
+        const labelsInfo = getQuestionDisplayLabels(questionsData);
+        if (labelsInfo[qIndex]) {
+            const currentMain = labelsInfo[qIndex].mainNum;
+            labelsInfo.forEach((info, idx) => {
+                if (info.mainNum === currentMain && questionsData[idx]) {
+                    questionsData[idx].points = pts;
+                }
+            });
+        }
+        renderQuestions();
     }
 
     function updateQuestionType(qIndex, newType) {

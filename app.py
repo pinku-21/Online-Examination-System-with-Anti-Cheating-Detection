@@ -1332,6 +1332,127 @@ def tutor_update_submission_score(submission_id):
     conn.close()
     return jsonify({"success": True, "score": round(new_score, 1), "percentage": round(percentage, 1)})
 
+
+def compute_submission_score_with_or(questions, answers, manual_eval=None):
+    """
+    Computes total points and earned score for an exam, handling OR / alternative choices (e.g., 17.a and 17.b).
+    - If Question 17 has an OR option (indicated by [OR Alternative] in question_text or is_or_choice),
+      the question's maximum points are counted ONLY ONCE in total_points.
+    - If the student attempts both 17.a and 17.b, they only get the maximum mark earned between the two,
+      ensuring they NEVER get double marks.
+    """
+    if manual_eval is None:
+        manual_eval = {}
+
+    # Step 1: Assign display labels and group ID to each question
+    grouped_questions = []
+    main_num = 0
+    group_id = 0
+
+    for idx, q in enumerate(questions):
+        q_dict = dict(q)
+        q_text = (q_dict.get("question_text") or "").strip()
+        is_or = q_text.startswith("[OR Alternative]")
+
+        if not is_or:
+            main_num += 1
+            group_id = main_num
+            # Check if immediately followed by an OR question
+            next_is_or = (idx + 1 < len(questions)) and (
+                (dict(questions[idx + 1]).get("question_text") or "").strip().startswith("[OR Alternative]")
+            )
+            sub_label = f"{main_num}.a" if next_is_or else f"{main_num}"
+            q_dict["display_label"] = sub_label
+            q_dict["main_number"] = main_num
+            q_dict["is_or"] = False
+            q_dict["group_id"] = group_id
+        else:
+            # Subsequent OR option for current main_num
+            # Count previous items in same group
+            prev_group_count = sum(1 for item in grouped_questions if item["group_id"] == group_id)
+            sub_letter = chr(ord('a') + prev_group_count)
+            q_dict["display_label"] = f"{main_num}.{sub_letter}"
+            q_dict["main_number"] = main_num
+            q_dict["is_or"] = True
+            q_dict["group_id"] = group_id
+
+        grouped_questions.append(q_dict)
+
+    # Step 2: Compute score by grouping
+    # For each group:
+    # max points = points of the first question (or max points in group)
+    # earned score = max(earned score among all options in group)
+    from collections import defaultdict
+    groups = defaultdict(list)
+    for q_item in grouped_questions:
+        groups[q_item["group_id"]].append(q_item)
+
+    total_points = 0.0
+    total_score = 0.0
+
+    for gid, q_list in groups.items():
+        # Points for this question group is only added ONCE
+        group_max_pts = max(float(q.get("points") or 1.0) for q in q_list)
+        total_points += group_max_pts
+
+        group_earned_scores = []
+        for q in q_list:
+            qid_str = str(q.get("id"))
+            q_pts = float(q.get("points") or 1.0)
+            earned = 0.0
+
+            if qid_str in manual_eval:
+                earned = float(manual_eval[qid_str].get("awarded_marks", 0.0))
+            else:
+                ans_raw = answers.get(qid_str, "")
+                if isinstance(ans_raw, dict):
+                    student_ans = (ans_raw.get("text") or "").strip()
+                else:
+                    student_ans = str(ans_raw).strip() if ans_raw else ""
+                corr = (q.get("correct_answer") or "").strip()
+                if corr and student_ans.lower() == corr.lower():
+                    earned = q_pts
+
+            group_earned_scores.append(earned)
+
+        # Student only gets the single best score from the choices
+        total_score += max(group_earned_scores) if group_earned_scores else 0.0
+
+    percentage = (total_score / total_points * 100) if total_points > 0 else 0.0
+    return round(total_score, 1), round(total_points, 1), round(percentage, 1)
+
+
+def attach_question_display_labels(question_dicts):
+    """
+    Given a list of question dicts, assigns 'display_label' (e.g. '17.a', '17.b') and cleans [OR Alternative] prefix.
+    """
+    main_num = 0
+    total = len(question_dicts)
+    for idx, q_dict in enumerate(question_dicts):
+        q_text = (q_dict.get("question_text") or "").strip()
+        is_or = q_text.startswith("[OR Alternative]")
+
+        if not is_or:
+            main_num += 1
+            next_is_or = (idx + 1 < total) and (
+                (question_dicts[idx + 1].get("question_text") or "").strip().startswith("[OR Alternative]")
+            )
+            q_dict["display_label"] = f"{main_num}.a" if next_is_or else f"{main_num}"
+            q_dict["main_num"] = main_num
+            q_dict["is_or_choice"] = False
+        else:
+            prev_group_count = sum(1 for item in question_dicts[:idx] if item.get("main_num") == main_num)
+            sub_letter = chr(ord('a') + prev_group_count)
+            q_dict["display_label"] = f"{main_num}.{sub_letter}"
+            q_dict["main_num"] = main_num
+            q_dict["is_or_choice"] = True
+            # Clean up prefix for display in results
+            clean_text = q_text.replace("[OR Alternative]", "").strip()
+            q_dict["clean_question_text"] = clean_text
+        if "clean_question_text" not in q_dict:
+            q_dict["clean_question_text"] = q_dict.get("question_text") or ""
+    return question_dicts
+
 @app.route("/api/tutor/submission/<int:submission_id>/evaluate-question", methods=["POST"])
 @admin_required
 def api_tutor_evaluate_question(submission_id):
@@ -1420,36 +1541,19 @@ def api_tutor_evaluate_question(submission_id):
         "evaluated_at": datetime.now(IST).strftime("%Y-%m-%d %H:%M:%S")
     }
 
-    # Recalculate total score
-    cursor.execute("SELECT * FROM questions WHERE exam_id = ?", (submission["exam_id"],))
+    # Recalculate total score taking OR alternatives into account
+    cursor.execute("SELECT * FROM questions WHERE exam_id = ? ORDER BY id ASC", (submission["exam_id"],))
     all_questions = cursor.fetchall()
 
-    new_total_score = 0.0
-    total_exam_points = 0.0
-    for q in all_questions:
-        q_pts = float(q["points"])
-        total_exam_points += q_pts
-        qid_s = str(q["id"])
-
-        if qid_s in existing_eval:
-            new_total_score += float(existing_eval[qid_s]["awarded_marks"])
-        else:
-            # Default objective grading
-            q_ans_raw = student_answers.get(qid_s, "")
-            if isinstance(q_ans_raw, dict):
-                st_txt = (q_ans_raw.get("text") or "").strip()
-            else:
-                st_txt = str(q_ans_raw).strip() if q_ans_raw else ""
-            if q["correct_answer"] and st_txt.lower() == q["correct_answer"].strip().lower():
-                new_total_score += q_pts
-
-    percentage = (new_total_score / total_exam_points * 100) if total_exam_points > 0 else 0.0
+    new_total_score, total_exam_points, percentage = compute_submission_score_with_or(
+        all_questions, student_answers, existing_eval
+    )
 
     cursor.execute("""
         UPDATE submissions
         SET manual_evaluation_json = ?, score = ?, total_points = ?, percentage = ?
         WHERE id = ?
-    """, (json.dumps(existing_eval), round(new_total_score, 1), total_exam_points, round(percentage, 1), submission_id))
+    """, (json.dumps(existing_eval), new_total_score, total_exam_points, percentage, submission_id))
 
     conn.commit()
     conn.close()
@@ -1549,30 +1653,40 @@ def api_tutor_evaluate_all(submission_id):
                 "evaluated_by": "ai",
                 "evaluated_at": datetime.now(IST).strftime("%Y-%m-%d %H:%M:%S")
             }
-            new_total_score += awarded
             results.append({"question_id": qid_s, "question_text": q["question_text"][:60], "success": True, "awarded_marks": awarded, "max_points": q_pts})
         else:
             # Fall back to objective check
-            if q["correct_answer"] and student_text.lower() == q["correct_answer"].strip().lower():
-                new_total_score += q_pts
-            results.append({"question_id": qid_s, "question_text": q["question_text"][:60], "success": False, "awarded_marks": 0, "max_points": q_pts, "reason": eval_result.get("error", "AI failed")})
+            corr = (q["correct_answer"] or "").strip().lower()
+            awarded = q_pts if (corr and student_text.lower() == corr) else 0.0
+            existing_eval[qid_s] = {
+                "awarded_marks": awarded,
+                "max_points": q_pts,
+                "feedback": "Objective check fallback.",
+                "model_used": "System",
+                "evaluated_by": "auto",
+                "evaluated_at": datetime.now(IST).strftime("%Y-%m-%d %H:%M:%S")
+            }
+            results.append({"question_id": qid_s, "question_text": q["question_text"][:60], "success": False, "awarded_marks": awarded, "max_points": q_pts, "reason": eval_result.get("error", "AI failed")})
 
-    percentage = (new_total_score / total_exam_points * 100) if total_exam_points > 0 else 0.0
+    # Recalculate total score taking OR alternatives into account
+    new_total_score, total_exam_points, percentage = compute_submission_score_with_or(
+        all_questions, student_answers, existing_eval
+    )
 
     cursor.execute("""
         UPDATE submissions
         SET manual_evaluation_json = ?, score = ?, total_points = ?, percentage = ?
         WHERE id = ?
-    """, (json.dumps(existing_eval), round(new_total_score, 1), total_exam_points, round(percentage, 1), submission_id))
+    """, (json.dumps(existing_eval), new_total_score, total_exam_points, percentage, submission_id))
     conn.commit()
     conn.close()
 
     return jsonify({
         "success": True,
         "results": results,
-        "new_score": round(new_total_score, 1),
+        "new_score": new_total_score,
         "total_points": total_exam_points,
-        "percentage": round(percentage, 1)
+        "percentage": percentage
     })
 
 
@@ -1619,35 +1733,19 @@ def api_tutor_update_question_score(submission_id):
         "evaluated_at": datetime.now(IST).strftime("%Y-%m-%d %H:%M:%S")
     }
 
-    # Recalculate total score
-    cursor.execute("SELECT * FROM questions WHERE exam_id = ?", (submission["exam_id"],))
+    # Recalculate total score taking OR alternatives into account
+    cursor.execute("SELECT * FROM questions WHERE exam_id = ? ORDER BY id ASC", (submission["exam_id"],))
     all_questions = cursor.fetchall()
 
-    new_total_score = 0.0
-    total_exam_points = 0.0
-    for q in all_questions:
-        q_pts = float(q["points"])
-        total_exam_points += q_pts
-        qid_s = str(q["id"])
-
-        if qid_s in existing_eval:
-            new_total_score += float(existing_eval[qid_s]["awarded_marks"])
-        else:
-            q_ans_raw = student_answers.get(qid_s, "")
-            if isinstance(q_ans_raw, dict):
-                st_txt = (q_ans_raw.get("text") or "").strip()
-            else:
-                st_txt = str(q_ans_raw).strip() if q_ans_raw else ""
-            if q["correct_answer"] and st_txt.lower() == q["correct_answer"].strip().lower():
-                new_total_score += q_pts
-
-    percentage = (new_total_score / total_exam_points * 100) if total_exam_points > 0 else 0.0
+    new_total_score, total_exam_points, percentage = compute_submission_score_with_or(
+        all_questions, student_answers, existing_eval
+    )
 
     cursor.execute("""
         UPDATE submissions
         SET manual_evaluation_json = ?, score = ?, total_points = ?, percentage = ?
         WHERE id = ?
-    """, (json.dumps(existing_eval), round(new_total_score, 1), total_exam_points, round(percentage, 1), submission_id))
+    """, (json.dumps(existing_eval), new_total_score, total_exam_points, percentage, submission_id))
 
     conn.commit()
     conn.close()
@@ -1655,9 +1753,9 @@ def api_tutor_update_question_score(submission_id):
     return jsonify({
         "success": True,
         "awarded_marks": new_marks,
-        "new_score": round(new_total_score, 1),
+        "new_score": new_total_score,
         "total_points": total_exam_points,
-        "percentage": round(percentage, 1)
+        "percentage": percentage
     })
 
 @app.route("/api/save-exam", methods=["POST"])
@@ -1962,6 +2060,7 @@ def tutor_submission_details(submission_id):
             
         questions_review.append(q_dict)
         
+    questions_review = attach_question_display_labels(questions_review)
     conn.close()
     return render_template("submission_details.html", submission=submission, violations=violations, questions=questions_review)
 
@@ -2442,26 +2541,13 @@ def api_submit_exam(submission_id):
         conn.close()
         return jsonify({"success": False, "error": "Access denied."}), 403
         
-    cursor.execute("SELECT * FROM questions WHERE exam_id = ?", (submission["exam_id"],))
+    cursor.execute("SELECT * FROM questions WHERE exam_id = ? ORDER BY id ASC", (submission["exam_id"],))
     questions = cursor.fetchall()
     
-    total_score = 0.0
-    total_points = 0.0
-    
-    for q in questions:
-        points = float(q["points"])
-        total_points += points
-        q_id_str = str(q["id"])
-        ans_val = answers.get(q_id_str, "")
-        if isinstance(ans_val, dict):
-            student_ans = (ans_val.get("text") or "").strip()
-        else:
-            student_ans = str(ans_val).strip() if ans_val else ""
-            
-        if q["correct_answer"] and student_ans.lower() == q["correct_answer"].strip().lower():
-            total_score += points
-            
-    percentage = (total_score / total_points * 100) if total_points > 0 else 0.0
+    manual_eval = json.loads(submission["manual_evaluation_json"]) if submission["manual_evaluation_json"] else {}
+    total_score, total_points, percentage = compute_submission_score_with_or(
+        questions, answers, manual_eval
+    )
     
     # Generate cryptographic SHA-256 HMAC for submission integrity & tamper detection
     integrity_token = generate_submission_integrity_hash(
@@ -2918,6 +3004,8 @@ def exam_result(submission_id):
                 q_dict["is_evaluated"] = False
 
             questions_review.append(q_dict)
+
+        questions_review = attach_question_display_labels(questions_review)
 
     # Cryptographic Tamper Verification Check (CIA Integrity)
     expected_hash = generate_submission_integrity_hash(
