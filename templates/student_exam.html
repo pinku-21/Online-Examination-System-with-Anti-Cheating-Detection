@@ -546,16 +546,24 @@
             const inputId = useCameraDirect ? `camera-input-${questionId}` : `photo-input-${questionId}`;
             const input = document.getElementById(inputId);
             if (input) {
-                input.value = ''; // Reset to allow re-selection
-                // Set click listener on window to detect return on mobile Safari/Chrome
-                const onWindowFocusOnce = () => {
+                input.value = ''; // Reset to allow re-selection of the same file
+                
+                // Keep file browse active until student returns
+                const handleWindowReturn = () => {
                     setTimeout(() => {
                         notifyFileBrowseEnd();
-                    }, 1000);
-                    window.removeEventListener('focus', onWindowFocusOnce);
+                    }, 1200);
+                    window.removeEventListener('focus', handleWindowReturn);
                 };
-                window.addEventListener('focus', onWindowFocusOnce);
-                input.click();
+                window.addEventListener('focus', handleWindowReturn);
+
+                // Use direct dispatch/click to ensure browser opens file dialog
+                try {
+                    input.click();
+                } catch (err) {
+                    console.error("Error triggering file click:", err);
+                    input.dispatchEvent(new MouseEvent('click', { bubbles: true, cancelable: true, view: window }));
+                }
             } else {
                 console.error("Upload input not found for question", questionId);
             }
@@ -1898,7 +1906,11 @@
 
                     const span = document.createElement('span');
                     span.className = 'text-sm flex-1 leading-relaxed';
-                    span.innerText = opt;
+                    // Auto-render superscripts (3^2 -> 3²) and multiplication (2 * 3 -> 2 × 3)
+                    const supMap = {'0':'⁰','1':'¹','2':'²','3':'³','4':'⁴','5':'⁵','6':'⁶','7':'⁷','8':'⁸','9':'⁹','+':'⁺','-':'⁻','n':'ⁿ','x':'ˣ'};
+                    let cleanOpt = String(opt).replace(/\^([0-9\+\-nx]+)/g, (m, p1) => p1.split('').map(c => supMap[c] || c).join(''));
+                    cleanOpt = cleanOpt.replace(/(\d+)\s*\*\s*(\d+)/g, '$1 × $2');
+                    span.innerText = cleanOpt;
 
                     optBox.appendChild(radio);
                     optBox.appendChild(span);
@@ -1997,8 +2009,8 @@
                                 <span class="text-[11px] text-slate-500 font-medium text-center sm:text-left">Supports multiple pages (JPG, PNG, WEBP)</span>
                             </div>
                         `}
-                        <input type="file" id="photo-input-${q.id}" accept="image/*" multiple style="position:absolute;width:1px;height:1px;opacity:0;pointer-events:none;" onchange="uploadStudentAnswerImage('${q.id}', this)" oncancel="notifyFileBrowseEnd()">
-                        <input type="file" id="camera-input-${q.id}" accept="image/*" capture="environment" style="position:absolute;width:1px;height:1px;opacity:0;pointer-events:none;" onchange="uploadStudentAnswerImage('${q.id}', this)" oncancel="notifyFileBrowseEnd()">
+                        <input type="file" id="photo-input-${q.id}" accept="image/*" multiple class="hidden" onchange="uploadStudentAnswerImage('${q.id}', this)" oncancel="notifyFileBrowseEnd()">
+                        <input type="file" id="camera-input-${q.id}" accept="image/*" capture="environment" class="hidden" onchange="uploadStudentAnswerImage('${q.id}', this)" oncancel="notifyFileBrowseEnd()">
                     </div>
                 `;
                 container.appendChild(writeBox);

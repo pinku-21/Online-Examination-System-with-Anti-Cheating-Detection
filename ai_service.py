@@ -498,8 +498,10 @@ CRITICAL RULES FOR PARSING:
    - NEVER place multiple-choice choices inside "question_text".
    - "options": Put each choice cleanly in the options array as ["(a) 22°", "(b) 112°", "(c) 122°", "(d) 90°"].
 3. CLEAN UP MATHEMATICAL NOTATION:
+   - Powers / Exponents: ALWAYS use proper Unicode superscripts like 2², 3², 5³, x², y³, 2ⁿ (NEVER write raw caret notation like 3^2, 5^2, or 2^2).
+   - Multiplication: ALWAYS use the proper multiplication symbol '×' or standard dot (e.g. write "2 × 3² × 5" — NEVER write raw asterisks like "2 * 3^2 * 5").
    - Convert raw unrendered LaTeX like \\(68^\\circ\\) into clean, readable text like 68°.
-   - Convert \\sqrt{x} into √x, \\frac{a}{b} into a/b, x^2 into x².
+   - Convert \\sqrt{x} into √x, \\frac{a}{b} into a/b.
 4. QUESTION TYPES & POINTS:
    - MCQs: "question_type": "mcq", 4 options in "options". Points = 1.0 (or specified in section).
    - True/False: "question_type": "tf", "options": ["True", "False"].

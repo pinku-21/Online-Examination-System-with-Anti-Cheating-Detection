@@ -954,6 +954,20 @@ Section B - Short Questions (3 marks each)
         }
     }
 
+    // Helper to format mathematical expressions into clean readable symbols
+    function formatMathString(text) {
+        if (!text) return '';
+        let s = String(text);
+        // Map carets with numbers to unicode superscripts: 3^2 -> 3², 5^3 -> 5³
+        const supMap = {'0':'⁰','1':'¹','2':'²','3':'³','4':'⁴','5':'⁵','6':'⁶','7':'⁷','8':'⁸','9':'⁹','+':'⁺','-':'⁻','n':'ⁿ','x':'ˣ'};
+        s = s.replace(/\^([0-9\+\-nx]+)/g, (match, p1) => {
+            return p1.split('').map(c => supMap[c] || c).join('');
+        });
+        // Replace asterisks used for multiplication with multiplication cross or dot: "2 * 3" -> "2 × 3"
+        s = s.replace(/(\d+)\s*\*\s*(\d+)/g, '$1 × $2');
+        return s;
+    }
+
     function renderQuestions() {
         const container = document.getElementById('questions-container');
         const emptyState = document.getElementById('questions-empty');
@@ -984,14 +998,28 @@ Section B - Short Questions (3 marks each)
             if (isObjective && q.options && q.options.length > 0) {
                 bodyHtml = `
                     <div class="space-y-2">
-                        <label class="block text-xs font-semibold text-slate-500">Choices (Select radio button for Correct Answer):</label>
-                        ${q.options.map((opt, optIndex) => `
-                            <div class="flex items-center space-x-2">
-                                <input type="radio" name="correct_q_${qIndex}" value="${optIndex}" ${opt === q.correct_answer ? 'checked' : ''} onchange="setCorrectAnswer(${qIndex}, ${optIndex})" class="w-4 h-4 text-emerald-600 focus:ring-emerald-500">
-                                <input type="text" value="${opt.replace(/"/g, '&quot;')}" oninput="updateOptionText(${qIndex}, ${optIndex}, this.value)" class="flex-1 px-3 py-1.5 text-xs bg-white border border-slate-300 rounded-lg focus:outline-none focus:ring-1 focus:ring-sky-500">
-                                <button type="button" onclick="deleteOption(${qIndex}, ${optIndex})" class="text-slate-400 hover:text-rose-500 text-xs px-1">✕</button>
-                            </div>
-                        `).join('')}
+                        <div class="flex items-center justify-between">
+                            <label class="block text-xs font-semibold text-slate-500">Choices (Select radio button for Correct Answer):</label>
+                            <span class="text-[10px] text-sky-600 bg-sky-50 px-2 py-0.5 rounded-full font-medium">Auto-renders powers, fractions & math</span>
+                        </div>
+                        ${q.options.map((opt, optIndex) => {
+                            const formattedPreview = formatMathString(opt);
+                            return `
+                                <div class="space-y-1">
+                                    <div class="flex items-center space-x-2">
+                                        <input type="radio" name="correct_q_${qIndex}" value="${optIndex}" ${opt === q.correct_answer ? 'checked' : ''} onchange="setCorrectAnswer(${qIndex}, ${optIndex})" class="w-4 h-4 text-emerald-600 focus:ring-emerald-500 flex-shrink-0" title="Mark as correct answer">
+                                        <input type="text" value="${opt.replace(/"/g, '&quot;')}" oninput="updateOptionText(${qIndex}, ${optIndex}, this.value)" class="flex-1 px-3 py-1.5 text-xs bg-white border border-slate-300 rounded-lg focus:outline-none focus:ring-1 focus:ring-sky-500 font-mono text-slate-800">
+                                        <button type="button" onclick="deleteOption(${qIndex}, ${optIndex})" class="text-slate-400 hover:text-rose-500 text-xs px-1" title="Delete choice">✕</button>
+                                    </div>
+                                    ${(formattedPreview && formattedPreview !== opt) ? `
+                                        <div class="pl-6 text-[11px] text-slate-600 flex items-center space-x-1.5">
+                                            <span class="text-[10px] uppercase font-bold text-slate-400">Preview:</span>
+                                            <span class="bg-slate-100 px-2 py-0.5 rounded font-medium text-slate-800">${formattedPreview}</span>
+                                        </div>
+                                    ` : ''}
+                                </div>
+                            `;
+                        }).join('')}
                         <button type="button" onclick="addOption(${qIndex})" class="text-xs text-sky-600 hover:text-sky-800 font-semibold flex items-center space-x-1 pt-1">
                             <span>+ Add Option</span>
                         </button>
