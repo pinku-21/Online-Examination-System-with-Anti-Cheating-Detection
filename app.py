@@ -826,8 +826,19 @@ def api_parse_pasted_questions():
             ext = os.path.splitext(filename)[1].lower()
             if ext == ".pdf":
                 pdf_text = extract_text_from_pdf(file_path)
-                if pdf_text:
+                if pdf_text and len(pdf_text.strip()) > 30:
                     extracted_pdf_texts.append(pdf_text)
+                else:
+                    # PDF may be a scanned document or image-only PDF: extract images for Gemini Vision
+                    try:
+                        figs = extract_figures_from_pdf(file_path)
+                        for fig in (figs or []):
+                            # Resolve local file path
+                            local_fig = os.path.join(os.path.dirname(__file__), fig["url"].lstrip("/"))
+                            if os.path.exists(local_fig):
+                                saved_images.append(local_fig)
+                    except Exception as e:
+                        print("Error extracting images from scanned PDF:", e)
             elif ext in [".jpg", ".jpeg", ".png", ".webp", ".bmp"]:
                 saved_images.append(file_path)
 
@@ -836,7 +847,7 @@ def api_parse_pasted_questions():
         raw_text = f"{raw_text}\n\n{pdf_combined}".strip() if raw_text else pdf_combined
 
     if not raw_text and not saved_images:
-        return jsonify({"success": False, "error": "Please paste questions or upload a question paper PDF/photo."}), 400
+        return jsonify({"success": False, "error": "No readable text or images found in the uploaded file. Please paste the question text or upload a clear PDF/photo."}), 400
 
     gemini_key = get_setting("gemini_api_key", "") or os.environ.get("GEMINI_API_KEY", "").strip()
     groq_key = get_setting("groq_api_key", "") or os.environ.get("GROQ_API_KEY", "").strip()

@@ -715,10 +715,15 @@ Section B - Short Questions (3 marks each)
 
             if (!startResp.ok) {
                 resetBtn();
+                let errMsg = `Error ${startResp.status} while parsing questions.`;
+                try {
+                    const errData = await startResp.json();
+                    if (errData && errData.error) errMsg = errData.error;
+                } catch(e) {}
                 Swal.fire({
                     icon: 'error',
                     title: 'Server Error',
-                    text: `Error ${startResp.status} while parsing questions.`
+                    text: errMsg
                 });
                 return;
             }
