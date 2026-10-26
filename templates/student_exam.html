@@ -623,6 +623,7 @@
         // Machine Learning: Self-Trained Student Face Biometric Profile
         let trainedStudentBaseline = null; // Centroid geometric landmark vector
         let trainedSampleCount = 0;
+        let isBaselineCalibrated = false;
 
         // Extract normalized geometric landmark vector from BlazeFace detection
         function extractFaceBiometricVector(face) {
@@ -656,32 +657,37 @@
             return [eyeDist, eyeToNose, noseToMouth, eyeToMouth, faceAspect, noseSymmetry];
         }
 
-        // Calculate cosine similarity between two geometric vectors
-        function computeVectorSimilarity(v1, v2) {
-            if (!v1 || !v2 || v1.length !== v2.length) return 0.0;
-            let dot = 0, norm1 = 0, norm2 = 0;
+        // Calculate weighted biometric distance between two geometric vectors
+        // Returns a value >= 0, where 0 is identical and > 0.18 is a distinct face
+        function computeVectorDistance(v1, v2) {
+            if (!v1 || !v2 || v1.length !== v2.length) return 999.0;
+            // Weights emphasizing inter-pupillary distance, eye-to-nose, and nose-to-mouth proportions
+            const weights = [2.5, 2.0, 2.0, 1.8, 1.2, 1.5];
+            let distSq = 0;
             for (let i = 0; i < v1.length; i++) {
-                dot += v1[i] * v2[i];
-                norm1 += v1[i] * v1[i];
-                norm2 += v2[i] * v2[i];
+                const diff = v1[i] - v2[i];
+                distSq += (diff * diff) * (weights[i] || 1.0);
             }
-            if (norm1 === 0 || norm2 === 0) return 0.0;
-            return dot / (Math.sqrt(norm1) * Math.sqrt(norm2));
+            return Math.sqrt(distSq);
         }
 
-        // Train / update student baseline vector
-        function learnStudentFaceSample(vec) {
+        // Calibrate / Lock verified student face baseline vector
+        function learnStudentFaceSample(vec, forceLock = false) {
             if (!vec) return;
             if (!trainedStudentBaseline) {
                 trainedStudentBaseline = [...vec];
                 trainedSampleCount = 1;
-            } else {
-                // Running moving average update
-                const alpha = trainedSampleCount < 10 ? 0.25 : 0.05;
+                if (forceLock) isBaselineCalibrated = true;
+            } else if (!isBaselineCalibrated) {
+                // Initial calibration averaging (first 5 samples only)
+                const alpha = 0.25;
                 for (let i = 0; i < trainedStudentBaseline.length; i++) {
                     trainedStudentBaseline[i] = (1 - alpha) * trainedStudentBaseline[i] + alpha * vec[i];
                 }
                 trainedSampleCount++;
+                if (trainedSampleCount >= 5 || forceLock) {
+                    isBaselineCalibrated = true; // Permanently lock baseline so impostors cannot drift it
+                }
             }
         }
 
@@ -898,7 +904,7 @@
                             const initialFaces = await blazeFaceModel.estimateFaces(video, false);
                             if (initialFaces && initialFaces.length === 1) {
                                 const vec = extractFaceBiometricVector(initialFaces[0]);
-                                if (vec) learnStudentFaceSample(vec);
+                                if (vec) learnStudentFaceSample(vec, true);
                             }
                         } catch (trainErr) {
                             console.warn("Initial ML baseline training error:", trainErr);
@@ -1401,15 +1407,14 @@
 
                                         if (liveVec) {
                                             if (!trainedStudentBaseline && !isBiometricMismatch) {
-                                                // Self-train first clean baseline sample
+                                                // Calibrate initial clean baseline sample
                                                 learnStudentFaceSample(liveVec);
                                             } else if (trainedStudentBaseline) {
-                                                const similarity = computeVectorSimilarity(trainedStudentBaseline, liveVec);
-                                                // If geometric proportions diverge below 0.82, it is a different person
-                                                if (similarity < 0.82) {
+                                                const dist = computeVectorDistance(trainedStudentBaseline, liveVec);
+                                                // If geometric distance exceeds 0.165, it is a different person / impostor
+                                                if (dist > 0.165) {
                                                     isMLPersonMatch = false;
-                                                } else {
-                                                    // Continuous learning: update running baseline with matching angles
+                                                } else if (!isBaselineCalibrated) {
                                                     learnStudentFaceSample(liveVec);
                                                 }
                                             }
@@ -1457,8 +1462,8 @@
                         const nowMs = Date.now();
                         if (ENABLE_VIDEO && validVisibleFaceCount > 0 && !isGracePeriod && !isBrowsingFile) {
                             if (!lastBiometricCheckTime) {
-                                lastBiometricCheckTime = nowMs - 12000; // First check fires ~3-4s after exam starts
-                            } else if (nowMs - lastBiometricCheckTime >= 14000) {
+                                lastBiometricCheckTime = nowMs - 6000; // First check fires ~2s after exam starts
+                            } else if (nowMs - lastBiometricCheckTime >= 8000) {
                                 lastBiometricCheckTime = nowMs;
                                 runInExamBiometricVerification(videoEl);
                             }
@@ -1503,18 +1508,18 @@
                             updateHudBadge('hud-face', alertLabel, 'rose');
 
                             // Instant Red Warning on canvas / toast if impostor appears:
-                            if (imposterConsecutiveCount < 3) {
+                            if (imposterConsecutiveCount < 2) {
                                 ctx.fillStyle = 'rgba(225, 29, 72, 0.85)';
                                 ctx.fillRect(10, 10, canvas.width - 20, 28);
                                 ctx.fillStyle = '#ffffff';
                                 ctx.font = 'bold 12px Inter, sans-serif';
-                                ctx.fillText('⚠️ UNRECOGNIZED / EXTRA PERSON IN VIEW — PLEASE CLEAR CAMERA (STRIKE IN 3s)', 18, 28);
+                                ctx.fillText('⚠️ UNRECOGNIZED / EXTRA PERSON IN VIEW — PLEASE CLEAR CAMERA (STRIKE IN 2s)', 18, 28);
                             } else {
                                 imposterConsecutiveCount = 0;
                                 if (totalPresence > 1) {
-                                    triggerViolation('multiple_faces', `Multiple persons (${totalPresence}) detected in webcam feed for more than 4 seconds.`);
+                                    triggerViolation('multiple_faces', `Multiple persons (${totalPresence}) detected in webcam feed.`);
                                 } else {
-                                    triggerViolation('impersonation_mismatch', `Impostor detected in webcam feed continuously for over 4 seconds.`);
+                                    triggerViolation('impersonation_mismatch', `Impostor detected in webcam feed.`);
                                 }
                             }
                         } else if (isFacePartiallyOccluded || (blazeFaceModel && blazeFaceCount > 0 && validVisibleFaceCount === 0)) {
@@ -1562,7 +1567,6 @@
                             imposterConsecutiveCount = 0;
                             faceOccludedConsecutiveCount = 0;
                             lookingAwayConsecutiveCount = 0;
-                            isBiometricMismatch = false; // Reset mismatch state when valid student face is confirmed
                             updateHudBadge('hud-face', '1 Person ✓', 'emerald');
                         }
 

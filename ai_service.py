@@ -1293,13 +1293,12 @@ OUTPUT FORMAT (JSON ONLY):
                 {"inline_data": {"mime_type": live_mime, "data": live_b64}}
             ]
 
-            # Active Gemini models in Generative Language API
+            # Active Gemini vision models in Generative Language API
             models = [
-                "gemini-3.8-flash",
-                "gemini-3.5-flash",
-                "gemini-3.5-flash-lite",
                 "gemini-flash-lite-latest",
-                "gemini-flash-latest"
+                "gemini-flash-latest",
+                "gemini-2.5-flash",
+                "gemini-2.5-flash-lite"
             ]
 
             keys_pool = parse_api_keys(gemini_key)
@@ -1314,7 +1313,7 @@ OUTPUT FORMAT (JSON ONLY):
                         }
                     }
                     try:
-                        resp = requests.post(url, json=payload, headers={"Content-Type": "application/json"}, timeout=12)
+                        resp = requests.post(url, json=payload, headers={"Content-Type": "application/json"}, timeout=8)
                         if resp.status_code == 200:
                             raw_text = resp.json()["candidates"][0]["content"]["parts"][0]["text"].strip()
                             if raw_text.startswith("```json"):
@@ -1338,13 +1337,96 @@ OUTPUT FORMAT (JSON ONLY):
                                 "model_used": f"Gemini Vision ({model_name})"
                             }
                         else:
-                            print(f"Gemini face verification error ({model_name}): status {resp.status_code} - {resp.text[:120]}")
+                            print(f"Gemini face verification error ({model_name}): status {resp.status_code}")
                     except Exception as e:
                         print(f"Gemini face verification exception ({model_name}): {e}")
         except Exception as enc_err:
             print(f"Gemini verification setup error: {enc_err}")
 
-    # 2. Robust Fallback: Local facial crop comparison (focuses on face center, ignoring clothes & background)
+    # 2. Try OpenRouter Vision AI (Nemotron Super VL)
+    openrouter_key = os.environ.get("OPENROUTER_API_KEY", "").strip()
+    if openrouter_key:
+        try:
+            from PIL import Image
+            import io
+
+            def prepare_fast_b64_or(img_path):
+                try:
+                    with Image.open(img_path) as im:
+                        im = im.convert('RGB')
+                        im.thumbnail((380, 380), Image.Resampling.LANCZOS)
+                        buf = io.BytesIO()
+                        im.save(buf, format='JPEG', quality=82, optimize=True)
+                        return base64.b64encode(buf.getvalue()).decode("utf-8")
+                except Exception:
+                    return ""
+
+            ref_b64_or = prepare_fast_b64_or(reference_image_path)
+            live_b64_or = prepare_fast_b64_or(live_snapshot_path)
+
+            if ref_b64_or and live_b64_or:
+                or_keys = parse_api_keys(openrouter_key)
+                for o_key in or_keys:
+                    or_prompt = (
+                        "You are a strict anti-cheating face verification AI for examinations. "
+                        "IMAGE 1 is the registered student reference photo. IMAGE 2 is the live webcam proctor feed. "
+                        "Compare the facial identity of the person in IMAGE 1 and IMAGE 2. "
+                        "Are they the EXACT SAME person, or is IMAGE 2 an impostor / different person taking the exam? "
+                        "Respond strictly in JSON format with keys: is_match (boolean: true if same person, false if different people), "
+                        "confidence (number 0-100), and reason (brief explanation)."
+                    )
+                    headers = {
+                        "Authorization": f"Bearer {o_key}",
+                        "Content-Type": "application/json"
+                    }
+                    payload = {
+                        "model": "nvidia/nemotron-3.5-super-vl:free",
+                        "messages": [
+                            {
+                                "role": "user",
+                                "content": [
+                                    {"type": "text", "text": or_prompt},
+                                    {"type": "image_url", "image_url": {"url": f"data:image/jpeg;base64,{ref_b64_or}"}},
+                                    {"type": "image_url", "image_url": {"url": f"data:image/jpeg;base64,{live_b64_or}"}}
+                                ]
+                            }
+                        ],
+                        "temperature": 0.1
+                    }
+                    try:
+                        resp = requests.post("https://openrouter.ai/api/v1/chat/completions", headers=headers, json=payload, timeout=12)
+                        if resp.status_code == 200:
+                            content = resp.json()["choices"][0]["message"]["content"].strip()
+                            if content.startswith("```json"):
+                                content = content[7:]
+                            if content.startswith("```"):
+                                content = content[3:]
+                            if content.endswith("```"):
+                                content = content[:-3]
+                            content = content.strip()
+                            # Parse json
+                            import re
+                            json_match = re.search(r'\{.*\}', content, re.DOTALL)
+                            if json_match:
+                                data = json.loads(json_match.group(0))
+                                is_match = bool(data.get("is_match", False))
+                                confidence = float(data.get("confidence", 0.0))
+                                reason = data.get("reason", "OpenRouter vision verification complete.")
+                                if not is_match:
+                                    confidence = 0.0
+                                return {
+                                    "success": True,
+                                    "is_match": is_match,
+                                    "confidence": round(confidence, 1),
+                                    "reason": reason,
+                                    "model_used": "OpenRouter (Nemotron Super VL)"
+                                }
+                    except Exception as or_err:
+                        print(f"OpenRouter face verification error: {or_err}")
+        except Exception as setup_or_err:
+            print(f"OpenRouter vision setup error: {setup_or_err}")
+
+    # 3. Robust Fallback: Local facial crop comparison (focuses on face center, ignoring clothes & background)
     try:
         import math
         from PIL import Image
