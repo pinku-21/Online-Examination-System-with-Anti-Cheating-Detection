@@ -522,13 +522,86 @@ def generate_questions_with_groq(api_key, text_content=None, num_questions=5, qu
             
     return {"success": False, "error": last_error or "Failed to generate questions with Groq."}
 
-def generate_questions_unified(gemini_key=None, groq_key=None, text_content=None, image_paths=None, num_questions=5, question_type="mcq", difficulty="Medium", custom_prompt=None, total_marks=None, available_figures=None):
+def generate_questions_with_openrouter(api_key, text_content=None, num_questions=5, question_type="mcq", difficulty="Medium", custom_prompt=None, total_marks=None, available_figures=None):
     """
-    PARALLEL AI Orchestrator: Fires Groq + Gemini simultaneously.
-    Returns the FIRST successful result — no waiting for the slow one.
-    Groq typically wins in 5-15s. Gemini handles images/PDFs.
+    Calls OpenRouter API using top free models (DeepSeek R1, Llama 3.3).
     """
-    if not gemini_key and not groq_key:
+    system_prompt = build_exam_system_prompt(
+        num_questions=num_questions, 
+        question_type=question_type, 
+        difficulty=difficulty, 
+        custom_prompt=custom_prompt, 
+        total_marks=total_marks,
+        available_figures=available_figures
+    )
+
+    user_prompt = f"Please generate the exam paper based strictly on this reference material:\n\n{text_content[:50000] if text_content else 'Academic examination questions requested by instructor'}"
+    
+    keys_pool = parse_api_keys(api_key)
+    if not keys_pool:
+        return {"success": False, "error": "No OpenRouter API key provided."}
+
+    # Free high-intelligence models on OpenRouter
+    models_to_try = [
+        "deepseek/deepseek-r1:free",
+        "meta-llama/llama-3.3-70b-instruct:free",
+        "deepseek/deepseek-chat:free",
+        "google/gemini-2.0-flash-exp:free"
+    ]
+    last_error = None
+    
+    for cur_key in keys_pool:
+        for model in models_to_try:
+            try:
+                resp = requests.post(
+                    "https://openrouter.ai/api/v1/chat/completions",
+                    headers={
+                        "Authorization": f"Bearer {cur_key}",
+                        "HTTP-Referer": "https://online-examination-system-with-anti.onrender.com",
+                        "X-Title": "Online Examination System Anti-Cheating",
+                        "Content-Type": "application/json"
+                    },
+                    json={
+                        "model": model,
+                        "messages": [
+                            {"role": "system", "content": system_prompt},
+                            {"role": "user", "content": user_prompt}
+                        ],
+                        "temperature": 0.3
+                    },
+                    timeout=120
+                )
+                if resp.status_code == 200:
+                    raw_text = resp.json()["choices"][0]["message"]["content"].strip()
+                    if "```json" in raw_text:
+                        raw_text = raw_text.split("```json")[1].split("```")[0].strip()
+                    elif "```" in raw_text:
+                        raw_text = raw_text.split("```")[1].split("```")[0].strip()
+                    
+                    start_idx = raw_text.find("[")
+                    end_idx = raw_text.rfind("]")
+                    if start_idx != -1 and end_idx != -1:
+                        raw_text = raw_text[start_idx:end_idx + 1]
+                    
+                    questions = json.loads(raw_text)
+                    if isinstance(questions, list) and len(questions) > 0:
+                        return {"success": True, "questions": questions, "model_used": f"OpenRouter ({model})"}
+                else:
+                    last_error = f"OpenRouter ({model}) Error ({resp.status_code}): {resp.text}"
+            except Exception as e:
+                last_error = str(e)
+            
+    return {"success": False, "error": last_error or "Failed to generate questions with OpenRouter."}
+
+def generate_questions_unified(gemini_key=None, groq_key=None, openrouter_key=None, text_content=None, image_paths=None, num_questions=5, question_type="mcq", difficulty="Medium", custom_prompt=None, total_marks=None, available_figures=None):
+    """
+    PARALLEL AI Multi-Provider Gateway:
+    Races Groq + Gemini + OpenRouter simultaneously.
+    Returns the FIRST successful result.
+    """
+    openrouter_key = openrouter_key or get_setting("openrouter_api_key", "") or os.environ.get("OPENROUTER_API_KEY", "").strip()
+
+    if not gemini_key and not groq_key and not openrouter_key:
         return generate_mock_questions(text_content or "", num_questions=num_questions, question_type=question_type, total_marks=total_marks)
 
     kwargs_gemini = dict(
@@ -552,13 +625,25 @@ def generate_questions_unified(gemini_key=None, groq_key=None, text_content=None
         total_marks=total_marks,
         available_figures=available_figures
     )
+    kwargs_openrouter = dict(
+        api_key=openrouter_key,
+        text_content=text_content,
+        num_questions=num_questions,
+        question_type=question_type,
+        difficulty=difficulty,
+        custom_prompt=custom_prompt,
+        total_marks=total_marks,
+        available_figures=available_figures
+    )
 
     futures_map = {}
     errors = []
 
-    with concurrent.futures.ThreadPoolExecutor(max_workers=2) as executor:
+    with concurrent.futures.ThreadPoolExecutor(max_workers=3) as executor:
         if groq_key:
             futures_map[executor.submit(generate_questions_with_groq, **kwargs_groq)] = "Groq"
+        if openrouter_key:
+            futures_map[executor.submit(generate_questions_with_openrouter, **kwargs_openrouter)] = "OpenRouter"
         if gemini_key:
             futures_map[executor.submit(generate_questions_with_gemini, **kwargs_gemini)] = "Gemini"
 
@@ -576,7 +661,7 @@ def generate_questions_unified(gemini_key=None, groq_key=None, text_content=None
                 errors.append(f"{provider}: {str(e)}")
                 print(f"{provider} exception: {e}")
 
-    # Both failed
+    # All failed
     return {
         "success": False,
         "error": "AI generation could not complete. " + " | ".join(errors) + ". Please check your API keys or quotas."

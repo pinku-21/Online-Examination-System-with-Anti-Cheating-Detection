@@ -551,8 +551,23 @@
                     </label>
                     <a href="https://console.groq.com/keys" target="_blank" class="text-[11px] text-sky-600 hover:underline font-semibold">Get Free Key ↗</a>
                 </div>
-                <input type="password" name="groq_api_key" placeholder="gsk_..." class="w-full px-3 py-2 border border-slate-300 rounded-lg text-xs focus:outline-none focus:ring-2 focus:ring-sky-500 font-mono">
+                <input type="text" name="groq_api_key" placeholder="gsk_..., gsk_... (comma-separated for pooling)" class="w-full px-3 py-2 border border-slate-300 rounded-lg text-xs focus:outline-none focus:ring-2 focus:ring-sky-500 font-mono">
                 <p class="text-[10px] text-slate-400 mt-1">Ultra-fast backup engine: Generates academic questions in under 1 second.</p>
+            </div>
+
+            <!-- OpenRouter -->
+            <div class="p-3 bg-slate-50 border border-slate-200 rounded-xl">
+                <div class="flex items-center justify-between mb-1.5">
+                    <label class="text-xs font-bold text-slate-800 flex items-center space-x-1.5">
+                        <span>OpenRouter (DeepSeek R1 / Llama 3.3 Free)</span>
+                        {% if has_openrouter_key %}
+                        <span class="px-2 py-0.5 rounded-full text-[10px] bg-emerald-100 text-emerald-700 font-bold">Active ({{ openrouter_key_mask }})</span>
+                        {% endif %}
+                    </label>
+                    <a href="https://openrouter.ai/keys" target="_blank" class="text-[11px] text-sky-600 hover:underline font-semibold">Get Free Key ↗</a>
+                </div>
+                <input type="text" name="openrouter_api_key" placeholder="sk-or-v1-..." class="w-full px-3 py-2 border border-slate-300 rounded-lg text-xs focus:outline-none focus:ring-2 focus:ring-sky-500 font-mono">
+                <p class="text-[10px] text-slate-400 mt-1">Multi-model hub: Gives access to DeepSeek R1 & Llama 3 free models.</p>
             </div>
 
             <div class="flex items-center justify-end space-x-2 pt-2">

@@ -635,10 +635,12 @@ def tutor_dashboard():
     
     gemini_key = get_setting("gemini_api_key", "") or os.environ.get("GEMINI_API_KEY", "").strip()
     groq_key = get_setting("groq_api_key", "") or os.environ.get("GROQ_API_KEY", "").strip()
+    openrouter_key = get_setting("openrouter_api_key", "") or os.environ.get("OPENROUTER_API_KEY", "").strip()
     public_url = get_setting("public_url", "")
     has_api_key = bool(
         (gemini_key and len(gemini_key.strip()) > 10) or 
-        (groq_key and len(groq_key.strip()) > 10)
+        (groq_key and len(groq_key.strip()) > 10) or
+        (openrouter_key and len(openrouter_key.strip()) > 10)
     )
     
     conn2 = get_connection()
@@ -672,8 +674,10 @@ def tutor_dashboard():
         has_api_key=has_api_key,
         has_gemini_key=bool(gemini_key and len(gemini_key.strip()) > 10),
         has_groq_key=bool(groq_key and len(groq_key.strip()) > 10),
+        has_openrouter_key=bool(openrouter_key and len(openrouter_key.strip()) > 10),
         gemini_key_mask=(f"{len([k for k in gemini_key.split(',') if k.strip()])} Keys Active" if "," in gemini_key else ((gemini_key[:4] + "..." + gemini_key[-4:]) if len(gemini_key) > 8 else "")),
         groq_key_mask=(f"{len([k for k in groq_key.split(',') if k.strip()])} Keys Active" if "," in groq_key else ((groq_key[:4] + "..." + groq_key[-4:]) if len(groq_key) > 8 else "")),
+        openrouter_key_mask=(f"{len([k for k in openrouter_key.split(',') if k.strip()])} Keys Active" if "," in openrouter_key else ((openrouter_key[:6] + "..." + openrouter_key[-4:]) if len(openrouter_key) > 10 else "")),
         public_url=public_url,
         security_incidents=security_incidents,
         sec_critical_count=sec_critical_count,
@@ -685,12 +689,15 @@ def tutor_dashboard():
 def tutor_save_settings():
     gemini_key = request.form.get("gemini_api_key", "").strip()
     groq_key = request.form.get("groq_api_key", "").strip()
+    openrouter_key = request.form.get("openrouter_api_key", "").strip()
     public_url = request.form.get("public_url", "").strip().rstrip("/")
     
     if gemini_key:
         set_setting("gemini_api_key", gemini_key)
     if groq_key:
         set_setting("groq_api_key", groq_key)
+    if openrouter_key:
+        set_setting("openrouter_api_key", openrouter_key)
     if public_url is not None:
         set_setting("public_url", public_url)
         
