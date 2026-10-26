@@ -484,22 +484,24 @@ def get_user_by_id(user_id):
 def get_student_submissions(user_id, roll_number=None):
     conn = get_connection()
     cursor = conn.cursor()
-    if user_id and roll_number:
-        cursor.execute("""
-            SELECT s.*, e.title as exam_title, e.max_warnings, e.passing_percentage, e.exam_code
-            FROM submissions s
-            JOIN exams e ON s.exam_id = e.id
-            WHERE s.user_id = ? OR s.roll_number = ?
-            ORDER BY s.started_at DESC
-        """, (user_id, roll_number))
-    elif user_id:
-        cursor.execute("""
-            SELECT s.*, e.title as exam_title, e.max_warnings, e.passing_percentage, e.exam_code
-            FROM submissions s
-            JOIN exams e ON s.exam_id = e.id
-            WHERE s.user_id = ?
-            ORDER BY s.started_at DESC
-        """, (user_id,))
+    if user_id:
+        # Strictly show this user's submissions. Only match roll_number if submission has no user_id (legacy unlinked).
+        if roll_number:
+            cursor.execute("""
+                SELECT s.*, e.title as exam_title, e.max_warnings, e.passing_percentage, e.exam_code
+                FROM submissions s
+                JOIN exams e ON s.exam_id = e.id
+                WHERE s.user_id = ? OR (s.user_id IS NULL AND s.roll_number = ?)
+                ORDER BY s.started_at DESC
+            """, (user_id, roll_number))
+        else:
+            cursor.execute("""
+                SELECT s.*, e.title as exam_title, e.max_warnings, e.passing_percentage, e.exam_code
+                FROM submissions s
+                JOIN exams e ON s.exam_id = e.id
+                WHERE s.user_id = ?
+                ORDER BY s.started_at DESC
+            """, (user_id,))
     elif roll_number:
         cursor.execute("""
             SELECT s.*, e.title as exam_title, e.max_warnings, e.passing_percentage, e.exam_code
