@@ -82,6 +82,16 @@ def apply_security_headers(response):
         
     return response
 
+@app.route("/health")
+@app.route("/ping")
+def health_check():
+    """Lightweight endpoint for uptime monitoring and keeping Render instance awake."""
+    return jsonify({
+        "status": "healthy",
+        "service": "Online Examination System",
+        "timestamp": get_current_time().isoformat()
+    }), 200
+
 # --- CYBERSECURITY HELPERS (Integrity & SIEM Classification) ---
 SECURITY_EVENT_CLASSIFICATION = {
     "virtual_camera_detected": {"code": "SEC-001", "severity": "CRITICAL", "desc": "Virtual Video Device / Stream Spoofing Attempt"},
