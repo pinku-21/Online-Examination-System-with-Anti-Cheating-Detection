@@ -1172,12 +1172,12 @@ OUTPUT FORMAT (JSON ONLY):
                 {"inline_data": {"mime_type": live_mime, "data": live_b64}}
             ]
 
-            # Current active Gemini vision models (fastest and most reliable first)
+            # Active Gemini models in Generative Language API
             models = [
-                "gemini-2.0-flash",
-                "gemini-1.5-flash",
-                "gemini-1.5-flash-latest",
-                "gemini-2.5-flash",
+                "gemini-3.8-flash",
+                "gemini-3.5-flash",
+                "gemini-3.5-flash-lite",
+                "gemini-flash-lite-latest",
                 "gemini-flash-latest"
             ]
 
@@ -1191,7 +1191,7 @@ OUTPUT FORMAT (JSON ONLY):
                     }
                 }
                 try:
-                    resp = requests.post(url, json=payload, headers={"Content-Type": "application/json"}, timeout=10)
+                    resp = requests.post(url, json=payload, headers={"Content-Type": "application/json"}, timeout=12)
                     if resp.status_code == 200:
                         raw_text = resp.json()["candidates"][0]["content"]["parts"][0]["text"].strip()
                         if raw_text.startswith("```json"):
@@ -1230,11 +1230,11 @@ OUTPUT FORMAT (JSON ONLY):
             with Image.open(img_path) as im:
                 im = im.convert('L')
                 w, h = im.size
-                # Center crop to isolate face: remove top 10% (ceiling) and bottom 20% (shirt/chest)
+                # Center crop to isolate face: remove top 12% (ceiling/hair) and bottom 22% (shirt/chest)
                 left = int(w * 0.15)
-                top = int(h * 0.10)
+                top = int(h * 0.12)
                 right = int(w * 0.85)
-                bottom = int(h * 0.80)
+                bottom = int(h * 0.78)
                 cropped = im.crop((left, top, right, bottom))
                 return cropped.resize((64, 64))
 
@@ -1251,10 +1251,10 @@ OUTPUT FORMAT (JSON ONLY):
         corr = sum(((x - m1) / std1) * ((y - m2) / std2) for x, y in zip(p1, p2)) / n
         norm_corr = max(0.0, corr)
 
-        # Realistic face similarity cutoff for center facial structure
-        is_m = (norm_corr >= 0.58)
+        # Realistic face similarity cutoff for center facial structure across lighting/camera tilts
+        is_m = (norm_corr >= 0.42)
         if is_m:
-            conf = round(75.0 + min(22.0, (norm_corr - 0.58) * 45.0), 1)
+            conf = round(75.0 + min(22.0, (norm_corr - 0.42) * 45.0), 1)
         else:
             conf = 0.0
 
