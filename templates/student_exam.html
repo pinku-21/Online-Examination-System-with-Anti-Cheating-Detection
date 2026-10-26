@@ -1406,24 +1406,26 @@
                                         let isMLPersonMatch = true;
 
                                         if (liveVec) {
-                                            if (!trainedStudentBaseline && !isBiometricMismatch) {
+                                            if (!trainedStudentBaseline) {
                                                 // Calibrate initial clean baseline sample
                                                 learnStudentFaceSample(liveVec);
-                                            } else if (trainedStudentBaseline) {
+                                            } else {
                                                 const dist = computeVectorDistance(trainedStudentBaseline, liveVec);
-                                                // If geometric distance exceeds 0.165, it is a different person / impostor
-                                                if (dist > 0.165) {
+                                                // Dynamic threshold: > 0.185 is clearly a different person (impostor)
+                                                // Natural movement/angles of the same student stay within 0.05 - 0.14
+                                                if (dist > 0.185) {
                                                     isMLPersonMatch = false;
-                                                } else if (!isBaselineCalibrated) {
-                                                    learnStudentFaceSample(liveVec);
                                                 }
                                             }
                                         }
 
-                                        if (isBiometricMismatch || !isMLPersonMatch) {
+                                        // Update frame-by-frame mismatch state dynamically:
+                                        // If this frame is a match, clear mismatch; if an impostor, flag it!
+                                        if (!isMLPersonMatch) {
                                             isBiometricMismatch = true;
                                             drawBoundingBox(ctx, [tl[0], tl[1], w, h], '⚠️ Impostor Detected', '#f43f5e');
                                         } else {
+                                            isBiometricMismatch = false;
                                             drawBoundingBox(ctx, [tl[0], tl[1], w, h], 'Face ✓', '#10b981');
                                         }
                                     }
@@ -1507,13 +1509,13 @@
                             const alertLabel = totalPresence > 1 ? `${totalPresence} People ⚠️` : 'Mismatch ❌';
                             updateHudBadge('hud-face', alertLabel, 'rose');
 
-                            // Instant Red Warning on canvas / toast if impostor appears:
-                            if (imposterConsecutiveCount < 2) {
+                            // Red Warning on canvas / toast while extra person is present:
+                            if (imposterConsecutiveCount < 3) {
                                 ctx.fillStyle = 'rgba(225, 29, 72, 0.85)';
                                 ctx.fillRect(10, 10, canvas.width - 20, 28);
                                 ctx.fillStyle = '#ffffff';
                                 ctx.font = 'bold 12px Inter, sans-serif';
-                                ctx.fillText('⚠️ UNRECOGNIZED / EXTRA PERSON IN VIEW — PLEASE CLEAR CAMERA (STRIKE IN 2s)', 18, 28);
+                                ctx.fillText('⚠️ UNRECOGNIZED / EXTRA PERSON IN VIEW — PLEASE CLEAR CAMERA (STRIKE IN 3s)', 18, 28);
                             } else {
                                 imposterConsecutiveCount = 0;
                                 if (totalPresence > 1) {
