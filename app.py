@@ -2868,12 +2868,21 @@ def api_submission_publish_status(submission_id):
     """Allows student result page to poll and automatically refresh once tutor publishes."""
     conn = get_connection()
     cursor = conn.cursor()
-    cursor.execute("SELECT is_published FROM submissions WHERE id = ?", (submission_id,))
+    cursor.execute("""
+        SELECT s.id, s.is_published, e.results_published
+        FROM submissions s
+        JOIN exams e ON s.exam_id = e.id
+        WHERE s.id = ?
+    """, (submission_id,))
     row = cursor.fetchone()
     conn.close()
+
     if not row:
-        return jsonify({"published": False}), 404
-    return jsonify({"published": bool(row["is_published"])})
+        return jsonify({"success": False, "error": "Submission not found."}), 404
+
+    is_pub = bool(row["is_published"] or row["results_published"])
+    return jsonify({"success": True, "is_published": is_pub, "published": is_pub})
+
 
 
 # ---------------------------------------------------------------------------
