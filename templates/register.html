@@ -25,11 +25,11 @@
             {% endif %}
         {% endwith %}
 
-        <form action="/register" method="POST" enctype="multipart/form-data" class="space-y-4">
+        <form action="/register" method="POST" enctype="multipart/form-data" class="space-y-4" id="registration-form" autocomplete="on">
             <div>
                 <label class="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1.5">Full Name *</label>
                 <div class="relative">
-                    <input type="text" name="full_name" required placeholder="e.g. Rahul Sharma" class="w-full pl-10 pr-4 py-2.5 bg-slate-50 border border-slate-300 rounded-xl text-sm focus:bg-white focus:outline-none focus:ring-2 focus:ring-sky-500">
+                    <input type="text" name="full_name" id="full_name" required placeholder="e.g. Rahul Sharma" autocomplete="name" class="w-full pl-10 pr-4 py-2.5 bg-slate-50 border border-slate-300 rounded-xl text-sm focus:bg-white focus:outline-none focus:ring-2 focus:ring-sky-500">
                     <i data-lucide="user" class="w-4 h-4 text-slate-400 absolute left-3.5 top-3"></i>
                 </div>
             </div>
@@ -37,30 +37,77 @@
             <div class="grid grid-cols-2 gap-3">
                 <div>
                     <label class="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1.5">Roll Number *</label>
-                    <input type="text" name="roll_number" required placeholder="e.g. 21CS042" class="w-full px-3 py-2.5 bg-slate-50 border border-slate-300 rounded-xl text-sm font-mono focus:bg-white focus:outline-none focus:ring-2 focus:ring-sky-500">
+                    <input type="text" name="roll_number" id="roll_number" required placeholder="e.g. 21CS042" autocomplete="off" class="w-full px-3 py-2.5 bg-slate-50 border border-slate-300 rounded-xl text-sm font-mono focus:bg-white focus:outline-none focus:ring-2 focus:ring-sky-500">
                 </div>
                 <div>
                     <label class="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1.5">Username *</label>
-                    <input type="text" name="username" required placeholder="e.g. rahul21" class="w-full px-3 py-2.5 bg-slate-50 border border-slate-300 rounded-xl text-sm focus:bg-white focus:outline-none focus:ring-2 focus:ring-sky-500">
+                    <input type="text" name="username" id="username" required placeholder="e.g. rahul21" autocomplete="username" class="w-full px-3 py-2.5 bg-slate-50 border border-slate-300 rounded-xl text-sm focus:bg-white focus:outline-none focus:ring-2 focus:ring-sky-500">
                 </div>
             </div>
 
             <div class="grid grid-cols-2 gap-3">
                 <div>
                     <label class="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1.5">Class / Batch (Optional)</label>
-                    <input type="text" name="class_name" placeholder="e.g. Class 10-A" class="w-full px-3 py-2.5 bg-slate-50 border border-slate-300 rounded-xl text-sm focus:bg-white focus:outline-none focus:ring-2 focus:ring-sky-500">
+                    <input type="text" name="class_name" id="class_name" placeholder="e.g. Class 10-A" autocomplete="organization-title" class="w-full px-3 py-2.5 bg-slate-50 border border-slate-300 rounded-xl text-sm focus:bg-white focus:outline-none focus:ring-2 focus:ring-sky-500">
                 </div>
                 <div>
                     <label class="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1.5">Email Address (Optional)</label>
-                    <input type="email" name="email" placeholder="e.g. student@school.com" class="w-full px-3 py-2.5 bg-slate-50 border border-slate-300 rounded-xl text-sm focus:bg-white focus:outline-none focus:ring-2 focus:ring-sky-500">
+                    <input type="email" name="email" id="email" placeholder="e.g. student@school.com" autocomplete="email" class="w-full px-3 py-2.5 bg-slate-50 border border-slate-300 rounded-xl text-sm focus:bg-white focus:outline-none focus:ring-2 focus:ring-sky-500">
                 </div>
             </div>
 
+            <!-- Password with Live Security Monitor -->
             <div>
-                <label class="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1.5">Create Password *</label>
+                <div class="flex items-center justify-between mb-1.5">
+                    <label class="block text-xs font-bold text-slate-700 uppercase tracking-wider">Create Password *</label>
+                    <button type="button" onclick="generateStrongPassword()" class="text-[11px] font-bold text-sky-600 hover:text-sky-700 flex items-center gap-1 transition">
+                        <i data-lucide="sparkles" class="w-3 h-3"></i>
+                        <span>Auto-Generate Strong</span>
+                    </button>
+                </div>
+                
                 <div class="relative">
-                    <input type="password" name="password" required minlength="4" placeholder="••••••••" class="w-full pl-10 pr-4 py-2.5 bg-slate-50 border border-slate-300 rounded-xl text-sm focus:bg-white focus:outline-none focus:ring-2 focus:ring-sky-500 font-mono">
+                    <input type="password" name="password" id="password" required minlength="8" placeholder="Enter a strong password" autocomplete="new-password" class="w-full pl-10 pr-10 py-2.5 bg-slate-50 border border-slate-300 rounded-xl text-sm focus:bg-white focus:outline-none focus:ring-2 focus:ring-sky-500 font-mono transition">
                     <i data-lucide="lock" class="w-4 h-4 text-slate-400 absolute left-3.5 top-3"></i>
+                    <button type="button" onclick="togglePasswordVisibility()" class="absolute right-3 top-2.5 text-slate-400 hover:text-slate-600 p-0.5">
+                        <i data-lucide="eye" id="pwd-eye-icon" class="w-4 h-4"></i>
+                    </button>
+                </div>
+
+                <!-- Password Strength Visual Indicator -->
+                <div class="mt-2.5 bg-slate-50 p-3 rounded-xl border border-slate-200">
+                    <div class="flex items-center justify-between mb-1.5">
+                        <span class="text-[11px] font-bold text-slate-600">Password Strength:</span>
+                        <span id="strength-label" class="text-[11px] font-black uppercase tracking-wider text-slate-400">Empty</span>
+                    </div>
+                    
+                    <!-- Strength Progress Bars -->
+                    <div class="grid grid-cols-4 gap-1.5 h-1.5 mb-2.5">
+                        <div id="bar-1" class="h-full rounded-full bg-slate-200 transition-all duration-300"></div>
+                        <div id="bar-2" class="h-full rounded-full bg-slate-200 transition-all duration-300"></div>
+                        <div id="bar-3" class="h-full rounded-full bg-slate-200 transition-all duration-300"></div>
+                        <div id="bar-4" class="h-full rounded-full bg-slate-200 transition-all duration-300"></div>
+                    </div>
+
+                    <!-- Checklist Criteria -->
+                    <div class="grid grid-cols-2 gap-1.5 text-[11px] text-slate-500">
+                        <div id="crit-length" class="flex items-center gap-1.5">
+                            <i data-lucide="circle" class="w-3 h-3 text-slate-300 flex-shrink-0"></i>
+                            <span>At least 8 characters</span>
+                        </div>
+                        <div id="crit-upper" class="flex items-center gap-1.5">
+                            <i data-lucide="circle" class="w-3 h-3 text-slate-300 flex-shrink-0"></i>
+                            <span>Uppercase (A-Z)</span>
+                        </div>
+                        <div id="crit-number" class="flex items-center gap-1.5">
+                            <i data-lucide="circle" class="w-3 h-3 text-slate-300 flex-shrink-0"></i>
+                            <span>Number (0-9)</span>
+                        </div>
+                        <div id="crit-special" class="flex items-center gap-1.5">
+                            <i data-lucide="circle" class="w-3 h-3 text-slate-300 flex-shrink-0"></i>
+                            <span>Special symbol (!@#$)</span>
+                        </div>
+                    </div>
                 </div>
             </div>
 
@@ -77,8 +124,8 @@
                         </label>
                     </div>
                     <div class="flex-1">
-                        <p class="text-xs font-bold text-sky-800">Biometric Verification Photo <span class="font-normal text-sky-400">(Optional but Recommended)</span></p>
-                        <p class="text-[11px] text-sky-600 mt-0.5 leading-relaxed">Upload a clear photo of your face. The AI system will verify your identity before each exam to prevent impersonation. You can also upload this later from your dashboard.</p>
+                        <p class="text-xs font-bold text-sky-800">Biometric Verification Photo <span class="font-normal text-sky-400">(Optional)</span></p>
+                        <p class="text-[11px] text-sky-600 mt-0.5 leading-relaxed">Upload a clear photo for identity verification before exams.</p>
                         <label for="reg-photo-input" class="mt-2 inline-flex items-center gap-1.5 px-3 py-1.5 bg-sky-600 hover:bg-sky-700 text-white text-xs font-semibold rounded-lg cursor-pointer transition">
                             <i data-lucide="upload" class="w-3 h-3"></i>
                             <span id="reg-photo-label">Choose Photo</span>
@@ -88,7 +135,7 @@
                 <input type="file" id="reg-photo-input" name="profile_photo" accept="image/*" class="hidden" onchange="previewRegPhoto(event)">
             </div>
 
-            <button type="submit" class="w-full py-3.5 bg-sky-600 hover:bg-sky-700 text-white font-bold rounded-xl shadow-lg shadow-sky-600/20 transition flex items-center justify-center space-x-2 text-sm mt-5">
+            <button type="submit" id="submit-btn" class="w-full py-3.5 bg-sky-600 hover:bg-sky-700 text-white font-bold rounded-xl shadow-lg shadow-sky-600/20 transition flex items-center justify-center space-x-2 text-sm mt-5 disabled:opacity-50 disabled:cursor-not-allowed">
                 <span>Create Student Account</span>
                 <i data-lucide="arrow-right" class="w-4 h-4"></i>
             </button>
@@ -125,5 +172,130 @@
         };
         reader.readAsDataURL(file);
     }
+
+    const pwdInput = document.getElementById('password');
+    const strengthLabel = document.getElementById('strength-label');
+    const bars = [document.getElementById('bar-1'), document.getElementById('bar-2'), document.getElementById('bar-3'), document.getElementById('bar-4')];
+
+    const critLength = document.getElementById('crit-length');
+    const critUpper = document.getElementById('crit-upper');
+    const critNumber = document.getElementById('crit-number');
+    const critSpecial = document.getElementById('crit-special');
+
+    function updateCriterion(el, isValid) {
+        const icon = el.querySelector('i');
+        if (isValid) {
+            el.className = "flex items-center gap-1.5 text-emerald-600 font-medium";
+            icon.setAttribute('data-lucide', 'check-circle-2');
+            icon.className = "w-3 h-3 text-emerald-500 flex-shrink-0";
+        } else {
+            el.className = "flex items-center gap-1.5 text-slate-500";
+            icon.setAttribute('data-lucide', 'circle');
+            icon.className = "w-3 h-3 text-slate-300 flex-shrink-0";
+        }
+    }
+
+    function evaluatePassword(pwd) {
+        const hasLength = pwd.length >= 8;
+        const hasUpper = /[A-Z]/.test(pwd);
+        const hasNumber = /[0-9]/.test(pwd);
+        const hasSpecial = /[^A-Za-z0-9]/.test(pwd);
+
+        updateCriterion(critLength, hasLength);
+        updateCriterion(critUpper, hasUpper);
+        updateCriterion(critNumber, hasNumber);
+        updateCriterion(critSpecial, hasSpecial);
+        if (window.lucide) window.lucide.createIcons();
+
+        let score = 0;
+        if (pwd.length > 0) score++;
+        if (hasLength) score++;
+        if (hasUpper && hasNumber) score++;
+        if (hasSpecial && pwd.length >= 10) score++;
+
+        // Reset bars
+        bars.forEach(b => {
+            b.className = "h-full rounded-full bg-slate-200 transition-all duration-300";
+        });
+
+        if (pwd.length === 0) {
+            strengthLabel.textContent = "Empty";
+            strengthLabel.className = "text-[11px] font-black uppercase tracking-wider text-slate-400";
+            return 0;
+        }
+
+        if (score === 1) {
+            strengthLabel.textContent = "Weak";
+            strengthLabel.className = "text-[11px] font-black uppercase tracking-wider text-rose-500";
+            bars[0].className = "h-full rounded-full bg-rose-500 transition-all duration-300";
+        } else if (score === 2) {
+            strengthLabel.textContent = "Fair";
+            strengthLabel.className = "text-[11px] font-black uppercase tracking-wider text-amber-500";
+            bars[0].className = bars[1].className = "h-full rounded-full bg-amber-500 transition-all duration-300";
+        } else if (score === 3) {
+            strengthLabel.textContent = "Good";
+            strengthLabel.className = "text-[11px] font-black uppercase tracking-wider text-sky-500";
+            bars[0].className = bars[1].className = bars[2].className = "h-full rounded-full bg-sky-500 transition-all duration-300";
+        } else {
+            strengthLabel.textContent = "Strong";
+            strengthLabel.className = "text-[11px] font-black uppercase tracking-wider text-emerald-600";
+            bars.forEach(b => b.className = "h-full rounded-full bg-emerald-500 transition-all duration-300");
+        }
+
+        return score;
+    }
+
+    if (pwdInput) {
+        pwdInput.addEventListener('input', (e) => evaluatePassword(e.target.value));
+    }
+
+    function togglePasswordVisibility() {
+        const icon = document.getElementById('pwd-eye-icon');
+        if (pwdInput.type === 'password') {
+            pwdInput.type = 'text';
+            icon.setAttribute('data-lucide', 'eye-off');
+        } else {
+            pwdInput.type = 'password';
+            icon.setAttribute('data-lucide', 'eye');
+        }
+        if (window.lucide) window.lucide.createIcons();
+    }
+
+    function generateStrongPassword() {
+        const charset = "abcdefghjkmnpqrstuvwxyzABCDEFGHJKLMNPQRSTUVWXYZ23456789!@#$%^&*";
+        let pass = "";
+        pass += "ABCDEFGHJKLMNPQRSTUVWXYZ"[Math.floor(Math.random() * 24)];
+        pass += "abcdefghjkmnpqrstuvwxyz"[Math.floor(Math.random() * 24)];
+        pass += "23456789"[Math.floor(Math.random() * 8)];
+        pass += "!@#$%^&*"[Math.floor(Math.random() * 8)];
+        for (let i = 4; i < 12; i++) {
+            pass += charset[Math.floor(Math.random() * charset.length)];
+        }
+        // Shuffle
+        pass = pass.split('').sort(() => 0.5 - Math.random()).join('');
+        pwdInput.value = pass;
+        pwdInput.type = 'text';
+        const eyeIcon = document.getElementById('pwd-eye-icon');
+        if (eyeIcon) eyeIcon.setAttribute('data-lucide', 'eye-off');
+        evaluatePassword(pass);
+    }
+
+    // Form submission validation
+    const regForm = document.getElementById('registration-form');
+    if (regForm) {
+        regForm.addEventListener('submit', function(e) {
+            const pwd = pwdInput.value;
+            const hasLength = pwd.length >= 8;
+            const hasUpper = /[A-Z]/.test(pwd);
+            const hasNumber = /[0-9]/.test(pwd);
+
+            if (!hasLength || !hasUpper || !hasNumber) {
+                e.preventDefault();
+                alert("Please make your password stronger:\n- At least 8 characters\n- At least 1 uppercase letter (A-Z)\n- At least 1 number (0-9)");
+                pwdInput.focus();
+            }
+        });
+    }
 </script>
 {% endblock %}
+

@@ -25,6 +25,9 @@ scratch/
 
 # Editor settings
 .vscode/
+.agents/
+static/extracted_figures/
+
 # Local database backups
 database_backup.py
 database_before_neon.py

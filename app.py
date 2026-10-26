@@ -364,8 +364,8 @@ def register():
             flash("Full Name, Roll Number, Username, and Password are all required.", "danger")
             return render_template("register.html")
 
-        if len(password) < 4:
-            flash("Password must be at least 4 characters long.", "danger")
+        if len(password) < 8 or not any(c.isupper() for c in password) or not any(c.isdigit() for c in password):
+            flash("Password must be strong: minimum 8 characters with at least 1 uppercase letter (A-Z) and 1 number (0-9).", "danger")
             return render_template("register.html")
 
         # Save profile photo if provided
@@ -2442,11 +2442,14 @@ def api_log_violation(submission_id):
     Increments warning counter. If warnings >= max_warnings, terminates exam immediately.
     """
     data = request.get_json() or {}
-    violation_type = data.get("type", "unknown")
-    details = data.get("details", "")
-    client_ip = request.headers.get("X-Forwarded-For", request.remote_addr or "")
-    if "," in client_ip:
-        client_ip = client_ip.split(",")[0].strip()
+    violation_type = (data.get("type") or "unknown").strip()
+    raw_details = data.get("details", "")
+    details = str(raw_details)[:500] if raw_details else ""
+    client_ip = (request.remote_addr or "127.0.0.1").strip()
+    if request.headers.get("X-Forwarded-For"):
+        forwarded = request.headers.get("X-Forwarded-For").split(",")[0].strip()
+        if forwarded:
+            client_ip = forwarded
     
     sec_meta = classify_security_event(violation_type)
     event_code = sec_meta.get("code", "SEC-ALERT")
@@ -2532,14 +2535,21 @@ def api_submit_exam(submission_id):
     """Calculates final score, records completion, and computes cryptographic integrity hash."""
     data = request.get_json() or {}
     answers = data.get("answers", {})  # {str(question_id): selected_answer}
-    client_ip = request.headers.get("X-Forwarded-For", request.remote_addr or "")
-    if "," in client_ip:
-        client_ip = client_ip.split(",")[0].strip()
+    client_ip = (request.remote_addr or "127.0.0.1").strip()
+    if request.headers.get("X-Forwarded-For"):
+        forwarded = request.headers.get("X-Forwarded-For").split(",")[0].strip()
+        if forwarded:
+            client_ip = forwarded
     
     conn = get_connection()
     cursor = conn.cursor()
     
-    cursor.execute("SELECT * FROM submissions WHERE id = ?", (submission_id,))
+    cursor.execute("""
+        SELECT s.*, e.duration_minutes 
+        FROM submissions s
+        JOIN exams e ON s.exam_id = e.id
+        WHERE s.id = ?
+    """, (submission_id,))
     submission = cursor.fetchone()
     
     if not submission or submission["status"] not in ["in_progress"]:

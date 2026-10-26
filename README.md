@@ -52,7 +52,7 @@ As an online tutor or educator, two major challenges exist in remote education:
 
 ## 🛠️ Technology Stack
 - **Backend**: Python 3.13, Flask
-- **Database**: SQLite (built-in, zero external setup required)
+- **Database**: SQLite (built-in, zero external setup required) and NEON
 - **AI Question Generation**: Google Gemini API & Groq Cloud API
 - **Computer Vision & Proctoring**: TensorFlow.js, COCO-SSD, Web Audio API
 - **Document Processing**: `pypdf` for PDF text extraction, `Pillow` for image formatting
