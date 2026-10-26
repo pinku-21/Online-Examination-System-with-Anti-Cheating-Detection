@@ -368,7 +368,11 @@ def register():
             flash("Password must be strong: minimum 8 characters with at least 1 uppercase letter (A-Z) and 1 number (0-9).", "danger")
             return render_template("register.html")
 
-        # Save profile photo if provided
+        if not photo_file or not photo_file.filename:
+            flash("Biometric Reference Photo is required for student registration to prevent exam impersonation.", "danger")
+            return render_template("register.html")
+
+        # Save profile photo
         profile_photo_url = ""
         if photo_file and photo_file.filename:
             _, ext = os.path.splitext(secure_filename(photo_file.filename))
@@ -1151,7 +1155,7 @@ def api_verify_face_ai(submission_id):
     if snap_bytes:
         save_persistent_asset(f"verified_faces/{snapshot_filename}", "image/jpeg", snap_bytes)
 
-    # Check for reference photo (by linked user, roll number, or session)
+    # Check for registered reference photo (by linked user, roll number, or session)
     ref_photo_url = (sub_row["profile_photo"] or "").strip()
     if not ref_photo_url and sub_row.get("roll_number"):
         cursor.execute("SELECT profile_photo FROM users WHERE LOWER(roll_number) = LOWER(?) AND profile_photo != ''", (sub_row["roll_number"],))
@@ -1161,57 +1165,14 @@ def api_verify_face_ai(submission_id):
     if not ref_photo_url and session.get("profile_photo"):
         ref_photo_url = session.get("profile_photo", "").strip()
 
-    # If student explicitly uploaded/registered a custom reference photo file:
-    custom_ref_file = request.files.get("reference_photo")
-    if custom_ref_file and custom_ref_file.filename:
-        p_dir = os.path.join(os.path.dirname(__file__), "static", "profile_photos")
-        os.makedirs(p_dir, exist_ok=True)
-        p_name = f"user_{sub_row['user_id'] or submission_id}_{int(datetime.now().timestamp())}.jpg"
-        p_path = os.path.join(p_dir, p_name)
-        ref_bytes = custom_ref_file.read()
-        with open(p_path, "wb") as pf:
-            pf.write(ref_bytes)
-        save_persistent_asset(f"profile_photos/{p_name}", custom_ref_file.mimetype or "image/jpeg", ref_bytes)
-        ref_photo_url = f"/static/profile_photos/{p_name}"
-        if sub_row["user_id"]:
-            cursor.execute("UPDATE users SET profile_photo = ? WHERE id = ?", (ref_photo_url, sub_row["user_id"]))
-            conn.commit()
-        session["profile_photo"] = ref_photo_url
-
+    # Zero-Trust Security: Candidates CANNOT upload or swap photos during exam verification.
+    # An official reference photo must already be registered with their account.
     if not ref_photo_url:
-        # First time taking exam and no photo was provided at all:
-        # save this clean webcam scan as their registered reference photo
-        p_dir = os.path.join(os.path.dirname(__file__), "static", "profile_photos")
-        os.makedirs(p_dir, exist_ok=True)
-        p_name = f"user_{sub_row['user_id'] or submission_id}_{int(datetime.now().timestamp())}.jpg"
-        p_path = os.path.join(p_dir, p_name)
-        with open(snapshot_path, "rb") as sf:
-            snap_bytes = sf.read()
-        with open(p_path, "wb") as df:
-            df.write(snap_bytes)
-        save_persistent_asset(f"profile_photos/{p_name}", "image/jpeg", snap_bytes)
-        ref_photo_url = f"/static/profile_photos/{p_name}"
-        if sub_row["user_id"]:
-            cursor.execute("UPDATE users SET profile_photo = ? WHERE id = ?", (ref_photo_url, sub_row["user_id"]))
-            conn.commit()
-        session["profile_photo"] = ref_photo_url
-
-        cursor.execute("""
-            UPDATE submissions 
-            SET verified_face_url = ?, is_face_verified = 1, face_match_confidence = 100.0
-            WHERE id = ?
-        """, (snapshot_rel_url, submission_id))
-        conn.commit()
         conn.close()
         return jsonify({
-            "success": True,
-            "is_match": True,
-            "confidence": 100.0,
-            "is_first_registration": True,
-            "verified_face_url": snapshot_rel_url,
-            "reference_photo_url": ref_photo_url,
-            "reason": "Official reference identity registered and verified successfully from live webcam scan."
-        })
+            "success": False,
+            "error": "No registered reference photo found on your account. Please log in to your profile and upload an official photo, or contact your tutor before taking this exam."
+        }), 403
 
     # Resolve local reference image path
     clean_ref = ref_photo_url.lstrip("/").replace("/", os.sep)
