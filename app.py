@@ -2868,20 +2868,98 @@ def api_submission_publish_status(submission_id):
     """Allows student result page to poll and automatically refresh once tutor publishes."""
     conn = get_connection()
     cursor = conn.cursor()
-    cursor.execute("""
-        SELECT s.id, s.is_published, e.results_published
-        FROM submissions s
-        JOIN exams e ON s.exam_id = e.id
-        WHERE s.id = ?
-    """, (submission_id,))
+    cursor.execute("SELECT is_published FROM submissions WHERE id = ?", (submission_id,))
     row = cursor.fetchone()
     conn.close()
-
     if not row:
-        return jsonify({"success": False, "error": "Submission not found."}), 404
+        return jsonify({"published": False}), 404
+    return jsonify({"published": bool(row["is_published"])})
 
-    is_pub = bool(row["is_published"] or row["results_published"])
-    return jsonify({"success": True, "is_published": is_pub})
+
+# ---------------------------------------------------------------------------
+# Live Proctoring Cockpit API: Real-time candidate telemetry & status stream
+# ---------------------------------------------------------------------------
+@app.route("/api/tutor/exam/<int:exam_id>/live-proctor", methods=["GET"])
+@admin_required
+def api_exam_live_proctor(exam_id):
+    """Returns active and recent candidate telemetry for the real-time proctoring cockpit."""
+    conn = get_connection()
+    cursor = conn.cursor()
+    
+    cursor.execute("""
+        SELECT s.id, s.exam_id, s.user_id, s.student_name, s.roll_number, s.status,
+               s.warnings_count, s.score, s.total_points, s.client_ip, s.time_remaining_seconds,
+               s.started_at, s.submitted_at, s.verified_face_url, s.is_face_verified,
+               s.face_match_confidence, s.pause_reason,
+               u.profile_photo AS student_profile_photo,
+               (SELECT COUNT(*) FROM violations v WHERE v.submission_id = s.id) AS violation_count,
+               (SELECT v.violation_type FROM violations v WHERE v.submission_id = s.id ORDER BY v.timestamp DESC LIMIT 1) AS last_violation_type,
+               (SELECT v.timestamp FROM violations v WHERE v.submission_id = s.id ORDER BY v.timestamp DESC LIMIT 1) AS last_violation_time
+        FROM submissions s
+        LEFT JOIN users u ON s.user_id = u.id
+        WHERE s.exam_id = ?
+        ORDER BY 
+            CASE 
+                WHEN s.status = 'in_progress' THEN 1
+                WHEN s.status = 'pause_requested' THEN 2
+                WHEN s.status = 'paused' THEN 3
+                WHEN s.status = 'terminated' THEN 4
+                ELSE 5
+            END,
+            s.started_at DESC
+    """, (exam_id,))
+    
+    rows = cursor.fetchall()
+    conn.close()
+    
+    candidates = []
+    for r in rows:
+        d = dict(r)
+        candidates.append(d)
+        
+    return jsonify({
+        "success": True,
+        "exam_id": exam_id,
+        "total_candidates": len(candidates),
+        "candidates": candidates
+    })
+
+
+@app.route("/api/tutor/submission/<int:submission_id>/force-terminate", methods=["POST"])
+@admin_required
+def api_tutor_force_terminate(submission_id):
+    """Tutor immediately terminates an active exam session for severe malpractice."""
+    data = request.get_json() or {}
+    reason = (data.get("reason") or "Directly terminated by Proctor for academic malpractice.").strip()
+    
+    conn = get_connection()
+    cursor = conn.cursor()
+    cursor.execute("SELECT id, exam_id, student_name, status FROM submissions WHERE id = ?", (submission_id,))
+    sub = cursor.fetchone()
+    
+    if not sub:
+        conn.close()
+        return jsonify({"success": False, "error": "Submission not found."}), 404
+        
+    cursor.execute("""
+        UPDATE submissions 
+        SET status = 'terminated', termination_reason = ? 
+        WHERE id = ?
+    """, (reason, submission_id))
+    
+    # Log critical violation incident
+    cursor.execute("""
+        INSERT INTO violations (submission_id, violation_type, details, severity, event_code)
+        VALUES (?, 'PROCTOR_MANUAL_TERMINATION', ?, 'CRITICAL', 'SEC-009')
+    """, (submission_id, f"Proctor action: {reason}"))
+    
+    conn.commit()
+    conn.close()
+    
+    return jsonify({
+        "success": True,
+        "message": f"Exam attempt for {sub['student_name']} has been terminated immediately."
+    })
 
 
 @app.route("/student/result/<int:submission_id>")

@@ -2,10 +2,87 @@
 
 {% block title %}Proctoring Audit: {{ submission.student_name }} - ExamGuard AI{% endblock %}
 
+{% block head %}
+<style>
+    @media print {
+        /* Hide navbar, buttons, breadcrumbs, footers */
+        header, footer, nav, .no-print, button, a[href^="/tutor"] {
+            display: none !important;
+        }
+        body {
+            background-color: #ffffff !important;
+            color: #0f172a !important;
+            font-size: 11pt !important;
+            padding: 0 !important;
+            margin: 0 !important;
+        }
+        .max-w-6xl {
+            max-width: 100% !important;
+            width: 100% !important;
+            padding: 0 !important;
+            margin: 0 !important;
+        }
+        .print-header-banner {
+            display: block !important;
+            border-bottom: 2px solid #0f172a !important;
+            padding-bottom: 14px !important;
+            margin-bottom: 20px !important;
+        }
+        .print-break-inside-avoid {
+            break-inside: avoid !important;
+            page-break-inside: avoid !important;
+        }
+        .print-signature-block {
+            display: block !important;
+            margin-top: 35px !important;
+            break-inside: avoid !important;
+        }
+        .border {
+            border-color: #cbd5e1 !important;
+        }
+        /* Ensure background colors and gradients render properly on print */
+        * {
+            -webkit-print-color-adjust: exact !important;
+            print-color-adjust: exact !important;
+        }
+    }
+    .print-header-banner {
+        display: none;
+    }
+    .print-signature-block {
+        display: none;
+    }
+</style>
+{% endblock %}
+
 {% block content %}
 <div class="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
     
-    <div class="flex items-center justify-between mb-6">
+    <!-- Printable Official Institutional Watermark & Header (Visible only when printed/PDF) -->
+    <div class="print-header-banner">
+        <div class="flex items-center justify-between pb-3">
+            <div class="flex items-center space-x-3">
+                <div class="w-12 h-12 rounded-xl bg-slate-900 text-white flex items-center justify-center font-bold text-xl">
+                    EG
+                </div>
+                <div>
+                    <h1 class="text-xl font-extrabold text-slate-900 tracking-tight">EXAMGUARD AI PROCTORING SYSTEM</h1>
+                    <p class="text-xs text-slate-600 font-medium">Official Examination & Forensic Anti-Cheating Integrity Audit Dossier</p>
+                </div>
+            </div>
+            <div class="text-right text-xs font-mono text-slate-500">
+                <div>Document ID: <strong class="text-slate-900">AUD-EX-{{ submission.exam_id }}-SUB-{{ submission.id }}</strong></div>
+                <div>Issued On: <strong class="text-slate-900">{{ submission.submitted_at or submission.started_at }}</strong></div>
+            </div>
+        </div>
+        <div class="bg-slate-100 px-3 py-1.5 rounded text-[11px] text-slate-700 font-mono flex justify-between">
+            <span><strong>Exam:</strong> {{ submission.exam_title }}</span>
+            <span><strong>Candidate:</strong> {{ submission.student_name }} (Roll: {{ submission.roll_number }})</span>
+            <span><strong>Verification Verdict:</strong> {% if submission.status == 'terminated' %}REJECTED / TERMINATED{% else %}CERTIFIED VALID{% endif %}</span>
+        </div>
+    </div>
+
+    <div class="flex items-center justify-between mb-6 no-print">
         <div class="flex items-center space-x-2 text-sm text-slate-500">
             <a href="/tutor" class="hover:text-sky-600">Tutor Portal</a>
             <span>/</span>
@@ -14,6 +91,14 @@
             <span class="text-slate-900 font-medium">Proctoring Audit</span>
         </div>
         <div class="flex items-center gap-3">
+            <!-- Official PDF Report Button -->
+            <button type="button"
+                    onclick="window.print()"
+                    class="px-4 py-2 bg-gradient-to-r from-sky-600 to-indigo-600 hover:from-sky-700 hover:to-indigo-700 text-white text-xs font-bold rounded-xl shadow-md hover:shadow-lg transition flex items-center space-x-1.5 cursor-pointer"
+                    title="Generate and print/save official forensic Proctoring Audit Dossier PDF">
+                <i data-lucide="printer" class="w-3.5 h-3.5"></i>
+                <span>Download PDF Audit Report</span>
+            </button>
             <!-- Pause/Resume management buttons (only when relevant status) -->
             {% if submission.status == 'pause_requested' %}
             <button type="button"
@@ -510,6 +595,33 @@
                     {% endif %}
                 </div>
             {% endfor %}
+    </div>
+
+    <!-- Official Proctor Certification & Institutional Signature Block (Visible on PDF / Print) -->
+    <div class="print-signature-block border-2 border-slate-300 rounded-2xl p-6 bg-slate-50 mt-8">
+        <h3 class="text-sm font-bold text-slate-900 uppercase tracking-wider mb-2 border-b border-slate-200 pb-2">
+            Institutional Proctor Integrity Attestation
+        </h3>
+        <p class="text-xs text-slate-600 leading-relaxed mb-6">
+            This document certifies that the examination attempt for <strong>{{ submission.student_name }}</strong> (Roll No: <strong>{{ submission.roll_number }}</strong>) 
+            was proctored using ExamGuard AI multi-modal biometric supervision, including continuous webcam landmark vector tracking, background audio anomaly classification, 
+            tab-switch containment, and HMAC-SHA256 non-repudiation cryptographic signing.
+        </p>
+
+        <div class="grid grid-cols-3 gap-6 pt-6 text-xs text-slate-700">
+            <div class="border-t border-slate-400 pt-2 text-center">
+                <span class="block font-bold text-slate-900">{{ submission.student_name }}</span>
+                <span class="text-[10px] text-slate-500">Candidate Signature</span>
+            </div>
+            <div class="border-t border-slate-400 pt-2 text-center">
+                <span class="block font-bold text-slate-900">ExamGuard AI Proctor v3.4</span>
+                <span class="text-[10px] text-slate-500 font-mono">HMAC Validated</span>
+            </div>
+            <div class="border-t border-slate-400 pt-2 text-center">
+                <div class="h-6 mb-1 border-b border-dashed border-slate-300"></div>
+                <span class="block font-bold text-slate-900">Chief Examination Officer</span>
+                <span class="text-[10px] text-slate-500">Signature & Institutional Stamp</span>
+            </div>
         </div>
     </div>
 

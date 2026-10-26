@@ -81,8 +81,88 @@
     <!-- Submissions & Proctoring Audits -->
     <div class="space-y-8">
         
-        <!-- Student Attempts Table -->
-        <div class="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
+        <!-- Proctoring View Mode Switcher Header -->
+        <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-4 bg-white rounded-2xl border border-slate-200 p-4 sm:p-5 shadow-xs">
+            <div class="flex items-center space-x-3">
+                <div class="w-10 h-10 rounded-xl bg-gradient-to-tr from-sky-600 to-indigo-600 text-white flex items-center justify-center shadow-xs">
+                    <i data-lucide="radar" class="w-5 h-5 animate-spin" style="animation-duration: 8s;"></i>
+                </div>
+                <div>
+                    <h2 class="text-base sm:text-lg font-bold text-slate-900 flex items-center gap-2">
+                        <span>Live Proctor Command Center</span>
+                        <span id="live-indicator-dot" class="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-100 text-emerald-800 border border-emerald-200">
+                            <span class="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-ping mr-1.5"></span> LIVE FEED
+                        </span>
+                    </h2>
+                    <p class="text-xs text-slate-500">Real-time candidate telemetry, biometric face verification & immediate proctor controls</p>
+                </div>
+            </div>
+
+            <!-- View Mode Switcher -->
+            <div class="flex items-center bg-slate-100 p-1 rounded-xl border border-slate-200 self-start sm:self-auto">
+                <button type="button" 
+                        id="tab-cockpit-btn"
+                        onclick="switchProctorView('cockpit')" 
+                        class="px-3.5 py-1.5 rounded-lg text-xs font-bold transition flex items-center space-x-1.5 bg-white text-sky-700 shadow-xs cursor-pointer">
+                    <i data-lucide="layout-grid" class="w-3.5 h-3.5"></i>
+                    <span>Live Cockpit Grid</span>
+                </button>
+                <button type="button" 
+                        id="tab-table-btn"
+                        onclick="switchProctorView('table')" 
+                        class="px-3.5 py-1.5 rounded-lg text-xs font-semibold text-slate-600 hover:text-slate-900 transition flex items-center space-x-1.5 cursor-pointer">
+                    <i data-lucide="table" class="w-3.5 h-3.5"></i>
+                    <span>Attempts Table ({{ submissions|length }})</span>
+                </button>
+            </div>
+        </div>
+
+        <!-- Section 1: Live Proctoring Cockpit Grid (HUD) -->
+        <div id="proctor-cockpit-view" class="space-y-6">
+            <!-- Cockpit Summary Cards -->
+            <div class="grid grid-cols-2 sm:grid-cols-4 gap-4">
+                <div class="bg-white rounded-2xl border border-slate-200 p-4 shadow-2xs">
+                    <span class="text-[11px] font-bold uppercase tracking-wider text-slate-400 block mb-1">Active Now</span>
+                    <div class="flex items-center justify-between">
+                        <span id="stat-active-count" class="text-2xl font-black text-sky-600">0</span>
+                        <span class="w-8 h-8 rounded-lg bg-sky-50 text-sky-600 flex items-center justify-center"><i data-lucide="activity" class="w-4 h-4"></i></span>
+                    </div>
+                </div>
+                <div class="bg-white rounded-2xl border border-slate-200 p-4 shadow-2xs">
+                    <span class="text-[11px] font-bold uppercase tracking-wider text-slate-400 block mb-1">Paused / Awaiting</span>
+                    <div class="flex items-center justify-between">
+                        <span id="stat-paused-count" class="text-2xl font-black text-amber-600">0</span>
+                        <span class="w-8 h-8 rounded-lg bg-amber-50 text-amber-600 flex items-center justify-center"><i data-lucide="pause-circle" class="w-4 h-4"></i></span>
+                    </div>
+                </div>
+                <div class="bg-white rounded-2xl border border-slate-200 p-4 shadow-2xs">
+                    <span class="text-[11px] font-bold uppercase tracking-wider text-slate-400 block mb-1">Terminated (Malpractice)</span>
+                    <div class="flex items-center justify-between">
+                        <span id="stat-term-count" class="text-2xl font-black text-rose-600">0</span>
+                        <span class="w-8 h-8 rounded-lg bg-rose-50 text-rose-600 flex items-center justify-center"><i data-lucide="shield-alert" class="w-4 h-4"></i></span>
+                    </div>
+                </div>
+                <div class="bg-white rounded-2xl border border-slate-200 p-4 shadow-2xs">
+                    <span class="text-[11px] font-bold uppercase tracking-wider text-slate-400 block mb-1">Completed / Submitted</span>
+                    <div class="flex items-center justify-between">
+                        <span id="stat-sub-count" class="text-2xl font-black text-emerald-600">0</span>
+                        <span class="w-8 h-8 rounded-lg bg-emerald-50 text-emerald-600 flex items-center justify-center"><i data-lucide="check-circle-2" class="w-4 h-4"></i></span>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Live Candidate Cards Grid -->
+            <div id="cockpit-candidates-grid" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                <!-- Dynamically populated via JS live stream -->
+                <div class="col-span-full bg-white rounded-2xl border border-slate-200 p-12 text-center text-slate-400">
+                    <i data-lucide="loader" class="w-8 h-8 animate-spin mx-auto mb-3 text-sky-600"></i>
+                    <p class="text-sm font-medium text-slate-600">Establishing real-time connection with candidate terminals...</p>
+                </div>
+            </div>
+        </div>
+        
+        <!-- Section 2: Student Attempts Table (Tab 2) -->
+        <div id="proctor-table-view" class="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden hidden">
             <div class="p-6 border-b border-slate-200 flex items-center justify-between">
                 <div class="flex items-center space-x-2">
                     <i data-lucide="users" class="w-5 h-5 text-sky-600"></i>
@@ -882,6 +962,270 @@
             btn.disabled = false;
         }
     }
+
+    // ---------------------------------------------------------------------------
+    // Live Proctor Cockpit View & Polling Engine
+    // ---------------------------------------------------------------------------
+    const currentExamId = "{{ exam.id }}";
+    let liveCockpitTimer = null;
+    let currentProctorView = 'cockpit';
+
+    function switchProctorView(mode) {
+        currentProctorView = mode;
+        const cockpitEl = document.getElementById('proctor-cockpit-view');
+        const tableEl   = document.getElementById('proctor-table-view');
+        const btnCockpit= document.getElementById('tab-cockpit-btn');
+        const btnTable  = document.getElementById('tab-table-btn');
+
+        if (mode === 'cockpit') {
+            cockpitEl.classList.remove('hidden');
+            tableEl.classList.add('hidden');
+            btnCockpit.className = 'px-3.5 py-1.5 rounded-lg text-xs font-bold transition flex items-center space-x-1.5 bg-white text-sky-700 shadow-xs cursor-pointer';
+            btnTable.className   = 'px-3.5 py-1.5 rounded-lg text-xs font-semibold text-slate-600 hover:text-slate-900 transition flex items-center space-x-1.5 cursor-pointer';
+            fetchLiveProctorData();
+        } else {
+            cockpitEl.classList.add('hidden');
+            tableEl.classList.remove('hidden');
+            btnTable.className   = 'px-3.5 py-1.5 rounded-lg text-xs font-bold transition flex items-center space-x-1.5 bg-white text-sky-700 shadow-xs cursor-pointer';
+            btnCockpit.className = 'px-3.5 py-1.5 rounded-lg text-xs font-semibold text-slate-600 hover:text-slate-900 transition flex items-center space-x-1.5 cursor-pointer';
+        }
+    }
+
+    async function fetchLiveProctorData() {
+        try {
+            const resp = await fetch(`/api/tutor/exam/${currentExamId}/live-proctor`);
+            const data = await resp.json();
+            if (data.success) {
+                renderCockpitGrid(data.candidates || []);
+            }
+        } catch (err) {
+            console.error('Failed to poll live proctor telemetry:', err);
+        }
+    }
+
+    function renderCockpitGrid(candidates) {
+        const grid = document.getElementById('cockpit-candidates-grid');
+        if (!grid) return;
+
+        let activeCount = 0;
+        let pausedCount = 0;
+        let termCount = 0;
+        let subCount = 0;
+
+        candidates.forEach(c => {
+            if (c.status === 'in_progress') activeCount++;
+            else if (c.status === 'paused' || c.status === 'pause_requested') pausedCount++;
+            else if (c.status === 'terminated') termCount++;
+            else if (c.status === 'submitted') subCount++;
+        });
+
+        document.getElementById('stat-active-count').textContent = activeCount;
+        document.getElementById('stat-paused-count').textContent = pausedCount;
+        document.getElementById('stat-term-count').textContent = termCount;
+        document.getElementById('stat-sub-count').textContent = subCount;
+
+        if (candidates.length === 0) {
+            grid.innerHTML = `
+                <div class="col-span-full bg-white rounded-2xl border border-slate-200 p-12 text-center text-slate-500">
+                    <i data-lucide="users" class="w-10 h-10 mx-auto mb-3 text-slate-400"></i>
+                    <h3 class="font-bold text-slate-800 text-base mb-1">No Active Examinees</h3>
+                    <p class="text-xs text-slate-500">Students will appear live in this cockpit as soon as they enter the exam code.</p>
+                </div>
+            `;
+            if (window.lucide) lucide.createIcons();
+            return;
+        }
+
+        const maxWarnings = {{ exam.max_warnings }};
+
+        grid.innerHTML = candidates.map(c => {
+            let statusBadge = '';
+            let cardBorder = 'border-slate-200';
+            let livePulse = '';
+
+            if (c.status === 'in_progress') {
+                statusBadge = '<span class="inline-flex items-center px-2 py-0.5 rounded-full text-[11px] font-bold bg-sky-100 text-sky-800 border border-sky-200"><span class="w-1.5 h-1.5 rounded-full bg-sky-500 animate-ping mr-1"></span> Live Testing</span>';
+                cardBorder = 'border-sky-300 ring-1 ring-sky-200';
+            } else if (c.status === 'pause_requested') {
+                statusBadge = '<span class="inline-flex items-center px-2 py-0.5 rounded-full text-[11px] font-bold bg-amber-100 text-amber-800 border border-amber-300 animate-pulse">⏳ Pause Requested</span>';
+                cardBorder = 'border-amber-400';
+            } else if (c.status === 'paused') {
+                statusBadge = '<span class="inline-flex items-center px-2 py-0.5 rounded-full text-[11px] font-bold bg-slate-100 text-slate-700 border border-slate-200">⏸️ Paused</span>';
+            } else if (c.status === 'terminated') {
+                statusBadge = '<span class="inline-flex items-center px-2 py-0.5 rounded-full text-[11px] font-bold bg-rose-100 text-rose-800 border border-rose-200"><i data-lucide="shield-x" class="w-3 h-3 mr-1"></i> Terminated</span>';
+                cardBorder = 'border-rose-300 bg-rose-50/20';
+            } else {
+                statusBadge = '<span class="inline-flex items-center px-2 py-0.5 rounded-full text-[11px] font-bold bg-emerald-100 text-emerald-800 border border-emerald-200"><i data-lucide="check" class="w-3 h-3 mr-1"></i> Completed</span>';
+            }
+
+            const strikeRatio = (c.warnings_count || 0) / maxWarnings;
+            let strikeColor = 'bg-emerald-500';
+            if (strikeRatio >= 1.0) strikeColor = 'bg-rose-600';
+            else if (strikeRatio >= 0.5) strikeColor = 'bg-amber-500';
+
+            const faceImg = c.verified_face_url || c.student_profile_photo;
+            const faceThumb = faceImg 
+                ? `<img src="${faceImg}" alt="${c.student_name}" class="w-full h-full object-cover">`
+                : `<div class="w-full h-full flex items-center justify-center bg-slate-100 text-slate-400 font-bold">${(c.student_name || 'S').charAt(0)}</div>`;
+
+            let faceVerdict = '';
+            if (c.is_face_verified == 1 || c.is_face_verified === true) {
+                faceVerdict = `<span class="inline-flex items-center text-[10px] font-bold text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded-full border border-emerald-200"><i data-lucide="check" class="w-3 h-3 mr-0.5"></i> Face Match (${c.face_match_confidence || 100}%)</span>`;
+            } else if (c.verified_face_url) {
+                faceVerdict = `<span class="inline-flex items-center text-[10px] font-bold text-rose-700 bg-rose-50 px-2 py-0.5 rounded-full border border-rose-200"><i data-lucide="alert-triangle" class="w-3 h-3 mr-0.5"></i> Impostor Alert</span>`;
+            } else {
+                faceVerdict = `<span class="inline-flex items-center text-[10px] font-medium text-slate-500 bg-slate-50 px-2 py-0.5 rounded-full border border-slate-200">No Webcam Checkin</span>`;
+            }
+
+            return `
+                <div class="bg-white rounded-2xl border ${cardBorder} p-5 shadow-xs hover:shadow-md transition flex flex-col justify-between">
+                    <div>
+                        <!-- Header: Student, Avatar, Status -->
+                        <div class="flex items-start justify-between gap-3 mb-3">
+                            <div class="flex items-center space-x-3">
+                                <div class="w-12 h-12 rounded-xl overflow-hidden border border-slate-200 shadow-2xs shrink-0">
+                                    ${faceThumb}
+                                </div>
+                                <div>
+                                    <h4 class="font-bold text-slate-900 text-sm leading-tight">${c.student_name}</h4>
+                                    <div class="flex items-center gap-2 mt-0.5">
+                                        <span class="text-[11px] font-mono font-semibold text-slate-500">Roll: ${c.roll_number || 'N/A'}</span>
+                                        ${c.client_ip ? `<span class="text-[10px] font-mono text-slate-400">· ${c.client_ip}</span>` : ''}
+                                    </div>
+                                </div>
+                            </div>
+                            <div>${statusBadge}</div>
+                        </div>
+
+                        <!-- Face Verdict & Telemetry Row -->
+                        <div class="flex items-center justify-between py-2 border-y border-slate-100 my-3 text-xs">
+                            <div>${faceVerdict}</div>
+                            <div class="font-mono text-[11px] font-bold ${c.warnings_count >= maxWarnings ? 'text-rose-600' : 'text-slate-700'}">
+                                Strikes: ${c.warnings_count || 0} / ${maxWarnings}
+                            </div>
+                        </div>
+
+                        <!-- Strike Progress Bar -->
+                        <div class="w-full bg-slate-100 rounded-full h-1.5 overflow-hidden mb-3">
+                            <div class="${strikeColor} h-1.5 transition-all duration-300" style="width: ${Math.min(100, (c.warnings_count || 0) * 100 / maxWarnings)}%"></div>
+                        </div>
+
+                        <!-- Last Anomaly -->
+                        <div class="text-[11px] text-slate-500 mb-4 bg-slate-50 p-2.5 rounded-xl border border-slate-100">
+                            <span class="font-bold text-slate-700 block mb-0.5">Recent Security Telemetry:</span>
+                            ${c.last_violation_type 
+                                ? `<span class="text-rose-600 font-semibold uppercase tracking-wider">${c.last_violation_type.replace(/_/g, ' ')}</span> <span class="text-slate-400 text-[10px] block mt-0.5">${c.last_violation_time || ''}</span>` 
+                                : '<span class="text-emerald-600 font-medium">✓ Clean terminal feed — No recent violations.</span>'}
+                        </div>
+                    </div>
+
+                    <!-- Instant Proctor Controls Toolbar -->
+                    <div class="pt-3 border-t border-slate-100 flex items-center justify-between gap-2">
+                        <a href="/tutor/submission/${c.id}" class="px-3 py-1.5 bg-slate-100 hover:bg-sky-50 hover:text-sky-700 text-slate-700 text-xs font-semibold rounded-lg transition inline-flex items-center space-x-1">
+                            <i data-lucide="file-text" class="w-3.5 h-3.5"></i>
+                            <span>Audit File</span>
+                        </a>
+
+                        <div class="flex items-center gap-1.5">
+                            ${c.status === 'pause_requested' ? `
+                                <button type="button" 
+                                        data-submission-id="${c.id}" 
+                                        onclick="managePause(this, 'approve_pause')" 
+                                        class="px-2.5 py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold rounded-lg shadow-2xs transition">
+                                    Approve Pause
+                                </button>
+                            ` : ''}
+
+                            ${c.status === 'paused' ? `
+                                <button type="button" 
+                                        data-submission-id="${c.id}" 
+                                        onclick="managePause(this, 'approve_resume')" 
+                                        class="px-2.5 py-1.5 bg-sky-600 hover:bg-sky-700 text-white text-xs font-bold rounded-lg shadow-2xs transition">
+                                    Allow Resume
+                                </button>
+                            ` : ''}
+
+                            ${(c.status === 'in_progress' || c.status === 'paused') ? `
+                                <button type="button" 
+                                        data-submission-id="${c.id}" 
+                                        data-student-name="${c.student_name}" 
+                                        onclick="forceTerminateCandidate(this)" 
+                                        class="px-2.5 py-1.5 bg-rose-50 hover:bg-rose-100 text-rose-700 border border-rose-200 text-xs font-bold rounded-lg transition inline-flex items-center space-x-1" 
+                                        title="Instantly stop candidate exam session for severe malpractice">
+                                    <i data-lucide="shield-x" class="w-3.5 h-3.5 text-rose-600"></i>
+                                    <span>Terminate</span>
+                                </button>
+                            ` : ''}
+                        </div>
+                    </div>
+                </div>
+            `;
+        }).join('');
+
+        if (window.lucide) lucide.createIcons();
+    }
+
+    async function forceTerminateCandidate(btn) {
+        const subId = btn.dataset.submissionId;
+        const studentName = btn.dataset.studentName;
+
+        const { value: reason, isConfirmed } = await Swal.fire({
+            title: 'Terminate Active Candidate?',
+            html: `
+                <p class="text-sm text-slate-600 mb-3 text-left">
+                    Are you sure you want to immediately revoke and <strong class="text-rose-600">terminate</strong> <strong>${studentName}</strong>'s exam session?
+                </p>
+                <div class="text-left">
+                    <label class="block text-xs font-bold text-slate-700 mb-1">Reason for Proctor Intervention:</label>
+                    <input id="swal-term-reason" class="w-full px-3 py-2 text-xs border border-slate-300 rounded-xl focus:ring-2 focus:ring-rose-500 focus:outline-none" 
+                           placeholder="e.g. Unidentified person in frame, external assistance detected" value="Detected academic misconduct during live exam proctoring">
+                </div>
+            `,
+            showCancelButton: true,
+            confirmButtonText: 'Yes, Terminate Session',
+            confirmButtonColor: '#e11d48',
+            cancelButtonText: 'Cancel',
+            preConfirm: () => {
+                const el = document.getElementById('swal-term-reason');
+                return el ? el.value : 'Proctor intervention';
+            }
+        });
+
+        if (!isConfirmed) return;
+
+        try {
+            const resp = await fetch(`/api/tutor/submission/${subId}/force-terminate`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ reason })
+            });
+            const res = await resp.json();
+            if (res.success) {
+                await Swal.fire({
+                    icon: 'success',
+                    title: 'Session Terminated',
+                    text: res.message,
+                    timer: 2000,
+                    showConfirmButton: false
+                });
+                fetchLiveProctorData();
+            } else {
+                Swal.fire({ icon: 'error', title: 'Error', text: res.error || 'Failed to terminate.' });
+            }
+        } catch (err) {
+            Swal.fire({ icon: 'error', title: 'Network Error', text: 'Could not connect to proctor server.' });
+        }
+    }
+
+    // Auto-poll telemetry every 5 seconds when on cockpit view
+    document.addEventListener('DOMContentLoaded', () => {
+        fetchLiveProctorData();
+        liveCockpitTimer = setInterval(() => {
+            if (currentProctorView === 'cockpit' && !document.hidden) {
+                fetchLiveProctorData();
+            }
+        }, 5000);
+    });
 </script>
 {% endblock %}
 
