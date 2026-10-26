@@ -247,7 +247,21 @@ def init_db():
             "ALTER TABLE questions ADD COLUMN IF NOT EXISTS honeypot_perturbation_type TEXT DEFAULT 'none'",
             "ALTER TABLE submissions ADD COLUMN IF NOT EXISTS honeypot_snared INTEGER DEFAULT 0",
             "ALTER TABLE submissions ADD COLUMN IF NOT EXISTS honeypot_details TEXT DEFAULT ''",
+            # Feature 1 & 2: Diagnostic Weak-Area Analysis & Dynamic Permutations
+            "ALTER TABLE submissions ADD COLUMN IF NOT EXISTS diagnostic_analysis_json TEXT DEFAULT ''",
+            "ALTER TABLE questions ADD COLUMN IF NOT EXISTS topic_category TEXT DEFAULT 'General'",
+            "ALTER TABLE questions ADD COLUMN IF NOT EXISTS difficulty_tier TEXT DEFAULT 'medium'",
+            "ALTER TABLE exams ADD COLUMN IF NOT EXISTS pool_question_count INTEGER DEFAULT 0",
         ]
+        cursor.execute("""CREATE TABLE IF NOT EXISTS proctor_messages (
+            id SERIAL PRIMARY KEY,
+            submission_id INTEGER NOT NULL,
+            sender_id INTEGER NOT NULL,
+            message_text TEXT NOT NULL,
+            severity TEXT DEFAULT 'warning',
+            is_read INTEGER DEFAULT 0,
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        )""")
         for statement in migrations:
             cursor.execute(statement)
     else:
@@ -380,10 +394,26 @@ def init_db():
             ("questions", "honeypot_perturbation_type", "TEXT DEFAULT 'none'"),
             ("submissions", "honeypot_snared", "INTEGER DEFAULT 0"),
             ("submissions", "honeypot_details", "TEXT DEFAULT ''"),
+            # Feature 1 & 2: Diagnostic Weak-Area Analysis & Dynamic Permutations
+            ("submissions", "diagnostic_analysis_json", "TEXT DEFAULT ''"),
+            ("questions", "topic_category", "TEXT DEFAULT 'General'"),
+            ("questions", "difficulty_tier", "TEXT DEFAULT 'medium'"),
+            ("exams", "pool_question_count", "INTEGER DEFAULT 0"),
         ]:
             columns = {row["name"] for row in cursor.execute(f"PRAGMA table_info({table})").fetchall()}
             if column not in columns:
                 cursor.execute(f"ALTER TABLE {table} ADD COLUMN {column} {definition}")
+
+        cursor.execute("""CREATE TABLE IF NOT EXISTS proctor_messages (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            submission_id INTEGER NOT NULL,
+            sender_id INTEGER NOT NULL,
+            message_text TEXT NOT NULL,
+            severity TEXT DEFAULT 'warning',
+            is_read INTEGER DEFAULT 0,
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            FOREIGN KEY (submission_id) REFERENCES submissions(id) ON DELETE CASCADE
+        )""")
 
     # Seed initial admin(s) if provided via environment variables.
     from werkzeug.security import generate_password_hash

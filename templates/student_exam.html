@@ -2509,6 +2509,38 @@
                 Swal.fire({ icon: 'error', title: 'Network Error', text: 'Failed to reach server.' });
             }
         }
+
+        // ---------------------------------------------------------------------------
+        // Live Proctor Intercom Listener (Polls for tutor notices & nudges)
+        // ---------------------------------------------------------------------------
+        setInterval(async () => {
+            if (isTerminated) return;
+            try {
+                const resp = await fetch(`/api/submission/${SUBMISSION_ID}/proctor-messages`);
+                const data = await resp.json();
+                if (data.success && data.messages && data.messages.length > 0) {
+                    for (const msg of data.messages) {
+                        const iconType = msg.severity === 'critical' ? 'error' : (msg.severity === 'info' ? 'info' : 'warning');
+                        const headerColor = msg.severity === 'critical' ? '#e11d48' : '#d97706';
+                        await Swal.fire({
+                            icon: iconType,
+                            title: 'Official Proctor Notice',
+                            html: `
+                                <div class="text-left bg-slate-50 p-4 rounded-xl border border-slate-200 mt-2">
+                                    <p class="text-sm font-semibold text-slate-800 leading-relaxed">${msg.message_text}</p>
+                                    <span class="text-[10px] text-slate-400 block mt-2 font-mono">Issued by Chief Exam Proctor · ${msg.created_at || ''}</span>
+                                </div>
+                            `,
+                            confirmButtonColor: headerColor,
+                            confirmButtonText: 'I Acknowledge & Comply',
+                            allowOutsideClick: false
+                        });
+                    }
+                }
+            } catch (e) {
+                // Silently ignore background polling errors
+            }
+        }, 6000);
     </script>
 </body>
 

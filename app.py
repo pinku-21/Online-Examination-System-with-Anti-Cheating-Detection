@@ -2428,6 +2428,12 @@ def student_exam_room(submission_id):
     # Forensic canary payload unique to this student and submission
     canary_token = f"CANARY-U{submission.get('user_id', 0)}-S{submission['id']}"
 
+    # Deterministic personalized question order per student (Pseudo-Random Seed derived from submission & student ID)
+    # Ensures consistent order on page refresh, but different order across different examinees!
+    import hashlib
+    seed_val = int(hashlib.sha256(f"{submission['exam_id']}-{submission['id']}-{submission.get('user_id', 0)}".encode()).hexdigest(), 16) % 10000000
+    rng = random.Random(seed_val)
+
     questions = []
     for q in raw_questions:
         q_dict = dict(q)
@@ -2437,6 +2443,9 @@ def student_exam_room(submission_id):
         q_dict["clean_question_text"] = original_text
         q_dict["question_text"] = encode_canary_watermark(original_text, canary_token)
         questions.append(q_dict)
+
+    # Shuffle questions per student seed
+    rng.shuffle(questions)
         
     # Restore saved progress (answers, timer, current question index) for page-refresh recovery
     saved_progress = None
@@ -3052,6 +3061,77 @@ def api_tutor_force_terminate(submission_id):
     })
 
 
+# ---------------------------------------------------------------------------
+# Silent Proctor Intercom / Candidate Warning Nudge APIs
+# ---------------------------------------------------------------------------
+@app.route("/api/tutor/submission/<int:submission_id>/send-message", methods=["POST"])
+@admin_required
+def api_send_proctor_message(submission_id):
+    """Tutor sends an instant silent intercom warning or advisory notice to an active candidate."""
+    data = request.get_json() or {}
+    message_text = (data.get("message") or "").strip()
+    severity = (data.get("severity") or "warning").strip()
+
+    if not message_text:
+        return jsonify({"success": False, "error": "Message content cannot be blank."}), 400
+
+    conn = get_connection()
+    cursor = conn.cursor()
+    cursor.execute("SELECT id, student_name, status FROM submissions WHERE id = ?", (submission_id,))
+    sub = cursor.fetchone()
+    if not sub:
+        conn.close()
+        return jsonify({"success": False, "error": "Submission not found."}), 404
+
+    sender_id = session.get("user_id", 0)
+    cursor.execute("""
+        INSERT INTO proctor_messages (submission_id, sender_id, message_text, severity, is_read)
+        VALUES (?, ?, ?, ?, 0)
+    """, (submission_id, sender_id, message_text, severity))
+
+    # Also log a proctor communication event into audit log
+    cursor.execute("""
+        INSERT INTO violations (submission_id, violation_type, details, severity, event_code)
+        VALUES (?, 'PROCTOR_COMMUNICATION_DISPATCHED', ?, 'MEDIUM', 'SEC-COM')
+    """, (submission_id, f"Tutor issued formal notice: '{message_text}'"))
+
+    conn.commit()
+    conn.close()
+
+    return jsonify({
+        "success": True,
+        "message": f"Proctor notice dispatched to {sub['student_name']}."
+    })
+
+
+@app.route("/api/submission/<int:submission_id>/proctor-messages", methods=["GET"])
+@login_required
+def api_get_student_proctor_messages(submission_id):
+    """Student polling endpoint to retrieve unread proctor advisories and warnings."""
+    conn = get_connection()
+    cursor = conn.cursor()
+    cursor.execute("""
+        SELECT id, message_text, severity, created_at
+        FROM proctor_messages
+        WHERE submission_id = ? AND is_read = 0
+        ORDER BY created_at ASC
+    """, (submission_id,))
+    unread = cursor.fetchall()
+
+    messages = [dict(m) for m in unread]
+
+    # Mark as read
+    if messages:
+        cursor.execute("UPDATE proctor_messages SET is_read = 1 WHERE submission_id = ?", (submission_id,))
+        conn.commit()
+
+    conn.close()
+    return jsonify({
+        "success": True,
+        "messages": messages
+    })
+
+
 @app.route("/student/result/<int:submission_id>")
 @login_required
 def exam_result(submission_id):
@@ -3173,7 +3253,32 @@ def exam_result(submission_id):
 
         questions_review = attach_question_display_labels(questions_review)
 
-    # Cryptographic Tamper Verification Check (CIA Integrity)
+    # Educational Intelligence: Compute Weak-Area Diagnostic Breakdown
+    topic_breakdown = {}
+    for q in questions_review:
+        topic = (q.get("topic_category") or "General Core Concept").strip()
+        pts_earned = float(q.get("awarded_marks", 0.0))
+        pts_max = float(q.get("points", 1.0))
+        if topic not in topic_breakdown:
+            topic_breakdown[topic] = {"earned": 0.0, "total": 0.0, "count": 0}
+        topic_breakdown[topic]["earned"] += pts_earned
+        topic_breakdown[topic]["total"] += pts_max
+        topic_breakdown[topic]["count"] += 1
+
+    diagnostic_summary = []
+    for topic, stats in topic_breakdown.items():
+        pct = round((stats["earned"] / stats["total"] * 100), 1) if stats["total"] > 0 else 0.0
+        level = "Mastered" if pct >= 80 else ("Moderate" if pct >= 50 else "Needs Revision")
+        diagnostic_summary.append({
+            "topic": topic,
+            "earned": round(stats["earned"], 1),
+            "total": round(stats["total"], 1),
+            "percentage": pct,
+            "status": level,
+            "questions_count": stats["count"]
+        })
+    diagnostic_summary.sort(key=lambda x: x["percentage"])
+
     expected_hash = generate_submission_integrity_hash(
         sub_dict["id"],
         sub_dict["roll_number"],
@@ -3204,6 +3309,7 @@ def exam_result(submission_id):
                            passed=passed, 
                            is_published=is_published,
                            questions=questions_review,
+                           diagnostic_summary=diagnostic_summary,
                            integrity_hash=stored_hash or expected_hash,
                            is_tamper_verified=is_tamper_verified)
 

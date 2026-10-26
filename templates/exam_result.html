@@ -176,6 +176,48 @@
                 </span>
             </div>
 
+            <!-- Weak-Area Diagnostic & Learning Gap Heatmap -->
+            {% if diagnostic_summary %}
+            <div class="p-6 rounded-2xl bg-gradient-to-br from-indigo-50/60 to-sky-50/60 border border-indigo-200/80 shadow-xs">
+                <div class="flex items-center justify-between mb-4">
+                    <div class="flex items-center space-x-2.5">
+                        <span class="w-8 h-8 rounded-lg bg-indigo-600 text-white flex items-center justify-center"><i data-lucide="bar-chart-2" class="w-4 h-4"></i></span>
+                        <div>
+                            <h3 class="font-extrabold text-slate-900 text-sm">Subject Mastery & Diagnostic Learning Gap Breakdown</h3>
+                            <p class="text-[11px] text-slate-500">Categorical analysis of student conceptual understanding per topic</p>
+                        </div>
+                    </div>
+                    <span class="text-xs font-bold text-indigo-700">{{ diagnostic_summary|length }} Topic Categories</span>
+                </div>
+
+                <div class="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-3.5">
+                    {% for diag in diagnostic_summary %}
+                    <div class="bg-white p-3.5 rounded-xl border border-slate-200 shadow-2xs flex flex-col justify-between">
+                        <div>
+                            <div class="flex items-center justify-between gap-2 mb-1.5">
+                                <h4 class="font-bold text-slate-900 text-xs truncate" title="{{ diag.topic }}">{{ diag.topic }}</h4>
+                                {% if diag.percentage >= 80 %}
+                                    <span class="px-2 py-0.5 rounded text-[10px] font-black bg-emerald-100 text-emerald-800">Mastered</span>
+                                {% elif diag.percentage >= 50 %}
+                                    <span class="px-2 py-0.5 rounded text-[10px] font-black bg-amber-100 text-amber-800">Moderate</span>
+                                {% else %}
+                                    <span class="px-2 py-0.5 rounded text-[10px] font-black bg-rose-100 text-rose-800 animate-pulse">Needs Review</span>
+                                {% endif %}
+                            </div>
+                            <div class="flex items-baseline justify-between text-xs text-slate-500 mb-2">
+                                <span>{{ diag.earned }} / {{ diag.total }} Marks</span>
+                                <span class="font-bold text-slate-800">{{ diag.percentage }}%</span>
+                            </div>
+                        </div>
+                        <div class="w-full bg-slate-100 rounded-full h-1.5 overflow-hidden">
+                            <div class="h-1.5 rounded-full {% if diag.percentage >= 80 %}bg-emerald-500{% elif diag.percentage >= 50 %}bg-amber-500{% else %}bg-rose-500{% endif %}" style="width: {{ diag.percentage }}%"></div>
+                        </div>
+                    </div>
+                    {% endfor %}
+                </div>
+            </div>
+            {% endif %}
+
             <div class="space-y-6">
                 {% for q in questions %}
                     <div class="p-6 rounded-2xl border {% if q.is_correct or (q.awarded_marks and q.awarded_marks > 0) %}border-slate-200 bg-white{% else %}border-rose-200 bg-rose-50/20{% endif %} shadow-xs space-y-4">
