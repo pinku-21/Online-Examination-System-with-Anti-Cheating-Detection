@@ -1798,46 +1798,56 @@ def api_save_exam():
     start_time = data.get("start_time", "").strip() or None
     end_time = data.get("end_time", "").strip() or None
 
-    conn = get_connection()
-    cursor = conn.cursor()
-    cursor.execute("""
-        INSERT INTO exams (exam_code, title, description, duration_minutes, max_warnings, passing_percentage, enable_audio_detection, enable_video_detection, access_type, assigned_class, schedule_type, start_time, end_time)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-    """, (exam_code, title, description, duration, max_warnings, passing_percentage, enable_audio, enable_video, access_type, assigned_class, schedule_type, start_time, end_time))
-    exam_id = cursor.lastrowid
-    
-    for q in questions_list:
+    try:
+        conn = get_connection()
+        cursor = conn.cursor()
         cursor.execute("""
-            INSERT INTO questions (exam_id, question_text, question_type, options_json, correct_answer, explanation, points, figure_svg, figure_url)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
-        """, (
-            exam_id,
-            q.get("question_text", ""),
-            q.get("question_type", "mcq"),
-            json.dumps(q.get("options", [])),
-            q.get("correct_answer", ""),
-            q.get("explanation", ""),
-            float(q.get("points", 1.0)),
-            q.get("figure_svg"),
-            q.get("figure_url")
-        ))
-    
-    # Save student assignments
-    if access_type == "selected" and assigned_students:
-        for sid in assigned_students:
-            try:
-                cursor.execute("INSERT OR IGNORE INTO exam_assignments (exam_id, user_id) VALUES (?, ?)", (exam_id, int(sid)))
-            except Exception:
-                pass
-    elif access_type == "class" and assigned_class:
-        cursor.execute("SELECT id FROM users WHERE role = 'student' AND LOWER(class_name) = LOWER(?)", (assigned_class,))
-        for row in cursor.fetchall():
-            cursor.execute("INSERT OR IGNORE INTO exam_assignments (exam_id, user_id) VALUES (?, ?)", (exam_id, row["id"]))
+            INSERT INTO exams (exam_code, title, description, duration_minutes, max_warnings, passing_percentage, enable_audio_detection, enable_video_detection, access_type, assigned_class, schedule_type, start_time, end_time)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        """, (exam_code, title, description, duration, max_warnings, passing_percentage, enable_audio, enable_video, access_type, assigned_class, schedule_type, start_time, end_time))
+        exam_id = cursor.lastrowid
+        
+        for q in questions_list:
+            cursor.execute("""
+                INSERT INTO questions (exam_id, question_text, question_type, options_json, correct_answer, explanation, points, figure_svg, figure_url)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+            """, (
+                exam_id,
+                q.get("question_text", ""),
+                q.get("question_type", "mcq"),
+                json.dumps(q.get("options", [])),
+                q.get("correct_answer", ""),
+                q.get("explanation", ""),
+                float(q.get("points", 1.0)),
+                q.get("figure_svg"),
+                q.get("figure_url")
+            ))
+        
+        # Save student assignments
+        if access_type == "selected" and assigned_students:
+            for sid in assigned_students:
+                try:
+                    cursor.execute("INSERT OR IGNORE INTO exam_assignments (exam_id, user_id) VALUES (?, ?)", (exam_id, int(sid)))
+                except Exception:
+                    pass
+        elif access_type == "class" and assigned_class:
+            cursor.execute("SELECT id FROM users WHERE role = 'student' AND LOWER(class_name) = LOWER(?)", (assigned_class,))
+            for row in cursor.fetchall():
+                cursor.execute("INSERT OR IGNORE INTO exam_assignments (exam_id, user_id) VALUES (?, ?)", (exam_id, row["id"]))
 
-    conn.commit()
-    conn.close()
-    
-    return jsonify({"success": True, "exam_id": exam_id, "exam_code": exam_code})
+        conn.commit()
+        conn.close()
+        
+        return jsonify({"success": True, "exam_id": exam_id, "exam_code": exam_code})
+    except Exception as e:
+        import traceback
+        traceback.print_exc()
+        try:
+            conn.rollback()
+            conn.close()
+        except Exception:
+            pass
+        return jsonify({"success": False, "error": f"Failed to save exam: {str(e)}"}), 500
 
 @app.route("/api/tutor/exam/<int:exam_id>/access-schedule", methods=["GET", "POST"])
 @admin_required

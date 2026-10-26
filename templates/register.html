@@ -92,19 +92,19 @@
                     <!-- Checklist Criteria -->
                     <div class="grid grid-cols-2 gap-1.5 text-[11px] text-slate-500">
                         <div id="crit-length" class="flex items-center gap-1.5">
-                            <i data-lucide="circle" class="w-3 h-3 text-slate-300 flex-shrink-0"></i>
+                            <span class="crit-icon flex items-center justify-center"><svg class="w-3.5 h-3.5 text-slate-300 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="9" /></svg></span>
                             <span>At least 8 characters</span>
                         </div>
                         <div id="crit-upper" class="flex items-center gap-1.5">
-                            <i data-lucide="circle" class="w-3 h-3 text-slate-300 flex-shrink-0"></i>
+                            <span class="crit-icon flex items-center justify-center"><svg class="w-3.5 h-3.5 text-slate-300 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="9" /></svg></span>
                             <span>Uppercase (A-Z)</span>
                         </div>
                         <div id="crit-number" class="flex items-center gap-1.5">
-                            <i data-lucide="circle" class="w-3 h-3 text-slate-300 flex-shrink-0"></i>
+                            <span class="crit-icon flex items-center justify-center"><svg class="w-3.5 h-3.5 text-slate-300 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="9" /></svg></span>
                             <span>Number (0-9)</span>
                         </div>
                         <div id="crit-special" class="flex items-center gap-1.5">
-                            <i data-lucide="circle" class="w-3 h-3 text-slate-300 flex-shrink-0"></i>
+                            <span class="crit-icon flex items-center justify-center"><svg class="w-3.5 h-3.5 text-slate-300 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="9" /></svg></span>
                             <span>Special symbol (!@#$)</span>
                         </div>
                     </div>
@@ -182,20 +182,23 @@
     const critNumber = document.getElementById('crit-number');
     const critSpecial = document.getElementById('crit-special');
 
+    const CHECK_SVG = `<svg class="w-3.5 h-3.5 text-emerald-500 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5"><path stroke-linecap="round" stroke-linejoin="round" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>`;
+    const CIRCLE_SVG = `<svg class="w-3.5 h-3.5 text-slate-300 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="9" /></svg>`;
+
     function updateCriterion(el, isValid) {
-        const icon = el.querySelector('i');
+        if (!el) return;
+        const iconContainer = el.querySelector('.crit-icon');
         if (isValid) {
-            el.className = "flex items-center gap-1.5 text-emerald-600 font-medium";
-            icon.setAttribute('data-lucide', 'check-circle-2');
-            icon.className = "w-3 h-3 text-emerald-500 flex-shrink-0";
+            el.className = "flex items-center gap-1.5 text-emerald-600 font-semibold";
+            if (iconContainer) iconContainer.innerHTML = CHECK_SVG;
         } else {
-            el.className = "flex items-center gap-1.5 text-slate-500";
-            icon.setAttribute('data-lucide', 'circle');
-            icon.className = "w-3 h-3 text-slate-300 flex-shrink-0";
+            el.className = "flex items-center gap-1.5 text-slate-500 font-normal";
+            if (iconContainer) iconContainer.innerHTML = CIRCLE_SVG;
         }
     }
 
     function evaluatePassword(pwd) {
+        pwd = pwd || "";
         const hasLength = pwd.length >= 8;
         const hasUpper = /[A-Z]/.test(pwd);
         const hasNumber = /[0-9]/.test(pwd);
@@ -205,17 +208,16 @@
         updateCriterion(critUpper, hasUpper);
         updateCriterion(critNumber, hasNumber);
         updateCriterion(critSpecial, hasSpecial);
-        if (window.lucide) window.lucide.createIcons();
 
         let score = 0;
-        if (pwd.length > 0) score++;
         if (hasLength) score++;
-        if (hasUpper && hasNumber) score++;
-        if (hasSpecial && pwd.length >= 10) score++;
+        if (hasUpper) score++;
+        if (hasNumber) score++;
+        if (hasSpecial) score++;
 
         // Reset bars
         bars.forEach(b => {
-            b.className = "h-full rounded-full bg-slate-200 transition-all duration-300";
+            if (b) b.className = "h-full rounded-full bg-slate-200 transition-all duration-300";
         });
 
         if (pwd.length === 0) {
@@ -224,22 +226,27 @@
             return 0;
         }
 
-        if (score === 1) {
+        if (score <= 1) {
             strengthLabel.textContent = "Weak";
             strengthLabel.className = "text-[11px] font-black uppercase tracking-wider text-rose-500";
-            bars[0].className = "h-full rounded-full bg-rose-500 transition-all duration-300";
+            if (bars[0]) bars[0].className = "h-full rounded-full bg-rose-500 transition-all duration-300";
         } else if (score === 2) {
             strengthLabel.textContent = "Fair";
             strengthLabel.className = "text-[11px] font-black uppercase tracking-wider text-amber-500";
-            bars[0].className = bars[1].className = "h-full rounded-full bg-amber-500 transition-all duration-300";
+            if (bars[0]) bars[0].className = "h-full rounded-full bg-amber-500 transition-all duration-300";
+            if (bars[1]) bars[1].className = "h-full rounded-full bg-amber-500 transition-all duration-300";
         } else if (score === 3) {
             strengthLabel.textContent = "Good";
             strengthLabel.className = "text-[11px] font-black uppercase tracking-wider text-sky-500";
-            bars[0].className = bars[1].className = bars[2].className = "h-full rounded-full bg-sky-500 transition-all duration-300";
+            if (bars[0]) bars[0].className = "h-full rounded-full bg-sky-500 transition-all duration-300";
+            if (bars[1]) bars[1].className = "h-full rounded-full bg-sky-500 transition-all duration-300";
+            if (bars[2]) bars[2].className = "h-full rounded-full bg-sky-500 transition-all duration-300";
         } else {
             strengthLabel.textContent = "Strong";
             strengthLabel.className = "text-[11px] font-black uppercase tracking-wider text-emerald-600";
-            bars.forEach(b => b.className = "h-full rounded-full bg-emerald-500 transition-all duration-300");
+            bars.forEach(b => {
+                if (b) b.className = "h-full rounded-full bg-emerald-500 transition-all duration-300";
+            });
         }
 
         return score;
@@ -247,6 +254,8 @@
 
     if (pwdInput) {
         pwdInput.addEventListener('input', (e) => evaluatePassword(e.target.value));
+        pwdInput.addEventListener('keyup', (e) => evaluatePassword(e.target.value));
+        pwdInput.addEventListener('change', (e) => evaluatePassword(e.target.value));
     }
 
     function togglePasswordVisibility() {

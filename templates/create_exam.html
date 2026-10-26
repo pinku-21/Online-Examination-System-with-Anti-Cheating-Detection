@@ -1804,7 +1804,7 @@ Section B - Short Questions (3 marks each)
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify(payload)
             });
-            const res = await resp.json();
+            const res = await resp.json().catch(() => ({ success: false, error: 'Server returned non-JSON response (' + resp.status + ')' }));
 
             if (res.success) {
                 Swal.fire({
@@ -1826,7 +1826,7 @@ Section B - Short Questions (3 marks each)
                 Swal.fire({ icon: 'error', title: 'Error', text: res.error || 'Failed to publish exam.' });
             }
         } catch (e) {
-            Swal.fire({ icon: 'error', title: 'Network Error', text: 'Failed to communicate with server.' });
+            Swal.fire({ icon: 'error', title: 'Network Error', text: e.message || 'Failed to communicate with server.' });
         } finally {
             btn.disabled = false;
             btn.innerHTML = `<i data-lucide="check-circle" class="w-5 h-5"></i><span>Publish Exam & Generate Code</span>`;
