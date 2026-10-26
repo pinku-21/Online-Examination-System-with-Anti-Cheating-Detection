@@ -1142,31 +1142,25 @@ def verify_faces_with_gemini(gemini_key, reference_image_path, live_snapshot_pat
             ref_mime, ref_b64 = prepare_fast_b64(reference_image_path)
             live_mime, live_b64 = prepare_fast_b64(live_snapshot_path)
 
-            prompt = f"""You are a zero-tolerance forensic biometric identity verification AI for high-stakes university and enterprise exams.
+            prompt = f"""You are a biometric identity verification AI for proctored university examinations.
 TASK:
-Compare IMAGE 1 (Official registered reference photo of student: {student_name or 'Candidate'}) with IMAGE 2 (Live webcam snapshot captured right now at exam check-in).
+Compare IMAGE 1 (Registered profile photo of student: {student_name or 'Candidate'}) with IMAGE 2 (Live webcam check-in snapshot).
 
-MANDATORY RULES:
-1. Examine fine biometric landmarks:
-   - Craniofacial bone structure, head width, jawline shape and chin contour.
-   - Inter-pupillary distance (distance between eyes), eye socket shape, eyebrow arch and thickness.
-   - Nose bridge width, nasal tip contour, and nostril shape.
-   - Mouth width, lip thickness, and ear position/shape.
-2. DIFFERENT PERSON RULE (CRITICAL):
-   - If IMAGE 1 and IMAGE 2 show TWO DIFFERENT INDIVIDUALS (even if they share similar age, skin complexion, hair color, or gender):
-     YOU MUST REJECT IMMEDIATELY.
-     Set "is_match": false
-     Set "confidence": 0
-     Provide a clear reason identifying the structural differences (e.g., different facial shape, different nose structure, different eye spacing).
-3. SAME PERSON RULE:
-   - ONLY return "is_match": true IF YOU ARE 100% CERTAIN beyond any reasonable doubt that it is the exact same human subject (allowing only normal camera lighting or slight facial angle variations).
-   - If you have ANY doubt or if the features belong to another person, you MUST return "is_match": false and "confidence": 0.
+INSTRUCTIONS:
+1. Compare facial bone structure, eye shape, nose bridge, jawline, and mouth contour.
+2. TOLERANCE FOR NORMAL VARIATIONS:
+   - IGNORE minor differences in camera angle (e.g. handheld phone camera angle vs front shot).
+   - IGNORE variations in lighting, shadow, or room background.
+   - IGNORE differences in clothing (e.g. vest / t-shirt / shirt).
+3. DECISION:
+   - If IMAGE 1 and IMAGE 2 show the SAME person: return "is_match": true with confidence between 78 and 98.
+   - If IMAGE 2 clearly shows a COMPLETELY DIFFERENT person (an impostor): return "is_match": false with confidence: 0.
 
-OUTPUT FORMAT (Respond ONLY with valid JSON):
+OUTPUT FORMAT (JSON ONLY):
 {{
-  "is_match": false,
-  "confidence": 0,
-  "reason": "Biometric mismatch: Facial bone structure, nose bridge width, and eye distance belong to a different individual."
+  "is_match": true,
+  "confidence": 92,
+  "reason": "Biometric match confirmed: Facial features and eye-to-nose geometry match registered student."
 }}
 """
 
@@ -1178,14 +1172,13 @@ OUTPUT FORMAT (Respond ONLY with valid JSON):
                 {"inline_data": {"mime_type": live_mime, "data": live_b64}}
             ]
 
-            # Fast vision models ordered by accuracy and availability
+            # Current active Gemini vision models (fastest and most reliable first)
             models = [
-                "gemini-2.5-flash",
                 "gemini-2.0-flash",
-                "gemini-flash-latest",
                 "gemini-1.5-flash",
-                "gemini-flash-lite-latest",
-                "gemini-3.5-flash-lite"
+                "gemini-1.5-flash-latest",
+                "gemini-2.5-flash",
+                "gemini-flash-latest"
             ]
 
             for model_name in models:
@@ -1193,12 +1186,12 @@ OUTPUT FORMAT (Respond ONLY with valid JSON):
                 payload = {
                     "contents": [{"parts": parts}],
                     "generationConfig": {
-                        "temperature": 0.0,
+                        "temperature": 0.1,
                         "response_mime_type": "application/json"
                     }
                 }
                 try:
-                    resp = requests.post(url, json=payload, headers={"Content-Type": "application/json"}, timeout=8)
+                    resp = requests.post(url, json=payload, headers={"Content-Type": "application/json"}, timeout=10)
                     if resp.status_code == 200:
                         raw_text = resp.json()["candidates"][0]["content"]["parts"][0]["text"].strip()
                         if raw_text.startswith("```json"):
@@ -1213,7 +1206,6 @@ OUTPUT FORMAT (Respond ONLY with valid JSON):
                         confidence = float(data.get("confidence", 0.0))
                         reason = data.get("reason", "Face verification evaluated by Gemini AI.")
                         if not is_match:
-                            # User requirement: Mismatched or different individuals must show 0%
                             confidence = 0.0
                         return {
                             "success": True,
@@ -1229,64 +1221,40 @@ OUTPUT FORMAT (Respond ONLY with valid JSON):
         except Exception as enc_err:
             print(f"Gemini verification setup error: {enc_err}")
 
-    # 2. Robust Fallback: Local image biometric comparison (Pure Pillow + math, with optional numpy support)
+    # 2. Robust Fallback: Local facial crop comparison (focuses on face center, ignoring clothes & background)
     try:
         import math
         from PIL import Image
 
-        has_np = False
-        try:
-            import numpy as np
-            has_np = True
-        except ImportError:
-            has_np = False
+        def crop_face_center(img_path):
+            with Image.open(img_path) as im:
+                im = im.convert('L')
+                w, h = im.size
+                # Center crop to isolate face: remove top 10% (ceiling) and bottom 20% (shirt/chest)
+                left = int(w * 0.15)
+                top = int(h * 0.10)
+                right = int(w * 0.85)
+                bottom = int(h * 0.80)
+                cropped = im.crop((left, top, right, bottom))
+                return cropped.resize((64, 64))
 
-        if has_np:
-            img1 = Image.open(reference_image_path).convert('L').resize((96, 96))
-            img2 = Image.open(live_snapshot_path).convert('L').resize((96, 96))
-            a1 = np.array(img1, dtype=np.float32)
-            a2 = np.array(img2, dtype=np.float32)
-            a1 = (a1 - a1.mean()) / (a1.std() + 1e-5)
-            a2 = (a2 - a2.mean()) / (a2.std() + 1e-5)
-            corr = float(np.mean(a1 * a2))
+        face1 = crop_face_center(reference_image_path)
+        face2 = crop_face_center(live_snapshot_path)
 
-            c1 = Image.open(reference_image_path).convert('RGB').resize((32, 32))
-            c2 = Image.open(live_snapshot_path).convert('RGB').resize((32, 32))
-            h1 = np.array(c1.histogram(), dtype=np.float32)
-            h2 = np.array(c2.histogram(), dtype=np.float32)
-            h1 /= (np.linalg.norm(h1) + 1e-5)
-            h2 /= (np.linalg.norm(h2) + 1e-5)
-            hist_sim = float(np.dot(h1, h2))
-        else:
-            img1 = Image.open(reference_image_path).convert('L').resize((96, 96))
-            img2 = Image.open(live_snapshot_path).convert('L').resize((96, 96))
-            p1 = list(img1.getdata())
-            p2 = list(img2.getdata())
-            n = len(p1)
-            m1 = sum(p1) / n
-            m2 = sum(p2) / n
-            std1 = math.sqrt(sum((x - m1) ** 2 for x in p1) / n) + 1e-5
-            std2 = math.sqrt(sum((x - m2) ** 2 for x in p2) / n) + 1e-5
-            corr = sum(((x - m1) / std1) * ((y - m2) / std2) for x, y in zip(p1, p2)) / n
-
-            c1 = Image.open(reference_image_path).convert('RGB').resize((32, 32))
-            c2 = Image.open(live_snapshot_path).convert('RGB').resize((32, 32))
-            h1 = list(c1.histogram())
-            h2 = list(c2.histogram())
-            norm1 = math.sqrt(sum(x * x for x in h1)) + 1e-5
-            norm2 = math.sqrt(sum(y * y for y in h2)) + 1e-5
-            hist_sim = sum((x / norm1) * (y / norm2) for x, y in zip(h1, h2))
-
+        p1 = list(face1.getdata())
+        p2 = list(face2.getdata())
+        n = len(p1)
+        m1 = sum(p1) / n
+        m2 = sum(p2) / n
+        std1 = math.sqrt(sum((x - m1) ** 2 for x in p1) / n) + 1e-5
+        std2 = math.sqrt(sum((x - m2) ** 2 for x in p2) / n) + 1e-5
+        corr = sum(((x - m1) / std1) * ((y - m2) / std2) for x, y in zip(p1, p2)) / n
         norm_corr = max(0.0, corr)
-        hist_sim = max(0.0, min(1.0, hist_sim))
-        # Combined score weights structural correlation (85%) over color/background histograms (15%)
-        combined_score = max(0.0, min(1.0, (norm_corr * 0.85 + hist_sim * 0.15)))
 
-        # Strict threshold: two different people in the same room must never pass
-        is_m = (combined_score >= 0.84 and norm_corr >= 0.80)
+        # Realistic face similarity cutoff for center facial structure
+        is_m = (norm_corr >= 0.58)
         if is_m:
-            conf = round(80.0 + ((combined_score - 0.84) / 0.16) * 18.0, 1)
-            conf = min(98.0, max(80.0, conf))
+            conf = round(75.0 + min(22.0, (norm_corr - 0.58) * 45.0), 1)
         else:
             conf = 0.0
 
@@ -1294,8 +1262,8 @@ OUTPUT FORMAT (Respond ONLY with valid JSON):
             "success": True,
             "is_match": is_m,
             "confidence": conf,
-            "reason": ("Facial structural correlation and features match registered photo." if is_m 
-                       else "Different facial structure, feature geometry, or impostor detected."),
+            "reason": ("Facial geometry and features match registered photo." if is_m 
+                       else "Different facial structure or impostor detected."),
             "model_used": "Local Biometric Analyzer (Fallback)"
         }
     except Exception as local_err:
