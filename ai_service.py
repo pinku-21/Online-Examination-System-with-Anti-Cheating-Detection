@@ -474,46 +474,51 @@ def generate_questions_with_groq(api_key, text_content=None, num_questions=5, qu
 
     user_prompt = f"Please generate the exam paper based strictly on this reference material:\n\n{text_content[:50000] if text_content else 'Academic examination questions requested by instructor'}"
     
+    keys_pool = parse_api_keys(api_key)
+    if not keys_pool:
+        return {"success": False, "error": "No Groq API key provided."}
+
     models_to_try = ["llama-3.3-70b-versatile", "llama-3.1-70b-versatile", "llama-3.1-8b-instant"]
     last_error = None
     
-    for model in models_to_try:
-        try:
-            resp = requests.post(
-                "https://api.groq.com/openai/v1/chat/completions",
-                headers={
-                    "Authorization": f"Bearer {api_key}",
-                    "Content-Type": "application/json"
-                },
-                json={
-                    "model": model,
-                    "messages": [
-                        {"role": "system", "content": system_prompt},
-                        {"role": "user", "content": user_prompt}
-                    ],
-                    "temperature": 0.4
-                },
-                timeout=120
-            )
-            if resp.status_code == 200:
-                raw_text = resp.json()["choices"][0]["message"]["content"].strip()
-                if "```json" in raw_text:
-                    raw_text = raw_text.split("```json")[1].split("```")[0].strip()
-                elif "```" in raw_text:
-                    raw_text = raw_text.split("```")[1].split("```")[0].strip()
-                
-                start_idx = raw_text.find("[")
-                end_idx = raw_text.rfind("]")
-                if start_idx != -1 and end_idx != -1:
-                    raw_text = raw_text[start_idx:end_idx + 1]
-                
-                questions = json.loads(raw_text)
-                if isinstance(questions, list) and len(questions) > 0:
-                    return {"success": True, "questions": questions, "model_used": f"Groq ({model})"}
-            else:
-                last_error = f"Groq Error ({resp.status_code}): {resp.text}"
-        except Exception as e:
-            last_error = str(e)
+    for cur_key in keys_pool:
+        for model in models_to_try:
+            try:
+                resp = requests.post(
+                    "https://api.groq.com/openai/v1/chat/completions",
+                    headers={
+                        "Authorization": f"Bearer {cur_key}",
+                        "Content-Type": "application/json"
+                    },
+                    json={
+                        "model": model,
+                        "messages": [
+                            {"role": "system", "content": system_prompt},
+                            {"role": "user", "content": user_prompt}
+                        ],
+                        "temperature": 0.4
+                    },
+                    timeout=120
+                )
+                if resp.status_code == 200:
+                    raw_text = resp.json()["choices"][0]["message"]["content"].strip()
+                    if "```json" in raw_text:
+                        raw_text = raw_text.split("```json")[1].split("```")[0].strip()
+                    elif "```" in raw_text:
+                        raw_text = raw_text.split("```")[1].split("```")[0].strip()
+                    
+                    start_idx = raw_text.find("[")
+                    end_idx = raw_text.rfind("]")
+                    if start_idx != -1 and end_idx != -1:
+                        raw_text = raw_text[start_idx:end_idx + 1]
+                    
+                    questions = json.loads(raw_text)
+                    if isinstance(questions, list) and len(questions) > 0:
+                        return {"success": True, "questions": questions, "model_used": f"Groq ({model})"}
+                else:
+                    last_error = f"Groq Error ({resp.status_code}): {resp.text}"
+            except Exception as e:
+                last_error = str(e)
             
     return {"success": False, "error": last_error or "Failed to generate questions with Groq."}
 
@@ -1100,37 +1105,39 @@ Return ONLY a JSON object with this exact structure:
 
     # 3. Try Groq (if text-based or if student provided text)
     if groq_key and student_text:
+        groq_keys_pool = parse_api_keys(groq_key)
         groq_models = ["llama-3.3-70b-versatile", "llama-3.1-8b-instant"]
-        for g_model in groq_models:
-            try:
-                headers = {
-                    "Authorization": f"Bearer {groq_key}",
-                    "Content-Type": "application/json"
-                }
-                payload = {
-                    "model": g_model,
-                    "messages": [
-                        {"role": "system", "content": "You are an academic grader. Return only JSON with 'awarded_marks' and 'feedback'."},
-                        {"role": "user", "content": eval_prompt}
-                    ],
-                    "temperature": 0.2,
-                    "response_format": {"type": "json_object"}
-                }
-                resp = requests.post("https://api.groq.com/openai/v1/chat/completions", headers=headers, json=payload, timeout=30)
-                if resp.status_code == 200:
-                    content = resp.json()["choices"][0]["message"]["content"].strip()
-                    data = json.loads(content)
-                    awarded = float(data.get("awarded_marks", 0.0))
-                    awarded = max(0.0, min(max_pts, round(awarded, 1)))
-                    feedback = data.get("feedback", "AI evaluated response.")
-                    return {
-                        "success": True,
-                        "awarded_marks": awarded,
-                        "feedback": feedback,
-                        "model_used": f"Groq ({g_model})"
+        for g_key in groq_keys_pool:
+            for g_model in groq_models:
+                try:
+                    headers = {
+                        "Authorization": f"Bearer {g_key}",
+                        "Content-Type": "application/json"
                     }
-            except Exception as e:
-                print(f"Groq evaluation error ({g_model}): {e}")
+                    payload = {
+                        "model": g_model,
+                        "messages": [
+                            {"role": "system", "content": "You are an academic grader. Return only JSON with 'awarded_marks' and 'feedback'."},
+                            {"role": "user", "content": eval_prompt}
+                        ],
+                        "temperature": 0.2,
+                        "response_format": {"type": "json_object"}
+                    }
+                    resp = requests.post("https://api.groq.com/openai/v1/chat/completions", headers=headers, json=payload, timeout=30)
+                    if resp.status_code == 200:
+                        content = resp.json()["choices"][0]["message"]["content"].strip()
+                        data = json.loads(content)
+                        awarded = float(data.get("awarded_marks", 0.0))
+                        awarded = max(0.0, min(max_pts, round(awarded, 1)))
+                        feedback = data.get("feedback", "AI evaluated response.")
+                        return {
+                            "success": True,
+                            "awarded_marks": awarded,
+                            "feedback": feedback,
+                            "model_used": f"Groq ({g_model})"
+                        }
+                except Exception as e:
+                    print(f"Groq evaluation error ({g_model}): {e}")
 
     return {
         "success": False,
