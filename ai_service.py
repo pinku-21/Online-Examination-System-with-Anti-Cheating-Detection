@@ -7,6 +7,27 @@ import concurrent.futures
 from pypdf import PdfReader
 from database import get_setting
 
+def parse_api_keys(key_string):
+    """
+    Parses a single key or comma/whitespace/newline-separated list of keys into a clean list of unique keys.
+    Supports:
+      - Single key: 'AQ.Ab8...'
+      - Comma-separated: 'key1, key2, key3'
+      - Newline-separated: 'key1\nkey2'
+    """
+    if not key_string:
+        return []
+    raw = str(key_string).strip()
+    keys = [k.strip() for k in re.split(r'[,;\n\r\t ]+', raw) if k and len(k.strip()) > 8]
+    # Remove duplicates preserving order
+    seen = set()
+    result = []
+    for k in keys:
+        if k not in seen:
+            seen.add(k)
+            result.append(k)
+    return result
+
 def extract_text_from_pdf(pdf_path, max_chars=50000, max_pages=30):
     """Extract text content from an uploaded PDF file safely and quickly."""
     try:
@@ -293,6 +314,10 @@ def generate_questions_with_gemini(api_key, text_content=None, image_paths=None,
                     }
                 })
 
+    keys_pool = parse_api_keys(api_key)
+    if not keys_pool:
+        return []
+
     models_to_try = [
         "gemini-3.8-flash",
         "gemini-flash-latest",
@@ -302,60 +327,61 @@ def generate_questions_with_gemini(api_key, text_content=None, image_paths=None,
     ]
     
     last_error = None
-    for model_name in models_to_try:
-        url = f"https://generativelanguage.googleapis.com/v1beta/models/{model_name}:generateContent?key={api_key}"
-        payload = {
-            "contents": [{"parts": parts}],
-            "generationConfig": {
-                "temperature": 0.4,
-                "response_mime_type": "application/json"
+    for cur_key in keys_pool:
+        for model_name in models_to_try:
+            url = f"https://generativelanguage.googleapis.com/v1beta/models/{model_name}:generateContent?key={cur_key}"
+            payload = {
+                "contents": [{"parts": parts}],
+                "generationConfig": {
+                    "temperature": 0.4,
+                    "response_mime_type": "application/json"
+                }
             }
-        }
-        
-        try:
-            resp = requests.post(url, json=payload, headers={"Content-Type": "application/json"}, timeout=300)
-            if resp.status_code == 200:
-                result_json = resp.json()
-                raw_text = result_json["candidates"][0]["content"]["parts"][0]["text"].strip()
-                if raw_text.startswith("```json"):
-                    raw_text = raw_text[7:]
-                if raw_text.startswith("```"):
-                    raw_text = raw_text[3:]
-                if raw_text.endswith("```"):
-                    raw_text = raw_text[:-3]
-                raw_text = raw_text.strip()
-                
-                questions = json.loads(raw_text)
-                if isinstance(questions, list) and len(questions) > 0:
-                    processed_questions = []
-                    for q in questions:
-                        q_text = (q.get("question_text") or "").strip()
-                        or_pattern = re.compile(r"\n\s*(?:OR|\(OR\)|---\s*OR\s*---)\s*\n", re.IGNORECASE)
-                        if or_pattern.search(q_text):
-                            parts = or_pattern.split(q_text, maxsplit=1)
-                            q1 = dict(q)
-                            q1["question_text"] = parts[0].strip()
-                            q1["is_or_choice"] = False
-                            processed_questions.append(q1)
+            
+            try:
+                resp = requests.post(url, json=payload, headers={"Content-Type": "application/json"}, timeout=300)
+                if resp.status_code == 200:
+                    result_json = resp.json()
+                    raw_text = result_json["candidates"][0]["content"]["parts"][0]["text"].strip()
+                    if raw_text.startswith("```json"):
+                        raw_text = raw_text[7:]
+                    if raw_text.startswith("```"):
+                        raw_text = raw_text[3:]
+                    if raw_text.endswith("```"):
+                        raw_text = raw_text[:-3]
+                    raw_text = raw_text.strip()
+                    
+                    questions = json.loads(raw_text)
+                    if isinstance(questions, list) and len(questions) > 0:
+                        processed_questions = []
+                        for q in questions:
+                            q_text = (q.get("question_text") or "").strip()
+                            or_pattern = re.compile(r"\n\s*(?:OR|\(OR\)|---\s*OR\s*---)\s*\n", re.IGNORECASE)
+                            if or_pattern.search(q_text):
+                                parts = or_pattern.split(q_text, maxsplit=1)
+                                q1 = dict(q)
+                                q1["question_text"] = parts[0].strip()
+                                q1["is_or_choice"] = False
+                                processed_questions.append(q1)
 
-                            q2 = dict(q)
-                            p2_text = parts[1].strip()
-                            if not p2_text.startswith("[OR Alternative]"):
-                                p2_text = f"[OR Alternative] {p2_text}"
-                            q2["question_text"] = p2_text
-                            q2["is_or_choice"] = True
-                            processed_questions.append(q2)
-                        else:
-                            is_or = bool(q.get("is_or_choice") or q_text.startswith("[OR Alternative]"))
-                            q["is_or_choice"] = is_or
-                            if is_or and not q_text.startswith("[OR Alternative]"):
-                                q["question_text"] = f"[OR Alternative] {q_text}"
-                            processed_questions.append(q)
-                    return {"success": True, "questions": processed_questions, "model_used": f"Google Gemini ({model_name})"}
-            else:
-                last_error = f"Gemini ({model_name}) Error ({resp.status_code}): {resp.text}"
-        except Exception as e:
-            last_error = str(e)
+                                q2 = dict(q)
+                                p2_text = parts[1].strip()
+                                if not p2_text.startswith("[OR Alternative]"):
+                                    p2_text = f"[OR Alternative] {p2_text}"
+                                q2["question_text"] = p2_text
+                                q2["is_or_choice"] = True
+                                processed_questions.append(q2)
+                            else:
+                                is_or = bool(q.get("is_or_choice") or q_text.startswith("[OR Alternative]"))
+                                q["is_or_choice"] = is_or
+                                if is_or and not q_text.startswith("[OR Alternative]"):
+                                    q["question_text"] = f"[OR Alternative] {q_text}"
+                                processed_questions.append(q)
+                        return {"success": True, "questions": processed_questions, "model_used": f"Google Gemini ({model_name})"}
+                else:
+                    last_error = f"Gemini ({model_name}) Error ({resp.status_code}): {resp.text}"
+            except Exception as e:
+                last_error = str(e)
             
     return {"success": False, "error": last_error or "Failed to generate questions with Gemini."}
 
@@ -691,83 +717,84 @@ def parse_existing_paper_with_gemini(api_key, raw_text, image_paths=None, availa
                     }
                 })
     
-    for model_name in models:
-        url = f"https://generativelanguage.googleapis.com/v1beta/models/{model_name}:generateContent?key={api_key}"
-        payload = {
-            "contents": [{
-                "parts": parts
-            }],
-            "generationConfig": {
-                "temperature": 0.1,
-                "response_mime_type": "application/json"
+    keys_pool = parse_api_keys(api_key)
+    if not keys_pool:
+        return []
+
+    for cur_key in keys_pool:
+        for model_name in models:
+            url = f"https://generativelanguage.googleapis.com/v1beta/models/{model_name}:generateContent?key={cur_key}"
+            payload = {
+                "contents": [{
+                    "parts": parts
+                }],
+                "generationConfig": {
+                    "temperature": 0.1,
+                    "response_mime_type": "application/json"
+                }
             }
-        }
-        try:
-            resp = requests.post(url, json=payload, headers={"Content-Type": "application/json"}, timeout=120)
-            if resp.status_code == 200:
-                raw_text_out = resp.json()["candidates"][0]["content"]["parts"][0]["text"].strip()
-                if raw_text_out.startswith("```json"):
-                    raw_text_out = raw_text_out[7:]
-                if raw_text_out.startswith("```"):
-                    raw_text_out = raw_text_out[3:]
-                if raw_text_out.endswith("```"):
-                    raw_text_out = raw_text_out[:-3]
-                raw_text_out = raw_text_out.strip()
-                questions = json.loads(raw_text_out)
-                if isinstance(questions, list) and len(questions) > 0:
-                    processed_questions = []
-                    for q in questions:
-                        q_text = (q.get("question_text") or "").strip()
-                        # Match OR markers: newlines with OR, inline ' OR ', ' (OR) ', '--- OR ---', or header 'Students to attempt either option A or B'
-                        # e.g.:
-                        # "Students to attempt either option A or B.\nA. ...\nOR\nB. ..."
-                        # "A. ... OR B. ..."
-                        # "A. ...\nOR\nB. ..."
-                        clean_text = re.sub(r"^(?:Students\s+to\s+attempt\s+either\s+option\s+[A-Za-z]\s+or\s+[A-Za-z][\.\:\s]*|Attempt\s+either\s+option\s+[A-Za-z]\s+or\s+[A-Za-z][\.\:\s]*)\n*", "", q_text, flags=re.IGNORECASE).strip()
-                        # Also strip bleeding section trailers like: ". Section C – Short Answer Questions Questions 26–31 · 3 marks each"
-                        section_bleed_match = re.search(r"(?:\n|\.\s+)(?:Section\s+[A-Z]|Part\s+[A-Z])\s*[\-–—\:]\s*.*$", clean_text, flags=re.IGNORECASE)
-                        if section_bleed_match:
-                            clean_text = clean_text[:section_bleed_match.start()].strip()
-                            if not clean_text.endswith('.'):
-                                clean_text += '.'
+            try:
+                resp = requests.post(url, json=payload, headers={"Content-Type": "application/json"}, timeout=120)
+                if resp.status_code == 200:
+                    raw_text_out = resp.json()["candidates"][0]["content"]["parts"][0]["text"].strip()
+                    if raw_text_out.startswith("```json"):
+                        raw_text_out = raw_text_out[7:]
+                    if raw_text_out.startswith("```"):
+                        raw_text_out = raw_text_out[3:]
+                    if raw_text_out.endswith("```"):
+                        raw_text_out = raw_text_out[:-3]
+                    raw_text_out = raw_text_out.strip()
+                    questions = json.loads(raw_text_out)
+                    if isinstance(questions, list) and len(questions) > 0:
+                        processed_questions = []
+                        for q in questions:
+                            q_text = (q.get("question_text") or "").strip()
+                            # Match OR markers: newlines with OR, inline ' OR ', ' (OR) ', '--- OR ---', or header 'Students to attempt either option A or B'
+                            clean_text = re.sub(r"^(?:Students\s+to\s+attempt\s+either\s+option\s+[A-Za-z]\s+or\s+[A-Za-z][\.\:\s]*|Attempt\s+either\s+option\s+[A-Za-z]\s+or\s+[A-Za-z][\.\:\s]*)\n*", "", q_text, flags=re.IGNORECASE).strip()
+                            # Also strip bleeding section trailers like: ". Section C – Short Answer Questions Questions 26–31 · 3 marks each"
+                            section_bleed_match = re.search(r"(?:\n|\.\s+)(?:Section\s+[A-Z]|Part\s+[A-Z])\s*[\-–—\:]\s*.*$", clean_text, flags=re.IGNORECASE)
+                            if section_bleed_match:
+                                clean_text = clean_text[:section_bleed_match.start()].strip()
+                                if not clean_text.endswith('.'):
+                                    clean_text += '.'
 
-                        or_pattern = re.compile(r"(?:\n\s*(?:OR|\(OR\)|---\s*OR\s*---)\s*\n|\s+OR\s+(?=[B-Z]\.|\(b\)|\(B\))|\n\s*OR\s+(?=[B-Z]\.|\(b\)|\(B\)))", re.IGNORECASE)
-                        has_merged_or = bool(or_pattern.search(clean_text))
+                            or_pattern = re.compile(r"(?:\n\s*(?:OR|\(OR\)|---\s*OR\s*---)\s*\n|\s+OR\s+(?=[B-Z]\.|\(b\)|\(B\))|\n\s*OR\s+(?=[B-Z]\.|\(b\)|\(B\)))", re.IGNORECASE)
+                            has_merged_or = bool(or_pattern.search(clean_text))
 
-                        if has_merged_or:
-                            parts = or_pattern.split(clean_text, maxsplit=1)
-                            # Part 1: Primary question
-                            q_copy1 = dict(q)
-                            q_copy1["question_text"] = parts[0].strip()
-                            q_copy1["is_or_choice"] = False
-                            processed_questions.append(q_copy1)
+                            if has_merged_or:
+                                parts = or_pattern.split(clean_text, maxsplit=1)
+                                # Part 1: Primary question
+                                q_copy1 = dict(q)
+                                q_copy1["question_text"] = parts[0].strip()
+                                q_copy1["is_or_choice"] = False
+                                processed_questions.append(q_copy1)
 
-                            # Part 2: OR alternative question
-                            q_copy2 = dict(q)
-                            part2_text = parts[1].strip()
-                            if not part2_text.startswith("[OR Alternative]"):
-                                part2_text = f"[OR Alternative] {part2_text}"
-                            q_copy2["question_text"] = part2_text
-                            q_copy2["is_or_choice"] = True
-                            processed_questions.append(q_copy2)
-                        else:
-                            # Check if flagged as is_or_choice or starts with [OR Alternative]
-                            is_or = bool(q.get("is_or_choice") or clean_text.startswith("[OR Alternative]"))
-                            q["question_text"] = clean_text
-                            if is_or:
-                                q["is_or_choice"] = True
-                                if not clean_text.startswith("[OR Alternative]"):
-                                    q["question_text"] = f"[OR Alternative] {clean_text}"
+                                # Part 2: OR alternative question
+                                q_copy2 = dict(q)
+                                part2_text = parts[1].strip()
+                                if not part2_text.startswith("[OR Alternative]"):
+                                    part2_text = f"[OR Alternative] {part2_text}"
+                                q_copy2["question_text"] = part2_text
+                                q_copy2["is_or_choice"] = True
+                                processed_questions.append(q_copy2)
                             else:
-                                q["is_or_choice"] = False
-                            processed_questions.append(q)
+                                # Check if flagged as is_or_choice or starts with [OR Alternative]
+                                is_or = bool(q.get("is_or_choice") or clean_text.startswith("[OR Alternative]"))
+                                q["question_text"] = clean_text
+                                if is_or:
+                                    q["is_or_choice"] = True
+                                    if not clean_text.startswith("[OR Alternative]"):
+                                        q["question_text"] = f"[OR Alternative] {clean_text}"
+                                else:
+                                    q["is_or_choice"] = False
+                                processed_questions.append(q)
 
-                    return {"success": True, "questions": processed_questions, "model_used": f"Google Gemini Parser ({model_name})"}
-            else:
-                last_err = f"Gemini ({model_name}) HTTP {resp.status_code}: {resp.text[:180]}"
-                print(f"Skipping {model_name} due to: {last_err}")
-        except Exception as e:
-            last_err = str(e)
+                        return {"success": True, "questions": processed_questions, "model_used": f"Google Gemini Parser ({model_name})"}
+                else:
+                    last_err = f"Gemini ({model_name}) HTTP {resp.status_code}: {resp.text[:180]}"
+                    print(f"Skipping {model_name} due to: {last_err}")
+            except Exception as e:
+                last_err = str(e)
             
     return {"success": False, "error": last_err or "Failed to parse with Gemini."}
 
@@ -1036,38 +1063,40 @@ Return ONLY a JSON object with this exact structure:
             "gemini-flash-lite-latest"
         ]
 
-        for model_name in models:
-            url = f"https://generativelanguage.googleapis.com/v1beta/models/{model_name}:generateContent?key={gemini_key}"
-            payload = {
-                "contents": [{"parts": parts}],
-                "generationConfig": {
-                    "temperature": 0.2,
-                    "response_mime_type": "application/json"
-                }
-            }
-            try:
-                resp = requests.post(url, json=payload, headers={"Content-Type": "application/json"}, timeout=45)
-                if resp.status_code == 200:
-                    raw_text = resp.json()["candidates"][0]["content"]["parts"][0]["text"].strip()
-                    if raw_text.startswith("```json"):
-                        raw_text = raw_text[7:]
-                    if raw_text.startswith("```"):
-                        raw_text = raw_text[3:]
-                    if raw_text.endswith("```"):
-                        raw_text = raw_text[:-3]
-                    raw_text = raw_text.strip()
-                    data = json.loads(raw_text)
-                    awarded = float(data.get("awarded_marks", 0.0))
-                    awarded = max(0.0, min(max_pts, round(awarded, 1)))
-                    feedback = data.get("feedback", "AI evaluated response.")
-                    return {
-                        "success": True,
-                        "awarded_marks": awarded,
-                        "feedback": feedback,
-                        "model_used": f"Google Gemini ({model_name})"
+        keys_pool = parse_api_keys(gemini_key)
+        for cur_key in keys_pool:
+            for model_name in models:
+                url = f"https://generativelanguage.googleapis.com/v1beta/models/{model_name}:generateContent?key={cur_key}"
+                payload = {
+                    "contents": [{"parts": parts}],
+                    "generationConfig": {
+                        "temperature": 0.2,
+                        "response_mime_type": "application/json"
                     }
-            except Exception as e:
-                print(f"Gemini evaluation error ({model_name}): {e}")
+                }
+                try:
+                    resp = requests.post(url, json=payload, headers={"Content-Type": "application/json"}, timeout=45)
+                    if resp.status_code == 200:
+                        raw_text = resp.json()["candidates"][0]["content"]["parts"][0]["text"].strip()
+                        if raw_text.startswith("```json"):
+                            raw_text = raw_text[7:]
+                        if raw_text.startswith("```"):
+                            raw_text = raw_text[3:]
+                        if raw_text.endswith("```"):
+                            raw_text = raw_text[:-3]
+                        raw_text = raw_text.strip()
+                        data = json.loads(raw_text)
+                        awarded = float(data.get("awarded_marks", 0.0))
+                        awarded = max(0.0, min(max_pts, round(awarded, 1)))
+                        feedback = data.get("feedback", "AI evaluated response.")
+                        return {
+                            "success": True,
+                            "awarded_marks": awarded,
+                            "feedback": feedback,
+                            "model_used": f"Google Gemini ({model_name})"
+                        }
+                except Exception as e:
+                    print(f"Gemini evaluation error ({model_name}): {e}")
 
     # 3. Try Groq (if text-based or if student provided text)
     if groq_key and student_text:
@@ -1181,43 +1210,45 @@ OUTPUT FORMAT (JSON ONLY):
                 "gemini-flash-latest"
             ]
 
-            for model_name in models:
-                url = f"https://generativelanguage.googleapis.com/v1beta/models/{model_name}:generateContent?key={gemini_key.strip()}"
-                payload = {
-                    "contents": [{"parts": parts}],
-                    "generationConfig": {
-                        "temperature": 0.1,
-                        "response_mime_type": "application/json"
-                    }
-                }
-                try:
-                    resp = requests.post(url, json=payload, headers={"Content-Type": "application/json"}, timeout=12)
-                    if resp.status_code == 200:
-                        raw_text = resp.json()["candidates"][0]["content"]["parts"][0]["text"].strip()
-                        if raw_text.startswith("```json"):
-                            raw_text = raw_text[7:]
-                        if raw_text.startswith("```"):
-                            raw_text = raw_text[3:]
-                        if raw_text.endswith("```"):
-                            raw_text = raw_text[:-3]
-                        raw_text = raw_text.strip()
-                        data = json.loads(raw_text)
-                        is_match = bool(data.get("is_match", False))
-                        confidence = float(data.get("confidence", 0.0))
-                        reason = data.get("reason", "Face verification evaluated by Gemini AI.")
-                        if not is_match:
-                            confidence = 0.0
-                        return {
-                            "success": True,
-                            "is_match": is_match,
-                            "confidence": round(confidence, 1),
-                            "reason": reason,
-                            "model_used": f"Gemini Vision ({model_name})"
+            keys_pool = parse_api_keys(gemini_key)
+            for cur_key in keys_pool:
+                for model_name in models:
+                    url = f"https://generativelanguage.googleapis.com/v1beta/models/{model_name}:generateContent?key={cur_key}"
+                    payload = {
+                        "contents": [{"parts": parts}],
+                        "generationConfig": {
+                            "temperature": 0.1,
+                            "response_mime_type": "application/json"
                         }
-                    else:
-                        print(f"Gemini face verification error ({model_name}): status {resp.status_code} - {resp.text[:120]}")
-                except Exception as e:
-                    print(f"Gemini face verification exception ({model_name}): {e}")
+                    }
+                    try:
+                        resp = requests.post(url, json=payload, headers={"Content-Type": "application/json"}, timeout=12)
+                        if resp.status_code == 200:
+                            raw_text = resp.json()["candidates"][0]["content"]["parts"][0]["text"].strip()
+                            if raw_text.startswith("```json"):
+                                raw_text = raw_text[7:]
+                            if raw_text.startswith("```"):
+                                raw_text = raw_text[3:]
+                            if raw_text.endswith("```"):
+                                raw_text = raw_text[:-3]
+                            raw_text = raw_text.strip()
+                            data = json.loads(raw_text)
+                            is_match = bool(data.get("is_match", False))
+                            confidence = float(data.get("confidence", 0.0))
+                            reason = data.get("reason", "Face verification evaluated by Gemini AI.")
+                            if not is_match:
+                                confidence = 0.0
+                            return {
+                                "success": True,
+                                "is_match": is_match,
+                                "confidence": round(confidence, 1),
+                                "reason": reason,
+                                "model_used": f"Gemini Vision ({model_name})"
+                            }
+                        else:
+                            print(f"Gemini face verification error ({model_name}): status {resp.status_code} - {resp.text[:120]}")
+                    except Exception as e:
+                        print(f"Gemini face verification exception ({model_name}): {e}")
         except Exception as enc_err:
             print(f"Gemini verification setup error: {enc_err}")
 
