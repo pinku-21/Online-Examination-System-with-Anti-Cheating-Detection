@@ -239,6 +239,44 @@ def generate_exam_code(length=6):
     return "".join(random.choice(chars) for _ in range(length))
 
 
+# --- ZERO-WIDTH CANARY STEGANOGRAPHY & AI HONEYPOT ENGINE ---
+# Uses zero-width space (\u200B) for '0' and zero-width non-joiner (\u200C) for '1'
+ZW_ZERO = "\u200B"
+ZW_ONE = "\u200C"
+ZW_DELIM = "\u200D"
+
+def encode_canary_watermark(text, payload_str):
+    """
+    Silently injects an invisible zero-width binary token into question text.
+    If copied to ChatGPT, Telegram, or Chegg, the invisible watermark follows the text!
+    """
+    if not text or not payload_str:
+        return text
+    binary = "".join(format(ord(c), "08b") for c in str(payload_str))
+    zw_payload = "".join(ZW_ZERO if b == "0" else ZW_ONE for b in binary)
+    # Insert invisible canary at the first word boundary
+    words = text.split(" ", 1)
+    if len(words) > 1:
+        return f"{words[0]}{ZW_DELIM}{zw_payload}{ZW_DELIM} {words[1]}"
+    return f"{text}{ZW_DELIM}{zw_payload}{ZW_DELIM}"
+
+def decode_canary_watermark(text):
+    """Extracts hidden student payload from pasted text, if present."""
+    if not text or ZW_DELIM not in text:
+        return None
+    try:
+        parts = text.split(ZW_DELIM)
+        for part in parts:
+            if all(c in (ZW_ZERO, ZW_ONE) for c in part) and len(part) >= 8 and len(part) % 8 == 0:
+                binary = "".join("0" if c == ZW_ZERO else "1" for c in part)
+                chars = [chr(int(binary[i:i+8], 2)) for i in range(0, len(binary), 8)]
+                return "".join(chars)
+    except Exception:
+        pass
+    return None
+
+
+
 # --- AUTHENTICATION & ACCESS CONTROL HELPERS ---
 
 def login_required(f):
@@ -1777,8 +1815,8 @@ def api_save_exam():
         
         for q in questions_list:
             cursor.execute("""
-                INSERT INTO questions (exam_id, question_text, question_type, options_json, correct_answer, explanation, points, figure_svg, figure_url)
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+                INSERT INTO questions (exam_id, question_text, question_type, options_json, correct_answer, explanation, points, figure_svg, figure_url, is_honeypot, honeypot_signature, honeypot_perturbation_type)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             """, (
                 exam_id,
                 q.get("question_text", ""),
@@ -1788,7 +1826,10 @@ def api_save_exam():
                 q.get("explanation", ""),
                 float(q.get("points", 1.0)),
                 q.get("figure_svg"),
-                q.get("figure_url")
+                q.get("figure_url"),
+                1 if q.get("is_honeypot") in [1, True, "1"] else 0,
+                (q.get("honeypot_signature") or "").strip(),
+                (q.get("honeypot_perturbation_type") or "none").strip()
             ))
         
         # Save student assignments
@@ -2380,14 +2421,21 @@ def student_exam_room(submission_id):
             submission=submission,
         )
 
-    cursor.execute("SELECT id, question_text, question_type, options_json, points, figure_svg, figure_url FROM questions WHERE exam_id = ? ORDER BY id ASC", (submission["exam_id"],))
+    cursor.execute("SELECT id, question_text, question_type, options_json, points, figure_svg, figure_url, is_honeypot, honeypot_signature, honeypot_perturbation_type FROM questions WHERE exam_id = ? ORDER BY id ASC", (submission["exam_id"],))
     raw_questions = cursor.fetchall()
     conn.close()
     
+    # Forensic canary payload unique to this student and submission
+    canary_token = f"CANARY-U{submission.get('user_id', 0)}-S{submission['id']}"
+
     questions = []
     for q in raw_questions:
         q_dict = dict(q)
         q_dict["options"] = json.loads(q["options_json"]) if q["options_json"] else []
+        # Silently embed invisible zero-width watermark into question text
+        original_text = q_dict["question_text"]
+        q_dict["clean_question_text"] = original_text
+        q_dict["question_text"] = encode_canary_watermark(original_text, canary_token)
         questions.append(q_dict)
         
     # Restore saved progress (answers, timer, current question index) for page-refresh recovery
@@ -2547,6 +2595,38 @@ def api_submit_exam(submission_id):
         questions, answers, manual_eval
     )
     
+    # Evaluate Honeypot Traps & Canary Signatures across submitted answers
+    honeypot_triggers = []
+    for q in questions:
+        q_id_str = str(q["id"])
+        ans_raw = answers.get(q_id_str)
+        submitted_text = ""
+        if isinstance(ans_raw, dict):
+            submitted_text = (ans_raw.get("text") or "").strip()
+        elif isinstance(ans_raw, str):
+            submitted_text = ans_raw.strip()
+
+        # 1. Check if Honeypot decoy signature was produced by student (from ChatGPT or leaked solution)
+        if q.get("is_honeypot") in [1, True, "1"]:
+            sig = (q.get("honeypot_signature") or "").strip().lower()
+            if sig and sig in submitted_text.lower():
+                honeypot_triggers.append(f"Q{q['id']} signature match: '{sig}'")
+
+        # 2. Check if student answer text still contains an invisible steganographic canary
+        leaked_canary = decode_canary_watermark(submitted_text)
+        if leaked_canary:
+            honeypot_triggers.append(f"Q{q['id']} canary watermark loopback: {leaked_canary}")
+
+    honeypot_snared = 1 if honeypot_triggers else 0
+    honeypot_details = " | ".join(honeypot_triggers)
+
+    # If honeypot trap triggered, log a CRITICAL forensic incident
+    if honeypot_snared:
+        cursor.execute("""
+            INSERT INTO violations (submission_id, violation_type, details, severity, event_code)
+            VALUES (?, 'HONEYPOT_LEAK_CONFIRMED', ?, 'CRITICAL', 'SEC-007')
+        """, (submission_id, f"Forensic honeypot signature match: {honeypot_details}"))
+
     # Generate cryptographic SHA-256 HMAC for submission integrity & tamper detection
     integrity_token = generate_submission_integrity_hash(
         submission_id, 
@@ -2560,9 +2640,10 @@ def api_submit_exam(submission_id):
     cursor.execute("""
         UPDATE submissions 
         SET answers_json = ?, score = ?, total_points = ?, percentage = ?, status = 'submitted', 
-            submitted_at = CURRENT_TIMESTAMP, client_ip = ?, integrity_hash = ?
+            submitted_at = CURRENT_TIMESTAMP, client_ip = ?, integrity_hash = ?,
+            honeypot_snared = ?, honeypot_details = ?
         WHERE id = ?
-    """, (json.dumps(answers), total_score, total_points, round(percentage, 1), client_ip, integrity_token, submission_id))
+    """, (json.dumps(answers), total_score, total_points, round(percentage, 1), client_ip, integrity_token, honeypot_snared, honeypot_details, submission_id))
     
     conn.commit()
     conn.close()
@@ -2899,7 +2980,7 @@ def api_exam_live_proctor(exam_id):
         SELECT s.id, s.exam_id, s.user_id, s.student_name, s.roll_number, s.status,
                s.warnings_count, s.score, s.total_points, s.client_ip, s.time_remaining_seconds,
                s.started_at, s.submitted_at, s.verified_face_url, s.is_face_verified,
-               s.face_match_confidence, s.pause_reason,
+               s.face_match_confidence, s.pause_reason, s.honeypot_snared, s.honeypot_details,
                u.profile_photo AS student_profile_photo,
                (SELECT COUNT(*) FROM violations v WHERE v.submission_id = s.id) AS violation_count,
                (SELECT v.violation_type FROM violations v WHERE v.submission_id = s.id ORDER BY v.timestamp DESC LIMIT 1) AS last_violation_type,

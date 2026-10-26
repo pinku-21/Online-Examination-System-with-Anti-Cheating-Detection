@@ -241,6 +241,12 @@ def init_db():
             "ALTER TABLE violations ADD COLUMN IF NOT EXISTS severity TEXT DEFAULT 'HIGH'",
             "ALTER TABLE violations ADD COLUMN IF NOT EXISTS event_code TEXT DEFAULT 'SEC-ALERT'",
             "ALTER TABLE violations ADD COLUMN IF NOT EXISTS is_resolved INTEGER DEFAULT 0",
+            # AI Honeypot & Counter-Espionage Trap
+            "ALTER TABLE questions ADD COLUMN IF NOT EXISTS is_honeypot INTEGER DEFAULT 0",
+            "ALTER TABLE questions ADD COLUMN IF NOT EXISTS honeypot_signature TEXT DEFAULT ''",
+            "ALTER TABLE questions ADD COLUMN IF NOT EXISTS honeypot_perturbation_type TEXT DEFAULT 'none'",
+            "ALTER TABLE submissions ADD COLUMN IF NOT EXISTS honeypot_snared INTEGER DEFAULT 0",
+            "ALTER TABLE submissions ADD COLUMN IF NOT EXISTS honeypot_details TEXT DEFAULT ''",
         ]
         for statement in migrations:
             cursor.execute(statement)
@@ -368,6 +374,12 @@ def init_db():
             ("violations", "severity", "TEXT DEFAULT 'HIGH'"),
             ("violations", "event_code", "TEXT DEFAULT 'SEC-ALERT'"),
             ("violations", "is_resolved", "INTEGER DEFAULT 0"),
+            # AI Honeypot & Counter-Espionage Trap
+            ("questions", "is_honeypot", "INTEGER DEFAULT 0"),
+            ("questions", "honeypot_signature", "TEXT DEFAULT ''"),
+            ("questions", "honeypot_perturbation_type", "TEXT DEFAULT 'none'"),
+            ("submissions", "honeypot_snared", "INTEGER DEFAULT 0"),
+            ("submissions", "honeypot_details", "TEXT DEFAULT ''"),
         ]:
             columns = {row["name"] for row in cursor.execute(f"PRAGMA table_info({table})").fetchall()}
             if column not in columns:

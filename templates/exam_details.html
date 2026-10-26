@@ -1105,6 +1105,16 @@
                             </div>
                         </div>
 
+                        ${c.honeypot_snared ? `
+                            <div class="mb-3 p-2.5 rounded-xl bg-amber-500/15 border border-amber-500/40 text-amber-950 text-xs flex items-start space-x-2 animate-pulse">
+                                <span class="text-base">🪤</span>
+                                <div>
+                                    <strong class="font-extrabold text-amber-900 block text-[11px] uppercase tracking-wide">AI Honeypot Snare Triggered!</strong>
+                                    <span class="text-[10px] text-amber-800 leading-tight block mt-0.5">External leaked/decoy solution or canary copyback confirmed.</span>
+                                </div>
+                            </div>
+                        ` : ''}
+
                         <!-- Strike Progress Bar -->
                         <div class="w-full bg-slate-100 rounded-full h-1.5 overflow-hidden mb-3">
                             <div class="${strikeColor} h-1.5 transition-all duration-300" style="width: ${Math.min(100, (c.warnings_count || 0) * 100 / maxWarnings)}%"></div>

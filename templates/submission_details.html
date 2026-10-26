@@ -259,6 +259,24 @@
             </div>
         {% endif %}
 
+        {% if submission.honeypot_snared in [1, True, '1'] %}
+            <div class="mt-6 p-4 rounded-xl bg-amber-500/15 border-2 border-amber-500/40 text-amber-950 text-sm flex items-start space-x-3 print-break-inside-avoid">
+                <span class="text-2xl mt-0.5">🪤</span>
+                <div class="flex-1">
+                    <div class="flex items-center gap-2">
+                        <h4 class="font-extrabold text-amber-950 uppercase tracking-wide">Counter-Espionage AI Honeypot Snare Triggered</h4>
+                        <span class="px-2 py-0.5 rounded text-[10px] font-black bg-rose-600 text-white">SEC-007 CRITICAL</span>
+                    </div>
+                    <p class="text-xs text-amber-900 mt-1 leading-relaxed">
+                        <strong>Forensic Proof:</strong> The candidate submitted decoy answers or steganographic canary payloads matching known external leak/AI signature traps:
+                        <span class="font-mono bg-amber-100 text-amber-950 px-2 py-0.5 rounded block mt-1.5 break-all border border-amber-200">
+                            {{ submission.honeypot_details or 'Signature decoy match detected in subjective response.' }}
+                        </span>
+                    </p>
+                </div>
+            </div>
+        {% endif %}
+
         <!-- Cryptographic Submission Integrity Verification (CIA Triad: Non-repudiation) -->
         <div class="mt-6 p-4 rounded-xl bg-slate-900 text-slate-100 flex flex-col sm:flex-row sm:items-center justify-between gap-3 border border-slate-800 shadow-sm">
             <div class="flex items-center space-x-3">
