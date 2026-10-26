@@ -67,6 +67,11 @@
                         <i data-lucide="calendar-clock" class="w-3.5 h-3.5 text-indigo-600"></i>
                         <span>Access & Timing</span>
                     </button>
+                    <!-- Export Gradebook CSV -->
+                    <a href="/api/tutor/exam/{{ exam.id }}/export-csv" class="px-3 py-1.5 bg-emerald-50 hover:bg-emerald-100 text-emerald-800 border border-emerald-300 text-xs font-bold rounded-lg transition flex items-center space-x-1 shadow-2xs" title="Download official Excel/CSV Gradebook and proctoring audit log">
+                        <i data-lucide="download" class="w-3.5 h-3.5 text-emerald-600"></i>
+                        <span>Export CSV</span>
+                    </a>
                     <a href="/student?code={{ exam.exam_code }}" target="_blank" class="px-2.5 py-1.5 bg-white border border-slate-300 hover:bg-slate-50 text-slate-700 text-xs font-semibold rounded-lg transition" title="Test as Student">
                         <i data-lucide="external-link" class="w-3.5 h-3.5"></i>
                     </a>
@@ -76,6 +81,37 @@
                 </div>
             </div>
         </div>
+
+        <!-- Class Psychometric & Performance Analytics Row -->
+        {% if analytics and analytics.total_evaluated > 0 %}
+        <div class="mt-6 pt-6 border-t border-slate-100 grid grid-cols-2 sm:grid-cols-5 gap-3 text-left">
+            <div class="p-3 bg-slate-50 rounded-xl border border-slate-200">
+                <span class="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">Class Average</span>
+                <span class="text-lg font-black text-slate-800">{{ analytics.class_avg }}</span>
+                <span class="text-[10px] text-slate-500 font-semibold block mt-0.5">({{ analytics.avg_percentage }}% Avg)</span>
+            </div>
+            <div class="p-3 bg-emerald-50/60 rounded-xl border border-emerald-200">
+                <span class="text-[10px] font-bold text-emerald-700 uppercase tracking-wider block">Pass Rate</span>
+                <span class="text-lg font-black text-emerald-800">{{ analytics.pass_rate }}%</span>
+                <span class="text-[10px] text-emerald-600 block mt-0.5">Threshold: {{ exam.passing_percentage }}%</span>
+            </div>
+            <div class="p-3 bg-sky-50/60 rounded-xl border border-sky-200">
+                <span class="text-[10px] font-bold text-sky-700 uppercase tracking-wider block">Highest Score</span>
+                <span class="text-lg font-black text-sky-800">{{ analytics.highest_score }}</span>
+                <span class="text-[10px] text-sky-600 block mt-0.5">Top Candidate</span>
+            </div>
+            <div class="p-3 bg-amber-50/60 rounded-xl border border-amber-200">
+                <span class="text-[10px] font-bold text-amber-700 uppercase tracking-wider block">Lowest Score</span>
+                <span class="text-lg font-black text-amber-800">{{ analytics.lowest_score }}</span>
+                <span class="text-[10px] text-amber-600 block mt-0.5">Floor Benchmark</span>
+            </div>
+            <div class="p-3 bg-indigo-50/60 rounded-xl border border-indigo-200 col-span-2 sm:col-span-1">
+                <span class="text-[10px] font-bold text-indigo-700 uppercase tracking-wider block">Graded Cohort</span>
+                <span class="text-lg font-black text-indigo-800">{{ analytics.total_evaluated }}</span>
+                <span class="text-[10px] text-indigo-600 block mt-0.5">Active Examinees</span>
+            </div>
+        </div>
+        {% endif %}
     </div>
 
     <!-- Submissions & Proctoring Audits -->

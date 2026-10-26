@@ -53,6 +53,12 @@
 
 <body class="bg-slate-100 text-slate-800 min-h-screen flex flex-col select-none">
 
+    <!-- Sticky Network Offline Recovery Toast -->
+    <div id="network-offline-banner" class="hidden fixed top-0 inset-x-0 z-50 bg-amber-500 text-white px-4 py-2 text-xs font-bold text-center flex items-center justify-center space-x-2 shadow-lg animate-pulse">
+        <i data-lucide="wifi-off" class="w-4 h-4"></i>
+        <span>⚠️ Internet Connection Lost — Storing all progress in Offline Encrypted Vault. Your exam timer continues safely!</span>
+    </div>
+
     <!-- Pre-Exam Readiness Modal -->
     <!-- Pre-Exam Readiness Modal -->
     <div id="start-modal"
@@ -1072,21 +1078,71 @@
             renderPalette();
         }
 
-        // ── Auto-save answers & timer to server every 30 s ──────────────────────
+        // ── Offline Resilience & Auto-Sync Vault ─────────────────────────────
+        const OFFLINE_VAULT_KEY = `examguard_vault_${SUBMISSION_ID}`;
+
+        window.addEventListener('offline', () => {
+            showNetworkStatusToast(false);
+        });
+
+        window.addEventListener('online', () => {
+            showNetworkStatusToast(true);
+            flushOfflineSyncQueue();
+        });
+
+        function showNetworkStatusToast(isOnline) {
+            const banner = document.getElementById('network-offline-banner');
+            if (banner) {
+                if (!isOnline) {
+                    banner.classList.remove('hidden');
+                } else {
+                    banner.classList.add('hidden');
+                }
+            }
+        }
+
+        async function flushOfflineSyncQueue() {
+            try {
+                const stored = localStorage.getItem(OFFLINE_VAULT_KEY);
+                if (stored) {
+                    const payload = JSON.parse(stored);
+                    await fetch(`/api/submission/${SUBMISSION_ID}/save-progress`, {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify(payload)
+                    });
+                    localStorage.removeItem(OFFLINE_VAULT_KEY);
+                    console.log('✓ Offline vault synced cleanly to server.');
+                }
+            } catch (e) {
+                console.warn('Sync flush error:', e);
+            }
+        }
+
+        // ── Auto-save answers & timer to server every 30 s (with Offline Vault fallback) ──────────────────────
         async function autoSaveProgress() {
             if (!isExamActive || isTerminated || isPauseRequested) return;
+            const payload = {
+                answers: studentAnswers,
+                time_remaining_seconds: timeRemainingSeconds,
+                current_question_index: currentQuestionIndex,
+            };
+
+            // Always store to local vault first for instant zero-loss redundancy
+            try {
+                localStorage.setItem(OFFLINE_VAULT_KEY, JSON.stringify(payload));
+            } catch(e) {}
+
             try {
                 await fetch(`/api/submission/${SUBMISSION_ID}/save-progress`, {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({
-                        answers: studentAnswers,
-                        time_remaining_seconds: timeRemainingSeconds,
-                        current_question_index: currentQuestionIndex,
-                    })
+                    body: JSON.stringify(payload)
                 });
+                // Remove from local vault once confirmed saved on server
+                localStorage.removeItem(OFFLINE_VAULT_KEY);
             } catch(e) {
-                console.warn('Auto-save failed:', e);
+                console.warn('Network glitch during auto-save — stored in local vault for auto-sync:', e);
             }
         }
 

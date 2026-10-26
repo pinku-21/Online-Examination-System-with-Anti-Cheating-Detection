@@ -2001,10 +2001,101 @@ def tutor_exam_details(exam_id):
     cursor.execute("SELECT id, full_name, roll_number, class_name FROM users WHERE role = 'student' ORDER BY full_name ASC")
     students = cursor.fetchall()
 
+    # Psychometric & Class Performance Analytics
+    sub_list = [dict(s) for s in submissions]
+    scores = [float(s.get("score") or 0.0) for s in sub_list if s.get("status") in ("submitted", "terminated")]
+    percentages = [float(s.get("percentage") or 0.0) for s in sub_list if s.get("status") in ("submitted", "terminated")]
+    pass_mark = float(exam.get("passing_percentage") or 40.0)
+    passed_count = sum(1 for p in percentages if p >= pass_mark)
+    
+    analytics = {
+        "total_evaluated": len(scores),
+        "class_avg": round(sum(scores) / len(scores), 1) if scores else 0.0,
+        "highest_score": round(max(scores), 1) if scores else 0.0,
+        "lowest_score": round(min(scores), 1) if scores else 0.0,
+        "pass_rate": round((passed_count / len(percentages) * 100), 1) if percentages else 0.0,
+        "avg_percentage": round(sum(percentages) / len(percentages), 1) if percentages else 0.0,
+    }
+
     conn.close()
     
     public_url = get_setting("public_url", "")
-    return render_template("exam_details.html", exam=exam, questions=formatted_questions, submissions=submissions, students=students, public_url=public_url)
+    return render_template("exam_details.html", exam=exam, questions=formatted_questions, submissions=submissions, students=students, public_url=public_url, analytics=analytics)
+
+
+@app.route("/api/tutor/exam/<int:exam_id>/export-csv")
+@admin_required
+def api_export_exam_csv(exam_id):
+    """Generates an institutional CSV gradebook and proctoring audit spreadsheet."""
+    import csv
+    import io
+    from flask import Response
+
+    conn = get_connection()
+    cursor = conn.cursor()
+    cursor.execute("SELECT * FROM exams WHERE id = ?", (exam_id,))
+    exam = cursor.fetchone()
+    if not exam:
+        conn.close()
+        return "Exam not found", 404
+
+    cursor.execute("""
+        SELECT s.id, s.student_name, s.roll_number, s.score, s.total_points, s.percentage,
+               s.status, s.warnings_count, s.is_face_verified, s.face_match_confidence,
+               s.honeypot_snared, s.integrity_hash, s.client_ip, s.started_at, s.submitted_at
+        FROM submissions s
+        WHERE s.exam_id = ?
+        ORDER BY s.roll_number ASC, s.started_at ASC
+    """, (exam_id,))
+    rows = cursor.fetchall()
+    conn.close()
+
+    output = io.StringIO()
+    writer = csv.writer(output)
+
+    # Institutional Header
+    writer.writerow(["EXAMGUARD AI - OFFICIAL INSTITUTIONAL GRADEBOOK & AUDIT REPORT"])
+    writer.writerow(["Exam Title", exam["title"]])
+    writer.writerow(["Exam Code", exam["exam_code"]])
+    writer.writerow(["Generated At", datetime.now().strftime("%Y-%m-%d %H:%M:%S")])
+    writer.writerow([])
+
+    # Table Header
+    writer.writerow([
+        "Submission ID", "Student Name", "Roll Number", "Score", "Total Points",
+        "Percentage (%)", "Status", "Strikes", "Face Verified", "Biometric Match (%)",
+        "Honeypot Triggered", "Client Origin IP", "Started At", "Submitted At", "HMAC Integrity Token"
+    ])
+
+    for r in rows:
+        face_status = "VERIFIED" if r["is_face_verified"] in (1, True, "1") else "FAILED/UNVERIFIED"
+        honeypot_status = "HONEYPOT_SNARED" if r["honeypot_snared"] in (1, True, "1") else "CLEAN"
+        writer.writerow([
+            r["id"],
+            r["student_name"],
+            r["roll_number"],
+            r["score"] or 0,
+            r["total_points"] or 0,
+            f"{r['percentage'] or 0}%",
+            (r["status"] or "").upper(),
+            f"{r['warnings_count'] or 0} / {exam['max_warnings']}",
+            face_status,
+            f"{r['face_match_confidence'] or 0}%",
+            honeypot_status,
+            r["client_ip"] or "",
+            r["started_at"] or "",
+            r["submitted_at"] or "",
+            r["integrity_hash"] or ""
+        ])
+
+    csv_data = output.getvalue()
+    filename = f"Gradebook_{exam['exam_code']}_{datetime.now().strftime('%Y%m%d')}.csv"
+    return Response(
+        csv_data,
+        mimetype="text/csv",
+        headers={"Content-Disposition": f"attachment; filename={filename}"}
+    )
+
 
 @app.route("/tutor/submission/<int:submission_id>")
 @admin_required
