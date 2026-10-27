@@ -621,6 +621,7 @@
         let faceOccludedConsecutiveCount = 0;
         let lookingAwayConsecutiveCount = 0;
         let lookingDownConsecutiveCount = 0;
+        let deskViewPromptDismissed = {};
         let loudAudioConsecutiveCount = 0;
         let phoneConsecutiveCount = 0;
         let earphoneConsecutiveCount = 0;
@@ -1434,6 +1435,7 @@
                         let isFacePartiallyOccluded = false;
                         let hasAnyFaceLookingAway = false;
                         let hasAnyFaceLookingDown = false;
+                        let isDeskViewVerified = false;
                         let detectedFaces = [];
 
                         if (blazeFaceModel) {
@@ -1486,6 +1488,13 @@
                                         }
                                     }
 
+                                    // Desk View Distance Verification:
+                                    // When device is placed 1.5 - 2.5 ft back (desk view), face height h occupies <= 32% of canvas height.
+                                    const faceHeightRatio = h / canvas.height;
+                                    if (faceHeightRatio <= 0.32) {
+                                        isDeskViewVerified = true;
+                                    }
+
                                     // If box is too near the bottom or top edge, eyes and lower face may be cut off
                                     const isCroppedEdge = (br[1] >= canvas.height - 15) || (tl[1] <= 10 && h < 90);
                                     if (!hasVisibleEyes || isCroppedEdge) {
@@ -1496,8 +1505,9 @@
                                         validVisibleFaceCount++;
                                         hasAnyFaceLookingAway = true;
                                     } else if (isLookingDownAtDesk) {
-                                        // Writing / Rough-work on paper mode: friendly indicator, not an immediate cheating flag
-                                        drawBoundingBox(ctx, [tl[0], tl[1], w, h], '✍️ Writing / Solving on Desk', '#38bdf8');
+                                        // Writing / Rough-work on paper mode: friendly indicator with desk view badge
+                                        const deskTag = isDeskViewVerified ? '✍️ Desk View Verified ✓' : '✍️ Writing on Desk';
+                                        drawBoundingBox(ctx, [tl[0], tl[1], w, h], deskTag, isDeskViewVerified ? '#10b981' : '#38bdf8');
                                         validVisibleFaceCount++;
                                         hasAnyFaceLookingDown = true;
                                     } else {
@@ -1596,7 +1606,9 @@
                         } else if (hasAnyFaceLookingAway) {
                             updateHudBadge('hud-face', 'Looking Away ⚠️', 'amber');
                         } else if (hasAnyFaceLookingDown) {
-                            updateHudBadge('hud-face', 'Writing on Desk ✍️', 'sky');
+                            const badgeText = isDeskViewVerified ? 'Desk View ✓' : 'Writing on Desk ✍️';
+                            const badgeColor = isDeskViewVerified ? 'emerald' : 'sky';
+                            updateHudBadge('hud-face', badgeText, badgeColor);
                         } else {
                             updateHudBadge('hud-face', '1 Person ✓', 'emerald');
                         }
@@ -1700,17 +1712,29 @@
                             const currQ = (typeof currentQuestionIndex !== 'undefined' && QUESTIONS && QUESTIONS[currentQuestionIndex]) ? QUESTIONS[currentQuestionIndex] : null;
                             const isWrittenOrMath = currQ && (currQ.question_type === 'descriptive' || currQ.question_type === 'short' || currQ.has_photo_upload || currQ.allow_upload !== false);
 
-                            // For written / math questions allow up to 35 frames (~50s) of continuous head-down paper writing.
-                            // For pure MCQ questions allow up to 20 frames (~28s) for scratch work.
-                            const maxAllowedDownFrames = isWrittenOrMath ? 35 : 20;
+                            // Extended writing duration:
+                            // If Desk View is verified (device placed 1.5-2.5 ft back showing desk and hands), candidate gets up to 70 frames (~100s) continuous writing.
+                            // If sitting too close (unverified desk view), writing time is bounded to 25 frames (~35s) to prevent unmonitored lap/desk phone viewing.
+                            let maxAllowedDownFrames = isWrittenOrMath ? 35 : 20;
+                            if (isDeskViewVerified) {
+                                maxAllowedDownFrames = isWrittenOrMath ? 70 : 45;
+                            }
 
-                            if (lookingDownConsecutiveCount < maxAllowedDownFrames - 5) {
-                                // Friendly blue notification banner on webcam overlay
-                                ctx.fillStyle = 'rgba(14, 165, 233, 0.85)';
-                                ctx.fillRect(10, 10, canvas.width - 20, 26);
-                                ctx.fillStyle = '#ffffff';
-                                ctx.font = 'bold 11px Inter, sans-serif';
-                                ctx.fillText('✍️ WRITING / SOLVING ON PAPER — KEEP HEAD IN CAMERA VIEW', 18, 27);
+                            if (lookingDownConsecutiveCount < maxAllowedDownFrames - 6) {
+                                // Friendly banner on webcam overlay
+                                if (isDeskViewVerified) {
+                                    ctx.fillStyle = 'rgba(16, 185, 129, 0.88)';
+                                    ctx.fillRect(10, 10, canvas.width - 20, 26);
+                                    ctx.fillStyle = '#ffffff';
+                                    ctx.font = 'bold 11px Inter, sans-serif';
+                                    ctx.fillText('✍️ DESK VIEW VERIFIED — WRITING ON PAPER ALLOWED', 18, 27);
+                                } else {
+                                    ctx.fillStyle = 'rgba(14, 165, 233, 0.85)';
+                                    ctx.fillRect(10, 10, canvas.width - 20, 26);
+                                    ctx.fillStyle = '#ffffff';
+                                    ctx.font = 'bold 11px Inter, sans-serif';
+                                    ctx.fillText('✍️ WRITING ON PAPER — PUSH LAPTOP BACK TO SHOW HANDS & DESK', 18, 27);
+                                }
                             } else {
                                 // Amber advisory before strike
                                 ctx.fillStyle = 'rgba(245, 158, 11, 0.90)';
@@ -2485,6 +2509,15 @@
             renderPalette();
             lucide.createIcons();
 
+            // Prompt Desk Workspace Calibration once when entering a written/handwritten question
+            const isHandwrittenQ = (!q.options || q.options.length === 0 || q.question_type === 'descriptive' || q.has_photo_upload);
+            if (isHandwrittenQ && !deskViewPromptDismissed[index]) {
+                deskViewPromptDismissed[index] = true;
+                setTimeout(() => {
+                    if (isExamActive && !isTerminated) showDeskCalibrationModal();
+                }, 400);
+            }
+
             // Auto-render any mathematical formulas (\sqrt, \frac, powers, symbols) cleanly with KaTeX
             if (typeof renderMathInElement === 'function') {
                 try {
@@ -2520,6 +2553,35 @@
                 .replace(/>/g, '&gt;')
                 .replace(/"/g, '&quot;')
                 .replace(/'/g, '&#039;');
+        }
+
+        function showDeskCalibrationModal() {
+            Swal.fire({
+                icon: 'info',
+                title: '📐 Paper / Desk Workspace Setup',
+                html: `
+                    <div class="text-left text-xs text-slate-700 space-y-2.5 leading-relaxed">
+                        <p class="font-medium text-slate-800">This question requires handwritten work or paper rough work:</p>
+                        <div class="p-3 bg-sky-50 border border-sky-200 rounded-xl space-y-1.5">
+                            <div class="flex items-center space-x-2 font-bold text-sky-900">
+                                <i data-lucide="check-circle-2" class="w-4 h-4 text-sky-600 flex-shrink-0"></i>
+                                <span>Recommended Camera Setup:</span>
+                            </div>
+                            <ul class="list-disc list-inside space-y-1 text-slate-600 pl-1">
+                                <li>Push your laptop or webcam back <strong>1.5 to 2.5 feet (45–75 cm)</strong>.</li>
+                                <li>Tilt the screen down slightly so your <strong>hands, paper, and desk surface</strong> are in view.</li>
+                                <li>Keep any unauthorized devices, extra phones, or textbooks off the desk.</li>
+                            </ul>
+                        </div>
+                        <p class="text-[11px] text-slate-500">Once in position, the AI will display <strong class="text-emerald-700">'Desk View Verified ✓'</strong> on your webcam and grant extended solving time.</p>
+                    </div>
+                `,
+                confirmButtonText: 'I Have Set Up My Desk View ✓',
+                confirmButtonColor: '#0284c7',
+                allowOutsideClick: true
+            }).then(() => {
+                if (window.lucide) lucide.createIcons();
+            });
         }
 
         function previewFigureModal(url) {
