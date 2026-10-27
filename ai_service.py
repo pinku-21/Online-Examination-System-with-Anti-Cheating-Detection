@@ -358,7 +358,7 @@ def generate_questions_with_gemini(api_key, text_content=None, image_paths=None,
             }
             
             try:
-                resp = requests.post(url, json=payload, headers={"Content-Type": "application/json"}, timeout=300)
+                resp = http_post(url, json=payload, headers={"Content-Type": "application/json"}, timeout=300)
                 if resp.status_code == 200:
                     result_json = resp.json()
                     raw_text = result_json["candidates"][0]["content"]["parts"][0]["text"].strip()
@@ -843,7 +843,7 @@ def parse_existing_paper_with_gemini(api_key, raw_text, image_paths=None, availa
                 }
             }
             try:
-                resp = requests.post(url, json=payload, headers={"Content-Type": "application/json"}, timeout=120)
+                resp = http_post(url, json=payload, headers={"Content-Type": "application/json"}, timeout=120)
                 if resp.status_code == 200:
                     raw_text_out = resp.json()["candidates"][0]["content"]["parts"][0]["text"].strip()
                     if raw_text_out.startswith("```json"):
@@ -1184,7 +1184,7 @@ Return ONLY a JSON object with this exact structure:
                     }
                 }
                 try:
-                    resp = requests.post(url, json=payload, headers={"Content-Type": "application/json"}, timeout=45)
+                    resp = http_post(url, json=payload, headers={"Content-Type": "application/json"}, timeout=45)
                     if resp.status_code == 200:
                         raw_text = resp.json()["candidates"][0]["content"]["parts"][0]["text"].strip()
                         if raw_text.startswith("```json"):
@@ -1227,7 +1227,7 @@ Return ONLY a JSON object with this exact structure:
                         "temperature": 0.2,
                         "response_format": {"type": "json_object"}
                     }
-                    resp = requests.post("https://api.groq.com/openai/v1/chat/completions", headers=headers, json=payload, timeout=30)
+                    resp = http_post("https://api.groq.com/openai/v1/chat/completions", headers=headers, json=payload, timeout=30)
                     if resp.status_code == 200:
                         content = resp.json()["choices"][0]["message"]["content"].strip()
                         data = json.loads(content)
@@ -1600,7 +1600,7 @@ Do not wrap in markdown quotes if possible, return valid JSON only."""
         for key in keys:
             try:
                 url = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key={key}"
-                resp = requests.post(
+                resp = http_post(
                     url,
                     headers={"Content-Type": "application/json"},
                     json={"contents": [{"parts": [{"text": prompt}]}]},
