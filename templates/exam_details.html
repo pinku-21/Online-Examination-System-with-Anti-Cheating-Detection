@@ -1292,6 +1292,16 @@
         }
     }
 
+    function escapeHtml(str) {
+        if (!str) return '';
+        return String(str)
+            .replace(/&/g, '&amp;')
+            .replace(/</g, '&lt;')
+            .replace(/>/g, '&gt;')
+            .replace(/"/g, '&quot;')
+            .replace(/'/g, '&#039;');
+    }
+
     let proctorMediaRecorder = null;
     let proctorAudioChunks = [];
     let proctorRecordedBase64 = '';
@@ -1299,7 +1309,7 @@
 
     async function openProctorIntercomModal(btn) {
         const subId = btn.dataset.submissionId;
-        const studentName = btn.dataset.studentName;
+        const studentName = btn.dataset.studentName || 'Candidate';
 
         proctorAudioChunks = [];
         proctorRecordedBase64 = '';
