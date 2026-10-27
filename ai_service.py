@@ -1298,58 +1298,72 @@ OUTPUT FORMAT (JSON ONLY, NO MARKDOWN):
                 {"inline_data": {"mime_type": live_mime, "data": live_b64}}
             ]
 
-            # Active Gemini vision models in Google Generative Language API
+            # Models to try across v1 and v1beta endpoints
             models = [
+                "gemini-2.5-flash",
                 "gemini-2.0-flash",
                 "gemini-1.5-flash",
-                "gemini-1.5-flash-8b",
+                "gemini-flash-latest",
+                "gemini-2.5-flash-lite",
                 "gemini-2.0-flash-lite",
-                "gemini-flash-latest"
+                "gemini-1.5-flash-8b"
             ]
+
+            api_versions = ["v1beta", "v1"]
 
             keys_pool = parse_api_keys(gemini_key)
             for cur_key in keys_pool:
-                for model_name in models:
-                    url = f"https://generativelanguage.googleapis.com/v1beta/models/{model_name}:generateContent?key={cur_key}"
-                    payload = {
-                        "contents": [{"parts": parts}],
-                        "generationConfig": {
-                            "temperature": 0.1,
-                            "response_mime_type": "application/json"
-                        }
-                    }
-                    try:
-                        resp = requests.post(url, json=payload, headers={"Content-Type": "application/json"}, timeout=15)
-                        if resp.status_code == 200:
-                            raw_text = resp.json()["candidates"][0]["content"]["parts"][0]["text"].strip()
-                            if raw_text.startswith("```json"):
-                                raw_text = raw_text[7:]
-                            if raw_text.startswith("```"):
-                                raw_text = raw_text[3:]
-                            if raw_text.endswith("```"):
-                                raw_text = raw_text[:-3]
-                            raw_text = raw_text.strip()
-                            data = json.loads(raw_text)
-                            is_match = bool(data.get("is_match", False))
-                            confidence = float(data.get("confidence", 0.0))
-                            reason = data.get("reason", "Face verification evaluated by Gemini AI.")
-                            if not is_match:
-                                confidence = 0.0
-                            return {
-                                "success": True,
-                                "is_match": is_match,
-                                "confidence": round(confidence, 1),
-                                "reason": reason,
-                                "model_used": f"Gemini Vision ({model_name})"
+                for ver in api_versions:
+                    for model_name in models:
+                        url = f"https://generativelanguage.googleapis.com/{ver}/models/{model_name}:generateContent?key={cur_key}"
+                        payload = {
+                            "contents": [{"parts": parts}],
+                            "generationConfig": {
+                                "temperature": 0.1,
+                                "response_mime_type": "application/json"
                             }
-                        else:
-                            print(f"Gemini face verification error ({model_name}): status {resp.status_code}")
-                    except Exception as e:
-                        print(f"Gemini face verification exception ({model_name}): {e}")
+                        }
+                        try:
+                            resp = requests.post(url, json=payload, headers={"Content-Type": "application/json"}, timeout=12)
+                            if resp.status_code == 200:
+                                res_json = resp.json()
+                                candidates = res_json.get("candidates", [])
+                                if candidates and "content" in candidates[0] and "parts" in candidates[0]["content"]:
+                                    raw_text = candidates[0]["content"]["parts"][0].get("text", "").strip()
+                                    if raw_text.startswith("```json"):
+                                        raw_text = raw_text[7:]
+                                    if raw_text.startswith("```"):
+                                        raw_text = raw_text[3:]
+                                    if raw_text.endswith("```"):
+                                        raw_text = raw_text[:-3]
+                                    raw_text = raw_text.strip()
+                                    import re
+                                    json_match = re.search(r'\{.*\}', raw_text, re.DOTALL)
+                                    if json_match:
+                                        data = json.loads(json_match.group(0))
+                                        is_match = bool(data.get("is_match", False))
+                                        confidence = float(data.get("confidence", 0.0))
+                                        reason = data.get("reason", "Face verification evaluated by Gemini AI.")
+                                        if not is_match:
+                                            confidence = 0.0
+                                        return {
+                                            "success": True,
+                                            "is_match": is_match,
+                                            "confidence": round(confidence, 1),
+                                            "reason": reason,
+                                            "model_used": f"Gemini Vision ({model_name} {ver})"
+                                        }
+                            elif resp.status_code == 429:
+                                print(f"Gemini face verification ({model_name} {ver}): rate limit 429")
+                                break  # Rate limited on this key, move to next key
+                            else:
+                                print(f"Gemini face verification error ({model_name} {ver}): status {resp.status_code}")
+                        except Exception as e:
+                            print(f"Gemini face verification exception ({model_name} {ver}): {e}")
         except Exception as enc_err:
             print(f"Gemini verification setup error: {enc_err}")
 
-    # 2. Try OpenRouter Vision AI (Nemotron Super VL)
+    # 2. Try OpenRouter Vision AI (Multi-model fallback including openrouter/free)
     openrouter_key = os.environ.get("OPENROUTER_API_KEY", "").strip()
     if openrouter_key:
         try:
@@ -1372,63 +1386,80 @@ OUTPUT FORMAT (JSON ONLY, NO MARKDOWN):
 
             if ref_b64_or and live_b64_or:
                 or_keys = parse_api_keys(openrouter_key)
+                or_vision_models = [
+                    "google/gemini-2.0-flash-exp:free",
+                    "google/gemini-flash-1.5:free",
+                    "openrouter/free",
+                    "nvidia/nemotron-3.5-super-vl:free",
+                    "meta-llama/llama-3.2-11b-vision-instruct:free"
+                ]
                 for o_key in or_keys:
-                    or_prompt = (
-                        "You are a strict anti-cheating face verification AI for examinations. "
-                        "IMAGE 1 is the registered student reference photo. IMAGE 2 is the live webcam proctor feed. "
-                        "Compare the facial identity of the person in IMAGE 1 and IMAGE 2. "
-                        "Are they the EXACT SAME person, or is IMAGE 2 an impostor / different person taking the exam? "
-                        "Respond strictly in JSON format with keys: is_match (boolean: true if same person, false if different people), "
-                        "confidence (number 0-100), and reason (brief explanation)."
-                    )
-                    headers = {
-                        "Authorization": f"Bearer {o_key}",
-                        "Content-Type": "application/json"
-                    }
-                    payload = {
-                        "model": "nvidia/nemotron-3.5-super-vl:free",
-                        "messages": [
-                            {
-                                "role": "user",
-                                "content": [
-                                    {"type": "text", "text": or_prompt},
-                                    {"type": "image_url", "image_url": {"url": f"data:image/jpeg;base64,{ref_b64_or}"}},
-                                    {"type": "image_url", "image_url": {"url": f"data:image/jpeg;base64,{live_b64_or}"}}
-                                ]
-                            }
-                        ],
-                        "temperature": 0.1
-                    }
-                    try:
-                        resp = requests.post("https://openrouter.ai/api/v1/chat/completions", headers=headers, json=payload, timeout=12)
-                        if resp.status_code == 200:
-                            content = resp.json()["choices"][0]["message"]["content"].strip()
-                            if content.startswith("```json"):
-                                content = content[7:]
-                            if content.startswith("```"):
-                                content = content[3:]
-                            if content.endswith("```"):
-                                content = content[:-3]
-                            content = content.strip()
-                            # Parse json
-                            import re
-                            json_match = re.search(r'\{.*\}', content, re.DOTALL)
-                            if json_match:
-                                data = json.loads(json_match.group(0))
-                                is_match = bool(data.get("is_match", False))
-                                confidence = float(data.get("confidence", 0.0))
-                                reason = data.get("reason", "OpenRouter vision verification complete.")
-                                if not is_match:
-                                    confidence = 0.0
-                                return {
-                                    "success": True,
-                                    "is_match": is_match,
-                                    "confidence": round(confidence, 1),
-                                    "reason": reason,
-                                    "model_used": "OpenRouter (Nemotron Super VL)"
+                    for or_model in or_vision_models:
+                        or_prompt = (
+                            "You are a strict anti-cheating face verification AI for examinations. "
+                            "IMAGE 1 is the registered student reference photo. IMAGE 2 is the live webcam proctor feed. "
+                            "Compare the facial identity of the person in IMAGE 1 and IMAGE 2. "
+                            "Are they the EXACT SAME person, or is IMAGE 2 an impostor / different person taking the exam? "
+                            "Respond ONLY in valid raw JSON with keys: "
+                            "{\"is_match\": boolean, \"confidence\": number from 0 to 100, \"reason\": string}"
+                        )
+                        headers = {
+                            "Authorization": f"Bearer {o_key}",
+                            "Content-Type": "application/json",
+                            "HTTP-Referer": "https://online-examination-system-with-anti.onrender.com",
+                            "X-Title": "Online Examination System Proctor"
+                        }
+                        payload = {
+                            "model": or_model,
+                            "messages": [
+                                {
+                                    "role": "user",
+                                    "content": [
+                                        {"type": "text", "text": or_prompt},
+                                        {"type": "image_url", "image_url": {"url": f"data:image/jpeg;base64,{ref_b64_or}"}},
+                                        {"type": "image_url", "image_url": {"url": f"data:image/jpeg;base64,{live_b64_or}"}}
+                                    ]
                                 }
-                    except Exception as or_err:
-                        print(f"OpenRouter face verification error: {or_err}")
+                            ],
+                            "temperature": 0.1
+                        }
+                        try:
+                            resp = requests.post("https://openrouter.ai/api/v1/chat/completions", headers=headers, json=payload, timeout=14)
+                            if resp.status_code == 200:
+                                res_json = resp.json()
+                                choices = res_json.get("choices", [])
+                                if choices and "message" in choices[0] and "content" in choices[0]["message"]:
+                                    content = choices[0]["message"]["content"]
+                                    if isinstance(content, list):
+                                        content = "".join([c.get("text", "") for c in content if isinstance(c, dict)])
+                                    content = str(content).strip()
+                                    if content.startswith("```json"):
+                                        content = content[7:]
+                                    if content.startswith("```"):
+                                        content = content[3:]
+                                    if content.endswith("```"):
+                                        content = content[:-3]
+                                    content = content.strip()
+                                    import re
+                                    json_match = re.search(r'\{[\s\S]*?\}', content)
+                                    if json_match:
+                                        data = json.loads(json_match.group(0))
+                                        is_match = bool(data.get("is_match", False))
+                                        confidence = float(data.get("confidence", 0.0))
+                                        reason = data.get("reason", "OpenRouter vision verification complete.")
+                                        if not is_match:
+                                            confidence = 0.0
+                                        return {
+                                            "success": True,
+                                            "is_match": is_match,
+                                            "confidence": round(confidence, 1),
+                                            "reason": reason,
+                                            "model_used": f"OpenRouter ({or_model})"
+                                        }
+                            elif resp.status_code == 429:
+                                continue
+                        except Exception as or_err:
+                            print(f"OpenRouter face verification error ({or_model}): {or_err}")
         except Exception as setup_or_err:
             print(f"OpenRouter vision setup error: {setup_or_err}")
 
