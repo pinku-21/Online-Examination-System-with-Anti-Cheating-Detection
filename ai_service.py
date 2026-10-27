@@ -1263,25 +1263,30 @@ def verify_faces_with_gemini(gemini_key, reference_image_path, live_snapshot_pat
             ref_mime, ref_b64 = prepare_fast_b64(reference_image_path)
             live_mime, live_b64 = prepare_fast_b64(live_snapshot_path)
 
-            prompt = f"""You are a biometric identity verification AI for proctored university examinations.
+            prompt = f"""You are a strict, forensic-grade biometric identity verification AI for university examinations.
 TASK:
-Compare IMAGE 1 (Registered profile photo of student: {student_name or 'Candidate'}) with IMAGE 2 (Live webcam check-in snapshot).
+Critically compare IMAGE 1 (Official Registered Reference Photo of student: {student_name or 'Candidate'}) with IMAGE 2 (Live Webcam Check-In Snapshot).
 
-INSTRUCTIONS:
-1. Compare facial bone structure, eye shape, nose bridge, jawline, and mouth contour.
-2. TOLERANCE FOR NORMAL VARIATIONS:
-   - IGNORE minor differences in camera angle (e.g. handheld phone camera angle vs front shot).
-   - IGNORE variations in lighting, shadow, or room background.
-   - IGNORE differences in clothing (e.g. vest / t-shirt / shirt).
-3. DECISION:
-   - If IMAGE 1 and IMAGE 2 show the SAME person: return "is_match": true with confidence between 78 and 98.
-   - If IMAGE 2 clearly shows a COMPLETELY DIFFERENT person (an impostor): return "is_match": false with confidence: 0.
+CRITICAL BIOMETRIC CRITERIA:
+1. Examine unalterable anatomical markers:
+   - Nose bridge contour, nostril flare, and nose width.
+   - Jawline definition, chin curvature (pointed, squared, or rounded).
+   - Eye shape, inter-pupillary distance ratio, and brow ridge.
+   - Mouth width, lip thickness, and philtrum length.
+2. ZERO-TOLERANCE ANTI-IMPERSONATION POLICY:
+   - Do NOT assume two people are the same simply because they share similar age, skin tone, or haircut.
+   - If the facial bone structure, nose shape, or jawline belongs to a DIFFERENT person, you MUST REJECT with "is_match": false and "confidence": 0.
+   - Only return "is_match": true if you are 100% confident beyond a reasonable doubt that IMAGE 1 and IMAGE 2 show the EXACT SAME human individual.
 
-OUTPUT FORMAT (JSON ONLY):
+DECISION GUIDELINES:
+- EXACT SAME PERSON: return "is_match": true, "confidence": (82 to 98), "reason": "Detailed confirmation of matching facial bone structure, nose bridge, and eye proportions."
+- DIFFERENT PERSON (IMPOSTOR / UNAUTHORIZED CANDIDATE): return "is_match": false, "confidence": 0, "reason": "Biometric mismatch: facial geometry, jawline, and nose contour differ from registered student."
+
+OUTPUT FORMAT (JSON ONLY, NO MARKDOWN):
 {{
-  "is_match": true,
-  "confidence": 92,
-  "reason": "Biometric match confirmed: Facial features and eye-to-nose geometry match registered student."
+  "is_match": false,
+  "confidence": 0,
+  "reason": "Biometric mismatch: distinct jawline and nose shape detected."
 }}
 """
 

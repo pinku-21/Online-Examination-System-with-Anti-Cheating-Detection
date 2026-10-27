@@ -1366,7 +1366,8 @@ def api_verify_face_ai(submission_id):
     confidence = float(verif_res.get("confidence", 0.0))
     reason = verif_res.get("reason", "")
 
-    if is_match and confidence >= 60.0:
+    # Require strict biometric match with at least 80% AI confidence to authorize exam entry
+    if is_match and confidence >= 80.0:
         cursor.execute("""
             UPDATE submissions 
             SET verified_face_url = ?, is_face_verified = 1, face_match_confidence = ?
