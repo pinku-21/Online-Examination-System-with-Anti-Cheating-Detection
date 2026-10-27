@@ -1298,12 +1298,17 @@ OUTPUT FORMAT (JSON ONLY, NO MARKDOWN):
                 {"inline_data": {"mime_type": live_mime, "data": live_b64}}
             ]
 
-            # Models to try across v1 and v1beta endpoints
+            # Models to try across v1 and v1beta endpoints, prioritizing Gemini 3.8 & 3.5
             models = [
+                "gemini-3.8-flash",
+                "gemini-3.5-flash",
+                "gemini-3.5-flash-lite",
+                "gemini-3.0-pro",
+                "gemini-flash-latest",
+                "gemini-flash-lite-latest",
                 "gemini-2.5-flash",
                 "gemini-2.0-flash",
                 "gemini-1.5-flash",
-                "gemini-flash-latest",
                 "gemini-2.5-flash-lite",
                 "gemini-2.0-flash-lite",
                 "gemini-1.5-flash-8b"
