@@ -1667,12 +1667,12 @@ Return ONLY a valid JSON object matching exactly this schema:
 }}
 Provide between 3 to 6 high-yield flashcards. Output strictly valid JSON without markdown fences."""
 
-    # 1. Try Gemini (with short 7s timeout to prevent web worker stalls)
+    # 1. Try Gemini
     gemini_key = get_setting("gemini_api_key", "") or os.environ.get("GEMINI_API_KEY", "")
     if gemini_key:
         keys = parse_api_keys(gemini_key)
         for key in keys:
-            for model_name in ["gemini-2.0-flash", "gemini-1.5-flash"]:
+            for model_name in ["gemini-2.0-flash", "gemini-1.5-flash", "gemini-flash-latest"]:
                 try:
                     url = f"https://generativelanguage.googleapis.com/v1beta/models/{model_name}:generateContent?key={key}"
                     resp = requests.post(
@@ -1685,7 +1685,7 @@ Provide between 3 to 6 high-yield flashcards. Output strictly valid JSON without
                                 "response_mime_type": "application/json"
                             }
                         },
-                        timeout=7
+                        timeout=30
                     )
                     if resp.status_code == 200:
                         cand = resp.json().get("candidates", [])
@@ -1704,9 +1704,8 @@ Provide between 3 to 6 high-yield flashcards. Output strictly valid JSON without
                                 return {"success": True, "remediation": parsed, "model_used": f"Google Gemini ({model_name})"}
                 except Exception as e:
                     print(f"Gemini remediation error ({model_name}): {e}")
-                    break  # Don't loop through every model if network/quota timed out
 
-    # 2. Try Groq (with fast 6s timeout)
+    # 2. Try Groq
     groq_key = get_setting("groq_api_key", "") or os.environ.get("GROQ_API_KEY", "")
     if groq_key:
         keys = parse_api_keys(groq_key)
@@ -1725,7 +1724,7 @@ Provide between 3 to 6 high-yield flashcards. Output strictly valid JSON without
                             "temperature": 0.3,
                             "response_format": {"type": "json_object"}
                         },
-                        timeout=6
+                        timeout=25
                     )
                     if resp.status_code == 200:
                         raw = resp.json()["choices"][0]["message"]["content"].strip()
@@ -1733,8 +1732,7 @@ Provide between 3 to 6 high-yield flashcards. Output strictly valid JSON without
                         if isinstance(parsed, dict) and "weak_areas" in parsed:
                             return {"success": True, "remediation": parsed, "model_used": f"Groq Cloud ({groq_model})"}
                 except Exception as e:
-                    print(f"Groq remediation error ({groq_model}): {e}")
-                    break
+                    print(f"Groq remediation error: {e}")
 
     # 3. Intelligent Fallback Heuristic
     weak_areas = []
