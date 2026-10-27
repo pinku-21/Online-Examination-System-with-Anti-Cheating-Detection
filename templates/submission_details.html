@@ -427,8 +427,11 @@
                                 <p class="text-slate-600 mt-0.5">{{ v.details or 'Student triggered an anti-cheating warning.' }}</p>
                                 {% if v.snapshot_url %}
                                     <div class="mt-2 flex items-center gap-2">
-                                        <button type="button" 
-                                                onclick="openIncidentSnapshotModal('{{ v.snapshot_url }}', '{{ v.violation_type.replace('_', ' ').title() }}', '{{ v.timestamp }}')"
+                                        <button type="button"
+                                                data-snapshot-url="{{ v.snapshot_url }}"
+                                                data-violation-type="{{ v.violation_type.replace('_', ' ').title() }}"
+                                                data-timestamp="{{ v.timestamp }}"
+                                                onclick="openIncidentSnapshotModal(this)"
                                                 class="inline-flex items-center space-x-1.5 px-2.5 py-1 bg-white border border-rose-300 hover:border-rose-500 rounded-lg text-[10px] font-bold text-rose-700 shadow-2xs hover:bg-rose-50 transition cursor-pointer">
                                             <i data-lucide="camera" class="w-3 h-3 text-rose-600"></i>
                                             <span>View Incident Snapshot Evidence</span>
@@ -1263,15 +1266,24 @@
         }
     }
 
-    function openIncidentSnapshotModal(imgUrl, violationType, timestamp) {
+    function openIncidentSnapshotModal(target, violationType, timestamp) {
+        let imgUrl = target;
+        let vType = violationType;
+        let ts = timestamp;
+        if (target && typeof target === 'object' && target.dataset) {
+            imgUrl = target.dataset.snapshotUrl || '';
+            vType = target.dataset.violationType || '';
+            ts = target.dataset.timestamp || '';
+        }
+
         Swal.fire({
             title: `📸 Forensic Evidence Snapshot`,
             width: '540px',
             html: `
                 <div class="p-2 text-left">
                     <div class="mb-3 flex items-center justify-between text-xs text-slate-500">
-                        <span>Incident: <strong class="text-rose-600">${violationType}</strong></span>
-                        <span class="font-mono">${timestamp}</span>
+                        <span>Incident: <strong class="text-rose-600">${vType}</strong></span>
+                        <span class="font-mono">${ts}</span>
                     </div>
                     <div class="rounded-xl overflow-hidden border-2 border-rose-300 shadow-md bg-black flex justify-center">
                         <img src="${imgUrl}" alt="Forensic Snapshot" class="max-h-80 w-auto object-contain">
