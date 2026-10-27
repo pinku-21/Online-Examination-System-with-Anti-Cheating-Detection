@@ -2104,8 +2104,9 @@ def tutor_exam_details(exam_id):
 
     # Psychometric & Class Performance Analytics
     sub_list = [dict(s) for s in submissions]
-    scores = [float(s.get("score") or 0.0) for s in sub_list if s.get("status") in ("submitted", "terminated")]
-    percentages = [float(s.get("percentage") or 0.0) for s in sub_list if s.get("status") in ("submitted", "terminated")]
+    completed_subs = [s for s in sub_list if s.get("status") in ("submitted", "terminated")]
+    scores = [float(s.get("score") or 0.0) for s in completed_subs]
+    percentages = [float(s.get("percentage") or 0.0) for s in completed_subs]
     pass_mark = float(exam.get("passing_percentage") or 40.0)
     passed_count = sum(1 for p in percentages if p >= pass_mark)
     
@@ -2117,6 +2118,68 @@ def tutor_exam_details(exam_id):
         "pass_rate": round((passed_count / len(percentages) * 100), 1) if percentages else 0.0,
         "avg_percentage": round(sum(percentages) / len(percentages), 1) if percentages else 0.0,
     }
+
+    # Item Response Theory: Question Difficulty (P-value) & Discrimination Index (D-value)
+    # Sort completed submissions by total percentage to form upper and lower cohort groups
+    if len(completed_subs) >= 2:
+        sorted_subs = sorted(completed_subs, key=lambda x: float(x.get("percentage") or 0.0), reverse=True)
+        cohort_size = max(1, int(len(sorted_subs) * 0.35))
+        upper_cohort = sorted_subs[:cohort_size]
+        lower_cohort = sorted_subs[-cohort_size:]
+
+        for q in formatted_questions:
+            qid_str = str(q["id"])
+            correct_ans = (q.get("correct_answer") or "").strip().lower()
+            
+            # Helper to check if student got this question right
+            def _is_correct(sub):
+                ans_map = json.loads(sub.get("answers_json") or "{}") if isinstance(sub.get("answers_json"), str) else (sub.get("answers_json") or {})
+                raw = ans_map.get(qid_str, "")
+                if isinstance(raw, dict):
+                    raw = raw.get("text", "")
+                return str(raw).strip().lower() == correct_ans
+
+            total_correct = sum(1 for s in completed_subs if _is_correct(s))
+            upper_correct = sum(1 for s in upper_cohort if _is_correct(s))
+            lower_correct = sum(1 for s in lower_cohort if _is_correct(s))
+
+            # P-value: Difficulty Index (0.0 = very hard, 1.0 = very easy)
+            p_val = round(total_correct / len(completed_subs), 2)
+            # D-value: Discrimination Index (proportion of upper cohort correct - lower cohort correct)
+            d_val = round((upper_correct - lower_correct) / cohort_size, 2)
+
+            q["difficulty_p"] = p_val
+            q["discrimination_d"] = d_val
+            if p_val < 0.30:
+                q["irt_difficulty_label"] = "Hard"
+                q["irt_difficulty_badge"] = "bg-rose-100 text-rose-800"
+            elif p_val > 0.75:
+                q["irt_difficulty_label"] = "Easy"
+                q["irt_difficulty_badge"] = "bg-emerald-100 text-emerald-800"
+            else:
+                q["irt_difficulty_label"] = "Moderate"
+                q["irt_difficulty_badge"] = "bg-amber-100 text-amber-800"
+
+            if d_val >= 0.40:
+                q["irt_quality"] = "Excellent Item"
+                q["irt_quality_badge"] = "bg-emerald-100 text-emerald-800"
+            elif d_val >= 0.20:
+                q["irt_quality"] = "Good Item"
+                q["irt_quality_badge"] = "bg-sky-100 text-sky-800"
+            elif d_val < 0:
+                q["irt_quality"] = "⚠️ Flawed Question"
+                q["irt_quality_badge"] = "bg-rose-100 text-rose-800 animate-pulse"
+            else:
+                q["irt_quality"] = "Marginal Item"
+                q["irt_quality_badge"] = "bg-slate-100 text-slate-700"
+    else:
+        for q in formatted_questions:
+            q["difficulty_p"] = None
+            q["discrimination_d"] = None
+            q["irt_difficulty_label"] = "Pending Cohort Data"
+            q["irt_difficulty_badge"] = "bg-slate-100 text-slate-500"
+            q["irt_quality"] = "Awaiting Submissions"
+            q["irt_quality_badge"] = "bg-slate-100 text-slate-500"
 
     conn.close()
     
@@ -2759,12 +2822,29 @@ def api_log_violation(submission_id):
     if session.get("user_role") == "student" and submission["user_id"] != session.get("user_id"):
         conn.close()
         return jsonify({"terminated": False, "error": "Access denied."}), 403
+
+    # Process and save Forensic Incident Webcam Snapshot if provided
+    raw_snapshot = data.get("snapshot") or ""
+    snapshot_url = ""
+    if raw_snapshot and "base64," in raw_snapshot:
+        try:
+            b64_content = raw_snapshot.split("base64,")[1]
+            snap_bytes = base64.b64decode(b64_content)
+            snap_filename = f"snap_sub{submission_id}_{int(time.time())}_{secrets.token_hex(4)}.jpg"
+            snap_dir = os.path.join(os.path.dirname(__file__), "static", "forensic_snapshots")
+            os.makedirs(snap_dir, exist_ok=True)
+            with open(os.path.join(snap_dir, snap_filename), "wb") as sf:
+                sf.write(snap_bytes)
+            save_persistent_asset(f"forensic_snapshots/{snap_filename}", "image/jpeg", snap_bytes)
+            snapshot_url = f"/static/forensic_snapshots/{snap_filename}"
+        except Exception as snap_err:
+            print(f"Forensic snapshot save error: {snap_err}")
         
-    # Insert violation log with SIEM classification
+    # Insert violation log with SIEM classification and forensic snapshot
     cursor.execute("""
-        INSERT INTO violations (submission_id, violation_type, details, severity, event_code)
-        VALUES (?, ?, ?, ?, ?)
-    """, (submission_id, violation_type, details, severity, event_code))
+        INSERT INTO violations (submission_id, violation_type, details, severity, event_code, snapshot_url)
+        VALUES (?, ?, ?, ?, ?, ?)
+    """, (submission_id, violation_type, details, severity, event_code, snapshot_url))
     
     new_warnings = submission["warnings_count"] + 1
     max_allowed = submission["max_warnings"]

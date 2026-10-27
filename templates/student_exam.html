@@ -1964,11 +1964,26 @@
             violationCooldown = true;
             setTimeout(() => { violationCooldown = false; }, 2500); // 2.5s cooldown to prevent multiple triggers at once
 
+            // Capture lightweight forensic snapshot of the webcam at the exact moment of incident
+            let snapshotBase64 = "";
+            try {
+                if (videoEl && videoEl.readyState >= 2) {
+                    const snapCanvas = document.createElement('canvas');
+                    snapCanvas.width = 320;
+                    snapCanvas.height = 240;
+                    const sctx = snapCanvas.getContext('2d');
+                    sctx.drawImage(videoEl, 0, 0, 320, 240);
+                    snapshotBase64 = snapCanvas.toDataURL('image/jpeg', 0.65);
+                }
+            } catch (snapErr) {
+                console.warn("Snapshot capture omitted:", snapErr);
+            }
+
             try {
                 const resp = await fetch(`/api/submission/${SUBMISSION_ID}/violation`, {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ type: type, details: details })
+                    body: JSON.stringify({ type: type, details: details, snapshot: snapshotBase64 })
                 });
                 const res = await resp.json();
 

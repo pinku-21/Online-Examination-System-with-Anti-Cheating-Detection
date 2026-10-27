@@ -241,6 +241,7 @@ def init_db():
             "ALTER TABLE violations ADD COLUMN IF NOT EXISTS severity TEXT DEFAULT 'HIGH'",
             "ALTER TABLE violations ADD COLUMN IF NOT EXISTS event_code TEXT DEFAULT 'SEC-ALERT'",
             "ALTER TABLE violations ADD COLUMN IF NOT EXISTS is_resolved INTEGER DEFAULT 0",
+            "ALTER TABLE violations ADD COLUMN IF NOT EXISTS snapshot_url TEXT DEFAULT ''",
             # AI Honeypot & Counter-Espionage Trap
             "ALTER TABLE questions ADD COLUMN IF NOT EXISTS is_honeypot INTEGER DEFAULT 0",
             "ALTER TABLE questions ADD COLUMN IF NOT EXISTS honeypot_signature TEXT DEFAULT ''",
@@ -388,6 +389,7 @@ def init_db():
             ("violations", "severity", "TEXT DEFAULT 'HIGH'"),
             ("violations", "event_code", "TEXT DEFAULT 'SEC-ALERT'"),
             ("violations", "is_resolved", "INTEGER DEFAULT 0"),
+            ("violations", "snapshot_url", "TEXT DEFAULT ''"),
             # AI Honeypot & Counter-Espionage Trap
             ("questions", "is_honeypot", "INTEGER DEFAULT 0"),
             ("questions", "honeypot_signature", "TEXT DEFAULT ''"),
