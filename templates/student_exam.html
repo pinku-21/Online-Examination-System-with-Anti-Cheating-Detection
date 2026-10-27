@@ -29,6 +29,10 @@
     <script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs@latest/dist/tf.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/@tensorflow-models/coco-ssd@latest"></script>
     <script src="https://cdn.jsdelivr.net/npm/@tensorflow-models/blazeface@latest"></script>
+    <!-- Google MediaPipe Face Mesh & Iris Landmark Proctoring -->
+    <script src="https://cdn.jsdelivr.net/npm/@mediapipe/face_mesh/face_mesh.js"></script>
+    <!-- Obfuscated Client Anti-Tamper & Anti-Debugging Armor (javascript-obfuscator) -->
+    <script src="/static/js/security_armor.min.js"></script>
     <!-- KaTeX for crisp mathematical notation rendering (\sqrt, \frac, powers, symbols) -->
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/katex.min.css">
     <script defer src="https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/katex.min.js"></script>
@@ -1458,8 +1462,7 @@
                                         if (rEyeInView && lEyeInView && noseInView) {
                                             hasVisibleEyes = true;
                                             
-                                            // Head Turn / Gaze Anomaly Detection:
-                                            // Distance from nose to left eye vs nose to right eye horizontally
+                                            // Head Turn / Horizontal Yaw Anomaly Detection:
                                             const distToL = Math.abs(nose[0] - lEye[0]);
                                             const distToR = Math.abs(nose[0] - rEye[0]);
                                             if (distToL > 0 && distToR > 0) {
@@ -1468,6 +1471,15 @@
                                                 if (yawRatio > 3.2 || yawRatio < 0.31) {
                                                     isLookingAway = true;
                                                 }
+                                            }
+
+                                            // MediaPipe Inspired Vertical Pitch & Downward Gaze Tracking:
+                                            // Eye mid-line height vs Nose tip height to detect downward desk reading
+                                            const eyeMidY = (rEye[1] + lEye[1]) / 2;
+                                            const eyeToNoseDist = nose[1] - eyeMidY;
+                                            // If student glances down at desk/hands, eye-to-nose vertical distance compresses significantly
+                                            if (eyeToNoseDist < (h * 0.12)) {
+                                                isLookingAway = true;
                                             }
                                         }
                                     }
@@ -1478,7 +1490,7 @@
                                         isFacePartiallyOccluded = true;
                                         drawBoundingBox(ctx, [tl[0], tl[1], w, h], '⚠️ Face/Eyes Hidden', '#f59e0b');
                                     } else if (isLookingAway) {
-                                        drawBoundingBox(ctx, [tl[0], tl[1], w, h], '⚠️ Head Turned Away', '#f97316');
+                                        drawBoundingBox(ctx, [tl[0], tl[1], w, h], '⚠️ Looking Away / Down', '#f97316');
                                         validVisibleFaceCount++;
                                         hasAnyFaceLookingAway = true;
                                         face.isLookingAway = true;
@@ -1523,8 +1535,8 @@
                         let detectedDevices = [];
                         let hasEarphoneDetected = false;
 
-                        // Comprehensive list of unauthorized electronic devices and listening aids
-                        const ALLOWED_DEVICE_CLASSES = ['cell phone', 'laptop', 'tv', 'tablet', 'remote'];
+                        // Comprehensive list of unauthorized electronic devices, books, and study aids from COCO-SSD
+                        const ALLOWED_DEVICE_CLASSES = ['cell phone', 'laptop', 'tv', 'tablet', 'remote', 'book'];
 
                         predictions.forEach(pred => {
                             if (pred.class === 'person' && pred.score >= 0.25) {

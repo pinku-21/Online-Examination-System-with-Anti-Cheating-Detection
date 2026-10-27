@@ -4,24 +4,24 @@
 
 {% block content %}
 <div class="min-h-[82vh] flex items-center justify-center px-4 py-12">
-    <div class="max-w-md w-full bg-white rounded-3xl border border-slate-200/80 p-8 shadow-xl">
+    <div class="max-w-md w-full bg-white rounded-2xl border border-slate-200/90 p-8 shadow-sm hover:shadow-md transition-shadow">
         
         <!-- Header -->
         <div class="text-center mb-6">
-            <div class="w-14 h-14 rounded-2xl bg-gradient-to-tr from-sky-600 to-indigo-600 text-white flex items-center justify-center mx-auto mb-3 shadow-md shadow-sky-600/20">
-                <i data-lucide="shield-check" class="w-8 h-8"></i>
+            <div class="w-12 h-12 rounded-xl bg-slate-900 text-white flex items-center justify-center mx-auto mb-3 shadow-sm">
+                <i data-lucide="shield-check" class="w-6 h-6 text-sky-400"></i>
             </div>
-            <h1 class="text-2xl font-black text-slate-900 tracking-tight">Welcome to ExamGuard AI</h1>
-            <p class="text-xs text-slate-500 mt-1">Secure Sign In & Access Management</p>
+            <h1 class="text-2xl font-bold tracking-tight text-slate-900">Welcome to ExamGuard AI</h1>
+            <p class="text-sm text-slate-500 mt-1">Enter your credentials to access the proctored portal</p>
         </div>
 
-        <!-- Role Selector Tab -->
-        <div class="flex p-1 bg-slate-100 rounded-2xl mb-6">
-            <button type="button" id="tab-student" onclick="switchLoginRole('student')" class="flex-1 py-2 rounded-xl text-xs font-bold transition flex items-center justify-center space-x-1.5 {% if role != 'admin' %}bg-white text-sky-700 shadow-sm{% else %}text-slate-500 hover:text-slate-900{% endif %}">
+        <!-- Role Selector Tab (shadcn Tabs Style) -->
+        <div class="flex p-1 bg-slate-100/80 rounded-xl mb-6 border border-slate-200/50">
+            <button type="button" id="tab-student" onclick="switchLoginRole('student')" class="flex-1 py-1.5 rounded-lg text-xs font-semibold transition-all flex items-center justify-center space-x-1.5 {% if role != 'admin' %}bg-white text-slate-900 shadow-xs font-bold{% else %}text-slate-500 hover:text-slate-900{% endif %}">
                 <i data-lucide="user" class="w-3.5 h-3.5"></i>
-                <span>Student Portal</span>
+                <span>Student</span>
             </button>
-            <button type="button" id="tab-admin" onclick="switchLoginRole('admin')" class="flex-1 py-2 rounded-xl text-xs font-bold transition flex items-center justify-center space-x-1.5 {% if role == 'admin' %}bg-white text-indigo-700 shadow-sm{% else %}text-slate-500 hover:text-slate-900{% endif %}">
+            <button type="button" id="tab-admin" onclick="switchLoginRole('admin')" class="flex-1 py-1.5 rounded-lg text-xs font-semibold transition-all flex items-center justify-center space-x-1.5 {% if role == 'admin' %}bg-white text-slate-900 shadow-xs font-bold{% else %}text-slate-500 hover:text-slate-900{% endif %}">
                 <i data-lucide="shield" class="w-3.5 h-3.5"></i>
                 <span>Admin / Tutor</span>
             </button>
@@ -30,7 +30,7 @@
         {% with messages = get_flashed_messages(with_categories=true) %}
             {% if messages %}
                 {% for category, message in messages %}
-                    <div class="mb-5 p-3.5 rounded-xl text-xs font-semibold flex items-center space-x-2 {% if category == 'success' %}bg-emerald-50 text-emerald-800 border border-emerald-200{% elif category == 'danger' %}bg-rose-50 text-rose-800 border border-rose-200{% else %}bg-sky-50 text-sky-800 border border-sky-200{% endif %}">
+                    <div class="mb-5 p-3 rounded-lg text-xs font-medium flex items-center space-x-2 border {% if category == 'success' %}bg-emerald-50/50 text-emerald-800 border-emerald-200{% elif category == 'danger' %}bg-rose-50/50 text-rose-800 border-rose-200{% else %}bg-sky-50/50 text-sky-800 border-sky-200{% endif %}">
                         <i data-lucide="info" class="w-4 h-4 flex-shrink-0"></i>
                         <span>{{ message }}</span>
                     </div>
@@ -43,25 +43,25 @@
             <input type="hidden" name="next" value="{{ next_url or '' }}">
 
             <div>
-                <label class="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1.5" id="label-identifier">
+                <label class="block text-xs font-medium text-slate-700 mb-1.5" id="label-identifier">
                     {% if role == 'admin' %}Admin Username or Email{% else %}Student Username or Email{% endif %}
                 </label>
                 <div class="relative">
-                    <input type="text" name="identifier" value="{{ prefill or '' }}" required placeholder="e.g. username or email" class="w-full pl-10 pr-4 py-3 bg-slate-50 border border-slate-300 rounded-xl text-sm focus:bg-white focus:outline-none focus:ring-2 focus:ring-sky-500 font-medium">
-                    <i data-lucide="user" class="w-4 h-4 text-slate-400 absolute left-3.5 top-3.5"></i>
+                    <input type="text" name="identifier" value="{{ prefill or '' }}" required placeholder="name@example.com" class="w-full pl-9 pr-3 py-2 bg-transparent border border-slate-300 rounded-lg text-sm text-slate-900 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-slate-950 focus:border-slate-950 transition-colors">
+                    <i data-lucide="user" class="w-4 h-4 text-slate-400 absolute left-3 top-2.5"></i>
                 </div>
             </div>
 
             <div>
-                <label class="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1.5">Password</label>
+                <label class="block text-xs font-medium text-slate-700 mb-1.5">Password</label>
                 <div class="relative">
-                    <input type="password" name="password" required placeholder="••••••••" class="w-full pl-10 pr-4 py-3 bg-slate-50 border border-slate-300 rounded-xl text-sm focus:bg-white focus:outline-none focus:ring-2 focus:ring-sky-500 font-mono">
-                    <i data-lucide="lock" class="w-4 h-4 text-slate-400 absolute left-3.5 top-3.5"></i>
+                    <input type="password" name="password" required placeholder="••••••••" class="w-full pl-9 pr-3 py-2 bg-transparent border border-slate-300 rounded-lg text-sm text-slate-900 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-slate-950 focus:border-slate-950 transition-colors font-mono">
+                    <i data-lucide="lock" class="w-4 h-4 text-slate-400 absolute left-3 top-2.5"></i>
                 </div>
             </div>
 
-            <button type="submit" id="btn-submit" class="w-full py-3.5 bg-sky-600 hover:bg-sky-700 text-white font-bold rounded-xl shadow-lg shadow-sky-600/20 transition flex items-center justify-center space-x-2 text-sm mt-5">
-                <span>Sign In to Continue</span>
+            <button type="submit" id="btn-submit" class="w-full py-2.5 bg-slate-900 hover:bg-slate-800 text-white font-semibold rounded-lg shadow-xs hover:shadow transition flex items-center justify-center space-x-2 text-sm mt-5">
+                <span>Continue</span>
                 <i data-lucide="arrow-right" class="w-4 h-4"></i>
             </button>
         </form>

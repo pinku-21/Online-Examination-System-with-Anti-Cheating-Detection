@@ -114,9 +114,13 @@ def apply_security_headers(response):
     """
     response.headers["Server"] = "WebServer"
     response.headers["X-Content-Type-Options"] = "nosniff"
-    response.headers["X-Frame-Options"] = "SAMEORIGIN"
+    response.headers["X-Frame-Options"] = "DENY"
     response.headers["X-XSS-Protection"] = "1; mode=block"
     response.headers["Referrer-Policy"] = "strict-origin-when-cross-origin"
+    response.headers["Cross-Origin-Opener-Policy"] = "same-origin"
+    
+    # OWASP Permissions-Policy (restricts sensor access to explicit examination needs)
+    response.headers["Permissions-Policy"] = "camera=(self), microphone=(self), geolocation=(), display-capture=(self), payment=(), usb=()"
     
     # Modern Content Security Policy (allows necessary CDNs for Tailwind, SweetAlert, Lucide, MathJax, and webcam media)
     csp_directives = [
@@ -127,7 +131,7 @@ def apply_security_headers(response):
         "img-src 'self' data: blob: https:",
         "media-src 'self' blob: data:",
         "connect-src 'self' blob: data: https://generativelanguage.googleapis.com https://api.groq.com https://openrouter.ai https://cdn.jsdelivr.net https://storage.googleapis.com https://*.googleapis.com https://tfhub.dev https://*.kaggle.com",
-        "frame-ancestors 'self'"
+        "frame-ancestors 'none'"
     ]
     response.headers["Content-Security-Policy"] = "; ".join(csp_directives)
     
