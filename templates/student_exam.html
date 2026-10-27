@@ -2024,15 +2024,25 @@
                 return;
             }
 
-            // A. Continuous Web Audio Volume Analyser
+            // A. Continuous Web Audio Volume Analyser with Human Voice Bandpass Filter
             try {
                 const AudioContext = window.AudioContext || window.webkitAudioContext;
                 if (AudioContext) {
                     const audioCtx = new AudioContext();
                     const source = audioCtx.createMediaStreamSource(stream);
+
+                    // Human voice bandpass filter: captures human speech (300Hz - 3400Hz)
+                    // Eliminates low-frequency truck rumbles/fan hum (<250Hz) and high-frequency clicks/hiss (>4000Hz)
+                    const filter = audioCtx.createBiquadFilter();
+                    filter.type = 'bandpass';
+                    filter.frequency.value = 1600; // Human vocal formant center
+                    filter.Q.value = 0.8;          // Natural speech bandwidth
+
                     const analyser = audioCtx.createAnalyser();
                     analyser.fftSize = 512;
-                    source.connect(analyser);
+                    
+                    source.connect(filter);
+                    filter.connect(analyser);
 
                     const dataArray = new Uint8Array(analyser.frequencyBinCount);
 
@@ -2291,10 +2301,54 @@
             }
         }
 
+        // Instant AI Proctor Voice Warning Synthesizer (SpeechSynthesis API)
+        function playAIVoiceWarning(type) {
+            try {
+                if (!('speechSynthesis' in window)) return;
+                window.speechSynthesis.cancel(); // Stop any pending utterances
+                
+                let warningText = "Warning. Suspicious activity detected. Please focus on your exam.";
+                if (type === 'academic_collusion') {
+                    warningText = "Academic collusion detected. Speaking or sharing exam questions and answers is strictly prohibited.";
+                } else if (type === 'mobile_phone_detected') {
+                    warningText = "Warning. Unauthorized mobile device detected in camera frame. Remove it immediately.";
+                } else if (type === 'multiple_faces') {
+                    warningText = "Warning. Multiple people detected in exam view. Only the candidate is allowed.";
+                } else if (type === 'looking_away') {
+                    warningText = "Warning. Eyes off screen. Keep your head straight and focus directly on your exam.";
+                } else if (type === 'no_face') {
+                    warningText = "Warning. Face not visible. Candidate must remain seated in front of the camera.";
+                } else if (type === 'tab_switch' || type === 'window_blur') {
+                    warningText = "Warning. Tab switch or window minimization detected. Stay on your examination window.";
+                } else if (type === 'fullscreen_exit') {
+                    warningText = "Warning. Fullscreen mode exited. Please return to fullscreen immediately.";
+                }
+
+                const utterance = new SpeechSynthesisUtterance(warningText);
+                utterance.rate = 1.05;
+                utterance.pitch = 1.0;
+                utterance.lang = 'en-US';
+
+                // Try to find a clear professional English voice
+                const voices = window.speechSynthesis.getVoices();
+                if (voices && voices.length > 0) {
+                    const preferredVoice = voices.find(v => v.lang.startsWith('en') && (v.name.includes('Google') || v.name.includes('Natural') || v.name.includes('Samantha') || v.name.includes('Karen') || v.name.includes('David')));
+                    if (preferredVoice) utterance.voice = preferredVoice;
+                }
+
+                window.speechSynthesis.speak(utterance);
+            } catch (e) {
+                console.warn('Speech synthesis note:', e);
+            }
+        }
+
         // Show strike warning alert with 10s countdown; adds another strike if not clicked in 10s
         function showStrikeWarningAlert(type, details) {
             if (isTerminated) return;
             if (strikeAckTimer) clearInterval(strikeAckTimer);
+
+            // Announce voice proctor warning via speaker/headphones
+            playAIVoiceWarning(type);
 
             // Double check termination condition
             if (warningsCount >= MAX_WARNINGS) {
