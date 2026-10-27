@@ -45,8 +45,7 @@ from ai_service import (
     generate_mock_questions,
     evaluate_answer_with_ai,
     verify_faces_with_gemini,
-    generate_viva_defense_questions,
-    generate_weak_concept_remediation
+    generate_viva_defense_questions
 )
 
 IST = timezone(timedelta(hours=5, minutes=30))
@@ -3623,48 +3622,6 @@ def exam_result(submission_id):
         })
     diagnostic_summary.sort(key=lambda x: x["percentage"])
 
-    # Feature: Personalized Weak Concept Remediation & Active-Recall Flashcards
-    remediation_data = None
-    if is_published:
-        # Check if already cached in diagnostic_analysis_json
-        cached_diag = sub_dict.get("diagnostic_analysis_json") or ""
-        if cached_diag:
-            try:
-                remediation_data = json.loads(cached_diag)
-            except Exception:
-                remediation_data = None
-
-        if not remediation_data:
-            mistaken_questions = [
-                q for q in questions_review 
-                if not q.get("is_correct") and (q.get("awarded_marks", 0.0) < float(q.get("points", 1.0) or 1.0))
-            ]
-            try:
-                res = generate_weak_concept_remediation(
-                    student_name=sub_dict.get("student_name", "Student"),
-                    exam_title=sub_dict.get("title", "Exam"),
-                    score=sub_dict.get("score", 0.0),
-                    total_points=sub_dict.get("total_points", 0.0),
-                    percentage=sub_dict.get("percentage", 0.0),
-                    mistaken_questions=mistaken_questions,
-                    topic_summary=diagnostic_summary
-                )
-                if res and res.get("success"):
-                    remediation_data = res.get("remediation")
-                    if remediation_data:
-                        remediation_data["model_used"] = res.get("model_used", "AI Diagnostic Engine")
-                        # Persist in DB for fast subsequent loads
-                        try:
-                            conn = get_connection()
-                            conn.cursor().execute("UPDATE submissions SET diagnostic_analysis_json = ? WHERE id = ?", (json.dumps(remediation_data), sub_dict["id"]))
-                            conn.commit()
-                            conn.close()
-                        except Exception as cache_err:
-                            print(f"Failed to cache remediation in DB: {cache_err}")
-            except Exception as rem_err:
-                print(f"Remediation generation error: {rem_err}")
-                remediation_data = None
-
     expected_hash = generate_submission_integrity_hash(
         sub_dict["id"],
         sub_dict["roll_number"],
@@ -3696,7 +3653,6 @@ def exam_result(submission_id):
                            is_published=is_published,
                            questions=questions_review,
                            diagnostic_summary=diagnostic_summary,
-                           remediation=remediation_data,
                            integrity_hash=stored_hash or expected_hash,
                            is_tamper_verified=is_tamper_verified)
 
