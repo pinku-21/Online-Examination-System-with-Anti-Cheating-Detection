@@ -229,182 +229,192 @@
             {% endif %}
 
             <!-- Personalized Post-Exam "Weak Concept" Remediation: 1-Page Study Prescription & Active-Recall Flashcards -->
-            {% if remediation %}
-            <div class="rounded-3xl border border-indigo-200/90 bg-gradient-to-br from-white via-indigo-50/20 to-sky-50/30 p-6 sm:p-8 shadow-md">
-                
-                <!-- Prescription Header -->
-                <div class="flex flex-col sm:flex-row sm:items-center justify-between pb-6 mb-6 border-b border-indigo-100 gap-4">
-                    <div class="flex items-start sm:items-center space-x-3.5">
-                        <div class="w-12 h-12 rounded-2xl bg-gradient-to-tr from-indigo-600 to-sky-600 text-white flex items-center justify-center shadow-lg shadow-indigo-200 flex-shrink-0">
-                            <i data-lucide="sparkles" class="w-6 h-6"></i>
-                        </div>
-                        <div>
-                            <div class="flex items-center gap-2 flex-wrap">
-                                <h3 class="text-lg font-black text-slate-900 tracking-tight">AI Diagnostic Study Prescription</h3>
-                                <span class="px-2.5 py-0.5 rounded-full text-[10px] font-extrabold uppercase tracking-wider bg-indigo-100 text-indigo-800 border border-indigo-200">
-                                    {{ remediation.overall_status or 'Personalized Remediation' }}
-                                </span>
+            <div id="remediation-container" data-submission-id="{{ submission.id }}">
+                {% if remediation %}
+                <div class="rounded-3xl border border-indigo-200/90 bg-gradient-to-br from-white via-indigo-50/20 to-sky-50/30 p-6 sm:p-8 shadow-md">
+                    
+                    <!-- Prescription Header -->
+                    <div class="flex flex-col sm:flex-row sm:items-center justify-between pb-6 mb-6 border-b border-indigo-100 gap-4">
+                        <div class="flex items-start sm:items-center space-x-3.5">
+                            <div class="w-12 h-12 rounded-2xl bg-gradient-to-tr from-indigo-600 to-sky-600 text-white flex items-center justify-center shadow-lg shadow-indigo-200 flex-shrink-0">
+                                <i data-lucide="sparkles" class="w-6 h-6"></i>
                             </div>
-                            <p class="text-xs text-slate-500 mt-0.5">Gemini-analyzed learning gap diagnosis & active recall flashcards</p>
-                        </div>
-                    </div>
-                    <div class="flex items-center gap-2 self-start sm:self-auto">
-                        <button type="button" onclick="window.print()" class="px-3 py-1.5 text-xs font-bold rounded-xl border border-slate-200 bg-white hover:bg-slate-50 text-slate-700 transition flex items-center gap-1.5 shadow-xs">
-                            <i data-lucide="printer" class="w-3.5 h-3.5 text-slate-500"></i>
-                            <span>Print Prescription</span>
-                        </button>
-                    </div>
-                </div>
-
-                <!-- Executive Summary -->
-                {% if remediation.executive_summary %}
-                <div class="mb-6 p-4 rounded-2xl bg-indigo-50/70 border border-indigo-100 text-xs text-indigo-950 flex items-start space-x-3">
-                    <i data-lucide="brain-circuit" class="w-5 h-5 text-indigo-600 flex-shrink-0 mt-0.5"></i>
-                    <div>
-                        <strong class="font-extrabold block text-indigo-900 text-xs mb-0.5">Diagnostic Synthesis:</strong>
-                        <p class="leading-relaxed text-indigo-900/90">{{ remediation.executive_summary }}</p>
-                    </div>
-                </div>
-                {% endif %}
-
-                <!-- Weak Concept Diagnosis Cards -->
-                {% if remediation.weak_areas %}
-                <div class="mb-8">
-                    <h4 class="text-xs font-black text-slate-800 uppercase tracking-wider mb-3 flex items-center gap-1.5">
-                        <i data-lucide="target" class="w-4 h-4 text-rose-500"></i>
-                        Targeted Concept Gaps Identified ({{ remediation.weak_areas|length }})
-                    </h4>
-                    <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
-                        {% for gap in remediation.weak_areas %}
-                        <div class="bg-white rounded-2xl p-4 border border-slate-200 shadow-2xs flex flex-col justify-between">
                             <div>
-                                <div class="flex items-center justify-between gap-2 mb-2">
-                                    <h5 class="text-xs font-black text-slate-900 leading-snug">{{ gap.concept_title }}</h5>
-                                    {% if gap.priority == 'High' %}
-                                        <span class="px-2 py-0.5 text-[10px] font-extrabold rounded-md bg-rose-100 text-rose-700 uppercase">High Priority</span>
-                                    {% else %}
-                                        <span class="px-2 py-0.5 text-[10px] font-extrabold rounded-md bg-amber-100 text-amber-700 uppercase">Medium Priority</span>
-                                    {% endif %}
+                                <div class="flex items-center gap-2 flex-wrap">
+                                    <h3 class="text-lg font-black text-slate-900 tracking-tight">AI Diagnostic Study Prescription</h3>
+                                    <span class="px-2.5 py-0.5 rounded-full text-[10px] font-extrabold uppercase tracking-wider bg-indigo-100 text-indigo-800 border border-indigo-200">
+                                        {{ remediation.overall_status or 'Personalized Remediation' }}
+                                    </span>
                                 </div>
-                                <div class="space-y-2 text-xs">
-                                    <div class="p-2.5 rounded-xl bg-rose-50/60 border border-rose-100 text-rose-950">
-                                        <span class="font-bold text-[10px] uppercase text-rose-700 block mb-0.5">Misunderstanding:</span>
-                                        <p class="text-[11px] leading-relaxed">{{ gap.gap_analysis }}</p>
-                                    </div>
-                                    <div class="p-2.5 rounded-xl bg-emerald-50/60 border border-emerald-100 text-emerald-950">
-                                        <span class="font-bold text-[10px] uppercase text-emerald-700 block mb-0.5">Correct Mental Model / Rule:</span>
-                                        <p class="text-[11px] leading-relaxed font-medium">{{ gap.correct_principle }}</p>
-                                    </div>
-                                </div>
+                                <p class="text-xs text-slate-500 mt-0.5">Gemini-analyzed learning gap diagnosis & active recall flashcards</p>
                             </div>
                         </div>
-                        {% endfor %}
+                        <div class="flex items-center gap-2 self-start sm:self-auto">
+                            <button type="button" onclick="window.print()" class="px-3 py-1.5 text-xs font-bold rounded-xl border border-slate-200 bg-white hover:bg-slate-50 text-slate-700 transition flex items-center gap-1.5 shadow-xs">
+                                <i data-lucide="printer" class="w-3.5 h-3.5 text-slate-500"></i>
+                                <span>Print Prescription</span>
+                            </button>
+                        </div>
                     </div>
-                </div>
-                {% endif %}
 
-                <!-- Action Plan & Resources Grid -->
-                <div class="grid grid-cols-1 md:grid-cols-2 gap-4 mb-8">
-                    {% if remediation.action_plan %}
-                    <div class="bg-white p-5 rounded-2xl border border-slate-200 shadow-2xs">
-                        <h4 class="text-xs font-black text-slate-900 uppercase tracking-wider mb-3 flex items-center gap-1.5">
-                            <i data-lucide="check-square" class="w-4 h-4 text-emerald-600"></i>
-                            Prescribed Revision Steps
-                        </h4>
-                        <ol class="space-y-2.5">
-                            {% for step in remediation.action_plan %}
-                            <li class="flex items-start text-xs text-slate-700 space-x-2.5">
-                                <span class="w-5 h-5 rounded-full bg-emerald-100 text-emerald-800 font-black text-[10px] flex items-center justify-center flex-shrink-0 mt-0.5">{{ loop.index }}</span>
-                                <span class="leading-relaxed">{{ step }}</span>
-                            </li>
-                            {% endfor %}
-                        </ol>
+                    <!-- Executive Summary -->
+                    {% if remediation.executive_summary %}
+                    <div class="mb-6 p-4 rounded-2xl bg-indigo-50/70 border border-indigo-100 text-xs text-indigo-950 flex items-start space-x-3">
+                        <i data-lucide="brain-circuit" class="w-5 h-5 text-indigo-600 flex-shrink-0 mt-0.5"></i>
+                        <div>
+                            <strong class="font-extrabold block text-indigo-900 text-xs mb-0.5">Diagnostic Synthesis:</strong>
+                            <p class="leading-relaxed text-indigo-900/90">{{ remediation.executive_summary }}</p>
+                        </div>
                     </div>
                     {% endif %}
 
-                    {% if remediation.suggested_resources %}
-                    <div class="bg-white p-5 rounded-2xl border border-slate-200 shadow-2xs">
-                        <h4 class="text-xs font-black text-slate-900 uppercase tracking-wider mb-3 flex items-center gap-1.5">
-                            <i data-lucide="book-open" class="w-4 h-4 text-sky-600"></i>
-                            Recommended Focus Topics & Materials
+                    <!-- Weak Concept Diagnosis Cards -->
+                    {% if remediation.weak_areas %}
+                    <div class="mb-8">
+                        <h4 class="text-xs font-black text-slate-800 uppercase tracking-wider mb-3 flex items-center gap-1.5">
+                            <i data-lucide="target" class="w-4 h-4 text-rose-500"></i>
+                            Targeted Concept Gaps Identified ({{ remediation.weak_areas|length }})
                         </h4>
-                        <ul class="space-y-2">
-                            {% for res in remediation.suggested_resources %}
-                            <li class="flex items-start text-xs text-slate-700 space-x-2">
-                                <i data-lucide="arrow-right" class="w-3.5 h-3.5 text-sky-500 flex-shrink-0 mt-0.5"></i>
-                                <span class="leading-relaxed">{{ res }}</span>
-                            </li>
+                        <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                            {% for gap in remediation.weak_areas %}
+                            <div class="bg-white rounded-2xl p-4 border border-slate-200 shadow-2xs flex flex-col justify-between">
+                                <div>
+                                    <div class="flex items-center justify-between gap-2 mb-2">
+                                        <h5 class="text-xs font-black text-slate-900 leading-snug">{{ gap.concept_title }}</h5>
+                                        {% if gap.priority == 'High' %}
+                                            <span class="px-2 py-0.5 text-[10px] font-extrabold rounded-md bg-rose-100 text-rose-700 uppercase">High Priority</span>
+                                        {% else %}
+                                            <span class="px-2 py-0.5 text-[10px] font-extrabold rounded-md bg-amber-100 text-amber-700 uppercase">Medium Priority</span>
+                                        {% endif %}
+                                    </div>
+                                    <div class="space-y-2 text-xs">
+                                        <div class="p-2.5 rounded-xl bg-rose-50/60 border border-rose-100 text-rose-950">
+                                            <span class="font-bold text-[10px] uppercase text-rose-700 block mb-0.5">Misunderstanding:</span>
+                                            <p class="text-[11px] leading-relaxed">{{ gap.gap_analysis }}</p>
+                                        </div>
+                                        <div class="p-2.5 rounded-xl bg-emerald-50/60 border border-emerald-100 text-emerald-950">
+                                            <span class="font-bold text-[10px] uppercase text-emerald-700 block mb-0.5">Correct Mental Model / Rule:</span>
+                                            <p class="text-[11px] leading-relaxed font-medium">{{ gap.correct_principle }}</p>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
                             {% endfor %}
-                        </ul>
+                        </div>
                     </div>
                     {% endif %}
-                </div>
 
-                <!-- Interactive Active-Recall Flashcards -->
-                {% if remediation.flashcards %}
-                <div>
-                    <div class="flex items-center justify-between mb-4">
-                        <div class="flex items-center space-x-2">
-                            <i data-lucide="layers" class="w-4 h-4 text-indigo-600"></i>
-                            <h4 class="text-xs font-black text-slate-900 uppercase tracking-wider">Active-Recall Remediation Flashcards</h4>
+                    <!-- Action Plan & Resources Grid -->
+                    <div class="grid grid-cols-1 md:grid-cols-2 gap-4 mb-8">
+                        {% if remediation.action_plan %}
+                        <div class="bg-white p-5 rounded-2xl border border-slate-200 shadow-2xs">
+                            <h4 class="text-xs font-black text-slate-900 uppercase tracking-wider mb-3 flex items-center gap-1.5">
+                                <i data-lucide="check-square" class="w-4 h-4 text-emerald-600"></i>
+                                Prescribed Revision Steps
+                            </h4>
+                            <ol class="space-y-2.5">
+                                {% for step in remediation.action_plan %}
+                                <li class="flex items-start text-xs text-slate-700 space-x-2.5">
+                                    <span class="w-5 h-5 rounded-full bg-emerald-100 text-emerald-800 font-black text-[10px] flex items-center justify-center flex-shrink-0 mt-0.5">{{ loop.index }}</span>
+                                    <span class="leading-relaxed">{{ step }}</span>
+                                </li>
+                                {% endfor %}
+                            </ol>
                         </div>
-                        <span class="text-[11px] text-slate-500 italic">Click any card to flip & reveal the solution</span>
+                        {% endif %}
+
+                        {% if remediation.suggested_resources %}
+                        <div class="bg-white p-5 rounded-2xl border border-slate-200 shadow-2xs">
+                            <h4 class="text-xs font-black text-slate-900 uppercase tracking-wider mb-3 flex items-center gap-1.5">
+                                <i data-lucide="book-open" class="w-4 h-4 text-sky-600"></i>
+                                Recommended Focus Topics & Materials
+                            </h4>
+                            <ul class="space-y-2">
+                                {% for res in remediation.suggested_resources %}
+                                <li class="flex items-start text-xs text-slate-700 space-x-2">
+                                    <i data-lucide="arrow-right" class="w-3.5 h-3.5 text-sky-500 flex-shrink-0 mt-0.5"></i>
+                                    <span class="leading-relaxed">{{ res }}</span>
+                                </li>
+                                {% endfor %}
+                            </ul>
+                        </div>
+                        {% endif %}
                     </div>
 
-                    <div class="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-3.5">
-                        {% for card in remediation.flashcards %}
-                        <div class="remediation-flashcard group cursor-pointer perspective h-48 select-none" onclick="this.classList.toggle('flipped')">
-                            <div class="flashcard-inner relative w-full h-full text-center transition-transform duration-500 preserve-3d">
-                                
-                                <!-- Card Front -->
-                                <div class="flashcard-front absolute w-full h-full rounded-2xl p-4 bg-white border-2 border-indigo-100 hover:border-indigo-300 shadow-xs flex flex-col justify-between text-left backface-hidden transition">
-                                    <div class="flex items-center justify-between">
-                                        <span class="px-2 py-0.5 rounded text-[9px] font-extrabold uppercase tracking-wider bg-indigo-50 text-indigo-700 border border-indigo-100">
-                                            {{ card.category or 'Recall Prompt' }}
-                                        </span>
-                                        <span class="text-[10px] text-slate-400 font-mono font-bold">#{{ loop.index }}</span>
-                                    </div>
-                                    <p class="text-xs font-bold text-slate-800 leading-snug my-auto line-clamp-4">
-                                        {{ card.front }}
-                                    </p>
-                                    <div class="flex items-center justify-between text-[10px] text-indigo-600 font-bold pt-2 border-t border-slate-100">
-                                        <span>Tap to Reveal Answer</span>
-                                        <i data-lucide="rotate-cw" class="w-3 h-3 text-indigo-500"></i>
-                                    </div>
-                                </div>
-
-                                <!-- Card Back -->
-                                <div class="flashcard-back absolute w-full h-full rounded-2xl p-4 bg-gradient-to-br from-indigo-900 to-slate-900 text-white shadow-md flex flex-col justify-between text-left rotate-y-180 backface-hidden">
-                                    <div class="flex items-center justify-between">
-                                        <span class="px-2 py-0.5 rounded text-[9px] font-extrabold uppercase tracking-wider bg-indigo-800 text-indigo-200 border border-indigo-700">
-                                            Key Solution
-                                        </span>
-                                        <span class="text-[10px] text-indigo-300 font-mono">Card #{{ loop.index }}</span>
-                                    </div>
-                                    <p class="text-xs font-medium text-slate-100 leading-snug my-auto line-clamp-4">
-                                        {{ card.back }}
-                                    </p>
-                                    <div class="flex items-center justify-between text-[10px] text-indigo-300 font-bold pt-2 border-t border-indigo-800/80">
-                                        <span>Tap to Flip Back</span>
-                                        <i data-lucide="rotate-ccw" class="w-3 h-3 text-indigo-300"></i>
-                                    </div>
-                                </div>
-
+                    <!-- Interactive Active-Recall Flashcards -->
+                    {% if remediation.flashcards %}
+                    <div>
+                        <div class="flex items-center justify-between mb-4">
+                            <div class="flex items-center space-x-2">
+                                <i data-lucide="layers" class="w-4 h-4 text-indigo-600"></i>
+                                <h4 class="text-xs font-black text-slate-900 uppercase tracking-wider">Active-Recall Remediation Flashcards</h4>
                             </div>
+                            <span class="text-[11px] text-slate-500 italic">Click any card to flip & reveal the solution</span>
                         </div>
-                        {% endfor %}
+
+                        <div class="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-3.5">
+                            {% for card in remediation.flashcards %}
+                            <div class="remediation-flashcard group cursor-pointer perspective h-48 select-none" onclick="this.classList.toggle('flipped')">
+                                <div class="flashcard-inner relative w-full h-full text-center transition-transform duration-500 preserve-3d">
+                                    
+                                    <!-- Card Front -->
+                                    <div class="flashcard-front absolute w-full h-full rounded-2xl p-4 bg-white border-2 border-indigo-100 hover:border-indigo-300 shadow-xs flex flex-col justify-between text-left backface-hidden transition">
+                                        <div class="flex items-center justify-between">
+                                            <span class="px-2 py-0.5 rounded text-[9px] font-extrabold uppercase tracking-wider bg-indigo-50 text-indigo-700 border border-indigo-100">
+                                                {{ card.category or 'Recall Prompt' }}
+                                            </span>
+                                            <span class="text-[10px] text-slate-400 font-mono font-bold">#{{ loop.index }}</span>
+                                        </div>
+                                        <p class="text-xs font-bold text-slate-800 leading-snug my-auto line-clamp-4">
+                                            {{ card.front }}
+                                        </p>
+                                        <div class="flex items-center justify-between text-[10px] text-indigo-600 font-bold pt-2 border-t border-slate-100">
+                                            <span>Tap to Reveal Answer</span>
+                                            <i data-lucide="rotate-cw" class="w-3 h-3 text-indigo-500"></i>
+                                        </div>
+                                    </div>
+
+                                    <!-- Card Back -->
+                                    <div class="flashcard-back absolute w-full h-full rounded-2xl p-4 bg-gradient-to-br from-indigo-900 to-slate-900 text-white shadow-md flex flex-col justify-between text-left rotate-y-180 backface-hidden">
+                                        <div class="flex items-center justify-between">
+                                            <span class="px-2 py-0.5 rounded text-[9px] font-extrabold uppercase tracking-wider bg-indigo-800 text-indigo-200 border border-indigo-700">
+                                                Key Solution
+                                            </span>
+                                            <span class="text-[10px] text-indigo-300 font-mono">Card #{{ loop.index }}</span>
+                                        </div>
+                                        <p class="text-xs font-medium text-slate-100 leading-snug my-auto line-clamp-4">
+                                            {{ card.back }}
+                                        </p>
+                                        <div class="flex items-center justify-between text-[10px] text-indigo-300 font-bold pt-2 border-t border-indigo-800/80">
+                                            <span>Tap to Flip Back</span>
+                                            <i data-lucide="rotate-ccw" class="w-3 h-3 text-indigo-300"></i>
+                                        </div>
+                                    </div>
+
+                                </div>
+                            </div>
+                            {% endfor %}
+                        </div>
+                    </div>
+                    {% endif %}
+
+                    <!-- Footer Source Tag -->
+                    <div class="mt-6 pt-4 border-t border-indigo-100/60 flex items-center justify-between text-[10px] text-slate-400 font-mono">
+                        <span>Engine: {{ remediation.model_used or 'Google Gemini AI' }}</span>
+                        <span>Self-Adaptive Remediation Protocol</span>
+                    </div>
+
+                </div>
+                {% else %}
+                <!-- Async Loading State: Fetches via AJAX without blocking worker -->
+                <div id="remediation-loading-card" class="rounded-3xl border border-indigo-100 bg-gradient-to-br from-white via-indigo-50/20 to-sky-50/20 p-6 text-center">
+                    <div class="flex items-center justify-center space-x-3 py-4">
+                        <div class="w-6 h-6 border-3 border-indigo-600 border-t-transparent rounded-full animate-spin"></div>
+                        <span class="text-xs font-bold text-slate-700">Synthesizing Personalized AI Study Prescription & Flashcards...</span>
                     </div>
                 </div>
                 {% endif %}
-
-                <!-- Footer Source Tag -->
-                <div class="mt-6 pt-4 border-t border-indigo-100/60 flex items-center justify-between text-[10px] text-slate-400 font-mono">
-                    <span>Engine: {{ remediation.model_used or 'Google Gemini AI' }}</span>
-                    <span>Self-Adaptive Remediation Protocol</span>
-                </div>
-
             </div>
-            {% endif %}
 
             <div class="space-y-6">
                 {% for q in questions %}
@@ -576,7 +586,241 @@
                 el.style.width = w + '%';
             }
         });
+
+        // Async remediation fetcher: avoids worker timeouts by loading asynchronously after page renders
+        var loadingCard = document.getElementById('remediation-loading-card');
+        var remContainer = document.getElementById('remediation-container');
+        if (loadingCard && remContainer) {
+            var subId = remContainer.getAttribute('data-submission-id');
+            if (subId && subId !== '0') {
+                fetch('/api/submission/' + subId + '/remediation')
+                    .then(function(res) {
+                        if (!res.ok) throw new Error('Status ' + res.status);
+                        return res.json();
+                    })
+                    .then(function(data) {
+                        if (data && data.success && data.remediation) {
+                            renderRemediationCard(data.remediation, remContainer);
+                        } else {
+                            loadingCard.classList.add('hidden');
+                        }
+                    })
+                    .catch(function(err) {
+                        console.warn('Async remediation notice:', err);
+                        if (loadingCard) loadingCard.classList.add('hidden');
+                    });
+            }
+        }
     });
+
+    function renderRemediationCard(rem, container) {
+        if (!rem || !container) return;
+        
+        var gapsHtml = '';
+        if (rem.weak_areas && rem.weak_areas.length > 0) {
+            gapsHtml = `
+                <div class="mb-8">
+                    <h4 class="text-xs font-black text-slate-800 uppercase tracking-wider mb-3 flex items-center gap-1.5">
+                        <i data-lucide="target" class="w-4 h-4 text-rose-500"></i>
+                        Targeted Concept Gaps Identified (${rem.weak_areas.length})
+                    </h4>
+                    <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        ${rem.weak_areas.map(function(gap) {
+                            var priBadge = gap.priority === 'High' 
+                                ? '<span class="px-2 py-0.5 text-[10px] font-extrabold rounded-md bg-rose-100 text-rose-700 uppercase">High Priority</span>'
+                                : '<span class="px-2 py-0.5 text-[10px] font-extrabold rounded-md bg-amber-100 text-amber-700 uppercase">Medium Priority</span>';
+                            return `
+                                <div class="bg-white rounded-2xl p-4 border border-slate-200 shadow-2xs flex flex-col justify-between">
+                                    <div>
+                                        <div class="flex items-center justify-between gap-2 mb-2">
+                                            <h5 class="text-xs font-black text-slate-900 leading-snug">${escapeHtml(gap.concept_title || '')}</h5>
+                                            ${priBadge}
+                                        </div>
+                                        <div class="space-y-2 text-xs">
+                                            <div class="p-2.5 rounded-xl bg-rose-50/60 border border-rose-100 text-rose-950">
+                                                <span class="font-bold text-[10px] uppercase text-rose-700 block mb-0.5">Misunderstanding:</span>
+                                                <p class="text-[11px] leading-relaxed">${escapeHtml(gap.gap_analysis || '')}</p>
+                                            </div>
+                                            <div class="p-2.5 rounded-xl bg-emerald-50/60 border border-emerald-100 text-emerald-950">
+                                                <span class="font-bold text-[10px] uppercase text-emerald-700 block mb-0.5">Correct Mental Model / Rule:</span>
+                                                <p class="text-[11px] leading-relaxed font-medium">${escapeHtml(gap.correct_principle || '')}</p>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                            `;
+                        }).join('')}
+                    </div>
+                </div>
+            `;
+        }
+
+        var stepsHtml = '';
+        if (rem.action_plan && rem.action_plan.length > 0) {
+            stepsHtml = `
+                <div class="bg-white p-5 rounded-2xl border border-slate-200 shadow-2xs">
+                    <h4 class="text-xs font-black text-slate-900 uppercase tracking-wider mb-3 flex items-center gap-1.5">
+                        <i data-lucide="check-square" class="w-4 h-4 text-emerald-600"></i>
+                        Prescribed Revision Steps
+                    </h4>
+                    <ol class="space-y-2.5">
+                        ${rem.action_plan.map(function(step, idx) {
+                            return `
+                                <li class="flex items-start text-xs text-slate-700 space-x-2.5">
+                                    <span class="w-5 h-5 rounded-full bg-emerald-100 text-emerald-800 font-black text-[10px] flex items-center justify-center flex-shrink-0 mt-0.5">${idx + 1}</span>
+                                    <span class="leading-relaxed">${escapeHtml(step)}</span>
+                                </li>
+                            `;
+                        }).join('')}
+                    </ol>
+                </div>
+            `;
+        }
+
+        var resHtml = '';
+        if (rem.suggested_resources && rem.suggested_resources.length > 0) {
+            resHtml = `
+                <div class="bg-white p-5 rounded-2xl border border-slate-200 shadow-2xs">
+                    <h4 class="text-xs font-black text-slate-900 uppercase tracking-wider mb-3 flex items-center gap-1.5">
+                        <i data-lucide="book-open" class="w-4 h-4 text-sky-600"></i>
+                        Recommended Focus Topics & Materials
+                    </h4>
+                    <ul class="space-y-2">
+                        ${rem.suggested_resources.map(function(r) {
+                            return `
+                                <li class="flex items-start text-xs text-slate-700 space-x-2">
+                                    <i data-lucide="arrow-right" class="w-3.5 h-3.5 text-sky-500 flex-shrink-0 mt-0.5"></i>
+                                    <span class="leading-relaxed">${escapeHtml(r)}</span>
+                                </li>
+                            `;
+                        }).join('')}
+                    </ul>
+                </div>
+            `;
+        }
+
+        var flashcardsHtml = '';
+        if (rem.flashcards && rem.flashcards.length > 0) {
+            flashcardsHtml = `
+                <div>
+                    <div class="flex items-center justify-between mb-4">
+                        <div class="flex items-center space-x-2">
+                            <i data-lucide="layers" class="w-4 h-4 text-indigo-600"></i>
+                            <h4 class="text-xs font-black text-slate-900 uppercase tracking-wider">Active-Recall Remediation Flashcards</h4>
+                        </div>
+                        <span class="text-[11px] text-slate-500 italic">Click any card to flip & reveal the solution</span>
+                    </div>
+
+                    <div class="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-3.5">
+                        ${rem.flashcards.map(function(card, idx) {
+                            return `
+                                <div class="remediation-flashcard group cursor-pointer perspective h-48 select-none" onclick="this.classList.toggle('flipped')">
+                                    <div class="flashcard-inner relative w-full h-full text-center transition-transform duration-500 preserve-3d">
+                                        <div class="flashcard-front absolute w-full h-full rounded-2xl p-4 bg-white border-2 border-indigo-100 hover:border-indigo-300 shadow-xs flex flex-col justify-between text-left backface-hidden transition">
+                                            <div class="flex items-center justify-between">
+                                                <span class="px-2 py-0.5 rounded text-[9px] font-extrabold uppercase tracking-wider bg-indigo-50 text-indigo-700 border border-indigo-100">
+                                                    ${escapeHtml(card.category || 'Recall Prompt')}
+                                                </span>
+                                                <span class="text-[10px] text-slate-400 font-mono font-bold">#${idx + 1}</span>
+                                            </div>
+                                            <p class="text-xs font-bold text-slate-800 leading-snug my-auto line-clamp-4">
+                                                ${escapeHtml(card.front || '')}
+                                            </p>
+                                            <div class="flex items-center justify-between text-[10px] text-indigo-600 font-bold pt-2 border-t border-slate-100">
+                                                <span>Tap to Reveal Answer</span>
+                                                <i data-lucide="rotate-cw" class="w-3 h-3 text-indigo-500"></i>
+                                            </div>
+                                        </div>
+
+                                        <div class="flashcard-back absolute w-full h-full rounded-2xl p-4 bg-gradient-to-br from-indigo-900 to-slate-900 text-white shadow-md flex flex-col justify-between text-left rotate-y-180 backface-hidden">
+                                            <div class="flex items-center justify-between">
+                                                <span class="px-2 py-0.5 rounded text-[9px] font-extrabold uppercase tracking-wider bg-indigo-800 text-indigo-200 border border-indigo-700">
+                                                    Key Solution
+                                                </span>
+                                                <span class="text-[10px] text-indigo-300 font-mono">Card #${idx + 1}</span>
+                                            </div>
+                                            <p class="text-xs font-medium text-slate-100 leading-snug my-auto line-clamp-4">
+                                                ${escapeHtml(card.back || '')}
+                                            </p>
+                                            <div class="flex items-center justify-between text-[10px] text-indigo-300 font-bold pt-2 border-t border-indigo-800/80">
+                                                <span>Tap to Flip Back</span>
+                                                <i data-lucide="rotate-ccw" class="w-3 h-3 text-indigo-300"></i>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                            `;
+                        }).join('')}
+                    </div>
+                </div>
+            `;
+        }
+
+        var html = `
+            <div class="rounded-3xl border border-indigo-200/90 bg-gradient-to-br from-white via-indigo-50/20 to-sky-50/30 p-6 sm:p-8 shadow-md">
+                <div class="flex flex-col sm:flex-row sm:items-center justify-between pb-6 mb-6 border-b border-indigo-100 gap-4">
+                    <div class="flex items-start sm:items-center space-x-3.5">
+                        <div class="w-12 h-12 rounded-2xl bg-gradient-to-tr from-indigo-600 to-sky-600 text-white flex items-center justify-center shadow-lg shadow-indigo-200 flex-shrink-0">
+                            <i data-lucide="sparkles" class="w-6 h-6"></i>
+                        </div>
+                        <div>
+                            <div class="flex items-center gap-2 flex-wrap">
+                                <h3 class="text-lg font-black text-slate-900 tracking-tight">AI Diagnostic Study Prescription</h3>
+                                <span class="px-2.5 py-0.5 rounded-full text-[10px] font-extrabold uppercase tracking-wider bg-indigo-100 text-indigo-800 border border-indigo-200">
+                                    ${escapeHtml(rem.overall_status || 'Personalized Remediation')}
+                                </span>
+                            </div>
+                            <p class="text-xs text-slate-500 mt-0.5">Gemini-analyzed learning gap diagnosis & active recall flashcards</p>
+                        </div>
+                    </div>
+                    <div class="flex items-center gap-2 self-start sm:self-auto">
+                        <button type="button" onclick="window.print()" class="px-3 py-1.5 text-xs font-bold rounded-xl border border-slate-200 bg-white hover:bg-slate-50 text-slate-700 transition flex items-center gap-1.5 shadow-xs">
+                            <i data-lucide="printer" class="w-3.5 h-3.5 text-slate-500"></i>
+                            <span>Print Prescription</span>
+                        </button>
+                    </div>
+                </div>
+
+                ${rem.executive_summary ? `
+                    <div class="mb-6 p-4 rounded-2xl bg-indigo-50/70 border border-indigo-100 text-xs text-indigo-950 flex items-start space-x-3">
+                        <i data-lucide="brain-circuit" class="w-5 h-5 text-indigo-600 flex-shrink-0 mt-0.5"></i>
+                        <div>
+                            <strong class="font-extrabold block text-indigo-900 text-xs mb-0.5">Diagnostic Synthesis:</strong>
+                            <p class="leading-relaxed text-indigo-900/90">${escapeHtml(rem.executive_summary)}</p>
+                        </div>
+                    </div>
+                ` : ''}
+
+                ${gapsHtml}
+
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-4 mb-8">
+                    ${stepsHtml}
+                    ${resHtml}
+                </div>
+
+                ${flashcardsHtml}
+
+                <div class="mt-6 pt-4 border-t border-indigo-100/60 flex items-center justify-between text-[10px] text-slate-400 font-mono">
+                    <span>Engine: ${escapeHtml(rem.model_used || 'Google Gemini AI')}</span>
+                    <span>Self-Adaptive Remediation Protocol</span>
+                </div>
+            </div>
+        `;
+
+        container.innerHTML = html;
+        if (window.lucide) lucide.createIcons();
+    }
+
+    function escapeHtml(str) {
+        if (!str) return '';
+        return String(str)
+            .replace(/&/g, '&amp;')
+            .replace(/</g, '&lt;')
+            .replace(/>/g, '&gt;')
+            .replace(/"/g, '&quot;')
+            .replace(/'/g, '&#039;');
+    }
+
 
     function openCertificateModal() {
         Swal.fire({
