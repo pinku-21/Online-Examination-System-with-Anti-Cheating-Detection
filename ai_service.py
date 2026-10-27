@@ -7,6 +7,25 @@ import concurrent.futures
 from pypdf import PdfReader
 from database import get_setting
 
+try:
+    import httpx
+    # High-performance HTTP/2 pooled client for ultra-low latency Gemini, Groq, and OpenRouter calls
+    _httpx_client = httpx.Client(http2=True, timeout=httpx.Timeout(45.0, connect=10.0), limits=httpx.Limits(max_keepalive_connections=20, max_connections=50))
+except Exception:
+    _httpx_client = None
+
+def http_post(url, json=None, headers=None, timeout=30):
+    """
+    High-performance HTTP POST using HTTP/2 multiplexed httpx client with seamless fallback to requests.
+    Significantly reduces TLS handshake overhead and socket connection latency for LLM vision and generation calls.
+    """
+    if _httpx_client is not None:
+        try:
+            return _httpx_client.post(url, json=json, headers=headers, timeout=timeout)
+        except Exception:
+            pass
+    return requests.post(url, json=json, headers=headers, timeout=timeout)
+
 def parse_api_keys(key_string):
     """
     Parses a single key or comma/whitespace/newline-separated list of keys into a clean list of unique keys.
@@ -1329,7 +1348,7 @@ OUTPUT FORMAT (JSON ONLY, NO MARKDOWN):
                             }
                         }
                         try:
-                            resp = requests.post(url, json=payload, headers={"Content-Type": "application/json"}, timeout=12)
+                            resp = http_post(url, json=payload, headers={"Content-Type": "application/json"}, timeout=12)
                             if resp.status_code == 200:
                                 res_json = resp.json()
                                 candidates = res_json.get("candidates", [])
@@ -1429,7 +1448,7 @@ OUTPUT FORMAT (JSON ONLY, NO MARKDOWN):
                             "temperature": 0.1
                         }
                         try:
-                            resp = requests.post("https://openrouter.ai/api/v1/chat/completions", headers=headers, json=payload, timeout=14)
+                            resp = http_post("https://openrouter.ai/api/v1/chat/completions", headers=headers, json=payload, timeout=14)
                             if resp.status_code == 200:
                                 res_json = resp.json()
                                 choices = res_json.get("choices", [])
