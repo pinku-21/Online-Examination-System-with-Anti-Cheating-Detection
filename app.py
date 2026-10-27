@@ -360,6 +360,41 @@ def login_required(f):
         return f(*args, **kwargs)
     return decorated_function
 
+# --- CSRF DEFENSE & CRYPTOGRAPHIC TOKEN ENGINE ---
+
+@app.before_request
+def csrf_protect_check():
+    """
+    ECC Security Pattern: Validates Origin / Referer on all state-changing HTTP methods
+    (POST, PUT, DELETE, PATCH) to prevent Cross-Site Request Forgery (CSRF).
+    """
+    if request.method in ("POST", "PUT", "DELETE", "PATCH"):
+        # Exempt external webhook or health check routes if any
+        if request.path in ("/health", "/ping"):
+            return None
+            
+        origin = request.headers.get("Origin") or request.headers.get("Referer")
+        if origin:
+            # Parse host from origin/referer
+            from urllib.parse import urlparse
+            origin_host = urlparse(origin).netloc.lower()
+            current_host = request.host.lower()
+            # If origin host is present and does not match our current host
+            if origin_host and origin_host != current_host:
+                return jsonify({
+                    "success": False,
+                    "error": "Cross-Site Request Blocked (CSRF Security Violation): Origin mismatch."
+                }), 403
+
+def get_csrf_token():
+    if "csrf_token" not in session:
+        session["csrf_token"] = secrets.token_hex(24)
+    return session["csrf_token"]
+
+@app.context_processor
+def inject_csrf_token():
+    return dict(csrf_token=get_csrf_token())
+
 def admin_required(f):
     @wraps(f)
     def decorated_function(*args, **kwargs):
