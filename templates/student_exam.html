@@ -620,6 +620,7 @@
         let imposterConsecutiveCount = 0;
         let faceOccludedConsecutiveCount = 0;
         let lookingAwayConsecutiveCount = 0;
+        let lookingDownConsecutiveCount = 0;
         let loudAudioConsecutiveCount = 0;
         let phoneConsecutiveCount = 0;
         let earphoneConsecutiveCount = 0;
@@ -1432,6 +1433,7 @@
                         let validVisibleFaceCount = 0;
                         let isFacePartiallyOccluded = false;
                         let hasAnyFaceLookingAway = false;
+                        let hasAnyFaceLookingDown = false;
                         let detectedFaces = [];
 
                         if (blazeFaceModel) {
@@ -1447,7 +1449,8 @@
                                     
                                      // Check if key landmarks (eyes, nose) are present and inside frame boundaries
                                     let hasVisibleEyes = false;
-                                    let isLookingAway = false;
+                                    let isLookingSideways = false;
+                                    let isLookingDownAtDesk = false;
                                     if (face.landmarks && face.landmarks.length >= 3) {
                                         const rEye = face.landmarks[0]; // right eye [x, y]
                                         const lEye = face.landmarks[1]; // left eye [x, y]
@@ -1462,24 +1465,23 @@
                                         if (rEyeInView && lEyeInView && noseInView) {
                                             hasVisibleEyes = true;
                                             
-                                            // Head Turn / Horizontal Yaw Anomaly Detection:
+                                            // 1. Head Turn / Horizontal Yaw Anomaly Detection (Looking sideways to cheat/ask someone):
                                             const distToL = Math.abs(nose[0] - lEye[0]);
                                             const distToR = Math.abs(nose[0] - rEye[0]);
                                             if (distToL > 0 && distToR > 0) {
                                                 const yawRatio = distToL / distToR;
-                                                // When looking completely left or right, yawRatio diverges heavily (> 3.2 or < 0.31)
+                                                // Looking completely left or right (> 3.2 or < 0.31)
                                                 if (yawRatio > 3.2 || yawRatio < 0.31) {
-                                                    isLookingAway = true;
+                                                    isLookingSideways = true;
                                                 }
                                             }
 
-                                            // MediaPipe Inspired Vertical Pitch & Downward Gaze Tracking:
-                                            // Eye mid-line height vs Nose tip height to detect downward desk reading
+                                            // 2. Vertical Pitch & Downward Gaze (Writing on paper, solving math on notebook):
                                             const eyeMidY = (rEye[1] + lEye[1]) / 2;
                                             const eyeToNoseDist = nose[1] - eyeMidY;
-                                            // If student glances down at desk/hands, eye-to-nose vertical distance compresses significantly
+                                            // When student bends face downward to write answers or rough work on paper
                                             if (eyeToNoseDist < (h * 0.12)) {
-                                                isLookingAway = true;
+                                                isLookingDownAtDesk = true;
                                             }
                                         }
                                     }
@@ -1489,11 +1491,15 @@
                                     if (!hasVisibleEyes || isCroppedEdge) {
                                         isFacePartiallyOccluded = true;
                                         drawBoundingBox(ctx, [tl[0], tl[1], w, h], '⚠️ Face/Eyes Hidden', '#f59e0b');
-                                    } else if (isLookingAway) {
-                                        drawBoundingBox(ctx, [tl[0], tl[1], w, h], '⚠️ Looking Away / Down', '#f97316');
+                                    } else if (isLookingSideways) {
+                                        drawBoundingBox(ctx, [tl[0], tl[1], w, h], '⚠️ Looking Sideways', '#f97316');
                                         validVisibleFaceCount++;
                                         hasAnyFaceLookingAway = true;
-                                        face.isLookingAway = true;
+                                    } else if (isLookingDownAtDesk) {
+                                        // Writing / Rough-work on paper mode: friendly indicator, not an immediate cheating flag
+                                        drawBoundingBox(ctx, [tl[0], tl[1], w, h], '✍️ Writing / Solving on Desk', '#38bdf8');
+                                        validVisibleFaceCount++;
+                                        hasAnyFaceLookingDown = true;
                                     } else {
                                         validVisibleFaceCount++;
 
@@ -1504,17 +1510,15 @@
                                         if (liveVec) {
                                             if (!trainedStudentBaseline) {
                                                 // Calibrate initial clean baseline sample
-                                                learnStudentFaceSample(liveVec);
+                                                learnStudentFaceSample(liveVec, true);
                                             } else {
                                                 const dist = computeVectorDistance(trainedStudentBaseline, liveVec);
-                                                // Dynamic threshold: > 0.40 is clearly a completely different facial geometry (impostor)
-                                                // Natural movement/angles/tilts of the same student stay within 0.05 - 0.32
-                                                if (dist > 0.40) {
+                                                // Strict threshold: > 0.22 is a different person's face geometry (impostor)
+                                                // The verified candidate's natural head movement/pitch/angles stay below 0.18
+                                                if (dist > 0.22) {
                                                     isMLPersonMatch = false;
-                                                } else if (dist < 0.22) {
-                                                    // Gently adapt baseline to subtle lighting/distance shifts of the verified student
-                                                    learnStudentFaceSample(liveVec);
                                                 }
+                                                // Note: DO NOT adapt baseline when another person might be in view
                                             }
                                         }
 
@@ -1548,8 +1552,8 @@
                                         drawBoundingBox(ctx, pred.bbox, 'Candidate', '#10b981');
                                     }
                                 }
-                            } else if (ALLOWED_DEVICE_CLASSES.includes(pred.class) && pred.score >= 0.28) {
-                                // Sensitive threshold (0.28) for handheld phones, backs of phones, and tablets
+                            } else if (ALLOWED_DEVICE_CLASSES.includes(pred.class) && pred.score >= 0.20) {
+                                // Sensitive threshold (0.20) for phones, cameras, books, and tablets
                                 detectedDevices.push(pred.class);
                                 drawBoundingBox(ctx, pred.bbox, '🚨 ' + pred.class.toUpperCase(), '#f43f5e');
                             }
@@ -1563,7 +1567,7 @@
                         if (ENABLE_VIDEO && validVisibleFaceCount > 0 && !isGracePeriod && !isBrowsingFile) {
                             if (!lastBiometricCheckTime) {
                                 lastBiometricCheckTime = nowMs - 6000; // First check fires ~2s after exam starts
-                            } else if (nowMs - lastBiometricCheckTime >= 8000) {
+                            } else if (nowMs - lastBiometricCheckTime >= 6000) {
                                 lastBiometricCheckTime = nowMs;
                                 runInExamBiometricVerification(videoEl);
                             }
@@ -1591,6 +1595,8 @@
                             updateHudBadge('hud-face', 'Eyes Hidden ⚠️', 'rose');
                         } else if (hasAnyFaceLookingAway) {
                             updateHudBadge('hud-face', 'Looking Away ⚠️', 'amber');
+                        } else if (hasAnyFaceLookingDown) {
+                            updateHudBadge('hud-face', 'Writing on Desk ✍️', 'sky');
                         } else {
                             updateHudBadge('hud-face', '1 Person ✓', 'emerald');
                         }
@@ -1601,14 +1607,15 @@
                             imposterConsecutiveCount = 0;
                             faceOccludedConsecutiveCount = 0;
                             lookingAwayConsecutiveCount = 0;
+                            lookingDownConsecutiveCount = 0;
                             phoneConsecutiveCount = 0;
                             return;
                         }
 
-                        // Rule A: Phone / Device Strike with 2-frame debouncing to eliminate false positive camera flashes
+                        // Rule A: Phone / Device Strike with immediate trigger (1 detection triggers instant strike)
                         if (detectedDevices.length > 0) {
                             phoneConsecutiveCount++;
-                            if (phoneConsecutiveCount >= 2) {
+                            if (phoneConsecutiveCount >= 1) {
                                 phoneConsecutiveCount = 0;
                                 triggerViolation('mobile_phone_detected', `Unauthorized electronic device detected: ${detectedDevices[0].toUpperCase()}`);
                             }
@@ -1620,12 +1627,14 @@
                             noPersonConsecutiveCount++;
                             imposterConsecutiveCount = 0;
                             faceOccludedConsecutiveCount = 0;
+                            lookingDownConsecutiveCount = 0;
                             if (noPersonConsecutiveCount >= 8) {
                                 triggerViolation('no_face', 'No candidate face detected in webcam feed. Candidate left desk or covered camera.');
                             }
                         } else if (totalPresence > 1 || isBiometricMismatch) {
                             noPersonConsecutiveCount = 0;
                             faceOccludedConsecutiveCount = 0;
+                            lookingDownConsecutiveCount = 0;
                             imposterConsecutiveCount++;
 
                             // Red Warning on canvas / toast while extra person is present:
@@ -1647,6 +1656,7 @@
                             noPersonConsecutiveCount = 0;
                             imposterConsecutiveCount = 0;
                             lookingAwayConsecutiveCount = 0;
+                            lookingDownConsecutiveCount = 0;
                             faceOccludedConsecutiveCount++;
 
                             // Draw warning banner on live webcam canvas
@@ -1665,6 +1675,7 @@
                             noPersonConsecutiveCount = 0;
                             imposterConsecutiveCount = 0;
                             faceOccludedConsecutiveCount = 0;
+                            lookingDownConsecutiveCount = 0;
                             lookingAwayConsecutiveCount++;
 
                             ctx.fillStyle = 'rgba(249, 115, 22, 0.90)';
@@ -1675,13 +1686,50 @@
 
                             if (lookingAwayConsecutiveCount >= 3) {
                                 lookingAwayConsecutiveCount = 0;
-                                triggerViolation('looking_away', 'Candidate repeatedly or continuously looked away from the exam screen.');
+                                triggerViolation('looking_away', 'Candidate repeatedly or continuously looked sideways away from the exam screen.');
+                            }
+                        } else if (hasAnyFaceLookingDown) {
+                            // Candidate is looking down at notebook/copy to write or do math rough work
+                            noPersonConsecutiveCount = 0;
+                            imposterConsecutiveCount = 0;
+                            faceOccludedConsecutiveCount = 0;
+                            lookingAwayConsecutiveCount = 0;
+                            lookingDownConsecutiveCount++;
+
+                            // Determine if current question is written/subjective/photo upload or if exam has rough work
+                            const currQ = (typeof currentQuestionIndex !== 'undefined' && QUESTIONS && QUESTIONS[currentQuestionIndex]) ? QUESTIONS[currentQuestionIndex] : null;
+                            const isWrittenOrMath = currQ && (currQ.question_type === 'descriptive' || currQ.question_type === 'short' || currQ.has_photo_upload || currQ.allow_upload !== false);
+
+                            // For written / math questions allow up to 35 frames (~50s) of continuous head-down paper writing.
+                            // For pure MCQ questions allow up to 20 frames (~28s) for scratch work.
+                            const maxAllowedDownFrames = isWrittenOrMath ? 35 : 20;
+
+                            if (lookingDownConsecutiveCount < maxAllowedDownFrames - 5) {
+                                // Friendly blue notification banner on webcam overlay
+                                ctx.fillStyle = 'rgba(14, 165, 233, 0.85)';
+                                ctx.fillRect(10, 10, canvas.width - 20, 26);
+                                ctx.fillStyle = '#ffffff';
+                                ctx.font = 'bold 11px Inter, sans-serif';
+                                ctx.fillText('✍️ WRITING / SOLVING ON PAPER — KEEP HEAD IN CAMERA VIEW', 18, 27);
+                            } else {
+                                // Amber advisory before strike
+                                ctx.fillStyle = 'rgba(245, 158, 11, 0.90)';
+                                ctx.fillRect(10, 10, canvas.width - 20, 28);
+                                ctx.fillStyle = '#1e293b';
+                                ctx.font = 'bold 11px Inter, sans-serif';
+                                ctx.fillText('⚠️ PLEASE GLANCE AT SCREEN BRIEFLY TO CONFIRM PRESENCE', 18, 28);
+                            }
+
+                            if (lookingDownConsecutiveCount >= maxAllowedDownFrames) {
+                                lookingDownConsecutiveCount = 0;
+                                triggerViolation('looking_away', 'Candidate remained head-down looking away from the screen for an extended period without glancing back.');
                             }
                         } else {
                             noPersonConsecutiveCount = 0;
                             imposterConsecutiveCount = 0;
                             faceOccludedConsecutiveCount = 0;
                             lookingAwayConsecutiveCount = 0;
+                            lookingDownConsecutiveCount = 0;
                         }
 
                     } catch (detErr) {
