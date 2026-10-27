@@ -3568,12 +3568,19 @@ def exam_result(submission_id):
 
             eval_item = manual_eval.get(q_id_str)
             if eval_item:
-                q_dict["awarded_marks"] = float(eval_item.get("awarded_marks", 0.0))
+                try:
+                    q_dict["awarded_marks"] = float(eval_item.get("awarded_marks", 0.0) or 0.0)
+                except (ValueError, TypeError):
+                    q_dict["awarded_marks"] = 0.0
                 q_dict["eval_feedback"] = eval_item.get("feedback", "")
                 q_dict["eval_by"] = eval_item.get("evaluated_by", "ai")
                 q_dict["is_evaluated"] = True
             else:
-                default_pts = float(q["points"]) if q_dict["is_correct"] else 0.0
+                try:
+                    pts_val = float(q["points"] or 1.0)
+                except (ValueError, TypeError):
+                    pts_val = 1.0
+                default_pts = pts_val if q_dict["is_correct"] else 0.0
                 q_dict["awarded_marks"] = default_pts
                 q_dict["eval_feedback"] = ""
                 q_dict["eval_by"] = "auto"
@@ -3587,8 +3594,14 @@ def exam_result(submission_id):
     topic_breakdown = {}
     for q in questions_review:
         topic = (q.get("topic_category") or "General Core Concept").strip()
-        pts_earned = float(q.get("awarded_marks", 0.0))
-        pts_max = float(q.get("points", 1.0))
+        try:
+            pts_earned = float(q.get("awarded_marks", 0.0) or 0.0)
+        except (ValueError, TypeError):
+            pts_earned = 0.0
+        try:
+            pts_max = float(q.get("points", 1.0) or 1.0)
+        except (ValueError, TypeError):
+            pts_max = 1.0
         if topic not in topic_breakdown:
             topic_breakdown[topic] = {"earned": 0.0, "total": 0.0, "count": 0}
         topic_breakdown[topic]["earned"] += pts_earned
