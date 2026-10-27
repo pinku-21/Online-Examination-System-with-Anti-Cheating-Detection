@@ -1798,6 +1798,84 @@
                     triggerViolation('devtools_tamper', 'Synthetic input injection attack detected (scripted mouse click).');
                 }
             }, true);
+
+            // 9. Biometric Keystroke Dynamics & AI Auto-Type Burst Injection Detection
+            // Human keystroke inter-arrival time (flight time) has natural variance (80ms - 350ms).
+            // Scripted auto-typers / extensions inject uniform 2-15ms bursts or paste 60+ chars with 0 interval.
+            let lastKeyTime = 0;
+            let keyFlightIntervals = [];
+            let rapidBurstCount = 0;
+
+            document.addEventListener('keydown', (e) => {
+                if (!isExamActive || isTerminated || isGracePeriod) return;
+                const now = performance.now();
+                if (lastKeyTime > 0) {
+                    const delta = now - lastKeyTime;
+                    keyFlightIntervals.push(delta);
+                    if (keyFlightIntervals.length > 25) keyFlightIntervals.shift();
+
+                    // Detect inhuman continuous high-speed injection (< 18ms per keystroke across 15+ characters)
+                    if (delta < 18 && e.key.length === 1) {
+                        rapidBurstCount++;
+                        if (rapidBurstCount >= 18) {
+                            triggerViolation('keystroke_anomaly', 'Automated Keystroke Injection detected: Inhuman typing velocity (>250 WPM / <18ms per key without variation).');
+                            rapidBurstCount = 0;
+                        }
+                    } else {
+                        rapidBurstCount = Math.max(0, rapidBurstCount - 1);
+                    }
+                }
+                lastKeyTime = now;
+            }, true);
+
+            // Large text block sudden insertion detector (paste bypass / script innerHTML insertion)
+            document.addEventListener('input', (e) => {
+                if (!isExamActive || isTerminated || isGracePeriod) return;
+                if (e.target && (e.target.tagName === 'TEXTAREA' || e.target.tagName === 'INPUT')) {
+                    const inserted = e.data || '';
+                    // If an input event directly inserts > 80 characters in a single event without clipboard paste
+                    if (inserted.length > 80 && e.inputType !== 'insertFromPaste') {
+                        triggerViolation('keystroke_anomaly', `Unauthorized Text Block Injection: ${inserted.length} characters inserted in single synthetic event.`);
+                    }
+                }
+            }, true);
+
+            // 10. Browser Extension & Shadow-DOM Tampering Interceptor
+            // Monitors unauthorized external DOM insertions from ChatGPT extensions, Solvers, or DOM mod scripts
+            try {
+                const extensionObserver = new MutationObserver((mutations) => {
+                    if (!isExamActive || isTerminated || isGracePeriod) return;
+                    for (const mutation of mutations) {
+                        for (const node of mutation.addedNodes) {
+                            if (node.nodeType === 1) { // Element node
+                                const el = node;
+                                const tagName = (el.tagName || '').toLowerCase();
+                                const idStr = (el.id || '').toLowerCase();
+                                const classStr = (el.className && typeof el.className === 'string' ? el.className : '').toLowerCase();
+                                
+                                // Common cheat extension / sidebar markers (ChatGPT overlay, Merlin, Monica, Copyfish, NoBlur)
+                                const isSuspiciousExt = idStr.includes('chatgpt') || idStr.includes('ai-helper') ||
+                                                        idStr.includes('solver') || idStr.includes('copilot') ||
+                                                        idStr.includes('bypass') || classStr.includes('gpt-') ||
+                                                        tagName.includes('chatgpt') || tagName.includes('ai-companion');
+                                
+                                if (isSuspiciousExt) {
+                                    triggerViolation('extension_tamper', `Unauthorized Browser Extension / Overlay detected: <${tagName} id="${el.id}">.`);
+                                    try { el.remove(); } catch(remErr) {}
+                                    return;
+                                }
+                            }
+                        }
+                    }
+                });
+
+                extensionObserver.observe(document.documentElement, {
+                    childList: true,
+                    subtree: true
+                });
+            } catch (obsErr) {
+                console.warn('DOM Mutation observer error:', obsErr);
+            }
         }
 
         // Show strike warning alert with 10s countdown; adds another strike if not clicked in 10s

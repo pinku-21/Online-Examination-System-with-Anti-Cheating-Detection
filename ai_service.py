@@ -1477,3 +1477,102 @@ OUTPUT FORMAT (JSON ONLY):
             "error": f"Face verification error: {local_err}"
         }
 
+def generate_viva_defense_questions(student_name, exam_title, questions_and_answers, strike_count=0):
+    """
+    Generates targeted academic oral viva questions to verify if the student
+    personally solved the exam or relied on external AI/impostors.
+    Works via Gemini / OpenRouter or intelligent local rule heuristics.
+    """
+    api_key = get_setting("GEMINI_API_KEY")
+    qa_summary = []
+    for idx, qa in enumerate(questions_and_answers[:6]):
+        q_text = qa.get("question_text", "")[:180]
+        s_ans = qa.get("student_answer", "")[:350]
+        if s_ans and s_ans != "Not Attempted":
+            qa_summary.append(f"Q{idx+1}: {q_text}\nStudent's Submitted Answer: {s_ans}")
+
+    if not qa_summary:
+        return {
+            "success": True,
+            "viva_questions": [
+                {
+                    "question": "Can you summarize the core conceptual theme of this examination and the methodology behind your principal answers?",
+                    "expected_points": "Clear verbal articulation of core subject concepts without hesitation.",
+                    "focus_area": "Overall Subject Comprehension"
+                },
+                {
+                    "question": "Walk me through how you structured your answer to the highest-weighted question on this test.",
+                    "expected_points": "Step-by-step breakdown matching their written submission.",
+                    "focus_area": "Methodological Authenticity"
+                }
+            ],
+            "model_used": "Heuristic Viva Generator"
+        }
+
+    qa_context_text = "\n\n".join(qa_summary)
+    
+    prompt = f"""You are an elite university oral viva examiner reviewing a proctored examination attempt by student "{student_name}" for exam "{exam_title}".
+The student has {strike_count} proctoring anomalies or high marks that require verbal verification.
+
+Below are the actual questions and the student's submitted responses:
+{qa_context_text}
+
+Generate 3 targeted, insightful, and specific viva interview questions that an instructor can ask the student to immediately verify if they personally authored their answers.
+For each question:
+1. Reference a specific logic step, argument, or term from their submitted answer.
+2. Provide the key conceptual points the student MUST mention if they genuinely wrote it.
+3. Specify the targeted focus area.
+
+Return strictly a JSON array with exactly this structure:
+[
+  {{
+    "question": "In your answer to Question 1, you mentioned [...]. Could you explain the underlying reasoning behind this choice and how it behaves under edge cases?",
+    "expected_points": "The student should explain [...], emphasizing [...].",
+    "focus_area": "Algorithmic Reasoning / Conceptual Depth"
+  }}
+]
+Do not wrap in markdown quotes if possible, return valid JSON only."""
+
+    # 1. Try Gemini
+    if api_key:
+        keys = parse_api_keys(api_key)
+        for key in keys:
+            try:
+                url = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key={key}"
+                resp = requests.post(
+                    url,
+                    headers={"Content-Type": "application/json"},
+                    json={"contents": [{"parts": [{"text": prompt}]}]},
+                    timeout=25
+                )
+                if resp.status_code == 200:
+                    cand = resp.json().get("candidates", [])
+                    if cand:
+                        raw = cand[0]["content"]["parts"][0]["text"].strip()
+                        if "```json" in raw:
+                            raw = raw.split("```json")[1].split("```")[0].strip()
+                        elif "```" in raw:
+                            raw = raw.split("```")[1].split("```")[0].strip()
+                        start_i = raw.find("[")
+                        end_i = raw.rfind("]")
+                        if start_i != -1 and end_i != -1:
+                            raw = raw[start_i:end_i+1]
+                        parsed = json.loads(raw)
+                        if isinstance(parsed, list) and len(parsed) > 0:
+                            return {"success": True, "viva_questions": parsed, "model_used": "Google Gemini 2.0 Flash"}
+            except Exception as e:
+                print(f"Viva generation error: {e}")
+
+    # Fallback heuristic viva questions tailored to the questions
+    fallback = []
+    for i, qa in enumerate(questions_and_answers[:3]):
+        q_snippet = qa.get("question_text", "the question")[:90]
+        fallback.append({
+            "question": f"Regarding your submission on \"{q_snippet}...\": Could you explain your reasoning step-by-step and why you chose that particular approach?",
+            "expected_points": "Candidate must explain the core technical steps without referencing external tabs or pausing.",
+            "focus_area": f"Question {i+1} Verification"
+        })
+
+    return {"success": True, "viva_questions": fallback, "model_used": "Academic Heuristic Engine (Fallback)"}
+
+

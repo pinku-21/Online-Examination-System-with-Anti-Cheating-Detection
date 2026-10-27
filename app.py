@@ -44,7 +44,8 @@ from ai_service import (
     parse_pasted_paper_unified,
     generate_mock_questions,
     evaluate_answer_with_ai,
-    verify_faces_with_gemini
+    verify_faces_with_gemini,
+    generate_viva_defense_questions
 )
 
 IST = timezone(timedelta(hours=5, minutes=30))
@@ -107,7 +108,9 @@ SECURITY_EVENT_CLASSIFICATION = {
     "clipboard_attempt": {"code": "SEC-010", "severity": "MEDIUM", "desc": "Restricted Clipboard Injection / Extraction"},
     "right_click": {"code": "SEC-011", "severity": "LOW", "desc": "Unauthorized Context Menu Invocation"},
     "voice_detected": {"code": "SEC-012", "severity": "MEDIUM", "desc": "Acoustic Anomaly / Unauthorized Speech Detected"},
-    "session_anomaly": {"code": "SEC-013", "severity": "CRITICAL", "desc": "Concurrent Session / Device Hijacking Attempt"}
+    "session_anomaly": {"code": "SEC-013", "severity": "CRITICAL", "desc": "Concurrent Session / Device Hijacking Attempt"},
+    "keystroke_anomaly": {"code": "SEC-014", "severity": "CRITICAL", "desc": "Biometric Keystroke Anomaly / Fast-Type AI Injector Detected"},
+    "extension_tamper": {"code": "SEC-015", "severity": "CRITICAL", "desc": "Browser Extension / DOM Mutation Injection Detected"}
 }
 
 def generate_submission_integrity_hash(submission_id, roll_number, score, total_points, warnings_count, status):
@@ -2183,6 +2186,54 @@ def tutor_submission_details(submission_id):
     questions_review = attach_question_display_labels(questions_review)
     conn.close()
     return render_template("submission_details.html", submission=submission, violations=violations, questions=questions_review)
+
+@app.route("/api/tutor/submission/<int:submission_id>/generate-viva", methods=["POST"])
+@admin_required
+def api_generate_viva_defense(submission_id):
+    """
+    Generates targeted oral defense viva questions for a candidate's submission.
+    Allows tutors to verify academic authenticity when anomaly strikes or high scores occur.
+    """
+    conn = get_connection()
+    cursor = conn.cursor()
+    cursor.execute("""
+        SELECT s.*, e.title as exam_title
+        FROM submissions s
+        JOIN exams e ON s.exam_id = e.id
+        WHERE s.id = ?
+    """, (submission_id,))
+    sub = cursor.fetchone()
+    if not sub:
+        conn.close()
+        return jsonify({"success": False, "error": "Submission not found"}), 404
+
+    cursor.execute("SELECT * FROM questions WHERE exam_id = ?", (sub["exam_id"],))
+    questions = cursor.fetchall()
+    conn.close()
+
+    answers = json.loads(sub["answers_json"]) if sub["answers_json"] else {}
+    qa_list = []
+    for q in questions:
+        q_id = str(q["id"])
+        ans_raw = answers.get(q_id)
+        ans_text = ""
+        if isinstance(ans_raw, dict):
+            ans_text = ans_raw.get("text", "")
+        elif isinstance(ans_raw, str):
+            ans_text = ans_raw
+        qa_list.append({
+            "question_text": q["question_text"],
+            "student_answer": ans_text or "Not Attempted",
+            "points": q["points"]
+        })
+
+    viva_result = generate_viva_defense_questions(
+        student_name=sub["student_name"],
+        exam_title=sub["exam_title"],
+        questions_and_answers=qa_list,
+        strike_count=sub["warnings_count"]
+    )
+    return jsonify(viva_result)
 
 @app.route("/api/tutor/submission/<int:submission_id>/grant-reattempt", methods=["POST"])
 @admin_required

@@ -90,7 +90,14 @@
             <span>/</span>
             <span class="text-slate-900 font-medium">Proctoring Audit</span>
         </div>
-        <div class="flex items-center gap-3">
+            <!-- AI Oral Viva Defense Button -->
+            <button type="button"
+                    onclick="triggerVivaDefenseGeneration({{ submission.id }})"
+                    class="px-4 py-2 bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-700 hover:to-indigo-700 text-white text-xs font-bold rounded-xl shadow-md hover:shadow-lg transition flex items-center space-x-1.5 cursor-pointer"
+                    title="Generate custom AI follow-up oral viva questions to verbally verify student authenticity">
+                <i data-lucide="sparkles" class="w-3.5 h-3.5"></i>
+                <span>Generate Oral Viva Defense</span>
+            </button>
             <!-- Official PDF Report Button -->
             <button type="button"
                     onclick="window.print()"
@@ -1192,6 +1199,56 @@
             }
         } catch (err) {
             Swal.fire({ icon: 'error', title: 'Error', text: 'Network connection failed.' });
+        }
+    }
+
+    async function triggerVivaDefenseGeneration(subId) {
+        Swal.fire({
+            title: 'Generating Oral Viva Questions...',
+            html: '<div class="py-3 flex flex-col items-center"><div class="w-8 h-8 border-4 border-purple-600 border-t-transparent rounded-full animate-spin mb-2"></div><span class="text-xs text-slate-500">AI is analyzing submitted code and answers to construct tailored verbal defense questions...</span></div>',
+            allowOutsideClick: false,
+            showConfirmButton: false
+        });
+
+        try {
+            const resp = await fetch(`/api/tutor/submission/${subId}/generate-viva`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' }
+            });
+            const data = await resp.json();
+
+            if (data.success && data.viva_questions && data.viva_questions.length > 0) {
+                let questionsHtml = data.viva_questions.map((q, idx) => `
+                    <div class="p-4 bg-slate-50 rounded-xl border border-slate-200 text-left mb-3">
+                        <div class="flex items-center justify-between mb-1.5">
+                            <span class="text-[10px] font-black uppercase tracking-wider px-2 py-0.5 rounded bg-purple-100 text-purple-800">Question ${idx + 1} • ${q.focus_area || 'Core Logic'}</span>
+                        </div>
+                        <p class="text-xs font-bold text-slate-900 mb-2">${q.question}</p>
+                        <div class="p-2.5 bg-emerald-50/70 border border-emerald-200 rounded-lg text-[11px] text-emerald-900">
+                            <strong class="block text-emerald-800 font-semibold mb-0.5">Expected Verification Keywords:</strong>
+                            ${q.expected_points}
+                        </div>
+                    </div>
+                `).join('');
+
+                Swal.fire({
+                    title: '🎯 Candidate Oral Viva Defense Protocol',
+                    width: '680px',
+                    html: `
+                        <p class="text-xs text-slate-500 mb-4 text-left">Ask these AI-formulated questions to verbally verify whether the candidate personally authored their submitted answers or relied on external assistance.</p>
+                        <div class="max-h-96 overflow-y-auto pr-1">
+                            ${questionsHtml}
+                        </div>
+                        <p class="text-[10px] text-slate-400 mt-3 text-right">Engine: ${data.model_used || 'ExamGuard AI'}</p>
+                    `,
+                    confirmButtonText: 'Close Protocol',
+                    confirmButtonColor: '#4f46e5'
+                });
+            } else {
+                Swal.fire({ icon: 'error', title: 'Generation Failed', text: data.error || 'Could not synthesize viva questions.' });
+            }
+        } catch (err) {
+            Swal.fire({ icon: 'error', title: 'Network Error', text: 'Failed to communicate with viva defense service.' });
         }
     }
 </script>
