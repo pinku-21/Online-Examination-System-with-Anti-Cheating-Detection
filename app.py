@@ -126,7 +126,7 @@ def apply_security_headers(response):
         "font-src 'self' https://fonts.gstatic.com data:",
         "img-src 'self' data: blob: https:",
         "media-src 'self' blob: data:",
-        "connect-src 'self' blob: data: https://generativelanguage.googleapis.com https://api.groq.com https://openrouter.ai https://cdn.jsdelivr.net",
+        "connect-src 'self' blob: data: https://generativelanguage.googleapis.com https://api.groq.com https://openrouter.ai https://cdn.jsdelivr.net https://storage.googleapis.com https://*.googleapis.com https://tfhub.dev https://*.kaggle.com",
         "frame-ancestors 'self'"
     ]
     response.headers["Content-Security-Policy"] = "; ".join(csp_directives)
