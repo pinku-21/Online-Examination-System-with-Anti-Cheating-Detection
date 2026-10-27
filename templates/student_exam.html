@@ -1511,17 +1511,15 @@
                             } catch (bf) { /* blazeface frame error, ignore */ }
                         }
 
-                        let personCount = 0;
                         let detectedDevices = [];
+                        let hasEarphoneDetected = false;
 
-                        // ONLY detect genuine electronic devices (cell phone, laptop, tv, tablet)
-                        // Ignore background household items like balls, fans, wall photos, books, cups, chairs, etc.
-                        const ALLOWED_DEVICE_CLASSES = ['cell phone', 'laptop', 'tv', 'tablet'];
+                        // Comprehensive list of unauthorized electronic devices and listening aids
+                        const ALLOWED_DEVICE_CLASSES = ['cell phone', 'laptop', 'tv', 'tablet', 'remote'];
 
                         predictions.forEach(pred => {
                             if (pred.class === 'person' && pred.score >= 0.25) {
                                 personCount++;
-                                // Only draw candidate if we don't already have an occluded face warning
                                 if (!isFacePartiallyOccluded) {
                                     if (isBiometricMismatch) {
                                         drawBoundingBox(ctx, pred.bbox, '⚠️ Impostor', '#f43f5e');
@@ -1529,11 +1527,50 @@
                                         drawBoundingBox(ctx, pred.bbox, 'Candidate', '#10b981');
                                     }
                                 }
-                            } else if (ALLOWED_DEVICE_CLASSES.includes(pred.class) && pred.score >= 0.50) {
+                            } else if (ALLOWED_DEVICE_CLASSES.includes(pred.class) && pred.score >= 0.28) {
+                                // Sensitive threshold (0.28) for handheld phones, backs of phones, and tablets
                                 detectedDevices.push(pred.class);
-                                drawBoundingBox(ctx, pred.bbox, pred.class.toUpperCase(), '#f43f5e');
+                                drawBoundingBox(ctx, pred.bbox, '🚨 ' + pred.class.toUpperCase(), '#f43f5e');
                             }
                         });
+
+                        // --- Earphone / Bluetooth Earbud Optical Inspector ---
+                        // Inspect both ear positions from BlazeFace facial landmarks (landmarks[4] = right ear, landmarks[5] = left ear)
+                        if (blazeFaceModel && validVisibleFaceCount > 0) {
+                            try {
+                                faces.forEach(face => {
+                                    if (face.landmarks && face.landmarks.length >= 6) {
+                                        const earPositions = [
+                                            { name: 'Right Ear', pt: face.landmarks[4] },
+                                            { name: 'Left Ear', pt: face.landmarks[5] }
+                                        ];
+                                        earPositions.forEach(ear => {
+                                            const ex = Math.round(ear.pt[0]);
+                                            const ey = Math.round(ear.pt[1]);
+                                            const boxR = 18; // sample 36x36px patch around the ear concha
+                                            if (ex > boxR && ex < (canvas.width - boxR) && ey > boxR && ey < (canvas.height - boxR)) {
+                                                const earImg = ctx.getImageData(ex - boxR, ey - boxR, boxR * 2, boxR * 2).data;
+                                                let darkPixels = 0;
+                                                let totalPx = earImg.length / 4;
+                                                for (let p = 0; p < earImg.length; p += 4) {
+                                                    const r = earImg[p], g = earImg[p+1], b = earImg[p+2];
+                                                    const lum = (r * 0.299 + g * 0.587 + b * 0.114);
+                                                    // Detect dense black/dark plastic or white airpod in the ear canal region
+                                                    if (lum < 32 || (r > 230 && g > 230 && b > 230)) {
+                                                        darkPixels++;
+                                                    }
+                                                }
+                                                // If substantial dark/distinct plastic is sitting directly inside ear concha
+                                                if ((darkPixels / totalPx) > 0.28) {
+                                                    hasEarphoneDetected = true;
+                                                    drawBoundingBox(ctx, [ex - boxR, ey - boxR, boxR * 2, boxR * 2], '🎧 Earphone / Earbud', '#f43f5e');
+                                                }
+                                            }
+                                        });
+                                    }
+                                });
+                            } catch (earErr) { /* ignore ear sample error */ }
+                        }
 
                         // Total presence count:
                         const totalPresence = Math.max(personCount, blazeFaceCount);
@@ -1561,10 +1598,13 @@
                             return;
                         }
 
-                        // Rule A: Mobile Phone / Electronic Device Detection
+                        // Rule A: Mobile Phone / Earphone / Bluetooth Device Detection
                         if (detectedDevices.length > 0) {
                             updateHudBadge('hud-phone', 'Phone Alert! 🚨', 'rose');
                             triggerViolation('mobile_phone_detected', `Unauthorized electronic device detected: ${detectedDevices[0].toUpperCase()}`);
+                        } else if (hasEarphoneDetected) {
+                            updateHudBadge('hud-phone', 'Earphone 🚨', 'rose');
+                            triggerViolation('earphone_detected', 'Unauthorized Bluetooth earbud or listening device detected on candidate.');
                         } else {
                             updateHudBadge('hud-phone', 'Clear ✓', 'emerald');
                         }

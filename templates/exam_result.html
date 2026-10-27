@@ -283,10 +283,23 @@
                         {% endif %}
 
                         <!-- Student's Written / Uploaded Answer -->
-                        <div class="p-4 rounded-xl bg-slate-50 border border-slate-200 space-y-2">
-                            <span class="text-xs font-bold text-slate-700 uppercase tracking-wider block">Your Submitted Answer:</span>
+                        {% set is_res_correct = q.is_correct or (q.awarded_marks and q.awarded_marks >= q.points) %}
+                        {% set is_res_wrong = not is_res_correct and (q.awarded_marks == 0.0 or q.awarded_marks == 0) and q.student_answer and q.student_answer != 'Not Attempted' %}
+                        <div class="p-4 rounded-xl border space-y-2 {% if is_res_correct %}bg-emerald-50/70 border-emerald-300{% elif is_res_wrong %}bg-rose-50/70 border-rose-300{% else %}bg-slate-50 border-slate-200{% endif %}">
+                            <div class="flex items-center justify-between">
+                                <span class="text-xs font-bold uppercase tracking-wider block {% if is_res_correct %}text-emerald-900{% elif is_res_wrong %}text-rose-900{% else %}text-slate-700{% endif %}">Your Submitted Answer:</span>
+                                {% if is_res_correct %}
+                                    <span class="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-black bg-emerald-100 text-emerald-800 border border-emerald-300">
+                                        <i data-lucide="check" class="w-3 h-3 mr-0.5"></i> Correct (+{{ q.awarded_marks }} Mks)
+                                    </span>
+                                {% elif is_res_wrong %}
+                                    <span class="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-black bg-rose-100 text-rose-800 border border-rose-300">
+                                        <i data-lucide="x" class="w-3 h-3 mr-0.5"></i> Incorrect (0 Mks)
+                                    </span>
+                                {% endif %}
+                            </div>
                             {% if q.student_answer and q.student_answer != 'Not Attempted' %}
-                                <p class="text-xs text-slate-800 bg-white p-3 rounded-lg border border-slate-200 whitespace-pre-line">{{ q.student_answer }}</p>
+                                <p class="text-xs font-mono font-bold p-3 rounded-lg border whitespace-pre-line {% if is_res_correct %}bg-white text-emerald-900 border-emerald-200{% elif is_res_wrong %}bg-white text-rose-900 border-rose-200 line-through{% else %}bg-white text-slate-800 border-slate-200{% endif %}">{{ q.student_answer }}</p>
                             {% else %}
                                 <p class="text-xs text-slate-400 italic">No text response submitted.</p>
                             {% endif %}
