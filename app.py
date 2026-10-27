@@ -3687,4 +3687,5 @@ def exam_result(submission_id):
                            is_tamper_verified=is_tamper_verified)
 
 if __name__ == "__main__":
-    app.run(host="127.0.0.1", port=5000, debug=True)
+    is_debug = os.environ.get("FLASK_DEBUG", "False").strip().lower() in ("true", "1", "t")
+    app.run(host="127.0.0.1", port=5000, debug=is_debug)
