@@ -220,7 +220,7 @@
                             </div>
                         </div>
                         <div class="w-full bg-slate-100 rounded-full h-1.5 overflow-hidden">
-                            <div class="h-1.5 rounded-full {% if diag.percentage >= 80 %}bg-emerald-500{% elif diag.percentage >= 50 %}bg-amber-500{% else %}bg-rose-500{% endif %}" style="width: {{ diag.percentage }}%;"></div>
+                            <div class="diag-progress-bar h-1.5 rounded-full {% if diag.percentage >= 80 %}bg-emerald-500{% elif diag.percentage >= 50 %}bg-amber-500{% else %}bg-rose-500{% endif %}" data-width="{{ diag.percentage }}"></div>
                         </div>
                     </div>
                     {% endfor %}
@@ -378,6 +378,15 @@
 {% endif %}
 
 <script>
+    document.addEventListener('DOMContentLoaded', function() {
+        document.querySelectorAll('.diag-progress-bar').forEach(function(el) {
+            var w = el.getAttribute('data-width');
+            if (w !== null && w !== '') {
+                el.style.width = w + '%';
+            }
+        });
+    });
+
     function openCertificateModal() {
         Swal.fire({
             title: '',
