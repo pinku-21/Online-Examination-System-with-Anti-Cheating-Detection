@@ -1337,7 +1337,10 @@ OUTPUT FORMAT (JSON ONLY, NO MARKDOWN):
 
             keys_pool = parse_api_keys(gemini_key)
             for cur_key in keys_pool:
+                key_rate_limited = False
                 for ver in api_versions:
+                    if key_rate_limited:
+                        break
                     for model_name in models:
                         url = f"https://generativelanguage.googleapis.com/{ver}/models/{model_name}:generateContent?key={cur_key}"
                         payload = {
@@ -1378,8 +1381,9 @@ OUTPUT FORMAT (JSON ONLY, NO MARKDOWN):
                                             "model_used": f"Gemini Vision ({model_name} {ver})"
                                         }
                             elif resp.status_code == 429:
-                                print(f"Gemini face verification ({model_name} {ver}): rate limit 429")
-                                break  # Rate limited on this key, move to next key
+                                print(f"Gemini face verification ({model_name} {ver}): rate limit 429 - switching API key")
+                                key_rate_limited = True
+                                break  # Break model loop; next line will break ver loop and try next key
                             else:
                                 print(f"Gemini face verification error ({model_name} {ver}): status {resp.status_code}")
                         except Exception as e:
@@ -1517,10 +1521,10 @@ OUTPUT FORMAT (JSON ONLY, NO MARKDOWN):
         corr = sum(((x - m1) / std1) * ((y - m2) / std2) for x, y in zip(p1, p2)) / n
         norm_corr = max(0.0, corr)
 
-        # Realistic face similarity cutoff for center facial structure across lighting/camera tilts
-        is_m = (norm_corr >= 0.42)
+        # Face similarity threshold for center facial structure across lighting/camera angles
+        is_m = (norm_corr >= 0.40)
         if is_m:
-            conf = round(75.0 + min(22.0, (norm_corr - 0.42) * 45.0), 1)
+            conf = round(84.0 + min(14.0, (norm_corr - 0.40) * 35.0), 1)
         else:
             conf = 0.0
 
