@@ -1402,6 +1402,9 @@
                     pillEl.innerHTML = '<span class="w-1.5 h-1.5 rounded-full bg-emerald-500 mr-1"></span> AI Engine Live';
                 }
 
+                // Ensure grace period clears after 5 seconds of AI starting even if fullscreen transition was skipped
+                setTimeout(() => { isGracePeriod = false; }, 5000);
+
                 const canvas = document.getElementById('ai-overlay');
                 const ctx = canvas.getContext('2d');
 
@@ -1423,13 +1426,14 @@
                         let validVisibleFaceCount = 0;
                         let isFacePartiallyOccluded = false;
                         let hasAnyFaceLookingAway = false;
+                        let detectedFaces = [];
 
                         if (blazeFaceModel) {
                             try {
-                                const faces = await blazeFaceModel.estimateFaces(videoEl, false);
-                                blazeFaceCount = faces.length;
+                                detectedFaces = await blazeFaceModel.estimateFaces(videoEl, false);
+                                blazeFaceCount = detectedFaces.length;
 
-                                faces.forEach(face => {
+                                detectedFaces.forEach(face => {
                                     const tl = face.topLeft;
                                     const br = face.bottomRight;
                                     const w = br[0] - tl[0];
@@ -1511,6 +1515,7 @@
                             } catch (bf) { /* blazeface frame error, ignore */ }
                         }
 
+                        let personCount = 0;
                         let detectedDevices = [];
                         let hasEarphoneDetected = false;
 
@@ -1536,9 +1541,9 @@
 
                         // --- Earphone / Bluetooth Earbud Optical Inspector ---
                         // Inspect both ear positions from BlazeFace facial landmarks (landmarks[4] = right ear, landmarks[5] = left ear)
-                        if (blazeFaceModel && validVisibleFaceCount > 0) {
+                        if (blazeFaceModel && validVisibleFaceCount > 0 && detectedFaces.length > 0) {
                             try {
-                                faces.forEach(face => {
+                                detectedFaces.forEach(face => {
                                     if (face.landmarks && face.landmarks.length >= 6) {
                                         const earPositions = [
                                             { name: 'Right Ear', pt: face.landmarks[4] },
@@ -1586,35 +1591,54 @@
                             }
                         }
 
-                        // Skip violation alerts during initial startup grace period OR while taking/uploading photos
-                        if (isGracePeriod || isBrowsingFile) {
-                            noPersonConsecutiveCount = 0;
-                            imposterConsecutiveCount = 0;
-                            faceOccludedConsecutiveCount = 0;
-                            if (isBrowsingFile) {
-                                updateHudBadge('hud-face', 'Uploading 📷', 'sky');
-                                updateHudBadge('hud-phone', 'Upload Mode', 'sky');
-                            }
-                            return;
-                        }
-
-                        // Rule A: Mobile Phone / Earphone / Bluetooth Device Detection
-                        if (detectedDevices.length > 0) {
+                        // --- 1. ALWAYS UPDATE HUD STATUS BADGES IN REAL-TIME ---
+                        // Rule A: Mobile Phone / Earphone / Bluetooth Device Detection Status Badge
+                        if (isBrowsingFile) {
+                            updateHudBadge('hud-phone', 'Upload Mode', 'sky');
+                        } else if (detectedDevices.length > 0) {
                             updateHudBadge('hud-phone', 'Phone Alert! 🚨', 'rose');
-                            triggerViolation('mobile_phone_detected', `Unauthorized electronic device detected: ${detectedDevices[0].toUpperCase()}`);
                         } else if (hasEarphoneDetected) {
                             updateHudBadge('hud-phone', 'Earphone 🚨', 'rose');
-                            triggerViolation('earphone_detected', 'Unauthorized Bluetooth earbud or listening device detected on candidate.');
                         } else {
                             updateHudBadge('hud-phone', 'Clear ✓', 'emerald');
                         }
 
-                        // Rule B: Face / Person & Impostor Detection
+                        // Rule B: Face / Person & Impostor Detection Status Badge
+                        if (isBrowsingFile) {
+                            updateHudBadge('hud-face', 'Uploading 📷', 'sky');
+                        } else if (totalPresence === 0) {
+                            updateHudBadge('hud-face', 'No Person ❌', 'rose');
+                        } else if (totalPresence > 1 || isBiometricMismatch) {
+                            const alertLabel = totalPresence > 1 ? `${totalPresence} People ⚠️` : 'Mismatch ❌';
+                            updateHudBadge('hud-face', alertLabel, 'rose');
+                        } else if (isFacePartiallyOccluded || (blazeFaceModel && blazeFaceCount > 0 && validVisibleFaceCount === 0)) {
+                            updateHudBadge('hud-face', 'Eyes Hidden ⚠️', 'rose');
+                        } else if (hasAnyFaceLookingAway) {
+                            updateHudBadge('hud-face', 'Looking Away ⚠️', 'amber');
+                        } else {
+                            updateHudBadge('hud-face', '1 Person ✓', 'emerald');
+                        }
+
+                        // --- 2. EVALUATE VIOLATION COUNTERS & STRIKES (Suppressed during grace/upload) ---
+                        if (isGracePeriod || isBrowsingFile) {
+                            noPersonConsecutiveCount = 0;
+                            imposterConsecutiveCount = 0;
+                            faceOccludedConsecutiveCount = 0;
+                            lookingAwayConsecutiveCount = 0;
+                            return;
+                        }
+
+                        // Trigger violations if detected
+                        if (detectedDevices.length > 0) {
+                            triggerViolation('mobile_phone_detected', `Unauthorized electronic device detected: ${detectedDevices[0].toUpperCase()}`);
+                        } else if (hasEarphoneDetected) {
+                            triggerViolation('earphone_detected', 'Unauthorized Bluetooth earbud or listening device detected on candidate.');
+                        }
+
                         if (totalPresence === 0) {
                             noPersonConsecutiveCount++;
                             imposterConsecutiveCount = 0;
                             faceOccludedConsecutiveCount = 0;
-                            updateHudBadge('hud-face', 'No Person ❌', 'rose');
                             if (noPersonConsecutiveCount >= 8) {
                                 triggerViolation('no_face', 'No candidate face detected in webcam feed. Candidate left desk or covered camera.');
                             }
@@ -1622,10 +1646,6 @@
                             noPersonConsecutiveCount = 0;
                             faceOccludedConsecutiveCount = 0;
                             imposterConsecutiveCount++;
-                            
-                            // Visual prompt on HUD
-                            const alertLabel = totalPresence > 1 ? `${totalPresence} People ⚠️` : 'Mismatch ❌';
-                            updateHudBadge('hud-face', alertLabel, 'rose');
 
                             // Red Warning on canvas / toast while extra person is present:
                             if (imposterConsecutiveCount < 3) {
@@ -1643,13 +1663,10 @@
                                 }
                             }
                         } else if (isFacePartiallyOccluded || (blazeFaceModel && blazeFaceCount > 0 && validVisibleFaceCount === 0)) {
-                            // Candidate is at the desk, but face/eyes are dipped out of frame or covered
                             noPersonConsecutiveCount = 0;
                             imposterConsecutiveCount = 0;
                             lookingAwayConsecutiveCount = 0;
                             faceOccludedConsecutiveCount++;
-
-                            updateHudBadge('hud-face', 'Eyes Hidden ⚠️', 'rose');
 
                             // Draw warning banner on live webcam canvas
                             ctx.fillStyle = 'rgba(245, 158, 11, 0.90)';
@@ -1664,13 +1681,10 @@
                                 triggerViolation('face_occluded', 'Candidate face and eyes are partially hidden or out of camera frame. Keep full face and eyes visible.');
                             }
                         } else if (hasAnyFaceLookingAway) {
-                            // Candidate is turning their head sideways or looking completely away from the exam
                             noPersonConsecutiveCount = 0;
                             imposterConsecutiveCount = 0;
                             faceOccludedConsecutiveCount = 0;
                             lookingAwayConsecutiveCount++;
-
-                            updateHudBadge('hud-face', 'Looking Away ⚠️', 'amber');
 
                             ctx.fillStyle = 'rgba(249, 115, 22, 0.90)';
                             ctx.fillRect(10, 10, canvas.width - 20, 28);
@@ -1687,7 +1701,6 @@
                             imposterConsecutiveCount = 0;
                             faceOccludedConsecutiveCount = 0;
                             lookingAwayConsecutiveCount = 0;
-                            updateHudBadge('hud-face', '1 Person ✓', 'emerald');
                         }
 
                     } catch (detErr) {
