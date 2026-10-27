@@ -1909,53 +1909,210 @@
             ctx.fillText(label, x + 5, Math.max(13, y - 4));
         }
 
-        // --- 2. Real-time Acoustic / Voice Proctoring (Web Audio API) ---
+        // --- 2. Real-time Acoustic / Voice Proctoring & AI Speech Collision Detector ---
+        let speechRecognitionEngine = null;
+        let lastCollusionAlertTime = 0;
+
+        // Extracts significant keyword tokens from text (ignores common filler words)
+        function extractSignificantKeywords(text) {
+            if (!text) return [];
+            const clean = text.toLowerCase()
+                .replace(/[^a-z0-9\s]/g, ' ')
+                .replace(/\s+/g, ' ')
+                .trim();
+            const stopWords = new Set([
+                'the', 'is', 'at', 'which', 'on', 'and', 'a', 'an', 'in', 'to', 'for', 'of', 'or', 'by',
+                'with', 'from', 'as', 'that', 'this', 'these', 'those', 'what', 'when', 'where', 'who',
+                'how', 'why', 'can', 'could', 'should', 'would', 'will', 'are', 'was', 'were', 'been',
+                'has', 'have', 'had', 'does', 'did', 'do', 'than', 'then', 'into', 'each', 'about'
+            ]);
+            return clean.split(' ').filter(w => w.length >= 3 && !stopWords.has(w));
+        }
+
+        // Checks if recognized speech matches the active question number, options, or solution keywords
+        function checkSpokenAcademicCollusion(spokenPhrase) {
+            if (!isExamActive || isTerminated || isGracePeriod || isBrowsingFile) return;
+            if (!QUESTIONS || QUESTIONS.length === 0 || currentQuestionIndex < 0) return;
+            const curQ = QUESTIONS[currentQuestionIndex];
+            if (!curQ) return;
+
+            const qNum = currentQuestionIndex + 1;
+            const normSpoken = spokenPhrase.toLowerCase().trim();
+            const spokenTokens = new Set(extractSignificantKeywords(normSpoken));
+            if (spokenTokens.size === 0) return;
+
+            // 1. Direct Question-Number reference (e.g. "question 5", "number 5", "for 5 it is", "fifth question")
+            const qNumWordMap = {
+                1: 'one', 2: 'two', 3: 'three', 4: 'four', 5: 'five',
+                6: 'six', 7: 'seven', 8: 'eight', 9: 'nine', 10: 'ten',
+                11: 'eleven', 12: 'twelve', 13: 'thirteen', 14: 'fourteen', 15: 'fifteen',
+                16: 'sixteen', 17: 'seventeen', 18: 'eighteen', 19: 'nineteen', 20: 'twenty'
+            };
+            const wordNum = qNumWordMap[qNum] || '';
+            const mentionsQNum = normSpoken.includes(`question ${qNum}`) ||
+                                 normSpoken.includes(`number ${qNum}`) ||
+                                 normSpoken.includes(`no ${qNum}`) ||
+                                 (wordNum && (normSpoken.includes(`question ${wordNum}`) || normSpoken.includes(`number ${wordNum}`)));
+
+            // 2. Question Content Keywords Match
+            const qTokens = extractSignificantKeywords(curQ.question_text || '');
+            let matchedQTokens = 0;
+            qTokens.forEach(t => {
+                if (spokenTokens.has(t)) matchedQTokens++;
+            });
+
+            // 3. Option Choices & Answer Match (e.g. "option B", "select C", or speaking the exact option text)
+            let matchedOptionText = '';
+            let matchedOptCount = 0;
+            if (Array.isArray(curQ.options)) {
+                curQ.options.forEach((opt, oIdx) => {
+                    const optLetter = String.fromCharCode(65 + oIdx).toLowerCase(); // a, b, c, d
+                    const optTokens = extractSignificantKeywords(String(opt));
+                    let optMatches = 0;
+                    optTokens.forEach(ot => {
+                        if (spokenTokens.has(ot)) optMatches++;
+                    });
+                    if (optTokens.length > 0 && optMatches >= Math.min(2, optTokens.length)) {
+                        matchedOptionText = opt;
+                        matchedOptCount = optMatches;
+                    }
+                    // Option letter explicit dictate: e.g. "option b", "choose c", "mark d"
+                    if (normSpoken.includes(`option ${optLetter}`) || normSpoken.includes(`choose ${optLetter}`) || normSpoken.includes(`mark ${optLetter}`)) {
+                        matchedOptionText = `Option ${optLetter.toUpperCase()}`;
+                        matchedOptCount = 2;
+                    }
+                });
+            }
+
+            // 4. Correct Answer match (if present in memory for grading)
+            let answerMatch = false;
+            if (curQ.correct_answer) {
+                const ansTokens = extractSignificantKeywords(String(curQ.correct_answer));
+                let ansCount = 0;
+                ansTokens.forEach(at => {
+                    if (spokenTokens.has(at)) ansCount++;
+                });
+                if (ansTokens.length > 0 && ansCount >= Math.min(2, ansTokens.length)) {
+                    answerMatch = true;
+                }
+            }
+
+            // Evaluation Rule: Collusion is flagged if:
+            // a) Mentioned Question Number + (option or 1 question keyword)
+            // b) Matched at least 2 key terms from the question
+            // c) Matched an entire option text or correct answer phrase
+            const isCollusion = (mentionsQNum && (matchedOptCount > 0 || matchedQTokens >= 1)) ||
+                                (matchedQTokens >= 2) ||
+                                (matchedOptCount >= 2) ||
+                                (answerMatch);
+
+            if (isCollusion) {
+                const now = Date.now();
+                if (now - lastCollusionAlertTime > 9000) { // 9s debounce
+                    lastCollusionAlertTime = now;
+                    updateHudBadge('hud-audio', 'COLLUSION DETECTED! 🚨', 'rose');
+                    
+                    const evidence = `Heard spoken phrase: "${spokenPhrase}" matching Question #${qNum}${matchedOptionText ? ' (Option: ' + matchedOptionText + ')' : ''}`;
+                    triggerViolation('academic_collusion', `Verbal question/answer collusion detected in room. ${evidence}`);
+                }
+            }
+        }
+
         function initAudioProctor(stream) {
             if (!ENABLE_AUDIO) {
                 updateHudBadge('hud-audio', 'Off (Optional)', 'slate');
                 return;
             }
+
+            // A. Continuous Web Audio Volume Analyser
             try {
                 const AudioContext = window.AudioContext || window.webkitAudioContext;
-                if (!AudioContext) return;
+                if (AudioContext) {
+                    const audioCtx = new AudioContext();
+                    const source = audioCtx.createMediaStreamSource(stream);
+                    const analyser = audioCtx.createAnalyser();
+                    analyser.fftSize = 512;
+                    source.connect(analyser);
 
-                const audioCtx = new AudioContext();
-                const source = audioCtx.createMediaStreamSource(stream);
-                const analyser = audioCtx.createAnalyser();
-                analyser.fftSize = 512;
-                source.connect(analyser);
+                    const dataArray = new Uint8Array(analyser.frequencyBinCount);
 
-                const dataArray = new Uint8Array(analyser.frequencyBinCount);
-
-                audioAnalysisInterval = setInterval(() => {
-                    if (!isExamActive || isTerminated || isGracePeriod || isBrowsingFile) {
-                        loudAudioConsecutiveCount = 0;
-                        return;
-                    }
-
-                    analyser.getByteFrequencyData(dataArray);
-                    let sum = 0;
-                    for (let i = 0; i < dataArray.length; i++) {
-                        sum += dataArray[i];
-                    }
-                    const avgVolume = sum / dataArray.length; // 0 to 255
-
-                    // Threshold: speaking typically generates avgVolume > 38-45
-                    if (avgVolume > 42) {
-                        loudAudioConsecutiveCount++;
-                        updateHudBadge('hud-audio', 'Talking! 🎙️', 'rose');
-                        if (loudAudioConsecutiveCount >= 2) {
-                            triggerViolation('voice_detected', `Voice or speaking activity detected in room (level: ${Math.round(avgVolume)}).`);
+                    audioAnalysisInterval = setInterval(() => {
+                        if (!isExamActive || isTerminated || isGracePeriod || isBrowsingFile) {
                             loudAudioConsecutiveCount = 0;
+                            return;
                         }
-                    } else {
-                        loudAudioConsecutiveCount = 0;
-                        updateHudBadge('hud-audio', 'Quiet ✓', 'emerald');
-                    }
-                }, 800);
 
+                        analyser.getByteFrequencyData(dataArray);
+                        let sum = 0;
+                        for (let i = 0; i < dataArray.length; i++) {
+                            sum += dataArray[i];
+                        }
+                        const avgVolume = sum / dataArray.length; // 0 to 255
+
+                        // Speaking generates avgVolume > 42
+                        if (avgVolume > 42) {
+                            loudAudioConsecutiveCount++;
+                            updateHudBadge('hud-audio', 'Speaking... 🎙️', 'rose');
+                            if (loudAudioConsecutiveCount >= 3) {
+                                triggerViolation('voice_detected', `Continuous speaking or voice activity detected in room (level: ${Math.round(avgVolume)}).`);
+                                loudAudioConsecutiveCount = 0;
+                            }
+                        } else {
+                            loudAudioConsecutiveCount = 0;
+                            if (Date.now() - lastCollusionAlertTime > 4000) {
+                                updateHudBadge('hud-audio', 'Quiet ✓', 'emerald');
+                            }
+                        }
+                    }, 800);
+                }
             } catch (err) {
-                console.warn("Web Audio API error:", err);
+                console.warn("Web Audio volume analyser error:", err);
+            }
+
+            // B. Client-side Real-time Speech-to-Text & Academic Collusion Interceptor (Web Speech API)
+            try {
+                const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+                if (SpeechRecognition) {
+                    speechRecognitionEngine = new SpeechRecognition();
+                    speechRecognitionEngine.continuous = true;
+                    speechRecognitionEngine.interimResults = false;
+                    speechRecognitionEngine.lang = 'en-US';
+                    speechRecognitionEngine.maxAlternatives = 1;
+
+                    speechRecognitionEngine.onresult = (event) => {
+                        for (let i = event.resultIndex; i < event.results.length; ++i) {
+                            if (event.results[i].isFinal) {
+                                const transcript = event.results[i][0].transcript;
+                                if (transcript && transcript.trim().length > 2) {
+                                    console.log('🎙️ Acoustic Monitor Heard:', transcript);
+                                    checkSpokenAcademicCollusion(transcript);
+                                }
+                            }
+                        }
+                    };
+
+                    speechRecognitionEngine.onerror = (e) => {
+                        // Ignore harmless network/no-speech events and auto-restart
+                        if (e.error !== 'no-speech' && e.error !== 'aborted') {
+                            console.warn('Speech recognition status:', e.error);
+                        }
+                    };
+
+                    speechRecognitionEngine.onend = () => {
+                        // Keep continuous listening alive while exam is running
+                        if (isExamActive && !isTerminated) {
+                            try { speechRecognitionEngine.start(); } catch(e){}
+                        }
+                    };
+
+                    try {
+                        speechRecognitionEngine.start();
+                    } catch(startErr) {
+                        console.warn('Speech recognition start note:', startErr);
+                    }
+                }
+            } catch (srErr) {
+                console.warn('Web Speech API is not supported in this browser, relying on acoustic volume monitoring:', srErr);
             }
         }
 
