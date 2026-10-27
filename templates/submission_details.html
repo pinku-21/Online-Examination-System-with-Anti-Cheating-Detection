@@ -93,17 +93,15 @@
         <div class="flex items-center gap-3 flex-wrap">
             <!-- AI Oral Viva Defense Button -->
             <button type="button"
-                    onclick="triggerVivaDefenseGeneration({{ submission.id }})"
+                    data-submission-id="{{ submission.id }}"
+                    onclick="triggerVivaDefenseGeneration(this)"
                     class="px-4 py-2 bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-700 hover:to-indigo-700 text-white text-xs font-bold rounded-xl shadow-md hover:shadow-lg transition flex items-center space-x-1.5 cursor-pointer"
                     title="Generate custom AI follow-up oral viva questions to verbally verify student authenticity">
                 <i data-lucide="sparkles" class="w-3.5 h-3.5"></i>
                 <span>Generate Oral Viva Defense</span>
             </button>
             <!-- Official PDF Report Button -->
-            <button type="button"
-                    onclick="window.print()"
-                    class="px-4 py-2 bg-gradient-to-r from-sky-600 to-indigo-600 hover:from-sky-700 hover:to-indigo-700 text-white text-xs font-bold rounded-xl shadow-md hover:shadow-lg transition flex items-center space-x-1.5 cursor-pointer"
-                    title="Generate and print/save official forensic Proctoring Audit Dossier PDF">
+            <button type="button" onclick="window.print()" class="px-4 py-2 bg-gradient-to-r from-sky-600 to-indigo-600 hover:from-sky-700 hover:to-indigo-700 text-white text-xs font-bold rounded-xl shadow-md hover:shadow-lg transition flex items-center space-x-1.5 cursor-pointer" title="Generate and print/save official forensic Proctoring Audit Dossier PDF">
                 <i data-lucide="printer" class="w-3.5 h-3.5"></i>
                 <span>Download PDF Audit Report</span>
             </button>
@@ -1203,7 +1201,8 @@
         }
     }
 
-    async function triggerVivaDefenseGeneration(subId) {
+    async function triggerVivaDefenseGeneration(target) {
+        const subId = (target && typeof target === 'object' && target.dataset) ? target.dataset.submissionId : target;
         Swal.fire({
             title: 'Generating Oral Viva Questions...',
             html: '<div class="py-3 flex flex-col items-center"><div class="w-8 h-8 border-4 border-purple-600 border-t-transparent rounded-full animate-spin mb-2"></div><span class="text-xs text-slate-500">AI is analyzing submitted code and answers to construct tailored verbal defense questions...</span></div>',
