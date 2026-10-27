@@ -1195,10 +1195,10 @@
                                         data-submission-id="${c.id}" 
                                         data-student-name="${c.student_name}" 
                                         onclick="openProctorIntercomModal(this)" 
-                                        class="px-2.5 py-1.5 bg-amber-50 hover:bg-amber-100 text-amber-800 border border-amber-300 text-xs font-bold rounded-lg transition inline-flex items-center space-x-1" 
-                                        title="Send an instant proctor warning or advisory nudge directly to student's screen">
-                                    <i data-lucide="message-square-warning" class="w-3.5 h-3.5 text-amber-600"></i>
-                                    <span>Nudge</span>
+                                        class="px-2.5 py-1.5 bg-indigo-50 hover:bg-indigo-100 text-indigo-800 border border-indigo-300 text-xs font-bold rounded-lg transition inline-flex items-center space-x-1" 
+                                        title="Send an instant live voice walkie-talkie or advisory intercom directly to student's screen">
+                                    <i data-lucide="radio" class="w-3.5 h-3.5 text-indigo-600"></i>
+                                    <span>Intercom</span>
                                 </button>
                             ` : ''}
 
@@ -1292,55 +1292,184 @@
         }
     }
 
+    let proctorMediaRecorder = null;
+    let proctorAudioChunks = [];
+    let proctorRecordedBase64 = '';
+    let proctorRecordingInterval = null;
+
     async function openProctorIntercomModal(btn) {
         const subId = btn.dataset.submissionId;
         const studentName = btn.dataset.studentName;
 
+        proctorAudioChunks = [];
+        proctorRecordedBase64 = '';
+        if (proctorMediaRecorder && proctorMediaRecorder.state !== 'inactive') {
+            try { proctorMediaRecorder.stop(); } catch(e){}
+        }
+
         const { value: formValues, isConfirmed } = await Swal.fire({
-            title: `Proctor Intercom: ${studentName}`,
+            title: `🎙️ Emergency Walkie-Talkie & Intercom`,
             html: `
-                <p class="text-xs text-slate-500 mb-3 text-left">
-                    Send a silent high-priority proctor advisory directly onto <strong>${studentName}</strong>'s exam screen without stopping their timer.
-                </p>
-                <div class="space-y-3 text-left">
-                    <div>
-                        <label class="block text-[11px] font-bold text-slate-700 mb-1">Quick Advisory Presets:</label>
-                        <select id="swal-nudge-preset" onchange="document.getElementById('swal-nudge-msg').value = this.value" class="w-full px-3 py-2 text-xs border border-slate-300 rounded-xl bg-slate-50">
-                            <option value="">-- Choose preset or type custom message below --</option>
-                            <option value="Please adjust your webcam angle. Your full face must remain in frame at all times.">📷 Webcam Angle: Keep full face in frame</option>
-                            <option value="Background voices detected. Please ensure your room remains quiet and free of other individuals.">🤫 Audio Notice: Room must remain silent</option>
-                            <option value="Multiple faces detected in camera frame. External persons must exit your testing area immediately.">👥 Multi-Person: External individuals detected</option>
-                            <option value="Eyes off-screen warning. Please focus directly on your examination screen.">👀 Gaze Notice: Focus on your screen</option>
-                            <option value="Lighting warning: Your face is poorly illuminated. Please turn on room lights.">💡 Lighting: Please brighten room</option>
-                        </select>
+                <div class="text-left space-y-4">
+                    <div class="p-3 bg-gradient-to-r from-sky-50 to-indigo-50 border border-sky-200 rounded-2xl flex items-center justify-between">
+                        <div>
+                            <span class="text-xs font-bold text-sky-900 block">Target Candidate:</span>
+                            <span class="text-sm font-extrabold text-slate-800">${escapeHtml(studentName)}</span>
+                        </div>
+                        <span class="px-2.5 py-1 bg-sky-600 text-white text-[10px] font-black uppercase tracking-wider rounded-full shadow-xs">
+                            Direct Channel
+                        </span>
                     </div>
-                    <div>
-                        <label class="block text-[11px] font-bold text-slate-700 mb-1">Notice Message Text:</label>
-                        <textarea id="swal-nudge-msg" rows="3" class="w-full px-3 py-2 text-xs border border-slate-300 rounded-xl focus:ring-2 focus:ring-sky-500 focus:outline-none" 
-                                  placeholder="Type custom instructions for student..."></textarea>
+
+                    <!-- Push-to-Talk Walkie Talkie Box -->
+                    <div class="p-4 bg-slate-900 text-white rounded-2xl border border-slate-700 shadow-inner">
+                        <div class="flex items-center justify-between mb-2">
+                            <span class="text-xs font-bold tracking-wide flex items-center gap-1.5 text-emerald-400">
+                                <span class="w-2 h-2 rounded-full bg-emerald-400 animate-ping"></span>
+                                Live Voice Intercom
+                            </span>
+                            <span id="intercom-mic-status" class="text-[10px] text-slate-400 font-mono">Ready to Record</span>
+                        </div>
+
+                        <div class="flex items-center gap-3">
+                            <button type="button" id="btn-intercom-record" 
+                                    class="flex-1 py-3 px-4 rounded-xl font-black text-xs uppercase tracking-wider transition flex items-center justify-center gap-2 bg-gradient-to-r from-rose-600 to-amber-600 hover:from-rose-500 hover:to-amber-500 text-white shadow-md active:scale-95 select-none">
+                                <i data-lucide="mic" class="w-4 h-4"></i>
+                                <span id="record-btn-label">Hold or Click to Speak</span>
+                            </button>
+                            <button type="button" id="btn-intercom-play" disabled
+                                    class="py-3 px-3 rounded-xl text-xs font-bold transition flex items-center justify-center gap-1 bg-slate-800 text-slate-400 disabled:opacity-40 disabled:cursor-not-allowed hover:bg-slate-700 hover:text-white border border-slate-700">
+                                <i data-lucide="volume-2" class="w-4 h-4"></i>
+                                <span id="play-btn-label">Review</span>
+                            </button>
+                        </div>
+                        <p class="text-[10px] text-slate-400 mt-2 text-center">
+                            Records high-fidelity audio stream transmitted directly into the candidate's active exam session.
+                        </p>
                     </div>
-                    <div>
-                        <label class="block text-[11px] font-bold text-slate-700 mb-1">Severity Badge:</label>
-                        <select id="swal-nudge-severity" class="w-full px-3 py-1.5 text-xs border border-slate-300 rounded-xl">
-                            <option value="warning" selected>⚠️ Formal Warning (Yellow)</option>
-                            <option value="critical">🚨 Critical Malpractice Notice (Red)</option>
-                            <option value="info">ℹ️ General Proctor Guidance (Blue)</option>
-                        </select>
+
+                    <!-- Text Notice or Preset -->
+                    <div class="space-y-2.5">
+                        <div>
+                            <label class="block text-[11px] font-bold text-slate-700 mb-1">Quick Advisory Presets (Optional):</label>
+                            <select id="swal-nudge-preset" onchange="document.getElementById('swal-nudge-msg').value = this.value" class="w-full px-3 py-2 text-xs border border-slate-300 rounded-xl bg-slate-50 focus:ring-2 focus:ring-sky-500">
+                                <option value="">-- Choose preset or type custom text below --</option>
+                                <option value="Please adjust your webcam angle. Your full face must remain in frame at all times.">📷 Webcam Angle: Keep full face in frame</option>
+                                <option value="Background voices detected. Please ensure your room remains quiet and free of other individuals.">🤫 Audio Notice: Room must remain silent</option>
+                                <option value="Multiple faces detected in camera frame. External persons must exit your testing area immediately.">👥 Multi-Person: External individuals detected</option>
+                                <option value="Eyes off-screen warning. Please focus directly on your examination screen.">👀 Gaze Notice: Focus on your screen</option>
+                                <option value="Lighting warning: Your face is poorly illuminated. Please turn on room lights.">💡 Lighting: Please brighten room</option>
+                            </select>
+                        </div>
+
+                        <div>
+                            <label class="block text-[11px] font-bold text-slate-700 mb-1">Advisory Text / Voice Transcript:</label>
+                            <textarea id="swal-nudge-msg" rows="2" class="w-full px-3 py-2 text-xs border border-slate-300 rounded-xl focus:ring-2 focus:ring-sky-500 focus:outline-none" 
+                                      placeholder="Type custom message, or record your voice above..."></textarea>
+                        </div>
+
+                        <div>
+                            <label class="block text-[11px] font-bold text-slate-700 mb-1">Severity Level:</label>
+                            <select id="swal-nudge-severity" class="w-full px-3 py-1.5 text-xs border border-slate-300 rounded-xl bg-white">
+                                <option value="warning" selected>⚠️ Formal Warning (Alert chime)</option>
+                                <option value="critical">🚨 Critical Malpractice Notice (High urgency chime)</option>
+                                <option value="info">ℹ️ General Guidance (Calm chime)</option>
+                            </select>
+                        </div>
                     </div>
                 </div>
             `,
+            didOpen: () => {
+                if (window.lucide) lucide.createIcons();
+                const recordBtn = document.getElementById('btn-intercom-record');
+                const playBtn = document.getElementById('btn-intercom-play');
+                const statusSpan = document.getElementById('intercom-mic-status');
+                const labelSpan = document.getElementById('record-btn-label');
+                let isRecording = false;
+                let audioBlob = null;
+                let stream = null;
+
+                async function startVoiceRecording() {
+                    try {
+                        stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+                        proctorAudioChunks = [];
+                        proctorMediaRecorder = new MediaRecorder(stream);
+                        proctorMediaRecorder.ondataavailable = (e) => {
+                            if (e.data && e.data.size > 0) proctorAudioChunks.push(e.data);
+                        };
+                        proctorMediaRecorder.onstop = () => {
+                            audioBlob = new Blob(proctorAudioChunks, { type: 'audio/webm' });
+                            const reader = new FileReader();
+                            reader.readAsDataURL(audioBlob);
+                            reader.onloadend = () => {
+                                proctorRecordedBase64 = reader.result;
+                                if (statusSpan) statusSpan.innerText = 'Voice Memo Attached ✓';
+                                if (playBtn) {
+                                    playBtn.disabled = false;
+                                    playBtn.classList.remove('text-slate-400');
+                                    playBtn.classList.add('text-emerald-400', 'border-emerald-600');
+                                }
+                                const msgInput = document.getElementById('swal-nudge-msg');
+                                if (msgInput && !msgInput.value.trim()) {
+                                    msgInput.value = '🎙️ Proctor Voice Dispatch Attached';
+                                }
+                            };
+                            if (stream) stream.getTracks().forEach(t => t.stop());
+                        };
+                        proctorMediaRecorder.start();
+                        isRecording = true;
+                        if (recordBtn) recordBtn.classList.replace('from-rose-600', 'from-red-700');
+                        if (labelSpan) labelSpan.innerText = '● Recording... Click to Finish';
+                        if (statusSpan) statusSpan.innerText = 'Recording in progress...';
+                    } catch (err) {
+                        alert('Could not access microphone: ' + (err.message || 'Permission denied'));
+                    }
+                }
+
+                function stopVoiceRecording() {
+                    if (proctorMediaRecorder && proctorMediaRecorder.state === 'recording') {
+                        proctorMediaRecorder.stop();
+                        isRecording = false;
+                        if (labelSpan) labelSpan.innerText = 'Re-record Voice';
+                        if (recordBtn) recordBtn.classList.replace('from-red-700', 'from-rose-600');
+                    }
+                }
+
+                if (recordBtn) {
+                    recordBtn.onclick = () => {
+                        if (!isRecording) {
+                            startVoiceRecording();
+                        } else {
+                            stopVoiceRecording();
+                        }
+                    };
+                }
+
+                if (playBtn) {
+                    playBtn.onclick = () => {
+                        if (proctorRecordedBase64) {
+                            const audio = new Audio(proctorRecordedBase64);
+                            audio.play();
+                        }
+                    };
+                }
+            },
             showCancelButton: true,
-            confirmButtonText: '📡 Dispatch Notice to Candidate',
+            confirmButtonText: '📡 Transmit Intercom to Candidate',
             confirmButtonColor: '#0284c7',
             cancelButtonText: 'Cancel',
             preConfirm: () => {
                 const msg = (document.getElementById('swal-nudge-msg').value || '').trim();
                 const sev = document.getElementById('swal-nudge-severity').value;
-                if (!msg) {
-                    Swal.showValidationMessage('Please select a preset or type a notice message.');
+                if (!msg && !proctorRecordedBase64) {
+                    Swal.showValidationMessage('Please record a voice clip or type an advisory message.');
                     return false;
                 }
-                return { message: msg, severity: sev };
+                return { 
+                    message: msg || '🎙️ Live Voice Advisory from Proctor', 
+                    severity: sev,
+                    audio_payload: proctorRecordedBase64 || ''
+                };
             }
         });
 
@@ -1356,13 +1485,13 @@
             if (res.success) {
                 await Swal.fire({
                     icon: 'success',
-                    title: 'Dispatched!',
-                    text: res.message,
+                    title: 'Transmitted!',
+                    text: res.message || 'Intercom dispatched to student screen.',
                     timer: 2000,
                     showConfirmButton: false
                 });
             } else {
-                Swal.fire({ icon: 'error', title: 'Error', text: res.error || 'Failed to dispatch message.' });
+                Swal.fire({ icon: 'error', title: 'Error', text: res.error || 'Failed to dispatch intercom.' });
             }
         } catch (err) {
             Swal.fire({ icon: 'error', title: 'Network Error', text: 'Could not connect to proctor server.' });

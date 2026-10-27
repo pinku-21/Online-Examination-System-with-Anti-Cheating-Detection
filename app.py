@@ -3397,13 +3397,17 @@ def api_tutor_force_terminate(submission_id):
 @app.route("/api/tutor/submission/<int:submission_id>/send-message", methods=["POST"])
 @admin_required
 def api_send_proctor_message(submission_id):
-    """Tutor sends an instant silent intercom warning or advisory notice to an active candidate."""
+    """Tutor sends an instant walkie-talkie voice clip or silent intercom warning notice to an active candidate."""
     data = request.get_json() or {}
     message_text = (data.get("message") or "").strip()
     severity = (data.get("severity") or "warning").strip()
+    audio_payload = (data.get("audio_payload") or "").strip()
+
+    if not message_text and not audio_payload:
+        return jsonify({"success": False, "error": "Message content or voice recording required."}), 400
 
     if not message_text:
-        return jsonify({"success": False, "error": "Message content cannot be blank."}), 400
+        message_text = "🎙️ Live Proctor Voice Intercom Alert"
 
     conn = get_connection()
     cursor = conn.cursor()
@@ -3415,33 +3419,37 @@ def api_send_proctor_message(submission_id):
 
     sender_id = session.get("user_id", 0)
     cursor.execute("""
-        INSERT INTO proctor_messages (submission_id, sender_id, message_text, severity, is_read)
-        VALUES (?, ?, ?, ?, 0)
-    """, (submission_id, sender_id, message_text, severity))
+        INSERT INTO proctor_messages (submission_id, sender_id, message_text, severity, audio_payload, is_read)
+        VALUES (?, ?, ?, ?, ?, 0)
+    """, (submission_id, sender_id, message_text, severity, audio_payload))
 
     # Also log a proctor communication event into audit log
+    comm_summary = f"Tutor issued formal notice: '{message_text[:80]}'"
+    if audio_payload:
+        comm_summary = f"Tutor transmitted live voice walkie-talkie alert: '{message_text[:80]}'"
+
     cursor.execute("""
         INSERT INTO violations (submission_id, violation_type, details, severity, event_code)
         VALUES (?, 'PROCTOR_COMMUNICATION_DISPATCHED', ?, 'MEDIUM', 'SEC-COM')
-    """, (submission_id, f"Tutor issued formal notice: '{message_text}'"))
+    """, (submission_id, comm_summary))
 
     conn.commit()
     conn.close()
 
     return jsonify({
         "success": True,
-        "message": f"Proctor notice dispatched to {sub['student_name']}."
+        "message": f"Walkie-talkie notice dispatched to {sub['student_name']}."
     })
 
 
 @app.route("/api/submission/<int:submission_id>/proctor-messages", methods=["GET"])
 @login_required
 def api_get_student_proctor_messages(submission_id):
-    """Student polling endpoint to retrieve unread proctor advisories and warnings."""
+    """Student polling endpoint to retrieve unread proctor advisories, warnings, and live voice audio."""
     conn = get_connection()
     cursor = conn.cursor()
     cursor.execute("""
-        SELECT id, message_text, severity, created_at
+        SELECT id, message_text, severity, audio_payload, created_at
         FROM proctor_messages
         WHERE submission_id = ? AND is_read = 0
         ORDER BY created_at ASC

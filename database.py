@@ -261,6 +261,7 @@ def init_db():
             message_text TEXT NOT NULL,
             severity TEXT DEFAULT 'warning',
             is_read INTEGER DEFAULT 0,
+            audio_payload TEXT DEFAULT '',
             created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
         )""")
         for statement in migrations:
@@ -401,6 +402,7 @@ def init_db():
             ("questions", "topic_category", "TEXT DEFAULT 'General'"),
             ("questions", "difficulty_tier", "TEXT DEFAULT 'medium'"),
             ("exams", "pool_question_count", "INTEGER DEFAULT 0"),
+            ("proctor_messages", "audio_payload", "TEXT DEFAULT ''"),
         ]:
             columns = {row["name"] for row in cursor.execute(f"PRAGMA table_info({table})").fetchall()}
             if column not in columns:
@@ -413,6 +415,7 @@ def init_db():
             message_text TEXT NOT NULL,
             severity TEXT DEFAULT 'warning',
             is_read INTEGER DEFAULT 0,
+            audio_payload TEXT DEFAULT '',
             created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
             FOREIGN KEY (submission_id) REFERENCES submissions(id) ON DELETE CASCADE
         )""")
