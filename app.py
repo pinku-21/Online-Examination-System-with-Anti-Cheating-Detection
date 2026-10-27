@@ -345,6 +345,8 @@ def login_required(f):
     def decorated_function(*args, **kwargs):
         user_id = session.get("user_id")
         if not user_id:
+            if request.path.startswith("/api/") or request.is_json:
+                return jsonify({"success": False, "error": "Authentication required. Please log in."}), 401
             flash("Please sign in to access this page.", "warning")
             return redirect(url_for("login", next=request.path))
         
