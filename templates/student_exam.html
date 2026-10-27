@@ -621,6 +621,7 @@
         let faceOccludedConsecutiveCount = 0;
         let lookingAwayConsecutiveCount = 0;
         let lookingDownConsecutiveCount = 0;
+        let lookingUpConsecutiveCount = 0;
         let deskViewPromptDismissed = {};
         let loudAudioConsecutiveCount = 0;
         let phoneConsecutiveCount = 0;
@@ -1435,6 +1436,7 @@
                         let isFacePartiallyOccluded = false;
                         let hasAnyFaceLookingAway = false;
                         let hasAnyFaceLookingDown = false;
+                        let hasAnyFaceLookingUp = false;
                         let isDeskViewVerified = false;
                         let detectedFaces = [];
 
@@ -1453,6 +1455,7 @@
                                     let hasVisibleEyes = false;
                                     let isLookingSideways = false;
                                     let isLookingDownAtDesk = false;
+                                    let isLookingUp = false;
                                     if (face.landmarks && face.landmarks.length >= 3) {
                                         const rEye = face.landmarks[0]; // right eye [x, y]
                                         const lEye = face.landmarks[1]; // left eye [x, y]
@@ -1484,6 +1487,9 @@
                                             // When student bends face downward to write answers or rough work on paper
                                             if (eyeToNoseDist < (h * 0.12)) {
                                                 isLookingDownAtDesk = true;
+                                            } else if (eyeToNoseDist > (h * 0.44)) {
+                                                // When candidate tilts head high up looking away at ceiling/wall
+                                                isLookingUp = true;
                                             }
                                         }
                                     }
@@ -1504,6 +1510,10 @@
                                         drawBoundingBox(ctx, [tl[0], tl[1], w, h], '⚠️ Looking Sideways', '#f97316');
                                         validVisibleFaceCount++;
                                         hasAnyFaceLookingAway = true;
+                                    } else if (isLookingUp) {
+                                        drawBoundingBox(ctx, [tl[0], tl[1], w, h], '⚠️ Looking Up at Ceiling', '#f43f5e');
+                                        validVisibleFaceCount++;
+                                        hasAnyFaceLookingUp = true;
                                     } else if (isLookingDownAtDesk) {
                                         // Writing / Rough-work on paper mode: friendly indicator with desk view badge
                                         const deskTag = isDeskViewVerified ? '✍️ Desk View Verified ✓' : '✍️ Writing on Desk';
@@ -1549,8 +1559,12 @@
                         let detectedDevices = [];
                         let hasEarphoneDetected = false;
 
-                        // Comprehensive list of unauthorized electronic devices, books, and study aids from COCO-SSD
-                        const ALLOWED_DEVICE_CLASSES = ['cell phone', 'laptop', 'tv', 'tablet', 'remote', 'book'];
+                        // Comprehensive list of unauthorized electronic devices and cheating aids from COCO-SSD
+                        const UNAUTHORIZED_DEVICE_CLASSES = ['cell phone', 'laptop', 'tv', 'tablet', 'remote'];
+
+                        // Determine if current question permits physical paper / copy notebook for rough work or handwriting
+                        const activeQ = (typeof currentQuestionIndex !== 'undefined' && QUESTIONS && QUESTIONS[currentQuestionIndex]) ? QUESTIONS[currentQuestionIndex] : null;
+                        const isWritingPermitted = activeQ && (activeQ.question_type === 'descriptive' || activeQ.question_type === 'short' || activeQ.has_photo_upload || activeQ.allow_upload !== false);
 
                         predictions.forEach(pred => {
                             if (pred.class === 'person' && pred.score >= 0.25) {
@@ -1562,10 +1576,34 @@
                                         drawBoundingBox(ctx, pred.bbox, 'Candidate', '#10b981');
                                     }
                                 }
-                            } else if (ALLOWED_DEVICE_CLASSES.includes(pred.class) && pred.score >= 0.20) {
-                                // Sensitive threshold (0.20) for phones, cameras, books, and tablets
-                                detectedDevices.push(pred.class);
-                                drawBoundingBox(ctx, pred.bbox, '🚨 ' + pred.class.toUpperCase(), '#f43f5e');
+                            } else if (pred.class === 'book' && pred.score >= 0.22) {
+                                // Distinction between Copy/Notebook and unauthorized cheat book:
+                                // If the question is written/math/rough-work, a paper copy/notebook is permitted and labeled green/sky.
+                                if (isWritingPermitted) {
+                                    drawBoundingBox(ctx, pred.bbox, '📄 Answer Copy / Notebook', '#38bdf8');
+                                } else {
+                                    // In purely objective exams with no paper allowed, flag book
+                                    detectedDevices.push('book');
+                                    drawBoundingBox(ctx, pred.bbox, '🚨 UNAUTHORIZED BOOK', '#f43f5e');
+                                }
+                            } else if (UNAUTHORIZED_DEVICE_CLASSES.includes(pred.class) && pred.score >= 0.20) {
+                                const bbox = pred.bbox; // [x, y, w, h]
+                                const w = bbox[2];
+                                const h = bbox[3];
+                                const area = w * h;
+                                const frameArea = canvas.width * canvas.height;
+                                const areaRatio = area / frameArea;
+
+                                // Phone vs Notebook/Copy size filter:
+                                // A smartphone held in hand or on desk occupies a small area (< 18% of camera frame).
+                                // A large notebook/copy held up close to the camera is huge (> 20% of frame area) and squarish.
+                                if (pred.class === 'cell phone' && areaRatio > 0.22 && isWritingPermitted) {
+                                    // False positive: Large copy/notebook misclassified by COCO-SSD as cell phone
+                                    drawBoundingBox(ctx, bbox, '📄 Notebook / Copy (Exam Paper)', '#38bdf8');
+                                } else {
+                                    detectedDevices.push(pred.class);
+                                    drawBoundingBox(ctx, bbox, '🚨 ' + pred.class.toUpperCase(), '#f43f5e');
+                                }
                             }
                         });
 
@@ -1605,6 +1643,8 @@
                             updateHudBadge('hud-face', 'Eyes Hidden ⚠️', 'rose');
                         } else if (hasAnyFaceLookingAway) {
                             updateHudBadge('hud-face', 'Looking Away ⚠️', 'amber');
+                        } else if (hasAnyFaceLookingUp) {
+                            updateHudBadge('hud-face', 'Looking Up ⚠️', 'rose');
                         } else if (hasAnyFaceLookingDown) {
                             const badgeText = isDeskViewVerified ? 'Desk View ✓' : 'Writing on Desk ✍️';
                             const badgeColor = isDeskViewVerified ? 'emerald' : 'sky';
@@ -1620,6 +1660,7 @@
                             faceOccludedConsecutiveCount = 0;
                             lookingAwayConsecutiveCount = 0;
                             lookingDownConsecutiveCount = 0;
+                            lookingUpConsecutiveCount = 0;
                             phoneConsecutiveCount = 0;
                             return;
                         }
@@ -1640,6 +1681,7 @@
                             imposterConsecutiveCount = 0;
                             faceOccludedConsecutiveCount = 0;
                             lookingDownConsecutiveCount = 0;
+                            lookingUpConsecutiveCount = 0;
                             if (noPersonConsecutiveCount >= 8) {
                                 triggerViolation('no_face', 'No candidate face detected in webcam feed. Candidate left desk or covered camera.');
                             }
@@ -1647,6 +1689,7 @@
                             noPersonConsecutiveCount = 0;
                             faceOccludedConsecutiveCount = 0;
                             lookingDownConsecutiveCount = 0;
+                            lookingUpConsecutiveCount = 0;
                             imposterConsecutiveCount++;
 
                             // Red Warning on canvas / toast while extra person is present:
@@ -1669,6 +1712,7 @@
                             imposterConsecutiveCount = 0;
                             lookingAwayConsecutiveCount = 0;
                             lookingDownConsecutiveCount = 0;
+                            lookingUpConsecutiveCount = 0;
                             faceOccludedConsecutiveCount++;
 
                             // Draw warning banner on live webcam canvas
@@ -1688,6 +1732,7 @@
                             imposterConsecutiveCount = 0;
                             faceOccludedConsecutiveCount = 0;
                             lookingDownConsecutiveCount = 0;
+                            lookingUpConsecutiveCount = 0;
                             lookingAwayConsecutiveCount++;
 
                             ctx.fillStyle = 'rgba(249, 115, 22, 0.90)';
@@ -1700,12 +1745,32 @@
                                 lookingAwayConsecutiveCount = 0;
                                 triggerViolation('looking_away', 'Candidate repeatedly or continuously looked sideways away from the exam screen.');
                             }
+                        } else if (hasAnyFaceLookingUp) {
+                            // Candidate is looking up at ceiling/wall (Strict: max 5 seconds = 4 frames at 1.4s)
+                            noPersonConsecutiveCount = 0;
+                            imposterConsecutiveCount = 0;
+                            faceOccludedConsecutiveCount = 0;
+                            lookingAwayConsecutiveCount = 0;
+                            lookingDownConsecutiveCount = 0;
+                            lookingUpConsecutiveCount++;
+
+                            ctx.fillStyle = 'rgba(225, 29, 72, 0.90)';
+                            ctx.fillRect(10, 10, canvas.width - 20, 28);
+                            ctx.fillStyle = '#ffffff';
+                            ctx.font = 'bold 12px Inter, sans-serif';
+                            ctx.fillText('⚠️ HEAD TILTED UPWARD — LOOK AT EXAM SCREEN (STRIKE IN 5s)', 18, 28);
+
+                            if (lookingUpConsecutiveCount >= 4) {
+                                lookingUpConsecutiveCount = 0;
+                                triggerViolation('looking_away', 'Candidate tilted head and looked upward away from screen for more than 5 seconds.');
+                            }
                         } else if (hasAnyFaceLookingDown) {
                             // Candidate is looking down at notebook/copy to write or do math rough work
                             noPersonConsecutiveCount = 0;
                             imposterConsecutiveCount = 0;
                             faceOccludedConsecutiveCount = 0;
                             lookingAwayConsecutiveCount = 0;
+                            lookingUpConsecutiveCount = 0;
                             lookingDownConsecutiveCount++;
 
                             // Determine if current question is written/subjective/photo upload or if exam has rough work
@@ -2891,9 +2956,35 @@
         // ---------------------------------------------------------------------------
         // Emergency Live Proctor Walkie-Talkie & Intercom Listener
         // ---------------------------------------------------------------------------
+        let globalAudioUnlocked = false;
+        let globalAudioCtx = null;
+        function unlockAudioEngine() {
+            if (globalAudioUnlocked) return;
+            try {
+                if (!globalAudioCtx) {
+                    globalAudioCtx = new (window.AudioContext || window.webkitAudioContext)();
+                }
+                if (globalAudioCtx.state === 'suspended') {
+                    globalAudioCtx.resume();
+                }
+                // Play silent buffer to unlock mobile iOS/Chrome web audio
+                const buffer = globalAudioCtx.createBuffer(1, 1, 22050);
+                const source = globalAudioCtx.createBufferSource();
+                source.buffer = buffer;
+                source.connect(globalAudioCtx.destination);
+                source.start(0);
+                globalAudioUnlocked = true;
+            } catch(e) {}
+        }
+        document.addEventListener('click', unlockAudioEngine, { passive: true });
+        document.addEventListener('touchstart', unlockAudioEngine, { passive: true });
+        document.addEventListener('keydown', unlockAudioEngine, { passive: true });
+
         function playIntercomChime(severity) {
             try {
-                const ctx = new (window.AudioContext || window.webkitAudioContext)();
+                unlockAudioEngine();
+                const ctx = globalAudioCtx || new (window.AudioContext || window.webkitAudioContext)();
+                if (ctx.state === 'suspended') ctx.resume();
                 const osc = ctx.createOscillator();
                 const gain = ctx.createGain();
                 osc.connect(gain);
@@ -2939,27 +3030,36 @@
                         let audioPlayerHtml = '';
                         if (hasAudio) {
                             audioPlayerHtml = `
-                                <div class="mt-3 p-3 bg-slate-900 rounded-xl text-white flex items-center justify-between border border-slate-700 shadow-inner">
-                                    <div class="flex items-center gap-2">
-                                        <span class="w-2.5 h-2.5 rounded-full bg-emerald-400 animate-ping"></span>
-                                        <span class="text-xs font-bold text-slate-200">Live Voice Transmission</span>
+                                <div class="mt-3 p-3 bg-slate-900 rounded-xl text-white flex flex-col gap-2 border border-slate-700 shadow-inner">
+                                    <div class="flex items-center justify-between">
+                                        <div class="flex items-center gap-2">
+                                            <span class="w-2.5 h-2.5 rounded-full bg-emerald-400 animate-ping"></span>
+                                            <span class="text-xs font-bold text-slate-200">Live Voice Transmission</span>
+                                        </div>
+                                        <button type="button" id="swal-replay-voice-btn" class="px-2.5 py-1 bg-indigo-600 hover:bg-indigo-700 text-[11px] font-bold rounded-lg text-white transition flex items-center gap-1 shadow">
+                                            <i data-lucide="rotate-ccw" class="w-3 h-3"></i>
+                                            <span>Replay Audio</span>
+                                        </button>
                                     </div>
-                                    <button type="button" id="swal-replay-voice-btn" class="px-2.5 py-1 bg-indigo-600 hover:bg-indigo-700 text-[11px] font-bold rounded-lg text-white transition flex items-center gap-1">
-                                        <i data-lucide="rotate-ccw" class="w-3 h-3"></i>
-                                        <span>Replay Audio</span>
-                                    </button>
+                                    <!-- Embedded Audio Player for direct Autoplay -->
+                                    <audio id="proctor-live-audio-el" src="${msg.audio_payload}" autoplay playsinline preload="auto" class="w-full mt-1 h-8 rounded"></audio>
                                 </div>
                             `;
                         }
 
-                        // Play audio immediately if attached
+                        // Play audio immediately
                         let activeAudio = null;
                         if (hasAudio) {
                             try {
+                                unlockAudioEngine();
                                 activeAudio = new Audio(msg.audio_payload);
-                                activeAudio.play().catch(err => {
-                                    console.warn('Auto-play was prevented by browser policy; user can click replay', err);
-                                });
+                                activeAudio.setAttribute('playsinline', 'true');
+                                const playPromise = activeAudio.play();
+                                if (playPromise !== undefined) {
+                                    playPromise.catch(err => {
+                                        console.warn('Autoplay waiting on modal interaction or inline player', err);
+                                    });
+                                }
                             } catch(e){}
                         }
 
@@ -2981,12 +3081,26 @@
                             `,
                             didOpen: () => {
                                 if (window.lucide) lucide.createIcons();
+                                
+                                // Auto-trigger inline audio player inside modal
+                                const inlineAudio = document.getElementById('proctor-live-audio-el');
+                                if (inlineAudio && hasAudio) {
+                                    inlineAudio.play().catch(e => {
+                                        console.warn('Inline audio play deferred:', e);
+                                    });
+                                }
+
                                 const replayBtn = document.getElementById('swal-replay-voice-btn');
                                 if (replayBtn && hasAudio) {
                                     replayBtn.onclick = () => {
                                         try {
-                                            const a = new Audio(msg.audio_payload);
-                                            a.play();
+                                            if (inlineAudio) {
+                                                inlineAudio.currentTime = 0;
+                                                inlineAudio.play();
+                                            } else {
+                                                const a = new Audio(msg.audio_payload);
+                                                a.play();
+                                            }
                                         } catch(e){}
                                     };
                                 }
@@ -2998,6 +3112,10 @@
 
                         if (activeAudio) {
                             try { activeAudio.pause(); } catch(e){}
+                        }
+                        const inlineAudio = document.getElementById('proctor-live-audio-el');
+                        if (inlineAudio) {
+                            try { inlineAudio.pause(); } catch(e){}
                         }
                     }
                 }
