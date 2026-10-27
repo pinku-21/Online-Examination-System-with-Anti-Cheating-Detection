@@ -642,12 +642,13 @@ def admin_delete_exam(exam_id):
         return jsonify({"success": False, "error": "Exam not found."}), 404
     
     exam_title = exam["title"]
-    # Explicitly cascade delete submissions, questions, assignments, violations for SQLite / Postgres compatibility
+    # Explicitly cascade delete submissions, questions, assignments, violations, and proctor messages
     cursor.execute("SELECT id FROM submissions WHERE exam_id = ?", (exam_id,))
     sub_ids = [r["id"] for r in cursor.fetchall()]
     if sub_ids:
         for sid in sub_ids:
             cursor.execute("DELETE FROM violations WHERE submission_id = ?", (sid,))
+            cursor.execute("DELETE FROM proctor_messages WHERE submission_id = ?", (sid,))
         cursor.execute("DELETE FROM submissions WHERE exam_id = ?", (exam_id,))
     
     cursor.execute("DELETE FROM questions WHERE exam_id = ?", (exam_id,))
@@ -2463,8 +2464,9 @@ def api_grant_reattempt(submission_id):
             "reattempt_type": "resume"
         })
     else:
-        # Fresh start — delete violations first (foreign key constraint), then the submission
+        # Fresh start — delete violations and proctor messages first, then the submission
         cursor.execute("DELETE FROM violations WHERE submission_id = ?", (submission_id,))
+        cursor.execute("DELETE FROM proctor_messages WHERE submission_id = ?", (submission_id,))
         cursor.execute("DELETE FROM submissions WHERE id = ?", (submission_id,))
 
         conn.commit()
