@@ -253,6 +253,7 @@ def init_db():
             "ALTER TABLE questions ADD COLUMN IF NOT EXISTS topic_category TEXT DEFAULT 'General'",
             "ALTER TABLE questions ADD COLUMN IF NOT EXISTS difficulty_tier TEXT DEFAULT 'medium'",
             "ALTER TABLE exams ADD COLUMN IF NOT EXISTS pool_question_count INTEGER DEFAULT 0",
+            "ALTER TABLE proctor_messages ADD COLUMN IF NOT EXISTS audio_payload TEXT DEFAULT ''",
         ]
         cursor.execute("""CREATE TABLE IF NOT EXISTS proctor_messages (
             id SERIAL PRIMARY KEY,
@@ -265,7 +266,10 @@ def init_db():
             created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
         )""")
         for statement in migrations:
-            cursor.execute(statement)
+            try:
+                cursor.execute(statement)
+            except Exception as e:
+                print(f"Migration warning: {e}")
     else:
         cursor.execute("""CREATE TABLE IF NOT EXISTS users (
             id INTEGER PRIMARY KEY AUTOINCREMENT,

@@ -3448,13 +3448,28 @@ def api_get_student_proctor_messages(submission_id):
     """Student polling endpoint to retrieve unread proctor advisories, warnings, and live voice audio."""
     conn = get_connection()
     cursor = conn.cursor()
-    cursor.execute("""
-        SELECT id, message_text, severity, audio_payload, created_at
-        FROM proctor_messages
-        WHERE submission_id = ? AND is_read = 0
-        ORDER BY created_at ASC
-    """, (submission_id,))
-    unread = cursor.fetchall()
+    try:
+        cursor.execute("""
+            SELECT id, message_text, severity, audio_payload, created_at
+            FROM proctor_messages
+            WHERE submission_id = ? AND is_read = 0
+            ORDER BY created_at ASC
+        """, (submission_id,))
+        unread = cursor.fetchall()
+    except Exception as e:
+        # If live database hasn't applied the column yet, fallback and auto-apply migration on the fly
+        try:
+            cursor.execute("ALTER TABLE proctor_messages ADD COLUMN IF NOT EXISTS audio_payload TEXT DEFAULT ''")
+            conn.commit()
+        except Exception:
+            pass
+        cursor.execute("""
+            SELECT id, message_text, severity, '' AS audio_payload, created_at
+            FROM proctor_messages
+            WHERE submission_id = ? AND is_read = 0
+            ORDER BY created_at ASC
+        """, (submission_id,))
+        unread = cursor.fetchall()
 
     messages = [dict(m) for m in unread]
 
