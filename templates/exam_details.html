@@ -1019,6 +1019,7 @@
     // Live Proctor Cockpit View & Polling Engine
     // ---------------------------------------------------------------------------
     const currentExamId = "{{ exam.id }}";
+    const EXAM_MAX_WARNINGS = Number("{{ exam.max_warnings or 3 }}");
     let liveCockpitTimer = null;
     let currentProctorView = 'cockpit';
 
@@ -1088,7 +1089,7 @@
             return;
         }
 
-        const maxWarnings = {{ exam.max_warnings }};
+        const maxWarnings = EXAM_MAX_WARNINGS;
 
         grid.innerHTML = candidates.map(c => {
             let statusBadge = '';
