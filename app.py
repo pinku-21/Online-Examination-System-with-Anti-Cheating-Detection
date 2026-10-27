@@ -55,7 +55,17 @@ def get_current_time():
     return datetime.now(IST).replace(tzinfo=None)
 
 app = Flask(__name__, static_url_path=None)
-app.secret_key = os.environ.get("SECRET_KEY", "examguard-super-secret-key-2026")
+# Ensure strong secret key in production (prevent default key session hijacking)
+DEFAULT_DEV_SECRET = "examguard-super-secret-key-2026"
+configured_secret = os.environ.get("SECRET_KEY")
+if not configured_secret:
+    if os.environ.get("FLASK_ENV") == "production" or bool(os.environ.get("RENDER")):
+        # In production without an explicit SECRET_KEY, generate an ephemeral cryptographically strong key
+        app.secret_key = secrets.token_hex(32)
+    else:
+        app.secret_key = DEFAULT_DEV_SECRET
+else:
+    app.secret_key = configured_secret
 
 # Cookie & Session Security Hardening
 app.config.update(
@@ -65,17 +75,61 @@ app.config.update(
     PERMANENT_SESSION_LIFETIME=timedelta(hours=8)
 )
 
+# --- IN-MEMORY RATE LIMITING & BRUTE-FORCE LOCKOUT STORE ---
+_login_attempts = {} # {ip: {"count": int, "lockout_until": float}}
+_rate_limit_lock = threading.Lock()
+_api_last_request = {} # {f"{client_ip}:{endpoint}": timestamp}
+
+def is_ip_locked_out(client_ip):
+    now = time.time()
+    with _rate_limit_lock:
+        data = _login_attempts.get(client_ip)
+        if not data:
+            return False, 0
+        if data.get("lockout_until", 0) > now:
+            return True, int(data["lockout_until"] - now)
+        elif data.get("lockout_until", 0) > 0 and data["lockout_until"] <= now:
+            del _login_attempts[client_ip]
+    return False, 0
+
+def record_failed_login(client_ip):
+    now = time.time()
+    with _rate_limit_lock:
+        data = _login_attempts.setdefault(client_ip, {"count": 0, "lockout_until": 0})
+        data["count"] += 1
+        # Lockout after 6 failed attempts for 10 minutes (600s)
+        if data["count"] >= 6:
+            data["lockout_until"] = now + 600
+
+def reset_login_attempts(client_ip):
+    with _rate_limit_lock:
+        if client_ip in _login_attempts:
+            del _login_attempts[client_ip]
+
 @app.after_request
 def apply_security_headers(response):
     """
-    Enforces defense-in-depth HTTP security headers and masks server headers
-    to prevent fingerprinting and automated scanner version heuristics.
+    Enforces defense-in-depth HTTP security headers, modern Content-Security-Policy (CSP),
+    and masks server headers to prevent fingerprinting and automated scanner version heuristics.
     """
     response.headers["Server"] = "WebServer"
     response.headers["X-Content-Type-Options"] = "nosniff"
     response.headers["X-Frame-Options"] = "SAMEORIGIN"
     response.headers["X-XSS-Protection"] = "1; mode=block"
     response.headers["Referrer-Policy"] = "strict-origin-when-cross-origin"
+    
+    # Modern Content Security Policy (allows necessary CDNs for Tailwind, SweetAlert, Lucide, MathJax, and webcam media)
+    csp_directives = [
+        "default-src 'self'",
+        "script-src 'self' 'unsafe-inline' 'unsafe-eval' https://cdn.tailwindcss.com https://cdn.jsdelivr.net https://unpkg.com",
+        "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com https://cdn.jsdelivr.net",
+        "font-src 'self' https://fonts.gstatic.com data:",
+        "img-src 'self' data: blob: https:",
+        "media-src 'self' blob: data:",
+        "connect-src 'self' blob: data: https://generativelanguage.googleapis.com https://api.groq.com https://openrouter.ai https://cdn.jsdelivr.net",
+        "frame-ancestors 'self'"
+    ]
+    response.headers["Content-Security-Policy"] = "; ".join(csp_directives)
     
     # Apply HSTS over HTTPS / Render reverse proxy
     if request.is_secure or request.headers.get("X-Forwarded-Proto", "").lower() == "https":
@@ -328,8 +382,16 @@ def login():
         role = request.form.get("role", "student").strip()
         next_url = request.form.get("next", "").strip()
 
+        # Brute-force credential stuffing check (IP-based sliding lockout)
+        client_ip = request.headers.get("X-Forwarded-For", request.remote_addr or "127.0.0.1").split(",")[0].strip()
+        locked, rem_secs = is_ip_locked_out(client_ip)
+        if locked:
+            flash(f"Security Lockout: Too many failed login attempts from this network. Access suspended for {rem_secs // 60 + 1} more minutes.", "danger")
+            return render_template("login.html", role=role, prefill=identifier, next_url=next_url)
+
         user = authenticate_user(identifier, password)
         if user:
+            reset_login_attempts(client_ip)
             # Check single-device & active-exam security rules for student accounts
             if user["role"] == "student":
                 conn = get_connection()
@@ -382,6 +444,7 @@ def login():
             else:
                 return redirect(url_for("student_dashboard"))
         else:
+            record_failed_login(client_ip)
             flash("Invalid username/email or password.", "danger")
             return render_template("login.html", role=role, prefill=identifier, next_url=next_url)
 
@@ -2627,6 +2690,16 @@ def api_log_violation(submission_id):
         forwarded = request.headers.get("X-Forwarded-For").split(",")[0].strip()
         if forwarded:
             client_ip = forwarded
+
+    # DoS Anti-Flood Protection: Throttle identical burst events from rapid script loops
+    rate_key = f"{client_ip}:violation:{submission_id}"
+    now_ts = time.time()
+    with _rate_limit_lock:
+        last_call = _api_last_request.get(rate_key, 0)
+        # Block if under 350ms from last strike
+        if now_ts - last_call < 0.35:
+            return jsonify({"status": "throttled", "ignored": True}), 429
+        _api_last_request[rate_key] = now_ts
     
     sec_meta = classify_security_event(violation_type)
     event_code = sec_meta.get("code", "SEC-ALERT")
