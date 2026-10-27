@@ -1298,12 +1298,13 @@ OUTPUT FORMAT (JSON ONLY, NO MARKDOWN):
                 {"inline_data": {"mime_type": live_mime, "data": live_b64}}
             ]
 
-            # Active Gemini vision models in Generative Language API
+            # Active Gemini vision models in Google Generative Language API
             models = [
-                "gemini-flash-lite-latest",
-                "gemini-flash-latest",
-                "gemini-2.5-flash",
-                "gemini-2.5-flash-lite"
+                "gemini-2.0-flash",
+                "gemini-1.5-flash",
+                "gemini-1.5-flash-8b",
+                "gemini-2.0-flash-lite",
+                "gemini-flash-latest"
             ]
 
             keys_pool = parse_api_keys(gemini_key)
@@ -1318,7 +1319,7 @@ OUTPUT FORMAT (JSON ONLY, NO MARKDOWN):
                         }
                     }
                     try:
-                        resp = requests.post(url, json=payload, headers={"Content-Type": "application/json"}, timeout=8)
+                        resp = requests.post(url, json=payload, headers={"Content-Type": "application/json"}, timeout=15)
                         if resp.status_code == 200:
                             raw_text = resp.json()["candidates"][0]["content"]["parts"][0]["text"].strip()
                             if raw_text.startswith("```json"):

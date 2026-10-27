@@ -1572,12 +1572,12 @@
                         // Total presence count:
                         const totalPresence = Math.max(personCount, blazeFaceCount);
 
-                        // Trigger Periodic In-Exam Biometric Verification Check (only if face is actually fully visible)
+                        // Trigger Periodic In-Exam Biometric Verification Check (every 25s to avoid rate limit spikes)
                         const nowMs = Date.now();
                         if (ENABLE_VIDEO && validVisibleFaceCount > 0 && !isGracePeriod && !isBrowsingFile) {
                             if (!lastBiometricCheckTime) {
-                                lastBiometricCheckTime = nowMs - 6000; // First check fires ~2s after exam starts
-                            } else if (nowMs - lastBiometricCheckTime >= 6000) {
+                                lastBiometricCheckTime = nowMs - 15000; // First check fires ~10s after exam starts
+                            } else if (nowMs - lastBiometricCheckTime >= 25000) {
                                 lastBiometricCheckTime = nowMs;
                                 runInExamBiometricVerification(videoEl);
                             }
@@ -1817,12 +1817,12 @@
 
                 updateHudBadge('hud-phone', 'Clear ✓', 'emerald');
 
-                // Periodic biometric verification check continues to run
+                // Periodic biometric verification check continues to run (every 25s)
                 const nowMs = Date.now();
                 if (ENABLE_VIDEO && !isGracePeriod && !isBrowsingFile) {
                     if (!lastBiometricCheckTime) {
-                        lastBiometricCheckTime = nowMs - 6000;
-                    } else if (nowMs - lastBiometricCheckTime >= 8000) {
+                        lastBiometricCheckTime = nowMs - 15000;
+                    } else if (nowMs - lastBiometricCheckTime >= 25000) {
                         lastBiometricCheckTime = nowMs;
                         runInExamBiometricVerification(videoEl);
                     }
