@@ -166,7 +166,11 @@ def extract_figures_from_pdf(pdf_path, output_base_dir="static/extracted_figures
         return []
 
 def encode_image_base64(image_path):
-    """Encodes an image to base64 string and detects mime type."""
+    """
+    Encodes an image to base64 string and detects mime type.
+    Automatically applies PIL ImageOps.exif_transpose to ensure rotated/tilted
+    mobile camera uploads are normalized upright before AI vision inspection.
+    """
     mime_type = "image/jpeg"
     ext = os.path.splitext(image_path)[1].lower()
     if ext == ".png":
@@ -174,9 +178,25 @@ def encode_image_base64(image_path):
     elif ext == ".webp":
         mime_type = "image/webp"
 
-    with open(image_path, "rb") as image_file:
-        b64 = base64.b64encode(image_file.read()).decode("utf-8")
-        return mime_type, b64
+    try:
+        from PIL import Image, ImageOps
+        import io
+        with Image.open(image_path) as img:
+            # Transpose orientation tag if present (crucial for mobile camera uploads)
+            img = ImageOps.exif_transpose(img)
+            # Ensure RGB mode for JPEG/PNG
+            if img.mode not in ("RGB", "L"):
+                img = img.convert("RGB")
+            
+            buf = io.BytesIO()
+            img.save(buf, format="JPEG", quality=90)
+            b64 = base64.b64encode(buf.getvalue()).decode("utf-8")
+            return "image/jpeg", b64
+    except Exception as e:
+        # Fallback to direct raw file read if PIL processing fails
+        with open(image_path, "rb") as image_file:
+            b64 = base64.b64encode(image_file.read()).decode("utf-8")
+            return mime_type, b64
 
 def build_exam_system_prompt(num_questions=5, question_type="mcq", difficulty="Medium", custom_prompt=None, total_marks=None, available_figures=None):
     """Builds a rich, dynamic system prompt supporting CBSE official blueprints, exact question counts, and specialized question formats."""
@@ -1209,16 +1229,21 @@ MODEL / REFERENCE ANSWER & KEY CRITERIA:
 GRADING RUBRIC / EXPLANATION:
 {explanation or 'Award marks step-wise proportionally (0 to ' + str(max_pts) + ').'}
 
-STUDENT'S WRITTEN TEXT:
-{student_text or '(No typed text provided - examine the attached photo(s) of the handwritten answer)'}{pages_note}
+STUDENT'S WRITTEN TEXT / ATTACHED ANSWER:
+{student_text or '(No typed text provided - examine the attached photo(s) of the handwritten answer sheet)'}{pages_note}
+
+CRITICAL HANDWRITTEN ANSWER INSPECTION RULES:
+- If photo(s) or images of handwritten solution are attached, you MUST read the handwriting carefully, whether written upright, sideways, or tilted.
+- Transcribe the student's handwritten equations, fractions, and steps before grading.
+- NEVER state "No written answer was provided" or "The question was left completely unattempted" if the image contains visible mathematical work, diagrams, or text. Only report unattempted if the student truly submitted a completely blank white page or no answer at all.
 
 OFFICIAL CBSE MARKING DIRECTIVES (MANDATORY TO FOLLOW):
 1. STEP-BY-STEP MARKING (VALUE POINTS):
    - Never award marks solely on the final answer. Marks must be split into step marks (typically ½ or 1 mark value points).
    - In Mathematics / Numericals:
-     * Stating Given Data & Correct Formula / Theorem: ½ to 1 mark.
+     * Stating Given Data & Correct Formula / Theorem / Sample Space: ½ to 1 mark.
      * Intermediate Substitution & Correct Steps: ½ to 2 marks.
-     * Final Answer with correct SI units / final statement: ½ to 1 mark.
+     * Final Answer with correct simplification / SI units: ½ to 1 mark.
    - In Science / Physics / Chemistry / Biology:
      * Mention of core keywords / key value points: ½ to 1 mark each.
      * Balanced chemical equations (deduct ½ mark if unbalanced): ½ to 1 mark.
@@ -1226,11 +1251,11 @@ OFFICIAL CBSE MARKING DIRECTIVES (MANDATORY TO FOLLOW):
 2. CLAUSE 10: SINGLE PENALTY & ERROR CARRIED FORWARD (ECF):
    - A student's error must be penalized ONLY ONCE.
    - If a student makes an arithmetic or algebraic mistake in an early step, deduct marks for THAT specific step. If all subsequent steps are logically and methodologically correct based on that wrong intermediate value, AWARD FULL STEP MARKS for the subsequent steps.
-3. CONSTRUCTIVE DIAGNOSTIC FEEDBACK:
-   - "what_student_did": Clearly state what concepts, formulas, diagrams, or steps the student wrote correctly.
-   - "where_student_went_wrong": Explicitly identify where the error happened (missing step, wrong sign, unbalanced equation, missing arrow, arithmetic slip, or missing unit). If completely correct, write "None. Complete and accurate response."
-   - "how_it_should_be_written": Provide the exact ideal CBSE board presentation of the solution (proper steps, neat formula, units, or key value points).
-   - "examiner_remark": A concise 1-2 sentence examiner note.
+3. CONSTRUCTIVE DIAGNOSTIC FEEDBACK (ADDRESS THE STUDENT DIRECTLY AS 'YOU'):
+   - "what_student_did": Clearly state what you (the student) did correctly (e.g. "You correctly identified the sample space (36) and set up the probability ratio.").
+   - "where_student_went_wrong": Explicitly identify where you made a mistake (missing step, wrong calculation, misread question, or calculation slip). If completely correct, write "None. Complete and accurate response."
+   - "how_it_should_be_written": Provide the ideal CBSE board presentation of the solution (proper steps, neat formula, units, or key value points).
+   - "examiner_remark": A concise 1-2 sentence examiner note directly advising the student.
 4. TOTAL AWARDED MARKS:
    - Must be between 0.0 and {max_pts}.
    - The sum of step marks awarded must match "awarded_marks".
@@ -1243,8 +1268,8 @@ STRICT JSON OUTPUT FORMAT (NO MARKDOWN CODEBLOCKS, ONLY VALID JSON):
     {{"step": "Intermediate algebraic simplification", "marks_allocated": 1.0, "marks_awarded": 1.0, "status": "full"}},
     {{"step": "Final numerical value with SI unit", "marks_allocated": 0.5, "marks_awarded": 0.5, "status": "full"}}
   ],
-  "what_student_did": "Student correctly recalled the theorem, set up the equations, and performed the initial substitution accurately.",
-  "where_student_went_wrong": "Minor arithmetic slip in the final denominator division; missing SI units in the final statement.",
+  "what_student_did": "You correctly recalled the formula, set up the initial equations, and substituted the given values accurately.",
+  "where_student_went_wrong": "Minor arithmetic slip in the final denominator division; missing SI units in your final statement.",
   "how_it_should_be_written": "1. Write formula: P = V × I\\n2. Substitute values: P = 220V × 0.5A\\n3. Final Answer: P = 110 W (with proper unit Watts).",
   "examiner_remark": "Good conceptual grasp with step-by-step layout. Be cautious with final arithmetic and always write SI units."
 }}

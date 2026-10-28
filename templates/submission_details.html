@@ -826,13 +826,13 @@
                                 </div>
                             {% endif %}
 
-                            <!-- What Student Did vs Where Student Went Wrong vs How It Should Be Written -->
+                            <!-- What You Did vs Where You Went Wrong vs How It Should Be Written -->
                             <div class="grid grid-cols-1 md:grid-cols-3 gap-2.5 pt-1">
                                 {% if q.eval_what_did %}
                                     <div class="p-2.5 rounded-xl bg-emerald-50/80 border border-emerald-200/90 text-emerald-950">
                                         <span class="text-[10px] font-bold uppercase tracking-wider text-emerald-800 flex items-center mb-1">
                                             <i data-lucide="check-circle" class="w-3.5 h-3.5 mr-1 text-emerald-600"></i>
-                                            What Student Did
+                                            What You Did
                                         </span>
                                         <p class="text-[11px] leading-relaxed text-emerald-900">{{ q.eval_what_did }}</p>
                                     </div>
@@ -842,7 +842,7 @@
                                     <div class="p-2.5 rounded-xl bg-rose-50/80 border border-rose-200/90 text-rose-950">
                                         <span class="text-[10px] font-bold uppercase tracking-wider text-rose-800 flex items-center mb-1">
                                             <i data-lucide="alert-circle" class="w-3.5 h-3.5 mr-1 text-rose-600"></i>
-                                            Where Student Went Wrong
+                                            Where You Went Wrong
                                         </span>
                                         <p class="text-[11px] leading-relaxed text-rose-900">{{ q.eval_where_wrong }}</p>
                                     </div>

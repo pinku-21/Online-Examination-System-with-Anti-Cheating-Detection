@@ -1148,12 +1148,35 @@ def api_upload_answer_image(submission_id):
     os.makedirs(upload_dir, exist_ok=True)
     
     file_bytes = uploaded_file.read()
+
+    # Optimize and compress image: Auto-orient EXIF, resize if >1600px, and compress to JPEG quality 82
+    # This prevents the database and disk storage from filling up while maintaining clear handwriting readability
+    try:
+        from PIL import Image, ImageOps
+        import io
+        with Image.open(io.BytesIO(file_bytes)) as pil_img:
+            pil_img = ImageOps.exif_transpose(pil_img)
+            if pil_img.mode not in ("RGB", "L"):
+                pil_img = pil_img.convert("RGB")
+            
+            # Scale down if camera shot exceeds 1600px width/height
+            max_dim = 1600
+            if max(pil_img.size) > max_dim:
+                pil_img.thumbnail((max_dim, max_dim), Image.Resampling.LANCZOS)
+            
+            out_buf = io.BytesIO()
+            pil_img.save(out_buf, format="JPEG", quality=82, optimize=True)
+            file_bytes = out_buf.getvalue()
+            mime_type = "image/jpeg"
+    except Exception as comp_err:
+        print(f"Image upload optimization skipped: {comp_err}")
+        mime_type = uploaded_file.mimetype or "image/jpeg"
+
     save_path = os.path.join(upload_dir, unique_name)
     with open(save_path, "wb") as f:
         f.write(file_bytes)
     
     # Also save permanently to database so it never vanishes on Render restarts
-    mime_type = uploaded_file.mimetype or "image/jpeg"
     save_persistent_asset(f"student_answers/{unique_name}", mime_type, file_bytes)
     
     return jsonify({
