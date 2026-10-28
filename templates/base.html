@@ -92,9 +92,32 @@
             --radius: 0.75rem;
         }
 
+        .dark {
+            --background: 222.2 84% 4.9%;
+            --foreground: 210 40% 98%;
+            --card: 222.2 84% 6.5%;
+            --card-foreground: 210 40% 98%;
+            --primary: 217.2 91.2% 59.8%;
+            --primary-foreground: 222.2 47.4% 11.2%;
+            --secondary: 217.2 32.6% 17.5%;
+            --secondary-foreground: 210 40% 98%;
+            --muted: 217.2 32.6% 17.5%;
+            --muted-foreground: 215 20.2% 65.1%;
+            --accent: 217.2 32.6% 17.5%;
+            --accent-foreground: 210 40% 98%;
+            --destructive: 0 62.8% 30.6%;
+            --destructive-foreground: 210 40% 98%;
+            --border: 217.2 32.6% 17.5%;
+            --input: 217.2 32.6% 17.5%;
+            --ring: 224.3 76.3% 48%;
+        }
+
         body {
             font-family: 'Plus Jakarta Sans', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
             letter-spacing: -0.011em;
+            background-color: hsl(var(--background));
+            color: hsl(var(--foreground));
+            transition: background-color 0.2s ease, color 0.2s ease;
         }
         
         /* shadcn/ui Utility Helpers */
@@ -288,6 +311,11 @@
                         <i data-lucide="arrow-right" class="w-3.5 h-3.5"></i>
                     </a>
                 {% endif %}
+                <!-- Dark Mode Toggle Button -->
+                <button type="button" onclick="toggleDarkMode()" id="dark-mode-toggle" class="shadcn-btn shadcn-btn-outline h-9 w-9 p-0 text-slate-600 hover:text-slate-900" title="Toggle Dark/Light Mode">
+                    <i data-lucide="moon" id="theme-moon-icon" class="w-4 h-4"></i>
+                    <i data-lucide="sun" id="theme-sun-icon" class="w-4 h-4 hidden text-amber-400"></i>
+                </button>
             </nav>
         </div>
     </header>
@@ -300,6 +328,34 @@
 
 
     <script>
+        function applyInitialTheme() {
+            const savedTheme = localStorage.getItem('examguard_theme');
+            const prefersDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
+            if (savedTheme === 'dark' || (!savedTheme && prefersDark)) {
+                document.documentElement.classList.add('dark');
+                document.getElementById('theme-moon-icon')?.classList.add('hidden');
+                document.getElementById('theme-sun-icon')?.classList.remove('hidden');
+            } else {
+                document.documentElement.classList.remove('dark');
+                document.getElementById('theme-moon-icon')?.classList.remove('hidden');
+                document.getElementById('theme-sun-icon')?.classList.add('hidden');
+            }
+        }
+
+        function toggleDarkMode() {
+            const isDark = document.documentElement.classList.toggle('dark');
+            localStorage.setItem('examguard_theme', isDark ? 'dark' : 'light');
+            const moon = document.getElementById('theme-moon-icon');
+            const sun = document.getElementById('theme-sun-icon');
+            if (isDark) {
+                moon?.classList.add('hidden');
+                sun?.classList.remove('hidden');
+            } else {
+                moon?.classList.remove('hidden');
+                sun?.classList.add('hidden');
+            }
+        }
+        applyInitialTheme();
         lucide.createIcons();
     </script>
     {% block scripts %}{% endblock %}

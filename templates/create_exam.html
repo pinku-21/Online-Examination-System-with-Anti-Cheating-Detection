@@ -27,34 +27,34 @@
         <!-- Left: Upload & AI Controls (5 cols) -->
         <div class="lg:col-span-5 space-y-6">
             
-            <!-- Mode Selector Tabs (Option 1 vs Option 2) -->
-            <div class="bg-white p-1.5 rounded-2xl border border-slate-200 shadow-xs grid grid-cols-2 gap-2">
-                <button type="button" id="tab-mode-ai" onclick="switchCreationMode('ai')" class="py-2.5 px-3 rounded-xl text-xs font-bold transition flex items-center justify-center space-x-2 bg-gradient-to-r from-sky-600 to-indigo-600 text-white shadow-sm">
-                    <i data-lucide="sparkles" class="w-4 h-4 text-amber-300"></i>
+            <!-- Mode Selector Tabs (shadcn tabs) -->
+            <div class="shadcn-tabs-list w-full p-1 border border-slate-200">
+                <button type="button" id="tab-mode-ai" onclick="switchCreationMode('ai')" class="shadcn-tab-trigger active flex-1 py-2 text-xs flex items-center justify-center space-x-2">
+                    <i data-lucide="sparkles" class="w-3.5 h-3.5 text-amber-500"></i>
                     <span>1. Upload PDF & Generate</span>
                 </button>
-                <button type="button" id="tab-mode-paste" onclick="switchCreationMode('paste')" class="py-2.5 px-3 rounded-xl text-xs font-bold transition flex items-center justify-center space-x-2 bg-slate-50 text-slate-700 hover:bg-slate-100 hover:text-slate-900 border border-slate-200">
-                    <i data-lucide="clipboard-paste" class="w-4 h-4 text-emerald-600"></i>
-                    <span>2. Upload / Paste Question Paper</span>
+                <button type="button" id="tab-mode-paste" onclick="switchCreationMode('paste')" class="shadcn-tab-trigger flex-1 py-2 text-xs flex items-center justify-center space-x-2">
+                    <i data-lucide="clipboard-paste" class="w-3.5 h-3.5 text-slate-500"></i>
+                    <span>2. Paste Question Paper</span>
                 </button>
             </div>
 
-            <!-- OPTION 1 PANEL: Upload & AI Generator -->
-            <div id="panel-mode-ai" class="bg-white rounded-2xl p-6 border border-slate-200 shadow-sm space-y-5">
+            <!-- OPTION 1 PANEL: Upload & AI Generator (shadcn-card) -->
+            <div id="panel-mode-ai" class="shadcn-card bg-white p-6 border border-slate-200 shadow-sm space-y-5">
                 <div class="flex items-center justify-between border-b border-slate-100 pb-3">
                     <h3 class="font-bold text-slate-900 flex items-center space-x-2">
                         <i data-lucide="file-up" class="w-4 h-4 text-sky-600"></i>
-                        <span>Upload Study Material & Generate</span>
+                        <span>Upload Material & Generate</span>
                     </h3>
-                    <span class="text-xs text-sky-700 bg-sky-50 px-2 py-0.5 rounded-full font-medium">PDF or Photos</span>
+                    <span class="shadcn-badge bg-sky-50 text-sky-700 border-sky-200 text-[11px]">PDF or Images</span>
                 </div>
 
                 <!-- Drag & Drop File Upload Area -->
                 <div>
                     <label class="block text-xs font-semibold text-slate-700 mb-2">Chapter PDF or Textbook Photos</label>
-                    <div id="drop-zone" class="border-2 border-dashed border-slate-300 hover:border-sky-500 rounded-xl p-6 text-center cursor-pointer transition bg-slate-50 hover:bg-sky-50/50" onclick="document.getElementById('file-input').click()">
-                        <i data-lucide="upload-cloud" class="w-10 h-10 text-slate-400 mx-auto mb-2"></i>
-                        <p class="text-sm font-semibold text-slate-700">Click or Drag & Drop Files</p>
+                    <div id="drop-zone" class="border-2 border-dashed border-slate-300 hover:border-slate-800 rounded-xl p-6 text-center cursor-pointer transition bg-slate-50/50 hover:bg-slate-50" onclick="document.getElementById('file-input').click()">
+                        <i data-lucide="upload-cloud" class="w-8 h-8 text-slate-400 mx-auto mb-2"></i>
+                        <p class="text-sm font-semibold text-slate-800">Click or Drag & Drop Files</p>
                         <p class="text-xs text-slate-400 mt-1">Supports PDF notes, PNG, JPG, WEBP photos</p>
                         <input type="file" id="file-input" multiple accept=".pdf,image/*" class="hidden" onchange="handleFileSelect(event)">
                     </div>

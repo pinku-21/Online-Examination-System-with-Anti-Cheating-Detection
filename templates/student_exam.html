@@ -214,52 +214,50 @@
         </div>
     </div>
 
-    <!-- Exam Navigation Header -->
-    <header class="bg-white border-b border-slate-200 sticky top-0 z-40 px-4 sm:px-6 py-3">
+    <!-- Exam Navigation Header (shadcn style) -->
+    <header class="bg-white/95 backdrop-blur-md border-b border-slate-200 sticky top-0 z-40 px-4 sm:px-6 py-2.5">
         <div class="max-w-7xl mx-auto flex items-center justify-between">
             <div class="flex items-center space-x-3">
-                <div class="w-9 h-9 rounded-lg bg-sky-600 text-white flex items-center justify-center font-bold">
-                    <i data-lucide="shield-check" class="w-5 h-5"></i>
+                <div class="w-8 h-8 rounded-lg bg-slate-900 text-white flex items-center justify-center font-bold">
+                    <i data-lucide="shield-check" class="w-4 h-4 text-sky-400"></i>
                 </div>
                 <div>
                     <h1 class="font-bold text-slate-900 text-sm sm:text-base leading-tight">{{ submission.title }}</h1>
                     <div class="text-xs text-slate-500 flex items-center space-x-2">
-                        <span>{{ submission.student_name }}</span>
+                        <span class="font-medium text-slate-700">{{ submission.student_name }}</span>
                         <span>•</span>
                         <span class="font-mono">{{ submission.roll_number }}</span>
                     </div>
                 </div>
             </div>
 
-            <!-- Strikes Warning & Timer -->
-            <div class="flex items-center space-x-4">
+            <!-- Strikes Warning, Timer, Pause & Submit Buttons -->
+            <div class="flex items-center space-x-2.5">
                 <!-- Strikes Warning Counter -->
                 <div id="warning-badge"
-                    class="px-3.5 py-1.5 rounded-xl border border-rose-200 bg-rose-50 text-rose-700 text-xs font-bold flex items-center space-x-1.5 shadow-sm">
-                    <i data-lucide="alert-triangle" class="w-4 h-4 text-rose-600"></i>
-                    <span>Strikes: <span id="strike-counter">{{ submission.warnings_count }}</span> / {{
-                        submission.max_warnings }}</span>
+                    class="shadcn-badge bg-rose-50 text-rose-700 border-rose-200 text-xs font-semibold">
+                    <i data-lucide="alert-triangle" class="w-3.5 h-3.5 mr-1 text-rose-600"></i>
+                    <span>Strikes: <strong id="strike-counter" class="ml-0.5">{{ submission.warnings_count }}</strong> / {{ submission.max_warnings }}</span>
                 </div>
 
                 <!-- Timer -->
-                <div
-                    class="px-3.5 py-1.5 rounded-xl border border-slate-200 bg-slate-50 text-slate-800 text-xs font-mono font-bold flex items-center space-x-1.5 shadow-sm">
-                    <i data-lucide="clock" class="w-4 h-4 text-sky-600"></i>
+                <div class="shadcn-badge bg-slate-100 text-slate-800 border-slate-200 font-mono text-xs font-bold">
+                    <i data-lucide="clock" class="w-3.5 h-3.5 mr-1 text-sky-600"></i>
                     <span id="exam-timer">--:--</span>
                 </div>
 
                 <!-- Pause Exam Button -->
                 <button onclick="requestPauseExam()"
-                    class="px-4 py-1.5 bg-amber-500 hover:bg-amber-600 text-white font-bold text-xs rounded-xl shadow-sm transition flex items-center space-x-1.5">
+                    class="shadcn-btn shadcn-btn-outline h-8 px-3 text-xs font-medium text-amber-700 hover:text-amber-800 hover:border-amber-300">
                     <i data-lucide="pause-circle" class="w-3.5 h-3.5"></i>
-                    <span>Pause Exam</span>
+                    <span>Pause</span>
                 </button>
 
                 <!-- Submit Button -->
                 <button onclick="confirmSubmitExam()"
-                    class="px-4 py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs rounded-xl shadow-sm transition flex items-center space-x-1.5">
-                    <i data-lucide="send" class="w-3.5 h-3.5"></i>
-                    <span>Submit Exam</span>
+                    class="shadcn-btn shadcn-btn-default h-8 px-3.5 text-xs font-semibold">
+                    <i data-lucide="send" class="w-3.5 h-3.5 text-emerald-400"></i>
+                    <span>Submit</span>
                 </button>
             </div>
         </div>
