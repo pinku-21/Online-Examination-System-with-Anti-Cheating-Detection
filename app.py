@@ -2165,7 +2165,6 @@ def api_save_exam():
                 q.get("question_type", "mcq"),
                 opts_json_str,
                 corr_str,
-                q.get("correct_answer", ""),
                 q.get("explanation", ""),
                 float(q.get("points", 1.0)),
                 q.get("figure_svg"),
