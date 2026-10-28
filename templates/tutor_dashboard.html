@@ -89,24 +89,26 @@
         {% endif %}
     {% endwith %}
 
-    <!-- Exam List Section -->
-    <div class="bg-white rounded-2xl border border-slate-200 overflow-hidden shadow-sm">
+    <!-- Exam List Section (shadcn-card styling) -->
+    <div class="shadcn-card bg-white overflow-hidden shadow-sm">
         <div class="p-6 border-b border-slate-200 flex items-center justify-between">
             <div class="flex items-center space-x-2">
-                <i data-lucide="layers" class="w-5 h-5 text-slate-600"></i>
-                <h2 class="text-lg font-bold text-slate-900">Your Created Exams</h2>
+                <i data-lucide="layers" class="w-5 h-5 text-slate-700"></i>
+                <h2 class="text-lg font-bold text-slate-900 tracking-tight">Your Created Exams</h2>
             </div>
-            <span class="text-xs text-slate-500">Live Exams Ready for Students</span>
+            <span class="text-xs font-semibold px-2.5 py-1 bg-slate-100 text-slate-700 rounded-md border border-slate-200">
+                Live Exams Ready
+            </span>
         </div>
 
         {% if exams %}
-            <div class="divide-y divide-slate-200">
+            <div class="divide-y divide-slate-100">
                 {% for exam in exams %}
-                    <div id="exam-card-{{ exam.id }}" class="p-6 hover:bg-slate-50 transition flex flex-col md:flex-row md:items-center justify-between gap-4">
+                    <div id="exam-card-{{ exam.id }}" class="p-6 hover:bg-slate-50/70 transition flex flex-col md:flex-row md:items-center justify-between gap-4">
                         <div class="space-y-1">
                             <div class="flex items-center space-x-3">
                                 <h3 class="font-bold text-slate-900 text-base">{{ exam.title }}</h3>
-                                <span class="px-2.5 py-0.5 bg-sky-100 text-sky-800 font-mono text-xs font-bold rounded-md">Code: {{ exam.exam_code }}</span>
+                                <span class="shadcn-badge font-mono text-[11px] bg-slate-100 text-slate-800 border-slate-200">Code: {{ exam.exam_code }}</span>
                             </div>
                             <p class="text-sm text-slate-500 line-clamp-1">{{ exam.description or 'No additional description provided.' }}</p>
                             <div class="flex flex-wrap items-center gap-3 text-xs text-slate-500 pt-1.5">
@@ -153,20 +155,20 @@
                         </div>
 
                         <div class="flex items-center space-x-2 self-start md:self-center flex-wrap gap-y-1.5">
-                            <button type="button" onclick="openManageAccessModal('{{ exam.id }}', '{{ exam.title | escape }}')" class="px-3 py-2 bg-indigo-50 hover:bg-indigo-100 text-indigo-700 text-xs font-semibold rounded-lg transition flex items-center space-x-1.5 border border-indigo-200 cursor-pointer" title="Manage who can access and exam timing">
+                            <button type="button" onclick="openManageAccessModal('{{ exam.id }}', '{{ exam.title | escape }}')" class="shadcn-btn shadcn-btn-outline h-9 text-xs" title="Manage who can access and exam timing">
                                 <i data-lucide="calendar-clock" class="w-3.5 h-3.5 text-indigo-600"></i>
                                 <span>Access & Timing</span>
                             </button>
-                            <button data-exam-code="{{ exam.exam_code }}" onclick="copyExamLink(this.dataset.examCode)" class="px-3 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-semibold rounded-lg transition flex items-center space-x-1.5" title="Copy Student Link">
-                                <i data-lucide="link" class="w-3.5 h-3.5"></i>
+                            <button data-exam-code="{{ exam.exam_code }}" onclick="copyExamLink(this.dataset.examCode)" class="shadcn-btn shadcn-btn-outline h-9 text-xs" title="Copy Student Link">
+                                <i data-lucide="link" class="w-3.5 h-3.5 text-slate-500"></i>
                                 <span>Copy Link</span>
                             </button>
-                            <a href="/tutor/exam/{{ exam.id }}" class="px-4 py-2 bg-sky-50 hover:bg-sky-100 text-sky-700 text-xs font-semibold rounded-lg transition flex items-center space-x-1.5">
-                                <i data-lucide="bar-chart-3" class="w-3.5 h-3.5"></i>
+                            <a href="/tutor/exam/{{ exam.id }}" class="shadcn-btn shadcn-btn-secondary h-9 text-xs font-semibold">
+                                <i data-lucide="bar-chart-3" class="w-3.5 h-3.5 text-sky-600"></i>
                                 <span>View Results</span>
                             </a>
-                            <button type="button" onclick="deleteExam('{{ exam.id }}', '{{ exam.title | escape }}')" class="px-2.5 py-2 bg-rose-50 hover:bg-rose-100 text-rose-600 hover:text-rose-700 text-xs font-semibold rounded-lg transition flex items-center space-x-1 border border-rose-200 cursor-pointer" title="Delete Exam">
-                                <i data-lucide="trash-2" class="w-3.5 h-3.5"></i>
+                            <button type="button" onclick="deleteExam('{{ exam.id }}', '{{ exam.title | escape }}')" class="shadcn-btn shadcn-btn-outline h-9 text-xs hover:text-rose-600 hover:border-rose-300" title="Delete Exam">
+                                <i data-lucide="trash-2" class="w-3.5 h-3.5 text-rose-500"></i>
                                 <span class="hidden sm:inline">Delete</span>
                             </button>
                         </div>
