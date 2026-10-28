@@ -1109,9 +1109,21 @@ def generate_mock_questions(topic_or_context, num_questions=5, question_type="mc
 
 def evaluate_answer_with_ai(gemini_key=None, groq_key=None, question_text="", max_points=1.0, correct_answer="", student_text="", image_path=None, image_paths=None, explanation=""):
     """
-    Evaluates a student's answer (written text or uploaded handwritten photos/pages) using AI.
+    Evaluates a student's answer (written text or uploaded handwritten photos/pages) using AI
+    following the official CBSE Board Marking Scheme & Evaluator Directives.
     Supports Google Gemini (with multi-image vision for multi-page solutions) and Groq Cloud.
-    Returns: {"success": bool, "awarded_marks": float, "feedback": str, "model_used": str}
+    
+    Returns: {
+        "success": bool,
+        "awarded_marks": float,
+        "what_student_did": str,
+        "where_student_went_wrong": str,
+        "how_it_should_be_written": str,
+        "step_breakdown": list of {"step": str, "marks_allocated": float, "marks_awarded": float, "status": "full"|"partial"|"missed"},
+        "examiner_remark": str,
+        "feedback": str,  # Combined summary for backward compatibility
+        "model_used": str
+    }
     """
     max_pts = float(max_points) if max_points else 1.0
 
@@ -1126,7 +1138,8 @@ def evaluate_answer_with_ai(gemini_key=None, groq_key=None, question_text="", ma
 
     pages_note = f" (Student attached {len(all_imgs)} page(s) of handwritten solution)" if all_imgs else ""
 
-    eval_prompt = f"""You are a fair, expert academic examiner evaluating a student's answer for an examination.
+    eval_prompt = f"""You are a head examiner for the Central Board of Secondary Education (CBSE) evaluating a student's answer sheet.
+You must grade strictly according to the official CBSE Board Marking Guidelines and Examination Directives.
 
 QUESTION:
 {question_text}
@@ -1138,27 +1151,93 @@ MODEL / REFERENCE ANSWER & KEY CRITERIA:
 {correct_answer or 'Grade based on fundamental correctness, clarity, conceptual accuracy, and completeness.'}
 
 GRADING RUBRIC / EXPLANATION:
-{explanation or 'Award marks proportionately based on correctness (0 to ' + str(max_pts) + ').'}
+{explanation or 'Award marks step-wise proportionally (0 to ' + str(max_pts) + ').'}
 
 STUDENT'S WRITTEN TEXT:
 {student_text or '(No typed text provided - examine the attached photo(s) of the handwritten answer)'}{pages_note}
 
-EVALUATION INSTRUCTIONS:
-1. Carefully inspect the student's submitted response. If multiple pages/photos are attached, inspect all pages sequentially to read the complete solution, proof, or calculation.
-2. For 2, 3, 4, 5, or 10-mark questions:
-   - Award full marks if the answer/proof/calculation across all pages is complete and correct.
-   - Award partial marks (e.g. 1, 1.5, 2, 2.5, 3, 3.5, 4, etc.) for correct steps, valid method, or partially complete explanations.
-   - Award 0 if completely irrelevant or incorrect.
-3. Awarded marks MUST be between 0.0 and {max_pts}.
-4. Provide constructive, concise feedback explaining what was done well and any missing points.
+OFFICIAL CBSE MARKING DIRECTIVES (MANDATORY TO FOLLOW):
+1. STEP-BY-STEP MARKING (VALUE POINTS):
+   - Never award marks solely on the final answer. Marks must be split into step marks (typically ½ or 1 mark value points).
+   - In Mathematics / Numericals:
+     * Stating Given Data & Correct Formula / Theorem: ½ to 1 mark.
+     * Intermediate Substitution & Correct Steps: ½ to 2 marks.
+     * Final Answer with correct SI units / final statement: ½ to 1 mark.
+   - In Science / Physics / Chemistry / Biology:
+     * Mention of core keywords / key value points: ½ to 1 mark each.
+     * Balanced chemical equations (deduct ½ mark if unbalanced): ½ to 1 mark.
+     * Circuit diagrams / Ray diagrams: Deduct ½ mark if ray direction arrows or component polarities (+/-) are missing.
+2. CLAUSE 10: SINGLE PENALTY & ERROR CARRIED FORWARD (ECF):
+   - A student's error must be penalized ONLY ONCE.
+   - If a student makes an arithmetic or algebraic mistake in an early step, deduct marks for THAT specific step. If all subsequent steps are logically and methodologically correct based on that wrong intermediate value, AWARD FULL STEP MARKS for the subsequent steps.
+3. CONSTRUCTIVE DIAGNOSTIC FEEDBACK:
+   - "what_student_did": Clearly state what concepts, formulas, diagrams, or steps the student wrote correctly.
+   - "where_student_went_wrong": Explicitly identify where the error happened (missing step, wrong sign, unbalanced equation, missing arrow, arithmetic slip, or missing unit). If completely correct, write "None. Complete and accurate response."
+   - "how_it_should_be_written": Provide the exact ideal CBSE board presentation of the solution (proper steps, neat formula, units, or key value points).
+   - "examiner_remark": A concise 1-2 sentence examiner note.
+4. TOTAL AWARDED MARKS:
+   - Must be between 0.0 and {max_pts}.
+   - The sum of step marks awarded must match "awarded_marks".
 
-STRICT JSON OUTPUT FORMAT:
-Return ONLY a JSON object with this exact structure:
+STRICT JSON OUTPUT FORMAT (NO MARKDOWN CODEBLOCKS, ONLY VALID JSON):
 {{
   "awarded_marks": 2.5,
-  "feedback": "Page 1 and Page 2 steps are correct. Minor arithmetic error in the final step."
+  "step_breakdown": [
+    {{"step": "Formula stated & given values substituted", "marks_allocated": 1.0, "marks_awarded": 1.0, "status": "full"}},
+    {{"step": "Intermediate algebraic simplification", "marks_allocated": 1.0, "marks_awarded": 1.0, "status": "full"}},
+    {{"step": "Final numerical value with SI unit", "marks_allocated": 0.5, "marks_awarded": 0.5, "status": "full"}}
+  ],
+  "what_student_did": "Student correctly recalled the theorem, set up the equations, and performed the initial substitution accurately.",
+  "where_student_went_wrong": "Minor arithmetic slip in the final denominator division; missing SI units in the final statement.",
+  "how_it_should_be_written": "1. Write formula: P = V × I\\n2. Substitute values: P = 220V × 0.5A\\n3. Final Answer: P = 110 W (with proper unit Watts).",
+  "examiner_remark": "Good conceptual grasp with step-by-step layout. Be cautious with final arithmetic and always write SI units."
 }}
 """
+
+    def _normalize_evaluation_data(data, model_tag):
+        try:
+            awarded = float(data.get("awarded_marks", 0.0))
+        except (ValueError, TypeError):
+            awarded = 0.0
+        awarded = max(0.0, min(max_pts, round(awarded, 1)))
+
+        what_did = (data.get("what_student_did") or "").strip()
+        where_wrong = (data.get("where_student_went_wrong") or "").strip()
+        how_written = (data.get("how_it_should_be_written") or "").strip()
+        remark = (data.get("examiner_remark") or data.get("feedback") or "").strip()
+        raw_steps = data.get("step_breakdown") or []
+        step_breakdown = []
+        if isinstance(raw_steps, list):
+            for s in raw_steps:
+                if isinstance(s, dict):
+                    step_breakdown.append({
+                        "step": str(s.get("step") or "Evaluation Step"),
+                        "marks_allocated": float(s.get("marks_allocated") or 0.0),
+                        "marks_awarded": float(s.get("marks_awarded") or 0.0),
+                        "status": str(s.get("status") or "partial")
+                    })
+
+        # Synthesize rich feedback string for backward compatibility
+        fb_parts = []
+        if remark:
+            fb_parts.append(remark)
+        if what_did:
+            fb_parts.append(f"• Correct Steps: {what_did}")
+        if where_wrong and where_wrong.lower() not in ("none", "none.", "n/a"):
+            fb_parts.append(f"• Areas for Improvement: {where_wrong}")
+        feedback_str = "\n".join(fb_parts) if fb_parts else (remark or "AI evaluated response.")
+
+        return {
+            "success": True,
+            "awarded_marks": awarded,
+            "what_student_did": what_did,
+            "where_student_went_wrong": where_wrong,
+            "how_it_should_be_written": how_written,
+            "step_breakdown": step_breakdown,
+            "examiner_remark": remark,
+            "feedback": feedback_str,
+            "model_used": model_tag
+        }
 
     # 1. Try Gemini first (multimodal vision + multi-page handwriting analysis)
     if gemini_key:
@@ -1208,19 +1287,11 @@ Return ONLY a JSON object with this exact structure:
                             raw_text = raw_text[:-3]
                         raw_text = raw_text.strip()
                         data = json.loads(raw_text)
-                        awarded = float(data.get("awarded_marks", 0.0))
-                        awarded = max(0.0, min(max_pts, round(awarded, 1)))
-                        feedback = data.get("feedback", "AI evaluated response.")
-                        return {
-                            "success": True,
-                            "awarded_marks": awarded,
-                            "feedback": feedback,
-                            "model_used": f"Google Gemini ({model_name})"
-                        }
+                        return _normalize_evaluation_data(data, f"Google Gemini ({model_name}) [CBSE Pattern]")
                 except Exception as e:
                     print(f"Gemini evaluation error ({model_name}): {e}")
 
-    # 3. Try Groq (if text-based or if student provided text)
+    # 2. Try Groq (if text-based or if student provided text)
     if groq_key and student_text:
         groq_keys_pool = parse_api_keys(groq_key)
         groq_models = ["llama-3.3-70b-versatile", "gemma2-9b-it", "mixtral-8x7b-32768"]
@@ -1234,7 +1305,7 @@ Return ONLY a JSON object with this exact structure:
                     payload = {
                         "model": g_model,
                         "messages": [
-                            {"role": "system", "content": "You are an academic grader. Return only JSON with 'awarded_marks' and 'feedback'."},
+                            {"role": "system", "content": "You are a senior CBSE board examiner. Follow step-marking and CBSE directives strictly. Return ONLY valid JSON with 'awarded_marks', 'step_breakdown', 'what_student_did', 'where_student_went_wrong', 'how_it_should_be_written', and 'examiner_remark'."},
                             {"role": "user", "content": eval_prompt}
                         ],
                         "temperature": 0.2,
@@ -1244,15 +1315,7 @@ Return ONLY a JSON object with this exact structure:
                     if resp.status_code == 200:
                         content = resp.json()["choices"][0]["message"]["content"].strip()
                         data = json.loads(content)
-                        awarded = float(data.get("awarded_marks", 0.0))
-                        awarded = max(0.0, min(max_pts, round(awarded, 1)))
-                        feedback = data.get("feedback", "AI evaluated response.")
-                        return {
-                            "success": True,
-                            "awarded_marks": awarded,
-                            "feedback": feedback,
-                            "model_used": f"Groq ({g_model})"
-                        }
+                        return _normalize_evaluation_data(data, f"Groq ({g_model}) [CBSE Pattern]")
                 except Exception as e:
                     print(f"Groq evaluation error ({g_model}): {e}")
 

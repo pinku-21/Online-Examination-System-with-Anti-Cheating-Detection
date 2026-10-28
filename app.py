@@ -1783,6 +1783,11 @@ def api_tutor_evaluate_question(submission_id):
     awarded = float(eval_result["awarded_marks"])
     feedback = eval_result.get("feedback", "")
     model_used = eval_result.get("model_used", "AI")
+    what_student_did = eval_result.get("what_student_did", "")
+    where_student_went_wrong = eval_result.get("where_student_went_wrong", "")
+    how_it_should_be_written = eval_result.get("how_it_should_be_written", "")
+    step_breakdown = eval_result.get("step_breakdown", [])
+    examiner_remark = eval_result.get("examiner_remark", "")
 
     # Save to manual_evaluation_json in submissions
     existing_eval = json.loads(submission["manual_evaluation_json"]) if submission["manual_evaluation_json"] else {}
@@ -1790,6 +1795,11 @@ def api_tutor_evaluate_question(submission_id):
         "awarded_marks": awarded,
         "max_points": float(question["points"]),
         "feedback": feedback,
+        "what_student_did": what_student_did,
+        "where_student_went_wrong": where_student_went_wrong,
+        "how_it_should_be_written": how_it_should_be_written,
+        "step_breakdown": step_breakdown,
+        "examiner_remark": examiner_remark,
         "model_used": model_used,
         "evaluated_by": "ai",
         "evaluated_at": datetime.now(IST).strftime("%Y-%m-%d %H:%M:%S")
@@ -1816,6 +1826,11 @@ def api_tutor_evaluate_question(submission_id):
         "success": True,
         "awarded_marks": awarded,
         "feedback": feedback,
+        "what_student_did": what_student_did,
+        "where_student_went_wrong": where_student_went_wrong,
+        "how_it_should_be_written": how_it_should_be_written,
+        "step_breakdown": step_breakdown,
+        "examiner_remark": examiner_remark,
         "model_used": model_used,
         "new_score": round(new_total_score, 1),
         "total_points": total_exam_points,
@@ -1903,6 +1918,11 @@ def api_tutor_evaluate_all(submission_id):
                 "awarded_marks": awarded,
                 "max_points": q_pts,
                 "feedback": feedback,
+                "what_student_did": eval_result.get("what_student_did", ""),
+                "where_student_went_wrong": eval_result.get("where_student_went_wrong", ""),
+                "how_it_should_be_written": eval_result.get("how_it_should_be_written", ""),
+                "step_breakdown": eval_result.get("step_breakdown", []),
+                "examiner_remark": eval_result.get("examiner_remark", ""),
                 "model_used": model_used,
                 "evaluated_by": "ai",
                 "evaluated_at": datetime.now(IST).strftime("%Y-%m-%d %H:%M:%S")
@@ -2899,6 +2919,11 @@ def tutor_submission_details(submission_id):
         if eval_item:
             q_dict["awarded_marks"] = float(eval_item.get("awarded_marks", 0.0))
             q_dict["eval_feedback"] = eval_item.get("feedback", "")
+            q_dict["eval_what_did"] = eval_item.get("what_student_did", "")
+            q_dict["eval_where_wrong"] = eval_item.get("where_student_went_wrong", "")
+            q_dict["eval_how_written"] = eval_item.get("how_it_should_be_written", "")
+            q_dict["eval_steps"] = eval_item.get("step_breakdown", [])
+            q_dict["eval_remark"] = eval_item.get("examiner_remark", "")
             q_dict["eval_by"] = eval_item.get("evaluated_by", "ai")
             q_dict["eval_model"] = eval_item.get("model_used", "")
             q_dict["eval_at"] = eval_item.get("evaluated_at", "")
@@ -2908,6 +2933,11 @@ def tutor_submission_details(submission_id):
             default_pts = float(q["points"]) if q_dict["is_correct"] else 0.0
             q_dict["awarded_marks"] = default_pts
             q_dict["eval_feedback"] = ""
+            q_dict["eval_what_did"] = ""
+            q_dict["eval_where_wrong"] = ""
+            q_dict["eval_how_written"] = ""
+            q_dict["eval_steps"] = []
+            q_dict["eval_remark"] = ""
             q_dict["eval_by"] = "auto"
             q_dict["eval_model"] = ""
             q_dict["eval_at"] = ""
@@ -4269,6 +4299,11 @@ def exam_result(submission_id):
                 except (ValueError, TypeError):
                     q_dict["awarded_marks"] = 0.0
                 q_dict["eval_feedback"] = eval_item.get("feedback", "")
+                q_dict["eval_what_did"] = eval_item.get("what_student_did", "")
+                q_dict["eval_where_wrong"] = eval_item.get("where_student_went_wrong", "")
+                q_dict["eval_how_written"] = eval_item.get("how_it_should_be_written", "")
+                q_dict["eval_steps"] = eval_item.get("step_breakdown", [])
+                q_dict["eval_remark"] = eval_item.get("examiner_remark", "")
                 q_dict["eval_by"] = eval_item.get("evaluated_by", "ai")
                 q_dict["is_evaluated"] = True
             else:
@@ -4279,6 +4314,11 @@ def exam_result(submission_id):
                 default_pts = pts_val if q_dict["is_correct"] else 0.0
                 q_dict["awarded_marks"] = default_pts
                 q_dict["eval_feedback"] = ""
+                q_dict["eval_what_did"] = ""
+                q_dict["eval_where_wrong"] = ""
+                q_dict["eval_how_written"] = ""
+                q_dict["eval_steps"] = []
+                q_dict["eval_remark"] = ""
                 q_dict["eval_by"] = "auto"
             # Parse AI Distractor Analysis if present
             distractor_raw = q.get("distractor_analysis_json")

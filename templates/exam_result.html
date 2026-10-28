@@ -357,14 +357,52 @@
                                 {% endif %}
                             </div>
 
-                            <div class="p-3.5 rounded-xl bg-sky-50 border border-sky-200">
+                            <div class="p-3.5 rounded-xl bg-sky-50/80 border border-sky-200">
                                 <span class="text-xs font-bold text-sky-800 flex items-center mb-1">
                                     <i data-lucide="message-square" class="w-3.5 h-3.5 mr-1 text-sky-600"></i>
-                                    Instructor / AI Evaluation Feedback
+                                    Examiner Assessment & Feedback
                                 </span>
-                                {% if q.eval_feedback %}
-                                    <p class="text-xs text-sky-950 font-medium whitespace-pre-line">{{ q.eval_feedback }}</p>
-                                    <span class="text-[10px] text-sky-600 mt-1 block">Evaluated by: {{ q.eval_by | upper }}</span>
+                                {% if q.eval_remark or q.eval_feedback %}
+                                    <p class="text-xs text-sky-950 font-medium whitespace-pre-line">{{ q.eval_remark or q.eval_feedback }}</p>
+                                    
+                                    {% if q.eval_steps and q.eval_steps|length > 0 %}
+                                        <div class="mt-2.5 bg-white/90 rounded-lg border border-sky-100 p-2 space-y-1">
+                                            <span class="text-[9px] font-bold text-slate-500 uppercase tracking-wider block">Step Marking Breakdown:</span>
+                                            <div class="divide-y divide-slate-100 text-[10px]">
+                                                {% for st in q.eval_steps %}
+                                                    <div class="py-0.5 flex items-center justify-between">
+                                                        <span class="text-slate-700">{{ st.step }}</span>
+                                                        <span class="font-mono font-bold {% if st.marks_awarded > 0 %}text-emerald-700{% else %}text-rose-600{% endif %}">
+                                                            {{ st.marks_awarded }} / {{ st.marks_allocated }} Mks
+                                                        </span>
+                                                    </div>
+                                                {% endfor %}
+                                            </div>
+                                        </div>
+                                    {% endif %}
+
+                                    {% if q.eval_what_did or q.eval_where_wrong or q.eval_how_written %}
+                                        <div class="mt-2.5 space-y-1.5 text-[11px]">
+                                            {% if q.eval_what_did %}
+                                                <div class="p-2 rounded-lg bg-emerald-50/90 text-emerald-900 border border-emerald-200">
+                                                    <strong class="font-bold text-emerald-950">What You Did Well:</strong> {{ q.eval_what_did }}
+                                                </div>
+                                            {% endif %}
+                                            {% if q.eval_where_wrong and q.eval_where_wrong|lower != 'none' and q.eval_where_wrong|lower != 'none.' %}
+                                                <div class="p-2 rounded-lg bg-rose-50/90 text-rose-900 border border-rose-200">
+                                                    <strong class="font-bold text-rose-950">Where You Went Wrong:</strong> {{ q.eval_where_wrong }}
+                                                </div>
+                                            {% endif %}
+                                            {% if q.eval_how_written %}
+                                                <div class="p-2 rounded-lg bg-sky-100/70 text-sky-950 border border-sky-200">
+                                                    <strong class="font-bold text-sky-950">Ideal CBSE Presentation:</strong>
+                                                    <p class="whitespace-pre-line mt-0.5 font-mono text-[10px]">{{ q.eval_how_written }}</p>
+                                                </div>
+                                            {% endif %}
+                                        </div>
+                                    {% endif %}
+
+                                    <span class="text-[10px] text-sky-600 mt-2 block font-medium">Evaluated by: {{ q.eval_by | upper }}</span>
                                 {% else %}
                                     <p class="text-xs text-slate-500 italic">No additional remarks provided.</p>
                                 {% endif %}

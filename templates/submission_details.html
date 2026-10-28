@@ -774,22 +774,94 @@
                         </div>
                     {% endif %}
 
-                    <!-- AI / Teacher Evaluation Feedback Banner -->
-                    {% if q.is_evaluated and q.eval_feedback %}
-                        <div class="p-3.5 rounded-xl border {% if q.eval_by == 'ai' %}bg-indigo-50/70 border-indigo-200 text-indigo-950{% else %}bg-amber-50/70 border-amber-200 text-amber-950{% endif %} text-xs space-y-1">
-                            <div class="flex items-center justify-between font-bold">
-                                <span class="flex items-center space-x-1.5">
+                    <!-- AI / Teacher Evaluation Feedback Banner with CBSE Marking Breakdown -->
+                    {% if q.is_evaluated and (q.eval_feedback or q.eval_what_did or q.eval_where_wrong or q.eval_how_written) %}
+                        <div class="p-4 rounded-2xl border {% if q.eval_by == 'ai' %}bg-gradient-to-br from-indigo-50/80 via-white to-sky-50/80 border-indigo-200 text-slate-800{% else %}bg-amber-50/70 border-amber-200 text-amber-950{% endif %} text-xs space-y-3 shadow-2xs">
+                            <div class="flex items-center justify-between font-bold border-b border-indigo-100 pb-2">
+                                <span class="flex items-center space-x-1.5 text-indigo-900">
                                     {% if q.eval_by == 'ai' %}
-                                        <i data-lucide="sparkles" class="w-3.5 h-3.5 text-indigo-600"></i>
-                                        <span>AI Grader Assessment ({{ q.eval_model or 'AI Engine' }})</span>
+                                        <i data-lucide="sparkles" class="w-4 h-4 text-indigo-600"></i>
+                                        <span class="text-xs uppercase tracking-wider font-extrabold">CBSE Pattern Evaluation ({{ q.eval_model or 'ExamGuard AI' }})</span>
                                     {% else %}
-                                        <i data-lucide="user-check" class="w-3.5 h-3.5 text-amber-600"></i>
-                                        <span>Teacher Manual Review</span>
+                                        <i data-lucide="user-check" class="w-4 h-4 text-amber-600"></i>
+                                        <span class="text-xs uppercase tracking-wider font-extrabold">Teacher Manual Review</span>
                                     {% endif %}
                                 </span>
                                 <span class="text-[10px] font-normal text-slate-500 font-mono">{{ q.eval_at }}</span>
                             </div>
-                            <p class="text-slate-700 leading-relaxed">{{ q.eval_feedback }}</p>
+
+                            {% if q.eval_remark %}
+                                <div class="p-2.5 rounded-xl bg-white/90 border border-indigo-100/80">
+                                    <span class="text-[10px] font-bold uppercase tracking-wider text-indigo-700 block mb-0.5">Examiner Summary Note:</span>
+                                    <p class="text-slate-800 font-medium leading-relaxed">{{ q.eval_remark }}</p>
+                                </div>
+                            {% endif %}
+
+                            <!-- CBSE Step-Marking Rubric Breakdown Table -->
+                            {% if q.eval_steps and q.eval_steps|length > 0 %}
+                                <div class="bg-white rounded-xl border border-slate-200 overflow-hidden">
+                                    <div class="px-3 py-1.5 bg-slate-100/80 border-b border-slate-200 font-bold text-[11px] text-slate-700 flex items-center justify-between">
+                                        <span class="flex items-center"><i data-lucide="list-checks" class="w-3.5 h-3.5 mr-1 text-indigo-600"></i> CBSE Step-by-Step Value Points Breakdown</span>
+                                        <span class="text-[10px] text-slate-500">Step Marking</span>
+                                    </div>
+                                    <div class="divide-y divide-slate-100 text-[11px]">
+                                        {% for st in q.eval_steps %}
+                                            <div class="px-3 py-1.5 flex items-center justify-between gap-2 hover:bg-slate-50/60">
+                                                <div class="flex items-center space-x-2">
+                                                    {% if st.marks_awarded >= st.marks_allocated and st.marks_allocated > 0 %}
+                                                        <span class="w-4 h-4 rounded-full bg-emerald-100 text-emerald-700 flex items-center justify-center text-[9px] font-bold">✓</span>
+                                                    {% elif st.marks_awarded > 0 %}
+                                                        <span class="w-4 h-4 rounded-full bg-amber-100 text-amber-700 flex items-center justify-center text-[9px] font-bold">½</span>
+                                                    {% else %}
+                                                        <span class="w-4 h-4 rounded-full bg-rose-100 text-rose-700 flex items-center justify-center text-[9px] font-bold">✕</span>
+                                                    {% endif %}
+                                                    <span class="text-slate-700">{{ st.step }}</span>
+                                                </div>
+                                                <span class="font-mono font-bold text-slate-800 whitespace-nowrap">
+                                                    {{ st.marks_awarded }} / {{ st.marks_allocated }} Mks
+                                                </span>
+                                            </div>
+                                        {% endfor %}
+                                    </div>
+                                </div>
+                            {% endif %}
+
+                            <!-- What Student Did vs Where Student Went Wrong vs How It Should Be Written -->
+                            <div class="grid grid-cols-1 md:grid-cols-3 gap-2.5 pt-1">
+                                {% if q.eval_what_did %}
+                                    <div class="p-2.5 rounded-xl bg-emerald-50/80 border border-emerald-200/90 text-emerald-950">
+                                        <span class="text-[10px] font-bold uppercase tracking-wider text-emerald-800 flex items-center mb-1">
+                                            <i data-lucide="check-circle" class="w-3.5 h-3.5 mr-1 text-emerald-600"></i>
+                                            What Student Did
+                                        </span>
+                                        <p class="text-[11px] leading-relaxed text-emerald-900">{{ q.eval_what_did }}</p>
+                                    </div>
+                                {% endif %}
+
+                                {% if q.eval_where_wrong %}
+                                    <div class="p-2.5 rounded-xl bg-rose-50/80 border border-rose-200/90 text-rose-950">
+                                        <span class="text-[10px] font-bold uppercase tracking-wider text-rose-800 flex items-center mb-1">
+                                            <i data-lucide="alert-circle" class="w-3.5 h-3.5 mr-1 text-rose-600"></i>
+                                            Where Student Went Wrong
+                                        </span>
+                                        <p class="text-[11px] leading-relaxed text-rose-900">{{ q.eval_where_wrong }}</p>
+                                    </div>
+                                {% endif %}
+
+                                {% if q.eval_how_written %}
+                                    <div class="p-2.5 rounded-xl bg-sky-50/80 border border-sky-200/90 text-sky-950">
+                                        <span class="text-[10px] font-bold uppercase tracking-wider text-sky-800 flex items-center mb-1">
+                                            <i data-lucide="file-check" class="w-3.5 h-3.5 mr-1 text-sky-600"></i>
+                                            How It Should Be Written
+                                        </span>
+                                        <p class="text-[11px] leading-relaxed text-sky-900 whitespace-pre-line">{{ q.eval_how_written }}</p>
+                                    </div>
+                                {% endif %}
+                            </div>
+
+                            {% if not q.eval_what_did and not q.eval_where_wrong and q.eval_feedback %}
+                                <p class="text-slate-700 leading-relaxed">{{ q.eval_feedback }}</p>
+                            {% endif %}
                         </div>
                     {% endif %}
 
@@ -1147,14 +1219,45 @@
             const res = await resp.json();
 
             if (res.success) {
+                let stepsHtml = '';
+                if (res.step_breakdown && res.step_breakdown.length > 0) {
+                    stepsHtml = `
+                        <div class="mt-2 bg-white rounded-lg border border-slate-200 p-2 space-y-1">
+                            <span class="text-[10px] font-bold text-slate-700 uppercase tracking-wider block">CBSE Step-by-Step Marking:</span>
+                            <div class="divide-y divide-slate-100 text-[11px]">
+                                ${res.step_breakdown.map(s => `
+                                    <div class="py-1 flex items-center justify-between">
+                                        <span class="text-slate-600 truncate max-w-[220px]" title="${s.step}">${s.step}</span>
+                                        <span class="font-mono font-bold ${s.marks_awarded > 0 ? 'text-emerald-700' : 'text-rose-600'}">${s.marks_awarded} / ${s.marks_allocated} Mks</span>
+                                    </div>
+                                `).join('')}
+                            </div>
+                        </div>
+                    `;
+                }
+
+                let diagHtml = '';
+                if (res.what_student_did || res.where_student_went_wrong) {
+                    diagHtml = `
+                        <div class="mt-2 space-y-1.5 text-[11px]">
+                            ${res.what_student_did ? `<div class="p-2 rounded-lg bg-emerald-50 text-emerald-900 border border-emerald-200"><strong>Correct Steps:</strong> ${res.what_student_did}</div>` : ''}
+                            ${res.where_student_went_wrong && res.where_student_went_wrong.toLowerCase() !== 'none' ? `<div class="p-2 rounded-lg bg-rose-50 text-rose-900 border border-rose-200"><strong>Errors / Missing:</strong> ${res.where_student_went_wrong}</div>` : ''}
+                        </div>
+                    `;
+                }
+
                 Swal.fire({
                     icon: 'success',
                     title: `AI Awarded: ${res.awarded_marks} / ${maxPoints} Marks`,
                     html: `
-                        <div class="text-left text-xs bg-slate-50 p-3 rounded-xl border border-slate-200 mt-2 space-y-2">
-                            <p class="font-semibold text-slate-800"><span class="text-indigo-600">AI Feedback:</span> ${res.feedback}</p>
-                            <p class="text-[11px] text-slate-500">Graded by: <span class="font-bold text-slate-700">${res.model_used}</span></p>
-                            <p class="text-[11px] text-slate-500">Total student score updated to: <strong class="text-slate-900">${res.new_score} / ${res.total_points} (${res.percentage}%)</strong></p>
+                        <div class="text-left text-xs bg-slate-50 p-3.5 rounded-xl border border-slate-200 mt-2 space-y-2 max-h-96 overflow-y-auto">
+                            ${res.examiner_remark ? `<p class="font-medium text-slate-800"><span class="font-bold text-indigo-600">Examiner Remark:</span> ${res.examiner_remark}</p>` : `<p class="text-slate-700">${res.feedback}</p>`}
+                            ${stepsHtml}
+                            ${diagHtml}
+                            <div class="pt-2 border-t border-slate-200 text-[11px] text-slate-500 flex items-center justify-between">
+                                <span>Graded by: <strong class="text-slate-700">${res.model_used}</strong></span>
+                                <span>Score: <strong class="text-slate-900">${res.new_score} / ${res.total_points} (${res.percentage}%)</strong></span>
+                            </div>
                             <p class="text-[10px] text-slate-400 italic">You can change or override this mark anytime using "Edit Mark".</p>
                         </div>
                     `,
