@@ -91,7 +91,7 @@
 
     <!-- Segmented View Toggle Switcher (Exams vs Students) -->
     <div class="mb-6 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-        <div class="inline-flex p-1 bg-slate-100 dark:bg-slate-800 rounded-2xl border border-slate-200 dark:border-slate-700 shadow-inner">
+        <div class="inline-flex p-1 bg-slate-100 dark:bg-slate-800 rounded-2xl border border-slate-200 dark:border-slate-700 shadow-inner flex-wrap">
             <button type="button" id="tab-btn-exams" onclick="switchDashboardView('exams')" class="px-5 py-2.5 rounded-xl text-xs sm:text-sm font-bold flex items-center space-x-2 transition-all bg-white dark:bg-slate-900 text-slate-900 dark:text-white shadow-sm cursor-pointer">
                 <i data-lucide="layers" class="w-4 h-4 text-sky-600"></i>
                 <span>Created Exams ({{ exams|length }})</span>
@@ -100,6 +100,13 @@
             <button type="button" id="tab-btn-students" onclick="switchDashboardView('students')" class="px-5 py-2.5 rounded-xl text-xs sm:text-sm font-semibold flex items-center space-x-2 transition-all text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white cursor-pointer">
                 <i data-lucide="users" class="w-4 h-4 text-indigo-600"></i>
                 <span>Student Accounts ({{ students|length }})</span>
+            </button>
+            <button type="button" id="tab-btn-soc" onclick="switchDashboardView('soc')" class="px-5 py-2.5 rounded-xl text-xs sm:text-sm font-semibold flex items-center space-x-2 transition-all text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white cursor-pointer">
+                <i data-lucide="shield-alert" class="w-4 h-4 text-violet-600"></i>
+                <span>SOC Cyber Alerts ({{ security_incidents|length }})</span>
+                {% if sec_critical_count > 0 %}
+                    <span class="px-1.5 py-0.2 rounded-full text-[10px] font-black bg-rose-100 text-rose-700 border border-rose-200 ml-1">{{ sec_critical_count }}</span>
+                {% endif %}
             </button>
         </div>
 
@@ -309,7 +316,7 @@
     </div>
 
     <!-- SIEM Security Operations Center (SOC) & Incident Response Telemetry -->
-    <div class="bg-white rounded-2xl border border-slate-200/80 shadow-sm overflow-hidden mb-8">
+    <div id="section-view-soc" class="hidden bg-white rounded-2xl border border-slate-200/80 shadow-sm overflow-hidden mb-8">
         <div class="p-6 border-b border-slate-200 flex flex-col sm:flex-row sm:items-center justify-between gap-3 bg-gradient-to-r from-slate-900 via-slate-850 to-slate-800 text-white">
             <div class="flex items-center space-x-3">
                 <div class="w-10 h-10 rounded-xl bg-violet-500/20 text-violet-400 flex items-center justify-center border border-violet-500/30">
@@ -1169,29 +1176,43 @@
         }
     }
 
-    // Segmented Dashboard View Switcher (Created Exams vs Student Accounts)
+    // Segmented Dashboard View Switcher (Created Exams vs Student Accounts vs SOC Telemetry)
     function switchDashboardView(viewMode) {
         const examsSec = document.getElementById('section-view-exams');
         const studentsSec = document.getElementById('section-view-students');
+        const socSec = document.getElementById('section-view-soc');
         const btnExams = document.getElementById('tab-btn-exams');
         const btnStudents = document.getElementById('tab-btn-students');
+        const btnSoc = document.getElementById('tab-btn-soc');
 
-        if (!examsSec || !studentsSec) return;
+        if (!examsSec || !studentsSec || !socSec) return;
+
+        // Reset all sections to hidden
+        examsSec.classList.add('hidden');
+        studentsSec.classList.add('hidden');
+        socSec.classList.add('hidden');
+
+        // Common inactive button style
+        const inactiveClass = 'px-5 py-2.5 rounded-xl text-xs sm:text-sm font-semibold flex items-center space-x-2 transition-all text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white cursor-pointer';
+        // Common active button style
+        const activeClass = 'px-5 py-2.5 rounded-xl text-xs sm:text-sm font-bold flex items-center space-x-2 transition-all bg-white dark:bg-slate-900 text-slate-900 dark:text-white shadow-sm cursor-pointer';
+
+        btnExams.className = inactiveClass;
+        btnStudents.className = inactiveClass;
+        if (btnSoc) btnSoc.className = inactiveClass;
 
         if (viewMode === 'students') {
-            examsSec.classList.add('hidden');
             studentsSec.classList.remove('hidden');
             studentsSec.classList.remove('mt-8');
-
-            btnStudents.className = 'px-5 py-2.5 rounded-xl text-xs sm:text-sm font-bold flex items-center space-x-2 transition-all bg-white dark:bg-slate-900 text-slate-900 dark:text-white shadow-sm cursor-pointer';
-            btnExams.className = 'px-5 py-2.5 rounded-xl text-xs sm:text-sm font-semibold flex items-center space-x-2 transition-all text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white cursor-pointer';
+            btnStudents.className = activeClass;
             localStorage.setItem('examguard_tutor_tab', 'students');
+        } else if (viewMode === 'soc') {
+            socSec.classList.remove('hidden');
+            if (btnSoc) btnSoc.className = activeClass;
+            localStorage.setItem('examguard_tutor_tab', 'soc');
         } else {
-            studentsSec.classList.add('hidden');
             examsSec.classList.remove('hidden');
-
-            btnExams.className = 'px-5 py-2.5 rounded-xl text-xs sm:text-sm font-bold flex items-center space-x-2 transition-all bg-white dark:bg-slate-900 text-slate-900 dark:text-white shadow-sm cursor-pointer';
-            btnStudents.className = 'px-5 py-2.5 rounded-xl text-xs sm:text-sm font-semibold flex items-center space-x-2 transition-all text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white cursor-pointer';
+            btnExams.className = activeClass;
             localStorage.setItem('examguard_tutor_tab', 'exams');
         }
         if (window.lucide) lucide.createIcons();
@@ -1201,6 +1222,10 @@
         const savedTab = localStorage.getItem('examguard_tutor_tab');
         if (savedTab === 'students') {
             switchDashboardView('students');
+        } else if (savedTab === 'soc') {
+            switchDashboardView('soc');
+        } else {
+            switchDashboardView('exams');
         }
     });
 </script>
