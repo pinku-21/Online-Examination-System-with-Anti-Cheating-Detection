@@ -2157,20 +2157,23 @@ Section B - Short Questions (3 marks each)
                 questionsData[qIndex].question_text = "Match the following items in Column A with their corresponding descriptions in Column B:";
             }
         } else if (newType === 'map_hotspot') {
+            const defaultMapUrl = questionsData[qIndex].figure_url || "/static/maps/india.svg";
+            questionsData[qIndex].figure_url = defaultMapUrl;
+            questionsData[qIndex].figure_svg = null;
             questionsData[qIndex].options = {
-                image_url: questionsData[qIndex].figure_url || "",
+                image_url: defaultMapUrl,
                 hotspots: [
-                    { id: "P1", x: 30.0, y: 40.0, title: "Pin 1" },
-                    { id: "P2", x: 60.0, y: 55.0, title: "Pin 2" }
+                    { id: "P1", x: 28.0, y: 31.5, title: "Pin 1" },
+                    { id: "P2", x: 24.5, y: 56.0, title: "Pin 2" }
                 ],
-                labels: ["Feature 1", "Feature 2", "Feature 3"]
+                labels: ["Jaipur (Rajasthan)", "Mumbai (Maharashtra)", "Kolkata (West Bengal)", "Bengaluru (Karnataka)"]
             };
             questionsData[qIndex].correct_answer = {
-                "P1": "Feature 1",
-                "P2": "Feature 2"
+                "P1": "Jaipur (Rajasthan)",
+                "P2": "Mumbai (Maharashtra)"
             };
             if (!questionsData[qIndex].question_text || questionsData[qIndex].question_text === 'New Question') {
-                questionsData[qIndex].question_text = "Identify the marked locations or diagram components shown on the map below:";
+                questionsData[qIndex].question_text = "On the outline map of India, identify the marked state capitals or locations:";
             }
         } else if (newType === 'tf') {
             questionsData[qIndex].options = ["True", "False"];

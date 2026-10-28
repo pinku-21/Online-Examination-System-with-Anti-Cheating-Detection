@@ -335,20 +335,36 @@ SPECIALIZED QUESTION FORMAT RULES:
      (AI must automatically pair every left ID to its correct matching right ID!)
 
 3. MAP & HOTSPOT IDENTIFICATION QUESTIONS (question_type: "map_hotspot"):
-   - For Geography, World/Country Maps, Anatomy, Circuit, or Science Diagrams:
-     Set "question_type": "map_hotspot".
-     Provide either a valid illustrative map SVG in "figure_svg" or a map URL in "figure_url".
-     "options": {{
-       "image_url": "...",
-       "hotspots": [
-         {{"id": "P1", "x": 32.5, "y": 45.0, "title": "Pin 1"}},
-         {{"id": "P2", "x": 65.0, "y": 58.2, "title": "Pin 2"}},
-         {{"id": "P3", "x": 48.0, "y": 25.4, "title": "Pin 3"}}
-       ],
-       "labels": ["Correct Name 1", "Correct Name 2", "Correct Name 3", "Distractor Label 4"]
-     }}
-     "correct_answer": {{"P1": "Correct Name 1", "P2": "Correct Name 2", "P3": "Correct Name 3"}}
-     (AI must set the percentage coordinates (x%, y%) and automatically match each pin to its correct label!)
+   - CRITICAL MAP ACCURACY RULE:
+     NEVER hallucinate or hand-draw crude random polygon lines for geographic maps!
+     Instead, always use the system's official real geographic map assets:
+     * For India maps (States, Capitals, Rivers, Mountains, Cities):
+       Set "figure_url": "/static/maps/india.svg"
+       Set "figure_svg": null
+       Set "options": {{ "image_url": "/static/maps/india.svg", "hotspots": [...], "labels": [...] }}
+       (Accurate percentage coordinates for India map viewBox:
+         - New Delhi: x=34.0, y=28.5
+         - Jaipur (Rajasthan): x=28.0, y=31.5
+         - Mumbai (Maharashtra): x=24.5, y=56.0
+         - Kolkata (West Bengal): x=66.5, y=44.0
+         - Bengaluru (Karnataka): x=34.0, y=74.0
+         - Chennai (Tamil Nadu): x=42.0, y=75.5
+         - Lucknow (Uttar Pradesh): x=46.5, y=32.0
+         - Patna (Bihar): x=56.0, y=34.5
+         - Gandhinagar/Ahmedabad (Gujarat): x=19.5, y=40.5
+         - Hyderabad (Telangana): x=38.5, y=57.0
+         - Bhopal (Madhya Pradesh): x=35.0, y=43.0
+         - Thiruvananthapuram (Kerala): x=32.5, y=87.5
+         - Srinagar (Jammu & Kashmir): x=27.5, y=14.5
+         - Guwahati (Assam): x=78.5, y=32.0
+       )
+     * For World maps (Continents, Oceans, Countries):
+       Set "figure_url": "/static/maps/world.svg"
+       Set "figure_svg": null
+       Set "options": {{ "image_url": "/static/maps/world.svg", "hotspots": [...], "labels": [...] }}
+     * For scientific/biology/circuit diagrams: You can supply a high-fidelity SVG or diagram URL.
+   - Hotspot & Answer Matching:
+     Always provide accurate (x%, y%) coordinates, the list of candidate labels in "labels", and the ground-truth pin map in "correct_answer": {{"P1": "Jaipur", "P2": "Mumbai", ...}}.
 4. CASE-BASED / PASSAGE / SOURCE-BASED QUESTIONS:
    - Provide a realistic 3-4 sentence scientific or real-world passage followed by sub-questions.
 
