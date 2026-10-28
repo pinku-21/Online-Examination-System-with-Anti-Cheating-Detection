@@ -12,60 +12,75 @@
             <p class="text-slate-500 text-sm mt-1">Manage AI question generation, exams, and anti-cheating proctoring reports.</p>
         </div>
         <div class="flex flex-wrap items-center gap-3">
-
-            <button onclick="document.getElementById('api-key-modal').classList.remove('hidden')" class="px-4 py-2.5 bg-white border border-slate-300 hover:border-slate-400 text-slate-700 text-sm font-medium rounded-xl shadow-sm transition flex items-center space-x-2">
+            <button onclick="document.getElementById('api-key-modal').classList.remove('hidden')" class="shadcn-btn shadcn-btn-outline h-10 px-4 rounded-xl">
                 <i data-lucide="key" class="w-4 h-4 text-amber-500"></i>
                 <span>AI Keys {% if has_api_key %}<span class="text-xs text-emerald-600 font-semibold">✓ Active</span>{% else %}<span class="text-xs text-rose-500 font-semibold">! Needs Setup</span>{% endif %}</span>
             </button>
-            <a href="/tutor/exam/new" class="px-5 py-2.5 bg-sky-600 hover:bg-sky-700 text-white text-sm font-semibold rounded-xl shadow-md shadow-sky-600/20 transition flex items-center space-x-2">
+            <a href="/tutor/exam/new" class="shadcn-btn shadcn-btn-primary h-10 px-4 rounded-xl">
                 <i data-lucide="plus-circle" class="w-4 h-4"></i>
                 <span>Create Exam with AI</span>
             </a>
         </div>
     </div>
 
-    <!-- Quick Stats Cards -->
+    <!-- Quick Stats Cards (shadcn-card styling) -->
     <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-5 mb-8">
-        <div class="bg-white rounded-2xl p-6 border border-slate-200/80 shadow-sm flex items-center space-x-4">
-            <div class="w-12 h-12 rounded-xl bg-sky-100 text-sky-600 flex items-center justify-center">
-                <i data-lucide="file-text" class="w-6 h-6"></i>
+        <div class="shadcn-card p-5 bg-white flex items-center space-x-4">
+            <div class="w-11 h-11 rounded-lg bg-sky-50 text-sky-600 border border-sky-100 flex items-center justify-center">
+                <i data-lucide="file-text" class="w-5 h-5"></i>
             </div>
             <div>
-                <p class="text-xs font-medium text-slate-500 uppercase tracking-wider">Total Exams</p>
+                <p class="text-xs font-semibold text-slate-500 uppercase tracking-wider">Total Exams</p>
                 <h3 class="text-2xl font-bold text-slate-900 mt-0.5">{{ exams|length }}</h3>
             </div>
         </div>
 
-        <div class="bg-white rounded-2xl p-6 border border-slate-200/80 shadow-sm flex items-center space-x-4">
-            <div class="w-12 h-12 rounded-xl bg-indigo-100 text-indigo-600 flex items-center justify-center">
-                <i data-lucide="users" class="w-6 h-6"></i>
+        <div class="shadcn-card p-5 bg-white flex items-center space-x-4">
+            <div class="w-11 h-11 rounded-lg bg-indigo-50 text-indigo-600 border border-indigo-100 flex items-center justify-center">
+                <i data-lucide="users" class="w-5 h-5"></i>
             </div>
             <div>
-                <p class="text-xs font-medium text-slate-500 uppercase tracking-wider">Student Attempts</p>
+                <p class="text-xs font-semibold text-slate-500 uppercase tracking-wider">Student Attempts</p>
                 <h3 class="text-2xl font-bold text-slate-900 mt-0.5">
                     {{ exams|sum(attribute='submission_count') if exams else 0 }}
                 </h3>
             </div>
         </div>
 
-        <div class="bg-white rounded-2xl p-6 border border-slate-200/80 shadow-sm flex items-center space-x-4">
-            <div class="w-12 h-12 rounded-xl bg-rose-100 text-rose-600 flex items-center justify-center">
-                <i data-lucide="shield-x" class="w-6 h-6"></i>
+        <div class="shadcn-card p-5 bg-white flex items-center space-x-4">
+            <div class="w-11 h-11 rounded-lg bg-rose-50 text-rose-600 border border-rose-100 flex items-center justify-center">
+                <i data-lucide="shield-x" class="w-5 h-5"></i>
             </div>
             <div>
-                <p class="text-xs font-medium text-slate-500 uppercase tracking-wider">Cheating Terminations</p>
+                <p class="text-xs font-semibold text-slate-500 uppercase tracking-wider">Cheating Terminations</p>
                 <h3 class="text-2xl font-bold text-slate-900 mt-0.5">
                     {{ exams|sum(attribute='terminated_count') if exams else 0 }}
                 </h3>
             </div>
         </div>
 
-        <div class="bg-white rounded-2xl p-6 border border-slate-200/80 shadow-sm flex items-center space-x-4">
-            <div class="w-12 h-12 rounded-xl bg-violet-100 text-violet-700 flex items-center justify-center">
-                <i data-lucide="activity" class="w-6 h-6"></i>
+        <div class="shadcn-card p-5 bg-white flex items-center space-x-4">
+            <div class="w-11 h-11 rounded-lg bg-emerald-50 text-emerald-600 border border-emerald-100 flex items-center justify-center">
+                <i data-lucide="check-circle" class="w-5 h-5"></i>
             </div>
             <div>
-                <p class="text-xs font-medium text-slate-500 uppercase tracking-wider">SOC Cyber Alerts</p>
+                <p class="text-xs font-semibold text-slate-500 uppercase tracking-wider">Avg Passing Rate</p>
+                <h3 class="text-2xl font-bold text-slate-900 mt-0.5">
+                    {% set total_sub = exams|sum(attribute='submission_count') if exams else 0 %}
+                    {% if total_sub > 0 %}
+                        {{ ((exams|sum(attribute='passed_count') if exams else 0) / total_sub * 100)|round|int }}%
+                    {% else %}
+                        --
+                    {% endif %}
+                </h3>
+            </div>
+        </div>
+        <div class="shadcn-card p-5 bg-white flex items-center space-x-4">
+            <div class="w-11 h-11 rounded-lg bg-violet-50 text-violet-700 border border-violet-100 flex items-center justify-center">
+                <i data-lucide="activity" class="w-5 h-5"></i>
+            </div>
+            <div>
+                <p class="text-xs font-semibold text-slate-500 uppercase tracking-wider">SOC Cyber Alerts</p>
                 <div class="flex items-center gap-2 mt-0.5">
                     <h3 class="text-2xl font-bold text-slate-900">{{ security_incidents|length }}</h3>
                     {% if sec_critical_count > 0 %}

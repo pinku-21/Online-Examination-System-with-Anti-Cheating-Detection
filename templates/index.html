@@ -1,32 +1,93 @@
 {% extends "base.html" %}
 
 {% block content %}
-<div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-12">
+<div class="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 py-16">
     <!-- Hero Section -->
-    <div class="text-center max-w-3xl mx-auto pt-6 pb-12">
+    <div class="text-center max-w-3xl mx-auto">
+        <!-- Top Announcement Badge -->
+        <div class="inline-flex items-center gap-2 px-3 py-1.5 rounded-full border border-slate-200 bg-white shadow-xs text-xs font-medium text-slate-700 mb-6">
+            <span class="inline-block w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></span>
+            <span class="font-semibold text-slate-900">ExamGuard AI v2.4</span>
+            <span class="text-slate-400">|</span>
+            <span class="text-slate-600">Multi-Sensor Anti-Cheating Engine</span>
+        </div>
 
-        <h1 class="text-4xl sm:text-5xl font-extrabold text-slate-900 tracking-tight leading-tight">
-            Next-Gen Online Examination with 
-            <span class="text-transparent bg-clip-text bg-gradient-to-r from-sky-600 to-indigo-600">AI Questions & Anti-Cheating</span>
+        <h1 class="text-4xl sm:text-6xl font-black text-slate-900 tracking-tight leading-[1.15]">
+            High-Integrity Online Exams, 
+            <span class="text-transparent bg-clip-text bg-gradient-to-r from-sky-600 via-indigo-600 to-sky-700">Autonomous Proctoring</span>
         </h1>
-        <p class="mt-5 text-lg text-slate-600 leading-relaxed">
-            Eliminate exam creation hassle for online tutors. Upload chapter PDFs or book photos to automatically generate MCQs with Gemini AI, then enforce strict proctoring that terminates exams on repeated cheating strikes.
+        <p class="mt-6 text-base sm:text-lg text-slate-600 leading-relaxed max-w-2xl mx-auto">
+            Eliminate exam administration complexity. Generate questions with Gemini AI, run edge-based multi-sensor proctoring, and review verifiable fraud forensics in seconds.
         </p>
 
-        <!-- CTA Buttons -->
-        <div class="mt-8 flex flex-col sm:flex-row items-center justify-center gap-4">
-            <a href="/login?role=admin" class="w-full sm:w-auto px-8 py-3.5 bg-indigo-600 hover:bg-indigo-700 text-white font-semibold rounded-xl shadow-lg shadow-indigo-600/20 transition flex items-center justify-center space-x-2">
-                <i data-lucide="shield" class="w-5 h-5"></i>
-                <span>Admin / Tutor Login</span>
+        <!-- CTA Action Buttons (shadcn style) -->
+        <div class="mt-8 flex flex-wrap items-center justify-center gap-3">
+            <a href="/login?role=admin" class="shadcn-btn shadcn-btn-default h-11 px-6 rounded-xl font-medium shadow-sm hover:shadow">
+                <i data-lucide="shield" class="w-4 h-4 text-indigo-400"></i>
+                <span>Tutor / Admin Portal</span>
             </a>
-            <a href="/login?role=student" class="w-full sm:w-auto px-8 py-3.5 bg-sky-600 hover:bg-sky-700 text-white font-semibold rounded-xl shadow-lg shadow-sky-600/20 transition flex items-center justify-center space-x-2">
-                <i data-lucide="user" class="w-5 h-5"></i>
+            <a href="/login?role=student" class="shadcn-btn shadcn-btn-primary h-11 px-6 rounded-xl font-medium shadow-sm hover:shadow">
+                <i data-lucide="user-check" class="w-4 h-4"></i>
                 <span>Student Sign In</span>
             </a>
-            <a href="/register" class="w-full sm:w-auto px-8 py-3.5 bg-white border border-slate-300 hover:border-slate-400 text-slate-800 font-semibold rounded-xl shadow-sm transition flex items-center justify-center space-x-2">
-                <i data-lucide="user-plus" class="w-5 h-5"></i>
-                <span>New Student? Sign Up</span>
+            <a href="/register" class="shadcn-btn shadcn-btn-outline h-11 px-5 rounded-xl font-medium">
+                <i data-lucide="user-plus" class="w-4 h-4 text-slate-500"></i>
+                <span>Register Account</span>
             </a>
+        </div>
+    </div>
+
+    <!-- Feature Bento Grid (shadcn-card styling) -->
+    <div class="mt-16 grid grid-cols-1 md:grid-cols-3 gap-6">
+        <!-- Feature 1 -->
+        <div class="shadcn-card p-6 bg-white flex flex-col justify-between">
+            <div>
+                <div class="w-10 h-10 rounded-lg bg-sky-50 text-sky-600 border border-sky-100 flex items-center justify-center mb-4">
+                    <i data-lucide="sparkles" class="w-5 h-5"></i>
+                </div>
+                <h3 class="font-bold text-slate-900 text-lg mb-2">AI-Driven Question Gen</h3>
+                <p class="text-sm text-slate-600 leading-relaxed">
+                    Upload chapter PDFs or course notes to automatically produce rigorous, balanced MCQs with formulas rendered via KaTeX.
+                </p>
+            </div>
+            <div class="mt-5 pt-4 border-t border-slate-100 flex items-center justify-between text-xs text-slate-500">
+                <span>Gemini 2.5 & Groq</span>
+                <span class="font-medium text-sky-600">Automated</span>
+            </div>
+        </div>
+
+        <!-- Feature 2 -->
+        <div class="shadcn-card p-6 bg-white flex flex-col justify-between">
+            <div>
+                <div class="w-10 h-10 rounded-lg bg-indigo-50 text-indigo-600 border border-indigo-100 flex items-center justify-center mb-4">
+                    <i data-lucide="eye" class="w-5 h-5"></i>
+                </div>
+                <h3 class="font-bold text-slate-900 text-lg mb-2">Client Edge Proctoring</h3>
+                <p class="text-sm text-slate-600 leading-relaxed">
+                    Browser ML models (BlazeFace & COCO-SSD) flag multi-face presence, gaze deviations, and unauthorized mobile phones in real-time.
+                </p>
+            </div>
+            <div class="mt-5 pt-4 border-t border-slate-100 flex items-center justify-between text-xs text-slate-500">
+                <span>TensorFlow.js Edge</span>
+                <span class="font-medium text-indigo-600">Zero Server Lag</span>
+            </div>
+        </div>
+
+        <!-- Feature 3 -->
+        <div class="shadcn-card p-6 bg-white flex flex-col justify-between">
+            <div>
+                <div class="w-10 h-10 rounded-lg bg-emerald-50 text-emerald-600 border border-emerald-100 flex items-center justify-center mb-4">
+                    <i data-lucide="file-check-2" class="w-5 h-5"></i>
+                </div>
+                <h3 class="font-bold text-slate-900 text-lg mb-2">Automated Grading & Audit</h3>
+                <p class="text-sm text-slate-600 leading-relaxed">
+                    Instant scoring with granular violation logs, webcam snapshots, trust scores, and exportable forensics for academic integrity.
+                </p>
+            </div>
+            <div class="mt-5 pt-4 border-t border-slate-100 flex items-center justify-between text-xs text-slate-500">
+                <span>Full Audit Trail</span>
+                <span class="font-medium text-emerald-600">Exportable</span>
+            </div>
         </div>
     </div>
 </div>

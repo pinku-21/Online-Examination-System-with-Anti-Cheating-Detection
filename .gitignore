@@ -32,3 +32,9 @@ static/extracted_figures/
 database_backup.py
 database_before_neon.py
 database_before_neon.py.py
+
+# Local agent memory and tracking
+AGENTS.md
+DECISIONS.md
+SESSION_LOG.md
+TASKS.md
