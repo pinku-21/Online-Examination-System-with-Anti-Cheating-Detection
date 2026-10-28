@@ -2918,6 +2918,8 @@ def tutor_submission_details(submission_id):
     # Serialize violations safely for interactive timeline player
     violations_clean = []
     for idx, v in enumerate(violations):
+        raw_ts = v["timestamp"]
+        ts_str = raw_ts.isoformat() if hasattr(raw_ts, "isoformat") else str(raw_ts or "")
         violations_clean.append({
             "index": idx,
             "id": v["id"],
@@ -2925,8 +2927,8 @@ def tutor_submission_details(submission_id):
             "event_code": v["event_code"] or "SEC-001",
             "severity": v["severity"] or "HIGH",
             "details": v["details"] or "",
-            "timestamp": v["timestamp"] or "",
-            "formatted_time": format_datetime_12h_filter(v["timestamp"]),
+            "timestamp": ts_str,
+            "formatted_time": format_datetime_12h_filter(raw_ts),
             "snapshot_url": v["snapshot_url"] or ""
         })
 
@@ -2935,7 +2937,7 @@ def tutor_submission_details(submission_id):
     return render_template("submission_details.html", 
                            submission=submission, 
                            violations=violations, 
-                           violations_json=json.dumps(violations_clean),
+                           violations_json=json.dumps(violations_clean, default=str),
                            questions=questions_review)
 
 
