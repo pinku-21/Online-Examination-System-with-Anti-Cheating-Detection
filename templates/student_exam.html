@@ -253,7 +253,7 @@
                 </span>
             </div>
 
-            <div class="relative inline-block border-2 border-indigo-200 rounded-2xl overflow-hidden bg-slate-900 shadow-md max-w-full mx-auto block" id="student-map-canvas-${q.id}">
+            <div class="relative inline-block border-2 border-indigo-200 rounded-2xl overflow-hidden bg-sky-50 shadow-md max-w-full mx-auto block" id="student-map-canvas-${q.id}">
                 ${mapImg ? `<img src="${mapImg}" alt="Map Question" class="max-h-[460px] w-auto block mx-auto pointer-events-none">` : `<div class="p-12 text-white">Diagram loading...</div>`}
                 
                 ${hotspots.map((h, idx) => {
@@ -3237,9 +3237,15 @@
                 }
             }
 
-            // Render Figure / Diagram if present
+            // Render Figure / Diagram if present (For Map Hotspot questions, the interactive map canvas renders inside options-container)
             const figContainer = document.getElementById('figure-container');
-            if (q.figure_svg) {
+            const isMapQ = (q.question_type || '').toLowerCase() === 'map_hotspot' || (q.options && typeof q.options === 'object' && !Array.isArray(q.options) && q.options.hotspots);
+
+            if (isMapQ) {
+                // Hide static figure container so students interact directly with the pin-drop map canvas below
+                figContainer.classList.add('hidden');
+                figContainer.innerHTML = '';
+            } else if (q.figure_svg) {
                 figContainer.classList.remove('hidden');
                 figContainer.innerHTML = `
                     <div class="p-4 bg-white border border-slate-200 rounded-2xl flex flex-col items-center shadow-xs">
