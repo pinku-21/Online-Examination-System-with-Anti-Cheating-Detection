@@ -1536,7 +1536,10 @@
 
         if (typeEl) typeEl.textContent = v.type.replace(/_/g, ' ').toUpperCase();
         if (codeEl) codeEl.textContent = v.event_code;
-        if (titleEl) titleEl.textContent = `${v.type.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase())} Detected`;
+        if (titleEl) {
+            const rawType = v.type.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase());
+            titleEl.textContent = rawType.toLowerCase().includes('detected') ? rawType : `${rawType} Detected`;
+        }
         if (descEl) descEl.textContent = v.details || 'Candidate triggered an automated anti-cheating heuristic event during assessment.';
         if (statTime) statTime.textContent = v.formatted_time || v.timestamp;
         if (statSev) {

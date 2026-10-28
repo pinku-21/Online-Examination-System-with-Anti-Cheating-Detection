@@ -1735,15 +1735,24 @@
                                     detectedDevices.push('book');
                                     drawBoundingBox(ctx, pred.bbox, '🚨 UNAUTHORIZED BOOK', '#f43f5e');
                                 }
-                            } else if (pClass === 'cell phone' && pScore >= 0.10) {
-                                // Instant Mobile Phone Detection (even when held at angle or showing back/camera bump)
-                                detectedDevices.push('cell phone');
-                                drawBoundingBox(ctx, pred.bbox, '🚨 MOBILE PHONE DETECTED', '#f43f5e');
-                            } else if (UNAUTHORIZED_DEVICE_CLASSES.includes(pClass) && pScore >= 0.12) {
-                                // Handle remotes, cameras, tablets, laptops often detected when back of phone is held
-                                const deviceLabel = pClass === 'remote' || pClass === 'camera' ? 'cell phone' : pClass;
-                                detectedDevices.push(deviceLabel);
-                                drawBoundingBox(ctx, pred.bbox, '🚨 ' + deviceLabel.toUpperCase() + ' DETECTED', '#f43f5e');
+                            } else if (pClass === 'cell phone' || UNAUTHORIZED_DEVICE_CLASSES.includes(pClass)) {
+                                const [bx, by, bw, bh] = pred.bbox || [0, 0, 0, 0];
+                                const boxAreaRatio = (bw * bh) / (canvas.width * canvas.height);
+
+                                // Reject implausible false positives:
+                                // 1. An object covering > 75% of the entire screen is the candidate's body/room or camera frame, not a phone
+                                // 2. Tiny speckles (< 1.5% of screen) are sensor noise
+                                const isPlausibleDeviceSize = boxAreaRatio >= 0.012 && boxAreaRatio <= 0.72;
+
+                                if (isPlausibleDeviceSize) {
+                                    // True phone classification threshold: 0.22, or other gadget (remote/camera) 0.28
+                                    const minThreshold = pClass === 'cell phone' ? 0.20 : 0.28;
+                                    if (pScore >= minThreshold) {
+                                        const deviceLabel = (pClass === 'remote' || pClass === 'camera') ? 'cell phone' : pClass;
+                                        detectedDevices.push(deviceLabel);
+                                        drawBoundingBox(ctx, pred.bbox, '🚨 ' + deviceLabel.toUpperCase() + ' DETECTED', '#f43f5e');
+                                    }
+                                }
                             }
                         });
 
@@ -1808,10 +1817,11 @@
                             return;
                         }
 
-                        // Rule A: Phone / Device Strike with immediate trigger (1 detection triggers instant strike)
+                        // Rule A: Phone / Device Strike with immediate trigger (2 consecutive frames or high confidence >= 0.40)
                         if (detectedDevices.length > 0) {
                             phoneConsecutiveCount++;
-                            if (phoneConsecutiveCount >= 1) {
+                            const isHighConfInstant = predictions.some(p => ((p.class || '').toLowerCase() === 'cell phone') && (p.score || 0) >= 0.40);
+                            if (phoneConsecutiveCount >= 2 || isHighConfInstant) {
                                 phoneConsecutiveCount = 0;
                                 triggerViolation('mobile_phone_detected', `Unauthorized electronic device detected: ${detectedDevices[0].toUpperCase()}`);
                             }
