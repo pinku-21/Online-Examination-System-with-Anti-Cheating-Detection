@@ -3168,16 +3168,17 @@ def api_student_active_exams():
     user_class = (u_row["class_name"] or "").strip().lower() if u_row else ""
 
     cursor.execute("""
-        SELECT e.id, e.title, e.exam_code, e.duration_minutes, e.schedule_type, e.start_time, e.end_time, e.access_type, e.assigned_class,
+        SELECT e.id, e.title, e.exam_code, e.duration_minutes, e.schedule_type, e.start_time, e.end_time, e.access_type, e.assigned_class, e.results_published,
                (SELECT COUNT(*) FROM questions WHERE exam_id = e.id) as question_count,
                (SELECT id FROM submissions WHERE exam_id = e.id AND (user_id = ? OR roll_number = ?) AND status IN ('in_progress','pause_requested','paused') ORDER BY started_at DESC LIMIT 1) as active_sub_id,
                (SELECT status FROM submissions WHERE exam_id = e.id AND (user_id = ? OR roll_number = ?) AND status IN ('in_progress','pause_requested','paused') ORDER BY started_at DESC LIMIT 1) as active_sub_status,
                (SELECT id FROM submissions WHERE exam_id = e.id AND (user_id = ? OR roll_number = ?) AND status NOT IN ('in_progress','pause_requested','paused') ORDER BY started_at DESC LIMIT 1) as completed_sub_id,
-               (SELECT percentage FROM submissions WHERE exam_id = e.id AND (user_id = ? OR roll_number = ?) AND status NOT IN ('in_progress','pause_requested','paused') ORDER BY started_at DESC LIMIT 1) as completed_pct
+               (SELECT percentage FROM submissions WHERE exam_id = e.id AND (user_id = ? OR roll_number = ?) AND status NOT IN ('in_progress','pause_requested','paused') ORDER BY started_at DESC LIMIT 1) as completed_pct,
+               (SELECT is_published FROM submissions WHERE exam_id = e.id AND (user_id = ? OR roll_number = ?) AND status NOT IN ('in_progress','pause_requested','paused') ORDER BY started_at DESC LIMIT 1) as completed_is_published
         FROM exams e
         WHERE e.is_active = 1
         ORDER BY e.created_at DESC
-    """, (user_id, roll_number, user_id, roll_number, user_id, roll_number, user_id, roll_number))
+    """, (user_id, roll_number, user_id, roll_number, user_id, roll_number, user_id, roll_number, user_id, roll_number))
     all_exams = cursor.fetchall()
 
     cursor.execute("SELECT exam_id FROM exam_assignments WHERE user_id = ?", (user_id,))

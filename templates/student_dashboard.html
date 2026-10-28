@@ -687,5 +687,49 @@ async function launchPreFlightCheck(targetForm, examTitle) {
         targetForm.submit();
     }
 }
+
+// ---------------------------------------------------------------------------
+// Real-Time Live Auto-Refresh: Detect when Tutor publishes questions or results
+// ---------------------------------------------------------------------------
+(function initDashboardLiveSync() {
+    let lastExamSnapshot = null;
+
+    async function checkDashboardUpdates() {
+        try {
+            const resp = await fetch('/api/student/active-exams', { cache: 'no-store' });
+            if (!resp.ok) return;
+            const data = await resp.json();
+            if (!data || !data.success || !Array.isArray(data.exams)) return;
+
+            // Generate unique fingerprint of active exams + publication statuses
+            const currentSnapshot = data.exams.map(e => `${e.id}:${e.question_count}:${e.results_published}:${e.completed_sub_id}:${e.completed_is_published}:${e.time_status}`).sort().join('|');
+
+            if (lastExamSnapshot !== null && lastExamSnapshot !== currentSnapshot) {
+                // Change detected! Show brief toast and refresh smoothly
+                if (window.Swal) {
+                    Swal.fire({
+                        toast: true,
+                        position: 'top-end',
+                        icon: 'info',
+                        title: '⚡ Update Published!',
+                        text: 'Tutor updated exams/results. Refreshing...',
+                        showConfirmButton: false,
+                        timer: 1500
+                    });
+                }
+                setTimeout(() => {
+                    window.location.reload();
+                }, 1000);
+            }
+            lastExamSnapshot = currentSnapshot;
+        } catch (e) {
+            // Silently retry on next tick
+        }
+    }
+
+    // Initialize baseline snapshot immediately, then poll every 4.5 seconds
+    checkDashboardUpdates();
+    setInterval(checkDashboardUpdates, 4500);
+})();
 </script>
 {% endblock %}
