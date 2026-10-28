@@ -89,15 +89,38 @@
         {% endif %}
     {% endwith %}
 
+    <!-- Segmented View Toggle Switcher (Exams vs Students) -->
+    <div class="mb-6 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+        <div class="inline-flex p-1 bg-slate-100 dark:bg-slate-800 rounded-2xl border border-slate-200 dark:border-slate-700 shadow-inner">
+            <button type="button" id="tab-btn-exams" onclick="switchDashboardView('exams')" class="px-5 py-2.5 rounded-xl text-xs sm:text-sm font-bold flex items-center space-x-2 transition-all bg-white dark:bg-slate-900 text-slate-900 dark:text-white shadow-sm cursor-pointer">
+                <i data-lucide="layers" class="w-4 h-4 text-sky-600"></i>
+                <span>Created Exams ({{ exams|length }})</span>
+                <span class="w-2 h-2 rounded-full bg-emerald-500 animate-pulse ml-1" title="Live Exams Ready"></span>
+            </button>
+            <button type="button" id="tab-btn-students" onclick="switchDashboardView('students')" class="px-5 py-2.5 rounded-xl text-xs sm:text-sm font-semibold flex items-center space-x-2 transition-all text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white cursor-pointer">
+                <i data-lucide="users" class="w-4 h-4 text-indigo-600"></i>
+                <span>Student Accounts ({{ students|length }})</span>
+            </button>
+        </div>
+
+        <div class="flex items-center space-x-2 text-xs font-semibold text-slate-500 dark:text-slate-400">
+            <span class="inline-flex items-center gap-1.5 px-3 py-1.5 bg-emerald-50 dark:bg-emerald-950/40 text-emerald-700 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-800 rounded-full font-bold">
+                <span class="w-2 h-2 rounded-full bg-emerald-500 animate-ping"></span>
+                <span>Active Proctoring Online</span>
+            </span>
+        </div>
+    </div>
+
     <!-- Exam List Section (shadcn-card styling) -->
-    <div class="shadcn-card bg-white overflow-hidden shadow-sm">
+    <div id="section-view-exams" class="shadcn-card bg-white overflow-hidden shadow-sm">
         <div class="p-6 border-b border-slate-200 flex items-center justify-between">
             <div class="flex items-center space-x-2">
                 <i data-lucide="layers" class="w-5 h-5 text-slate-700"></i>
                 <h2 class="text-lg font-bold text-slate-900 tracking-tight">Your Created Exams</h2>
             </div>
-            <span class="text-xs font-semibold px-2.5 py-1 bg-slate-100 text-slate-700 rounded-md border border-slate-200">
-                Live Exams Ready
+            <span class="text-xs font-semibold px-2.5 py-1 bg-slate-100 text-slate-700 rounded-md border border-slate-200 flex items-center gap-1.5">
+                <span class="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></span>
+                <span>Live Exams Ready</span>
             </span>
         </div>
 
@@ -193,7 +216,7 @@
     </div>
 
     <!-- ===== STUDENT MANAGEMENT SECTION ===== -->
-    <div class="bg-white rounded-2xl border border-slate-200 overflow-hidden shadow-sm mt-8">
+    <div id="section-view-students" class="bg-white rounded-2xl border border-slate-200 overflow-hidden shadow-sm mt-8">
         <div class="p-6 border-b border-slate-200 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
             <div class="flex items-center space-x-2">
                 <i data-lucide="users" class="w-5 h-5 text-indigo-600"></i>
@@ -1145,5 +1168,40 @@
             Swal.fire({ icon: 'error', title: 'Error', text: 'Network error occurred.' });
         }
     }
+
+    // Segmented Dashboard View Switcher (Created Exams vs Student Accounts)
+    function switchDashboardView(viewMode) {
+        const examsSec = document.getElementById('section-view-exams');
+        const studentsSec = document.getElementById('section-view-students');
+        const btnExams = document.getElementById('tab-btn-exams');
+        const btnStudents = document.getElementById('tab-btn-students');
+
+        if (!examsSec || !studentsSec) return;
+
+        if (viewMode === 'students') {
+            examsSec.classList.add('hidden');
+            studentsSec.classList.remove('hidden');
+            studentsSec.classList.remove('mt-8');
+
+            btnStudents.className = 'px-5 py-2.5 rounded-xl text-xs sm:text-sm font-bold flex items-center space-x-2 transition-all bg-white dark:bg-slate-900 text-slate-900 dark:text-white shadow-sm cursor-pointer';
+            btnExams.className = 'px-5 py-2.5 rounded-xl text-xs sm:text-sm font-semibold flex items-center space-x-2 transition-all text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white cursor-pointer';
+            localStorage.setItem('examguard_tutor_tab', 'students');
+        } else {
+            studentsSec.classList.add('hidden');
+            examsSec.classList.remove('hidden');
+
+            btnExams.className = 'px-5 py-2.5 rounded-xl text-xs sm:text-sm font-bold flex items-center space-x-2 transition-all bg-white dark:bg-slate-900 text-slate-900 dark:text-white shadow-sm cursor-pointer';
+            btnStudents.className = 'px-5 py-2.5 rounded-xl text-xs sm:text-sm font-semibold flex items-center space-x-2 transition-all text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white cursor-pointer';
+            localStorage.setItem('examguard_tutor_tab', 'exams');
+        }
+        if (window.lucide) lucide.createIcons();
+    }
+
+    document.addEventListener('DOMContentLoaded', () => {
+        const savedTab = localStorage.getItem('examguard_tutor_tab');
+        if (savedTab === 'students') {
+            switchDashboardView('students');
+        }
+    });
 </script>
 {% endblock %}
