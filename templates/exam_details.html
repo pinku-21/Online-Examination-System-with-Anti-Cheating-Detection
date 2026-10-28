@@ -18,65 +18,60 @@
         </a>
     </div>
 
-    <!-- Exam Hero Card -->
-    <div class="bg-white rounded-2xl border border-slate-200 p-6 sm:p-8 shadow-sm mb-8">
+    <!-- Exam Hero Card (shadcn UI style) -->
+    <div class="shadcn-card bg-white p-6 sm:p-8 mb-8 border border-slate-200">
         <div class="flex flex-col md:flex-row md:items-center justify-between gap-6">
             <div class="space-y-2">
                 <div class="flex items-center space-x-3">
-                    <h1 class="text-2xl sm:text-3xl font-extrabold text-slate-900">{{ exam.title }}</h1>
-                    <span class="px-2.5 py-1 bg-emerald-100 text-emerald-800 text-xs font-bold rounded-full">Active</span>
+                    <h1 class="text-2xl sm:text-3xl font-bold tracking-tight text-slate-900">{{ exam.title }}</h1>
+                    <span class="shadcn-badge bg-emerald-50 text-emerald-700 border-emerald-200 font-semibold">Active</span>
                 </div>
                 <p class="text-slate-600 text-sm max-w-2xl">{{ exam.description or 'No extra description.' }}</p>
-                <div class="flex flex-wrap items-center gap-4 text-xs text-slate-500 pt-2">
-                    <span class="flex items-center"><i data-lucide="clock" class="w-4 h-4 mr-1 text-sky-600"></i> {{ exam.duration_minutes }} Minutes</span>
-                    <span class="flex items-center"><i data-lucide="shield-alert" class="w-4 h-4 mr-1 text-rose-600"></i> Max {{ exam.max_warnings }} Strikes Before Termination</span>
-                    <span class="flex items-center"><i data-lucide="award" class="w-4 h-4 mr-1 text-amber-600"></i> {{ exam.passing_percentage }}% Passing Mark</span>
+                <div class="flex flex-wrap items-center gap-3 text-xs text-slate-500 pt-2">
+                    <span class="flex items-center"><i data-lucide="clock" class="w-3.5 h-3.5 mr-1 text-slate-400"></i> {{ exam.duration_minutes }} Minutes</span>
+                    <span class="flex items-center"><i data-lucide="shield-alert" class="w-3.5 h-3.5 mr-1 text-rose-500"></i> Max {{ exam.max_warnings }} Strikes</span>
+                    <span class="flex items-center"><i data-lucide="award" class="w-3.5 h-3.5 mr-1 text-amber-500"></i> {{ exam.passing_percentage }}% Pass Mark</span>
                     {% if exam.enable_video_detection in [1, True, '1'] %}
-                        <span class="flex items-center font-semibold text-emerald-700"><i data-lucide="video" class="w-4 h-4 mr-1 text-emerald-600"></i> Video AI On</span>
-                    {% else %}
-                        <span class="flex items-center text-slate-400"><i data-lucide="video-off" class="w-4 h-4 mr-1 text-slate-400"></i> Video AI Off</span>
+                        <span class="flex items-center font-semibold text-emerald-700"><i data-lucide="video" class="w-3.5 h-3.5 mr-1 text-emerald-600"></i> Video AI</span>
                     {% endif %}
                     {% if exam.enable_audio_detection in [1, True, '1'] %}
-                        <span class="flex items-center font-semibold text-emerald-700"><i data-lucide="mic" class="w-4 h-4 mr-1 text-emerald-600"></i> Audio AI On</span>
-                    {% else %}
-                        <span class="flex items-center text-slate-400"><i data-lucide="mic-off" class="w-4 h-4 mr-1 text-slate-400"></i> Audio AI Off</span>
+                        <span class="flex items-center font-semibold text-emerald-700"><i data-lucide="mic" class="w-3.5 h-3.5 mr-1 text-emerald-600"></i> Audio AI</span>
                     {% endif %}
-                    <span class="flex items-center"><i data-lucide="calendar" class="w-4 h-4 mr-1 text-slate-400"></i> Created: {{ exam.created_at | format_date }}</span>
+                    <span class="flex items-center"><i data-lucide="calendar" class="w-3.5 h-3.5 mr-1 text-slate-400"></i> {{ exam.created_at | format_date }}</span>
                 </div>
             </div>
 
             <!-- Student Access Code Box -->
-            <div class="bg-gradient-to-br from-sky-50 to-indigo-50 border border-sky-200 rounded-2xl p-5 text-center flex-shrink-0 min-w-[260px]">
-                <span class="text-[11px] font-bold tracking-wider text-sky-700 uppercase block mb-1">Student Access Code</span>
-                <span class="text-3xl font-mono font-extrabold text-slate-900 tracking-wider block mb-3">{{ exam.exam_code }}</span>
-                <div class="flex items-center justify-center space-x-2">
+            <div class="bg-slate-50 border border-slate-200 rounded-xl p-5 text-center flex-shrink-0 min-w-[260px]">
+                <span class="text-xs font-semibold text-slate-500 uppercase tracking-wider block mb-1">Student Access Code</span>
+                <span class="text-3xl font-mono font-bold text-slate-900 tracking-wider block mb-3">{{ exam.exam_code }}</span>
+                <div class="flex items-center justify-center flex-wrap gap-2">
                     <button type="button" 
                             data-exam-id="{{ exam.id }}" 
                             data-published="{{ 1 if exam.results_published in [1, True, '1'] else 0 }}"
                             onclick="toggleExamResultsPublish(this)" 
-                            class="px-3.5 py-1.5 {% if exam.results_published in [1, True, '1'] %}bg-emerald-600 hover:bg-emerald-700 text-white{% else %}bg-slate-800 hover:bg-slate-900 text-white{% endif %} text-xs font-semibold rounded-lg shadow-sm transition flex items-center space-x-1 cursor-pointer"
+                            class="shadcn-btn {% if exam.results_published in [1, True, '1'] %}shadcn-btn-primary{% else %}shadcn-btn-default{% endif %} h-8 px-3 text-xs"
                             title="Publish or hide evaluation and model answers from students">
                         <i data-lucide="{% if exam.results_published in [1, True, '1'] %}eye{% else %}eye-off{% endif %}" class="w-3.5 h-3.5"></i>
-                        <span>{% if exam.results_published in [1, True, '1'] %}Results Published{% else %}Publish Results{% endif %}</span>
+                        <span>{% if exam.results_published in [1, True, '1'] %}Published{% else %}Publish Results{% endif %}</span>
                     </button>
-                    <button onclick="copyDirectLink('{{ exam.exam_code }}')" class="px-3.5 py-1.5 bg-sky-600 hover:bg-sky-700 text-white text-xs font-semibold rounded-lg shadow-sm transition flex items-center space-x-1">
-                        <i data-lucide="copy" class="w-3.5 h-3.5"></i>
+                    <button onclick="copyDirectLink('{{ exam.exam_code }}')" class="shadcn-btn shadcn-btn-outline h-8 px-3 text-xs">
+                        <i data-lucide="copy" class="w-3.5 h-3.5 text-slate-500"></i>
                         <span>Copy Link</span>
                     </button>
-                    <button type="button" data-exam-id="{{ exam.id }}" data-exam-title="{{ exam.title | e }}" onclick="openManageAccessModalFromBtn(this)" class="px-3 py-1.5 bg-indigo-50 hover:bg-indigo-100 text-indigo-700 text-xs font-semibold rounded-lg transition flex items-center space-x-1 border border-indigo-200 cursor-pointer" title="Change schedule time, access, or duration">
+                    <button type="button" data-exam-id="{{ exam.id }}" data-exam-title="{{ exam.title | e }}" onclick="openManageAccessModalFromBtn(this)" class="shadcn-btn shadcn-btn-outline h-8 px-3 text-xs" title="Change schedule time, access, or duration">
                         <i data-lucide="calendar-clock" class="w-3.5 h-3.5 text-indigo-600"></i>
-                        <span>Access & Timing</span>
+                        <span>Timing</span>
                     </button>
-                    <!-- Export Gradebook CSV -->
-                    <a href="/api/tutor/exam/{{ exam.id }}/export-csv" class="px-3 py-1.5 bg-emerald-50 hover:bg-emerald-100 text-emerald-800 border border-emerald-300 text-xs font-bold rounded-lg transition flex items-center space-x-1 shadow-2xs" title="Download official Excel/CSV Gradebook and proctoring audit log">
+                    <a href="/api/tutor/exam/{{ exam.id }}/export-csv" class="shadcn-btn shadcn-btn-outline h-8 px-3 text-xs" title="Download official Excel/CSV Gradebook">
                         <i data-lucide="download" class="w-3.5 h-3.5 text-emerald-600"></i>
-                        <span>Export CSV</span>
+                        <span>CSV</span>
                     </a>
-                    <a href="/student?code={{ exam.exam_code }}" target="_blank" class="px-2.5 py-1.5 bg-white border border-slate-300 hover:bg-slate-50 text-slate-700 text-xs font-semibold rounded-lg transition" title="Test as Student">
-                        <i data-lucide="external-link" class="w-3.5 h-3.5"></i>
+                    <a href="/student?code={{ exam.exam_code }}" target="_blank" class="shadcn-btn shadcn-btn-outline h-8 px-2.5 text-xs" title="Test as Student">
+                        <i data-lucide="external-link" class="w-3.5 h-3.5 text-slate-500"></i>
                     </a>
-                    <button type="button" onclick="deleteExamAndRedirect('{{ exam.id }}', '{{ exam.title | e }}')" class="px-2.5 py-1.5 bg-rose-50 hover:bg-rose-100 text-rose-600 text-xs font-semibold rounded-lg transition flex items-center space-x-1 border border-rose-200 cursor-pointer" title="Delete Exam">
-                        <i data-lucide="trash-2" class="w-3.5 h-3.5"></i>
+                    <button type="button" onclick="deleteExamAndRedirect('{{ exam.id }}', '{{ exam.title | e }}')" class="shadcn-btn shadcn-btn-outline h-8 px-2.5 text-xs hover:text-rose-600 hover:border-rose-300" title="Delete Exam">
+                        <i data-lucide="trash-2" class="w-3.5 h-3.5 text-rose-500"></i>
                     </button>
                 </div>
             </div>
