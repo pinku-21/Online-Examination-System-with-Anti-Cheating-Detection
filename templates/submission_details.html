@@ -387,6 +387,156 @@
     </div>
     {% endif %}
 
+    <!-- Interactive Exam Timeline & Incident Player -->
+    <script type="application/json" id="violations-data-json">{{ violations_json | default('[]') | safe }}</script>
+    <div class="bg-white rounded-2xl border border-slate-200 shadow-sm p-6 sm:p-8 mb-8">
+        <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-slate-100 pb-4 mb-6">
+            <div class="flex items-center space-x-3">
+                <div class="w-10 h-10 rounded-xl bg-gradient-to-tr from-rose-500 to-indigo-600 text-white flex items-center justify-center shadow-xs">
+                    <i data-lucide="play-circle" class="w-5 h-5"></i>
+                </div>
+                <div>
+                    <h2 class="text-lg font-bold text-slate-900 flex items-center gap-2">
+                        <span>Interactive Exam Timeline & Incident Player</span>
+                        <span class="px-2 py-0.5 rounded-full text-[10px] font-extrabold bg-rose-100 text-rose-800 border border-rose-200">
+                            {{ violations|length }} Moments Recorded
+                        </span>
+                    </h2>
+                    <p class="text-xs text-slate-500">Scrub across the exam duration or click individual timestamp markers to inspect captured forensic webcam frames.</p>
+                </div>
+            </div>
+            {% if violations %}
+            <div class="flex items-center space-x-2">
+                <button type="button" onclick="playTimelineAuto()" id="btn-timeline-play" class="px-3 py-1.5 bg-slate-900 hover:bg-slate-800 text-white text-xs font-bold rounded-lg shadow-xs transition flex items-center space-x-1.5 cursor-pointer">
+                    <i data-lucide="play" class="w-3.5 h-3.5"></i>
+                    <span id="btn-timeline-play-text">Auto Play</span>
+                </button>
+                <button type="button" onclick="prevIncident()" class="p-1.5 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-lg text-xs font-bold" title="Previous Incident">
+                    <i data-lucide="skip-back" class="w-3.5 h-3.5"></i>
+                </button>
+                <button type="button" onclick="nextIncident()" class="p-1.5 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-lg text-xs font-bold" title="Next Incident">
+                    <i data-lucide="skip-forward" class="w-3.5 h-3.5"></i>
+                </button>
+            </div>
+            {% endif %}
+        </div>
+
+        {% if violations %}
+            <!-- Scrub Bar & Visual Markers -->
+            <div class="mb-6">
+                <div class="flex items-center justify-between text-[11px] font-mono text-slate-400 mb-2 font-semibold">
+                    <span class="flex items-center gap-1">
+                        <i data-lucide="clock" class="w-3 h-3 text-emerald-600"></i>
+                        <span>Start: {{ submission.started_at | format_datetime_12h }}</span>
+                    </span>
+                    <span id="timeline-current-label" class="font-bold text-slate-900 bg-slate-100 px-2.5 py-0.5 rounded-full">
+                        Incident 1 of {{ violations|length }}
+                    </span>
+                    <span class="flex items-center gap-1">
+                        <span>End: {{ submission.submitted_at | format_datetime_12h or 'Ongoing' }}</span>
+                        <i data-lucide="check-circle" class="w-3 h-3 text-sky-600"></i>
+                    </span>
+                </div>
+
+                <!-- Horizontal Scrub Track -->
+                <div class="relative w-full h-4 bg-slate-100 rounded-full border border-slate-200 cursor-pointer overflow-visible my-3 select-none" id="timeline-scrub-track" onclick="handleTimelineTrackClick(event)">
+                    <!-- Progress Fill -->
+                    <div id="timeline-progress-fill" class="h-full bg-gradient-to-r from-emerald-500 via-amber-500 to-rose-600 rounded-full transition-all duration-300" style="width: 0%;"></div>
+                    
+                    <!-- Incident Nodes / Pins -->
+                    <div id="timeline-pins-container" class="absolute inset-0 pointer-events-none"></div>
+
+                    <!-- Draggable Scrub Head -->
+                    <div id="timeline-scrub-head" class="absolute top-1/2 -mt-3.5 w-7 h-7 bg-white border-2 border-slate-900 rounded-full shadow-md flex items-center justify-center -ml-3.5 pointer-events-none transition-all duration-300 z-20">
+                        <div class="w-2 h-2 rounded-full bg-rose-600"></div>
+                    </div>
+                </div>
+
+                <!-- Legend / Summary of Violation Pins -->
+                <div class="flex items-center gap-3 text-[10px] text-slate-500 font-semibold pt-1 flex-wrap">
+                    <span class="flex items-center gap-1"><span class="w-2.5 h-2.5 rounded-full bg-rose-500"></span> Tab Switch / Focus</span>
+                    <span class="flex items-center gap-1"><span class="w-2.5 h-2.5 rounded-full bg-amber-500"></span> Face Lost / Multi Face</span>
+                    <span class="flex items-center gap-1"><span class="w-2.5 h-2.5 rounded-full bg-purple-500"></span> Cellphone / Object</span>
+                    <span class="flex items-center gap-1"><span class="w-2.5 h-2.5 rounded-full bg-sky-500"></span> Secondary Camera</span>
+                    <span class="ml-auto text-slate-400 italic">Click on any marker pin to jump</span>
+                </div>
+            </div>
+
+            <!-- Active Incident Forensic Stage Player -->
+            <div id="timeline-stage" class="grid grid-cols-1 md:grid-cols-12 gap-6 bg-slate-900 rounded-2xl p-6 text-white border border-slate-800 shadow-inner">
+                <!-- Left: Forensic Screenshot Viewer (7 cols) -->
+                <div class="md:col-span-7 flex flex-col justify-between">
+                    <div class="relative bg-black rounded-xl overflow-hidden border border-slate-800 min-h-[260px] flex items-center justify-center shadow-lg group">
+                        <img id="timeline-img" src="" alt="Incident Evidence" class="w-full max-h-72 object-contain"
+                             onerror="this.style.display='none'; document.getElementById('timeline-no-img').classList.remove('hidden');">
+                        <div id="timeline-no-img" class="text-center p-6 text-slate-500 hidden">
+                            <i data-lucide="camera-off" class="w-10 h-10 mx-auto mb-2 text-slate-600"></i>
+                            <span class="text-xs">No screenshot recorded at this timestamp</span>
+                        </div>
+                        <div class="absolute top-3 left-3 bg-slate-950/80 backdrop-blur-md px-2.5 py-1 rounded-lg border border-slate-700/60 text-[10px] font-mono text-emerald-400 flex items-center gap-1.5">
+                            <span class="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-ping"></span>
+                            <span id="timeline-img-ts">TIMESTAMP</span>
+                        </div>
+                        <button type="button" onclick="zoomCurrentTimelineSnapshot()" class="absolute bottom-3 right-3 p-2 bg-slate-950/80 hover:bg-slate-900 rounded-lg text-slate-300 hover:text-white border border-slate-700 transition" title="Expand Fullscreen">
+                            <i data-lucide="maximize-2" class="w-4 h-4"></i>
+                        </button>
+                    </div>
+                </div>
+
+                <!-- Right: Forensic Telemetry & Incident Analysis (5 cols) -->
+                <div class="md:col-span-5 flex flex-col justify-between space-y-4">
+                    <div>
+                        <div class="flex items-center justify-between gap-2 mb-2">
+                            <span id="timeline-incident-type" class="px-2.5 py-1 rounded-lg text-xs font-black uppercase tracking-wider bg-rose-500/20 text-rose-300 border border-rose-500/30">
+                                VIOLATION TYPE
+                            </span>
+                            <span id="timeline-event-code" class="px-2 py-0.5 rounded font-mono text-[10px] font-bold bg-slate-800 text-slate-300 border border-slate-700">
+                                SEC-001
+                            </span>
+                        </div>
+
+                        <h3 id="timeline-incident-title" class="text-base font-bold text-white mb-2 leading-snug">Incident Details</h3>
+                        <p id="timeline-incident-desc" class="text-xs text-slate-300 leading-relaxed bg-slate-950/60 p-3 rounded-xl border border-slate-800">
+                            Details of violation telemetry.
+                        </p>
+                    </div>
+
+                    <div class="space-y-2 pt-2 border-t border-slate-800 text-xs">
+                        <div class="flex items-center justify-between">
+                            <span class="text-slate-400">Timestamp:</span>
+                            <span id="timeline-stat-time" class="font-mono text-slate-200 font-semibold">-</span>
+                        </div>
+                        <div class="flex items-center justify-between">
+                            <span class="text-slate-400">Violation Severity:</span>
+                            <span id="timeline-stat-sev" class="font-bold text-rose-400">HIGH</span>
+                        </div>
+                        <div class="flex items-center justify-between">
+                            <span class="text-slate-400">Student Roll:</span>
+                            <span class="font-mono text-slate-200">{{ submission.roll_number }}</span>
+                        </div>
+                    </div>
+
+                    <div class="flex items-center gap-2 pt-2">
+                        <button type="button" onclick="prevIncident()" class="flex-1 py-2 bg-slate-800 hover:bg-slate-700 text-white rounded-xl text-xs font-bold transition flex items-center justify-center space-x-1 cursor-pointer">
+                            <i data-lucide="chevron-left" class="w-4 h-4"></i>
+                            <span>Prev</span>
+                        </button>
+                        <button type="button" onclick="nextIncident()" class="flex-1 py-2 bg-slate-800 hover:bg-slate-700 text-white rounded-xl text-xs font-bold transition flex items-center justify-center space-x-1 cursor-pointer">
+                            <span>Next</span>
+                            <i data-lucide="chevron-right" class="w-4 h-4"></i>
+                        </button>
+                    </div>
+                </div>
+            </div>
+        {% else %}
+            <div class="py-8 text-center text-slate-500 text-xs flex flex-col items-center">
+                <i data-lucide="shield-check" class="w-10 h-10 text-emerald-500 mb-2"></i>
+                <span class="font-semibold text-slate-800 text-sm">Perfect Academic Record!</span>
+                <span class="text-slate-400 mt-0.5">No anti-cheating incidents were triggered. The interactive player has no timeline anomalies to scrub.</span>
+            </div>
+        {% endif %}
+    </div>
+
     <!-- Cheating Violations Audit Log -->
     <div class="bg-white rounded-2xl border border-slate-200 shadow-sm p-6 sm:p-8 mb-8">
         <div class="flex items-center justify-between border-b border-slate-100 pb-4 mb-6">
@@ -1310,5 +1460,178 @@
             confirmButtonColor: '#0f172a'
         });
     }
+
+    // ---------------------------------------------------------------------------
+    // Interactive Exam Timeline & Forensic Incident Player
+    // ---------------------------------------------------------------------------
+    let timelineViolations = [];
+    try {
+        const rawJsonEl = document.getElementById('violations-data-json');
+        timelineViolations = rawJsonEl ? JSON.parse(rawJsonEl.textContent || '[]') : [];
+    } catch (e) {
+        timelineViolations = [];
+    }
+
+    let currentIncidentIdx = 0;
+    let timelinePlayInterval = null;
+
+    function initInteractiveTimeline() {
+        if (!timelineViolations || timelineViolations.length === 0) return;
+
+        const pinsContainer = document.getElementById('timeline-pins-container');
+        if (!pinsContainer) return;
+        pinsContainer.innerHTML = '';
+
+        const totalIncidents = timelineViolations.length;
+        timelineViolations.forEach((v, idx) => {
+            // Distribute markers along horizontal track
+            const pct = totalIncidents === 1 ? 50 : Math.round((idx / (totalIncidents - 1)) * 96 + 2);
+            v.trackPct = pct;
+
+            const pin = document.createElement('div');
+            let colorBg = 'bg-rose-500';
+            const tLower = v.type.toLowerCase();
+            if (tLower.includes('face')) colorBg = 'bg-amber-500';
+            else if (tLower.includes('phone') || tLower.includes('object')) colorBg = 'bg-purple-500';
+            else if (tLower.includes('camera')) colorBg = 'bg-sky-500';
+
+            pin.className = `absolute top-1/2 -mt-2 w-4 h-4 rounded-full ${colorBg} border-2 border-white shadow cursor-pointer hover:scale-125 transition-transform z-10`;
+            pin.style.left = `${pct}%`;
+            pin.style.marginLeft = '-8px';
+            pin.title = `#${idx + 1}: ${v.type.replace(/_/g, ' ')} (${v.formatted_time})`;
+            pin.style.pointerEvents = 'auto';
+            pin.onclick = (e) => {
+                e.stopPropagation();
+                selectTimelineIncident(idx);
+            };
+            pinsContainer.appendChild(pin);
+        });
+
+        selectTimelineIncident(0);
+    }
+
+    function selectTimelineIncident(idx) {
+        if (idx < 0 || idx >= timelineViolations.length) return;
+        currentIncidentIdx = idx;
+        const v = timelineViolations[idx];
+
+        // Update Scrub head & progress
+        const fill = document.getElementById('timeline-progress-fill');
+        const head = document.getElementById('timeline-scrub-head');
+        const label = document.getElementById('timeline-current-label');
+        if (fill) fill.style.width = `${v.trackPct || 0}%`;
+        if (head) head.style.left = `${v.trackPct || 0}%`;
+        if (label) label.textContent = `Incident ${idx + 1} of ${timelineViolations.length}`;
+
+        // Update Stage details
+        const typeEl = document.getElementById('timeline-incident-type');
+        const codeEl = document.getElementById('timeline-event-code');
+        const titleEl = document.getElementById('timeline-incident-title');
+        const descEl = document.getElementById('timeline-incident-desc');
+        const statTime = document.getElementById('timeline-stat-time');
+        const statSev = document.getElementById('timeline-stat-sev');
+        const imgEl = document.getElementById('timeline-img');
+        const noImgEl = document.getElementById('timeline-no-img');
+        const imgTs = document.getElementById('timeline-img-ts');
+
+        if (typeEl) typeEl.textContent = v.type.replace(/_/g, ' ').toUpperCase();
+        if (codeEl) codeEl.textContent = v.event_code;
+        if (titleEl) titleEl.textContent = `${v.type.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase())} Detected`;
+        if (descEl) descEl.textContent = v.details || 'Candidate triggered an automated anti-cheating heuristic event during assessment.';
+        if (statTime) statTime.textContent = v.formatted_time || v.timestamp;
+        if (statSev) {
+            statSev.textContent = v.severity.toUpperCase();
+            statSev.className = `font-bold ${v.severity.toUpperCase() === 'CRITICAL' ? 'text-rose-500' : (v.severity.toUpperCase() === 'HIGH' ? 'text-amber-400' : 'text-sky-400')}`;
+        }
+        if (imgTs) imgTs.textContent = v.formatted_time || v.timestamp;
+
+        if (imgEl && noImgEl) {
+            if (v.snapshot_url && v.snapshot_url.trim()) {
+                imgEl.src = v.snapshot_url;
+                imgEl.style.display = 'block';
+                noImgEl.classList.add('hidden');
+            } else {
+                imgEl.src = '';
+                imgEl.style.display = 'none';
+                noImgEl.classList.remove('hidden');
+            }
+        }
+    }
+
+    function handleTimelineTrackClick(e) {
+        if (!timelineViolations || timelineViolations.length === 0) return;
+        const rect = e.currentTarget.getBoundingClientRect();
+        const clickX = e.clientX - rect.left;
+        const ratio = Math.max(0, Math.min(1, clickX / rect.width));
+
+        // Find closest violation by percentage
+        const clickPct = ratio * 100;
+        let closestIdx = 0;
+        let minDiff = 999;
+        timelineViolations.forEach((v, idx) => {
+            const diff = Math.abs((v.trackPct || 0) - clickPct);
+            if (diff < minDiff) {
+                minDiff = diff;
+                closestIdx = idx;
+            }
+        });
+        selectTimelineIncident(closestIdx);
+    }
+
+    function prevIncident() {
+        if (currentIncidentIdx > 0) {
+            selectTimelineIncident(currentIncidentIdx - 1);
+        } else {
+            selectTimelineIncident(timelineViolations.length - 1);
+        }
+    }
+
+    function nextIncident() {
+        if (currentIncidentIdx < timelineViolations.length - 1) {
+            selectTimelineIncident(currentIncidentIdx + 1);
+        } else {
+            selectTimelineIncident(0);
+        }
+    }
+
+    function playTimelineAuto() {
+        const btn = document.getElementById('btn-timeline-play');
+        const text = document.getElementById('btn-timeline-play-text');
+        if (timelinePlayInterval) {
+            clearInterval(timelinePlayInterval);
+            timelinePlayInterval = null;
+            if (btn) btn.classList.replace('bg-rose-600', 'bg-slate-900');
+            if (text) text.textContent = 'Auto Play';
+            return;
+        }
+
+        if (btn) btn.classList.replace('bg-slate-900', 'bg-rose-600');
+        if (text) text.textContent = 'Pause Player';
+
+        timelinePlayInterval = setInterval(() => {
+            if (currentIncidentIdx < timelineViolations.length - 1) {
+                nextIncident();
+            } else {
+                // Loop or finish
+                clearInterval(timelinePlayInterval);
+                timelinePlayInterval = null;
+                if (btn) btn.classList.replace('bg-rose-600', 'bg-slate-900');
+                if (text) text.textContent = 'Replay Timeline';
+            }
+        }, 2200);
+    }
+
+    function zoomCurrentTimelineSnapshot() {
+        const v = timelineViolations[currentIncidentIdx];
+        if (!v || !v.snapshot_url) {
+            Swal.fire({ icon: 'info', title: 'No Snapshot Evidence', text: 'No webcam snapshot was logged for this infraction.' });
+            return;
+        }
+        openIncidentSnapshotModal(v.snapshot_url, v.type.replace(/_/g, ' '), v.formatted_time || v.timestamp);
+    }
+
+    document.addEventListener('DOMContentLoaded', () => {
+        initInteractiveTimeline();
+    });
 </script>
 {% endblock %}

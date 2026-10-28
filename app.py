@@ -2410,6 +2410,13 @@ def tutor_exam_details(exam_id):
 
             q["difficulty_p"] = p_val
             q["discrimination_d"] = d_val
+            q["upper_correct"] = upper_correct
+            q["lower_correct"] = lower_correct
+            q["cohort_size"] = cohort_size
+            q["upper_pct"] = round((upper_correct / cohort_size) * 100, 1) if cohort_size else 0
+            q["lower_pct"] = round((lower_correct / cohort_size) * 100, 1) if cohort_size else 0
+            q["is_confusing_flaw"] = bool(d_val < 0)
+
             if p_val < 0.30:
                 q["irt_difficulty_label"] = "Hard"
                 q["irt_difficulty_badge"] = "bg-rose-100 text-rose-800"
@@ -2423,23 +2430,34 @@ def tutor_exam_details(exam_id):
             if d_val >= 0.40:
                 q["irt_quality"] = "Excellent Item"
                 q["irt_quality_badge"] = "bg-emerald-100 text-emerald-800"
+                q["irt_recommendation"] = "High pedagogical validity. Distinctly separates top students from struggling students."
             elif d_val >= 0.20:
                 q["irt_quality"] = "Good Item"
                 q["irt_quality_badge"] = "bg-sky-100 text-sky-800"
+                q["irt_recommendation"] = "Standard discrimination. Suitable for routine exams."
             elif d_val < 0:
-                q["irt_quality"] = "⚠️ Flawed Question"
-                q["irt_quality_badge"] = "bg-rose-100 text-rose-800 animate-pulse"
+                q["irt_quality"] = "⚠️ Poorly Phrased / Confusing Question"
+                q["irt_quality_badge"] = "bg-rose-100 text-rose-800 animate-pulse border border-rose-300"
+                q["irt_recommendation"] = "Negative discrimination alert: Struggling students answered this correctly more often than top-performing students. Inspect for ambiguous wording, misleading distractors, or inverted key."
             else:
                 q["irt_quality"] = "Marginal Item"
                 q["irt_quality_badge"] = "bg-slate-100 text-slate-700"
+                q["irt_recommendation"] = "Low discrimination. Little correlation with overall candidate standing."
     else:
         for q in formatted_questions:
             q["difficulty_p"] = None
             q["discrimination_d"] = None
+            q["upper_correct"] = None
+            q["lower_correct"] = None
+            q["cohort_size"] = None
+            q["upper_pct"] = None
+            q["lower_pct"] = None
+            q["is_confusing_flaw"] = False
             q["irt_difficulty_label"] = "Pending Cohort Data"
             q["irt_difficulty_badge"] = "bg-slate-100 text-slate-500"
             q["irt_quality"] = "Awaiting Submissions"
             q["irt_quality_badge"] = "bg-slate-100 text-slate-500"
+            q["irt_recommendation"] = "Needs at least 2 completed student submissions to compute IRT discrimination indexes."
 
     conn.close()
     
@@ -2519,6 +2537,298 @@ def api_export_exam_csv(exam_id):
         mimetype="text/csv",
         headers={"Content-Disposition": f"attachment; filename={filename}"}
     )
+
+
+@app.route("/api/submission/<int:submission_id>/download-certificate")
+@login_required
+def api_download_submission_certificate(submission_id):
+    """
+    Generates a cryptographic PDF performance certificate with verifiable QR code,
+    student roll number, scores, and HMAC-SHA256 integrity hash using ReportLab.
+    """
+    import io
+    from reportlab.lib.pagesizes import letter, landscape
+    from reportlab.pdfgen import canvas
+    from reportlab.graphics.shapes import Drawing
+    from reportlab.graphics.barcode import qr
+    from reportlab.lib import colors
+    from flask import send_file
+
+    conn = get_connection()
+    cursor = conn.cursor()
+    cursor.execute("""
+        SELECT s.*, e.title as exam_title, e.passing_percentage
+        FROM submissions s
+        JOIN exams e ON s.exam_id = e.id
+        WHERE s.id = ?
+    """, (submission_id,))
+    sub = cursor.fetchone()
+    conn.close()
+
+    if not sub:
+        return "Submission not found", 404
+
+    # Access check: student can only download their own certificate unless admin
+    if session.get("user_role") == "student":
+        curr_uid = session.get("user_id")
+        curr_roll = session.get("roll_number")
+        if (sub["user_id"] and sub["user_id"] != curr_uid) or (not sub["user_id"] and sub["roll_number"] != curr_roll):
+            return "Unauthorized access to certificate", 403
+
+    score = float(sub["score"] or 0.0)
+    total_points = float(sub["total_points"] or 0.0)
+    percentage = float(sub["percentage"] or 0.0)
+    passing_pct = float(sub["passing_percentage"] or 40.0)
+    status = (sub["status"] or "").lower()
+
+    if status == "terminated" or percentage < passing_pct:
+        flash("Certificate is only available for successfully passed submissions.", "warning")
+        return redirect(url_for("exam_result", submission_id=submission_id))
+
+    integrity_hash = sub["integrity_hash"]
+    if not integrity_hash:
+        integrity_hash = generate_submission_integrity_hash(
+            sub["id"],
+            sub["roll_number"],
+            score,
+            total_points,
+            sub["warnings_count"] or 0,
+            sub["status"] or "submitted"
+        )
+        try:
+            conn_u = get_connection()
+            conn_u.cursor().execute("UPDATE submissions SET integrity_hash = ? WHERE id = ?", (integrity_hash, sub["id"]))
+            conn_u.commit()
+            conn_u.close()
+        except Exception:
+            pass
+
+    # Build PDF in memory
+    buf = io.BytesIO()
+    c = canvas.Canvas(buf, pagesize=landscape(letter))
+    width, height = landscape(letter)
+
+    # Outer Decorative Border
+    c.setStrokeColor(colors.HexColor("#0f172a")) # Slate-900
+    c.setLineWidth(3.5)
+    c.rect(24, 24, width - 48, height - 48)
+
+    # Inner Gold Border
+    c.setStrokeColor(colors.HexColor("#d97706")) # Amber-600
+    c.setLineWidth(1.5)
+    c.rect(30, 30, width - 60, height - 60)
+
+    # Top Emblem / Branding Banner
+    c.setFillColor(colors.HexColor("#0f172a"))
+    c.rect(34, height - 90, width - 68, 56, fill=True, stroke=False)
+
+    c.setFillColor(colors.HexColor("#ffffff"))
+    c.setFont("Helvetica-Bold", 18)
+    c.drawCentredString(width / 2, height - 62, "EXAMGUARD AI VERIFIED CERTIFICATION")
+
+    c.setFont("Helvetica", 9)
+    c.setFillColor(colors.HexColor("#94a3b8"))
+    c.drawCentredString(width / 2, height - 78, "OFFICIAL CRYPTOGRAPHIC PROCTORING & ACADEMIC PROFICIENCY CREDENTIAL")
+
+    # Body Content
+    c.setFillColor(colors.HexColor("#64748b"))
+    c.setFont("Helvetica-Oblique", 11)
+    c.drawCentredString(width / 2, height - 130, "This is formally presented to acknowledge that")
+
+    # Student Name
+    c.setFillColor(colors.HexColor("#0f172a"))
+    c.setFont("Helvetica-Bold", 26)
+    student_name = (sub["student_name"] or "Candidate").upper()
+    c.drawCentredString(width / 2, height - 165, student_name)
+
+    # Roll Number & Details
+    c.setFillColor(colors.HexColor("#334155"))
+    c.setFont("Helvetica", 11)
+    c.drawCentredString(width / 2, height - 190, f"Roll Number: {sub['roll_number'] or 'N/A'}")
+
+    c.setFillColor(colors.HexColor("#64748b"))
+    c.setFont("Helvetica", 11)
+    c.drawCentredString(width / 2, height - 220, "has successfully passed and met all institutional integrity standards in the proctored assessment")
+
+    # Exam Title
+    c.setFillColor(colors.HexColor("#d97706"))
+    c.setFont("Helvetica-Bold", 16)
+    c.drawCentredString(width / 2, height - 248, f"\"{sub['exam_title']}\"")
+
+    # Score Pill Box
+    pill_w = 260
+    pill_h = 32
+    pill_x = (width - pill_w) / 2
+    pill_y = height - 296
+    c.setFillColor(colors.HexColor("#fef3c7"))
+    c.setStrokeColor(colors.HexColor("#f59e0b"))
+    c.setLineWidth(1)
+    c.roundRect(pill_x, pill_y, pill_w, pill_h, 8, fill=True, stroke=True)
+
+    c.setFillColor(colors.HexColor("#92400e"))
+    c.setFont("Helvetica-Bold", 12)
+    c.drawCentredString(width / 2, pill_y + 10, f"Score: {score:g} / {total_points:g}  ({percentage:.1f}%)   •   VERIFIED PASS")
+
+    # Verifiable QR Code
+    public_url = get_setting("public_url", "").rstrip("/")
+    if not public_url:
+        public_url = request.host_url.rstrip("/")
+    verify_url = f"{public_url}/verify-certificate/{integrity_hash}"
+
+    qr_widget = qr.QrCodeWidget(verify_url)
+    qr_size = 90
+    qr_widget.barWidth = qr_size
+    qr_widget.barHeight = qr_size
+    qr_widget.barBorder = 0
+    d = Drawing(qr_size, qr_size)
+    d.add(qr_widget)
+    # Position QR in bottom right corner
+    d.drawOn(c, width - 145, 52)
+
+    c.setFillColor(colors.HexColor("#64748b"))
+    c.setFont("Helvetica-Bold", 7.5)
+    c.drawCentredString(width - 100, 42, "SCAN TO VERIFY")
+
+    # Bottom Left: Signatures and Metadata
+    c.setFillColor(colors.HexColor("#0f172a"))
+    c.setFont("Helvetica-Bold", 10)
+    c.drawString(55, 115, "ExamGuard AI Academic Board")
+    c.setStrokeColor(colors.HexColor("#94a3b8"))
+    c.setLineWidth(1)
+    c.line(55, 130, 240, 130)
+
+    c.setFillColor(colors.HexColor("#64748b"))
+    c.setFont("Helvetica", 8)
+    issued_date = sub["submitted_at"] or sub["started_at"] or datetime.now().strftime("%Y-%m-%d")
+    c.drawString(55, 100, f"Issued Date: {issued_date}")
+    c.drawString(55, 88, f"Document ID: CERT-EX{sub['exam_id']}-SUB{sub['id']}")
+
+    # Cryptographic Hash String at Footer
+    c.setFont("Helvetica-Bold", 7.5)
+    c.setFillColor(colors.HexColor("#0284c7"))
+    c.drawString(55, 62, "HMAC-SHA256 INTEGRITY TOKEN:")
+    c.setFont("Courier", 7)
+    c.setFillColor(colors.HexColor("#475569"))
+    c.drawString(55, 52, integrity_hash)
+
+    c.showPage()
+    c.save()
+
+    buf.seek(0)
+    filename = f"Certificate_{sub['roll_number']}_{sub['id']}.pdf"
+    return send_file(
+        buf,
+        as_attachment=True,
+        download_name=filename,
+        mimetype="application/pdf"
+    )
+
+
+@app.route("/verify-certificate/<token>")
+def verify_certificate_public(token):
+    """
+    Public QR verification portal: verifies that a cryptographic integrity hash
+    matches an authentic submission record in the institutional database.
+    """
+    conn = get_connection()
+    cursor = conn.cursor()
+    cursor.execute("""
+        SELECT s.*, e.title as exam_title, e.passing_percentage
+        FROM submissions s
+        JOIN exams e ON s.exam_id = e.id
+        WHERE s.integrity_hash = ?
+    """, (token,))
+    sub = cursor.fetchone()
+    conn.close()
+
+    if not sub:
+        return render_template_string("""
+        <!DOCTYPE html>
+        <html>
+        <head>
+            <meta charset="utf-8">
+            <meta name="viewport" content="width=device-width, initial-scale=1">
+            <title>Certificate Verification - ExamGuard AI</title>
+            <script src="https://cdn.tailwindcss.com"></script>
+        </head>
+        <body class="bg-slate-950 text-slate-100 min-h-screen flex items-center justify-center p-4">
+            <div class="max-w-md w-full bg-slate-900 border border-rose-500/30 rounded-2xl p-8 text-center shadow-2xl">
+                <div class="w-16 h-16 rounded-2xl bg-rose-500/20 text-rose-400 flex items-center justify-center mx-auto mb-4">
+                    <svg class="w-8 h-8" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"/></svg>
+                </div>
+                <h2 class="text-xl font-bold text-white mb-2">Unrecognized Certificate Token</h2>
+                <p class="text-xs text-slate-400 mb-6">The cryptographic hash scanned is not present in our database or has been invalidated.</p>
+                <div class="p-3 bg-slate-950 rounded-xl font-mono text-[11px] text-slate-500 break-all select-all border border-slate-800 mb-6">
+                    {{ token }}
+                </div>
+                <a href="/" class="inline-block px-5 py-2.5 bg-slate-800 hover:bg-slate-700 text-white rounded-xl text-xs font-bold transition">Return to Home</a>
+            </div>
+        </body>
+        </html>
+        """, token=token), 404
+
+    return render_template_string("""
+    <!DOCTYPE html>
+    <html>
+    <head>
+        <meta charset="utf-8">
+        <meta name="viewport" content="width=device-width, initial-scale=1">
+        <title>Verified Credential - ExamGuard AI</title>
+        <script src="https://cdn.tailwindcss.com"></script>
+    </head>
+    <body class="bg-slate-950 text-slate-100 min-h-screen flex items-center justify-center p-4">
+        <div class="max-w-lg w-full bg-slate-900 border border-emerald-500/30 rounded-3xl p-8 shadow-2xl text-left relative overflow-hidden">
+            <div class="absolute -right-12 -top-12 w-40 h-40 bg-emerald-500/10 rounded-full blur-2xl pointer-events-none"></div>
+            <div class="flex items-center justify-between border-b border-slate-800 pb-4 mb-6">
+                <div class="flex items-center space-x-3">
+                    <div class="w-10 h-10 rounded-xl bg-emerald-500/20 text-emerald-400 flex items-center justify-center font-bold">
+                        EG
+                    </div>
+                    <div>
+                        <h1 class="text-base font-extrabold text-white">EXAMGUARD AI</h1>
+                        <p class="text-[10px] text-emerald-400 font-bold uppercase tracking-wider">Official Verifiable Credential</p>
+                    </div>
+                </div>
+                <span class="px-2.5 py-1 rounded-full text-[10px] font-extrabold bg-emerald-500/20 text-emerald-300 border border-emerald-500/30 flex items-center gap-1">
+                    <svg class="w-3 h-3 text-emerald-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"/></svg>
+                    AUTHENTIC PASS
+                </span>
+            </div>
+
+            <div class="space-y-4 text-xs">
+                <div>
+                    <span class="text-[10px] font-bold uppercase tracking-wider text-slate-500 block">Candidate Name</span>
+                    <span class="text-lg font-bold text-white">{{ sub.student_name }}</span>
+                    <span class="text-[11px] text-slate-400 font-mono block">Roll: {{ sub.roll_number }}</span>
+                </div>
+                <div class="p-3 bg-slate-950 rounded-xl border border-slate-800 grid grid-cols-2 gap-2">
+                    <div>
+                        <span class="text-[10px] font-bold text-slate-500 block">Assessment</span>
+                        <span class="font-semibold text-slate-200">{{ sub.exam_title }}</span>
+                    </div>
+                    <div>
+                        <span class="text-[10px] font-bold text-slate-500 block">Result</span>
+                        <span class="font-bold text-emerald-400">{{ sub.score }} / {{ sub.total_points }} ({{ sub.percentage }}%)</span>
+                    </div>
+                </div>
+                <div>
+                    <span class="text-[10px] font-bold uppercase tracking-wider text-slate-500 block mb-1">Cryptographic Fingerprint</span>
+                    <div class="p-2.5 bg-slate-950 rounded-xl font-mono text-[10px] text-slate-400 break-all border border-slate-800 select-all">
+                        {{ sub.integrity_hash }}
+                    </div>
+                </div>
+            </div>
+
+            <div class="mt-6 pt-4 border-t border-slate-800 flex items-center justify-between text-[11px] text-slate-500">
+                <span>Verified by Institutional Ledger</span>
+                <span>Date: {{ sub.submitted_at or sub.started_at }}</span>
+            </div>
+        </div>
+    </body>
+    </html>
+    """, sub=sub)
+
+
 
 
 @app.route("/tutor/submission/<int:submission_id>")
@@ -2604,9 +2914,29 @@ def tutor_submission_details(submission_id):
             
         questions_review.append(q_dict)
         
+    # Serialize violations safely for interactive timeline player
+    violations_clean = []
+    for idx, v in enumerate(violations):
+        violations_clean.append({
+            "index": idx,
+            "id": v["id"],
+            "type": v["violation_type"] or "",
+            "event_code": v["event_code"] or "SEC-001",
+            "severity": v["severity"] or "HIGH",
+            "details": v["details"] or "",
+            "timestamp": v["timestamp"] or "",
+            "formatted_time": format_datetime_12h_filter(v["timestamp"]),
+            "snapshot_url": v["snapshot_url"] or ""
+        })
+
     questions_review = attach_question_display_labels(questions_review)
     conn.close()
-    return render_template("submission_details.html", submission=submission, violations=violations, questions=questions_review)
+    return render_template("submission_details.html", 
+                           submission=submission, 
+                           violations=violations, 
+                           violations_json=json.dumps(violations_clean),
+                           questions=questions_review)
+
 
 @app.route("/api/tutor/submission/<int:submission_id>/generate-viva", methods=["POST"])
 @admin_required

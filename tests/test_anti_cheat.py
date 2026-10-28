@@ -62,3 +62,16 @@ def test_question_bank_api_auth():
     resp_post = client.post("/api/tutor/question-bank", json={"category": "Math"})
     assert resp_post.status_code in [302, 401]
 
+def test_pdf_certificate_auth():
+    """ECC Test: Verifies unauthenticated certificate download requires login."""
+    client = app.test_client()
+    resp = client.get("/api/submission/999/download-certificate")
+    assert resp.status_code in [302, 401]
+
+def test_public_certificate_verify_route():
+    """ECC Test: Verifies public QR certificate route responds with 404 for nonexistent token."""
+    client = app.test_client()
+    resp = client.get("/verify-certificate/nonexistent_fake_hash_123")
+    assert resp.status_code == 404
+
+

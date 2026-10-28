@@ -366,6 +366,26 @@
                                         </span>
                                     {% endif %}
                                 </div>
+
+                                <!-- Cohort Psychometric Comparison Details -->
+                                {% if q.discrimination_d is not none %}
+                                    <div class="mt-2 p-2.5 rounded-xl border {% if q.is_confusing_flaw %}bg-rose-50 border-rose-200 text-rose-950{% else %}bg-slate-100/70 border-slate-200 text-slate-800{% endif %} text-xs space-y-1.5">
+                                        <div class="flex items-center justify-between text-[11px] font-semibold flex-wrap gap-2">
+                                            <span class="flex items-center gap-1.5">
+                                                <i data-lucide="bar-chart-2" class="w-3.5 h-3.5 {% if q.is_confusing_flaw %}text-rose-600{% else %}text-sky-600{% endif %}"></i>
+                                                <span>Top 35% Students: <strong>{{ q.upper_correct }}/{{ q.cohort_size }} ({{ q.upper_pct }}%)</strong></span>
+                                                <span class="text-slate-400">vs</span>
+                                                <span>Struggling 35%: <strong>{{ q.lower_correct }}/{{ q.cohort_size }} ({{ q.lower_pct }}%)</strong></span>
+                                            </span>
+                                            <span class="font-mono text-[10px] px-2 py-0.5 rounded bg-white border border-slate-200 font-bold">
+                                                D = {{ q.discrimination_d }}
+                                            </span>
+                                        </div>
+                                        <p class="text-[11px] leading-relaxed {% if q.is_confusing_flaw %}text-rose-700 font-medium{% else %}text-slate-500{% endif %}">
+                                            {{ q.irt_recommendation }}
+                                        </p>
+                                    </div>
+                                {% endif %}
                             </div>
                             <span class="text-xs font-bold text-slate-400 flex-shrink-0">{{ q.points }} pt</span>
                         </div>
