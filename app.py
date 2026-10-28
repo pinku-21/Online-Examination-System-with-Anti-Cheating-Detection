@@ -477,6 +477,7 @@ def login():
             session["user_role"] = user["role"]
             session["roll_number"] = user.get("roll_number") or ""
             session["class_name"] = user.get("class_name") or ""
+            session["profile_photo"] = user.get("profile_photo") or ""
 
             flash(f"Signed in successfully as {user['full_name']}!", "success")
             if next_url and next_url.startswith("/") and not next_url.startswith("//"):
@@ -3147,6 +3148,79 @@ def student_dashboard():
 
     submissions = get_student_submissions(user_id, roll_number)
     return render_template("student_dashboard.html", student=session, submissions=submissions, available_exams=accessible_exams)
+
+@app.route("/api/student/active-exams")
+@login_required
+def api_student_active_exams():
+    user_id = session.get("user_id")
+    roll_number = session.get("roll_number")
+    conn = get_connection()
+    cursor = conn.cursor()
+
+    cursor.execute("SELECT class_name FROM users WHERE id = ?", (user_id,))
+    u_row = cursor.fetchone()
+    user_class = (u_row["class_name"] or "").strip().lower() if u_row else ""
+
+    cursor.execute("""
+        SELECT e.id, e.title, e.exam_code, e.duration_minutes, e.schedule_type, e.start_time, e.end_time, e.access_type, e.assigned_class,
+               (SELECT COUNT(*) FROM questions WHERE exam_id = e.id) as question_count,
+               (SELECT id FROM submissions WHERE exam_id = e.id AND (user_id = ? OR roll_number = ?) AND status IN ('in_progress','pause_requested','paused') ORDER BY started_at DESC LIMIT 1) as active_sub_id,
+               (SELECT status FROM submissions WHERE exam_id = e.id AND (user_id = ? OR roll_number = ?) AND status IN ('in_progress','pause_requested','paused') ORDER BY started_at DESC LIMIT 1) as active_sub_status,
+               (SELECT id FROM submissions WHERE exam_id = e.id AND (user_id = ? OR roll_number = ?) AND status NOT IN ('in_progress','pause_requested','paused') ORDER BY started_at DESC LIMIT 1) as completed_sub_id,
+               (SELECT percentage FROM submissions WHERE exam_id = e.id AND (user_id = ? OR roll_number = ?) AND status NOT IN ('in_progress','pause_requested','paused') ORDER BY started_at DESC LIMIT 1) as completed_pct
+        FROM exams e
+        WHERE e.is_active = 1
+        ORDER BY e.created_at DESC
+    """, (user_id, roll_number, user_id, roll_number, user_id, roll_number, user_id, roll_number))
+    all_exams = cursor.fetchall()
+
+    cursor.execute("SELECT exam_id FROM exam_assignments WHERE user_id = ?", (user_id,))
+    assigned_ids = set(r["exam_id"] for r in cursor.fetchall())
+    conn.close()
+
+    result = []
+    now = get_current_time()
+    for ex in all_exams:
+        ex_dict = dict(ex)
+        acc_type = ex_dict.get("access_type") or "all"
+        has_access = False
+        if acc_type == "all":
+            has_access = True
+        elif acc_type == "class" and user_class and (ex_dict.get("assigned_class", "").strip().lower() == user_class or ex_dict["id"] in assigned_ids):
+            has_access = True
+        elif ex_dict["id"] in assigned_ids:
+            has_access = True
+
+        if has_access:
+            sched = ex_dict.get("schedule_type") or "anytime"
+            if sched == "scheduled":
+                start_dt = None
+                end_dt = None
+                try:
+                    if ex_dict.get("start_time"):
+                        start_dt = datetime.fromisoformat(ex_dict["start_time"])
+                    if ex_dict.get("end_time"):
+                        end_dt = datetime.fromisoformat(ex_dict["end_time"])
+                except Exception:
+                    pass
+
+                if start_dt and now < start_dt:
+                    ex_dict["time_status"] = "upcoming"
+                    ex_dict["time_status_label"] = f"Starts {start_dt.strftime('%b %d, %I:%M %p')}"
+                elif end_dt and now > end_dt:
+                    ex_dict["time_status"] = "expired"
+                    ex_dict["time_status_label"] = f"Closed {end_dt.strftime('%b %d, %I:%M %p')}"
+                else:
+                    ex_dict["time_status"] = "live"
+                    ex_dict["time_status_label"] = "Live Now"
+            else:
+                ex_dict["time_status"] = "anytime"
+                ex_dict["time_status_label"] = "Available Anytime"
+
+            result.append(ex_dict)
+
+    return jsonify({"success": True, "exams": result})
+
 
 @app.route("/student")
 def student_join():
