@@ -1574,8 +1574,8 @@
                     ctx.clearRect(0, 0, canvas.width, canvas.height);
 
                     try {
-                        // Run COCO-SSD (good for multi-person / devices)
-                        const predictions = await aiVisionModel.detect(videoEl);
+                        // Run COCO-SSD with low threshold (0.10) and 25 max boxes so mobile phones held from any angle/back are not pre-filtered
+                        const predictions = await aiVisionModel.detect(videoEl, 25, 0.10);
 
                         // Run BlazeFace in parallel if available (evaluates facial features & eye landmarks)
                         let blazeFaceCount = 0;
@@ -1707,14 +1707,18 @@
                         let hasEarphoneDetected = false;
 
                         // Comprehensive list of unauthorized electronic devices and cheating aids from COCO-SSD
-                        const UNAUTHORIZED_DEVICE_CLASSES = ['cell phone', 'laptop', 'tv', 'tablet', 'remote'];
+                        // Includes: phone, laptop, remote, camera, tablet, tv, mouse, keyboard
+                        const UNAUTHORIZED_DEVICE_CLASSES = ['cell phone', 'laptop', 'tv', 'tablet', 'remote', 'camera', 'mouse', 'keyboard'];
 
                         // Determine if current question permits physical paper / copy notebook for rough work or handwriting
                         const activeQ = (typeof currentQuestionIndex !== 'undefined' && QUESTIONS && QUESTIONS[currentQuestionIndex]) ? QUESTIONS[currentQuestionIndex] : null;
                         const isWritingPermitted = activeQ && (activeQ.question_type === 'descriptive' || activeQ.question_type === 'short' || activeQ.has_photo_upload || activeQ.allow_upload !== false);
 
                         predictions.forEach(pred => {
-                            if (pred.class === 'person' && pred.score >= 0.25) {
+                            const pClass = (pred.class || '').toLowerCase();
+                            const pScore = pred.score || 0;
+
+                            if (pClass === 'person' && pScore >= 0.22) {
                                 personCount++;
                                 if (!isFacePartiallyOccluded) {
                                     if (isBiometricMismatch) {
@@ -1723,23 +1727,23 @@
                                         drawBoundingBox(ctx, pred.bbox, 'Candidate', '#10b981');
                                     }
                                 }
-                            } else if (pred.class === 'book' && pred.score >= 0.22) {
+                            } else if (pClass === 'book' && pScore >= 0.22) {
                                 // Distinction between Copy/Notebook and unauthorized cheat book:
-                                // If the question is written/math/rough-work, a paper copy/notebook is permitted and labeled green/sky.
                                 if (isWritingPermitted) {
                                     drawBoundingBox(ctx, pred.bbox, '📄 Answer Copy / Notebook', '#38bdf8');
                                 } else {
-                                    // In purely objective exams with no paper allowed, flag book
                                     detectedDevices.push('book');
                                     drawBoundingBox(ctx, pred.bbox, '🚨 UNAUTHORIZED BOOK', '#f43f5e');
                                 }
-                            } else if (pred.class === 'cell phone' && pred.score >= 0.15) {
-                                // Instant Mobile Phone Detection: Flag any phone seen immediately
+                            } else if (pClass === 'cell phone' && pScore >= 0.10) {
+                                // Instant Mobile Phone Detection (even when held at angle or showing back/camera bump)
                                 detectedDevices.push('cell phone');
                                 drawBoundingBox(ctx, pred.bbox, '🚨 MOBILE PHONE DETECTED', '#f43f5e');
-                            } else if (UNAUTHORIZED_DEVICE_CLASSES.includes(pred.class) && pred.score >= 0.18) {
-                                detectedDevices.push(pred.class);
-                                drawBoundingBox(ctx, pred.bbox, '🚨 ' + pred.class.toUpperCase(), '#f43f5e');
+                            } else if (UNAUTHORIZED_DEVICE_CLASSES.includes(pClass) && pScore >= 0.12) {
+                                // Handle remotes, cameras, tablets, laptops often detected when back of phone is held
+                                const deviceLabel = pClass === 'remote' || pClass === 'camera' ? 'cell phone' : pClass;
+                                detectedDevices.push(deviceLabel);
+                                drawBoundingBox(ctx, pred.bbox, '🚨 ' + deviceLabel.toUpperCase() + ' DETECTED', '#f43f5e');
                             }
                         });
 
