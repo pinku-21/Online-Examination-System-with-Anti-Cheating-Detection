@@ -62,6 +62,19 @@
                 <i data-lucide="alert-triangle" class="w-10 h-10 text-rose-400 mb-2 animate-bounce"></i>
                 <p id="ai-alert-text" class="text-xs font-bold text-rose-200">Unauthorized object on desk</p>
             </div>
+
+            <!-- Tap to Start / Permission Grant Overlay -->
+            <div id="tap-to-start-overlay" class="absolute inset-0 bg-slate-900/95 backdrop-blur-sm flex flex-col items-center justify-center p-5 text-center">
+                <div class="w-14 h-14 rounded-2xl bg-sky-500/20 text-sky-400 flex items-center justify-center mb-3 border border-sky-500/30">
+                    <i data-lucide="camera" class="w-7 h-7"></i>
+                </div>
+                <h3 class="text-sm font-bold text-white mb-1">Start 360° Secondary Cam</h3>
+                <p id="tap-to-start-text" class="text-xs text-slate-400 mb-4 max-w-xs">Tap below to allow camera access and begin streaming your desk angle.</p>
+                <button type="button" onclick="initCamera()" class="px-5 py-2.5 bg-sky-600 hover:bg-sky-500 active:scale-95 text-white font-semibold text-xs rounded-xl shadow-lg shadow-sky-600/30 flex items-center space-x-2 transition-all">
+                    <span>Allow & Start Camera</span>
+                    <i data-lucide="arrow-right" class="w-4 h-4"></i>
+                </button>
+            </div>
         </div>
 
         <!-- Telemetry Details -->
@@ -84,8 +97,8 @@
     </footer>
 
     <script>
-        const SUBMISSION_ID = {{ submission_id }};
-        const PAIR_TOKEN = "{{ token }}";
+        const SUBMISSION_ID = parseInt("{{ submission_id | default(0) }}", 10) || 0;
+        const PAIR_TOKEN = String("{{ token | default('') }}");
         const video = document.getElementById('mobile-video');
         const canvas = document.getElementById('mobile-canvas');
         const connBadge = document.getElementById('connection-badge');
@@ -100,33 +113,79 @@
         let framesTransmitted = 0;
 
         async function initCamera() {
+            connBadge.className = 'px-2.5 py-1 rounded-full text-[11px] font-semibold bg-sky-500/20 text-sky-300 border border-sky-500/30';
+            connBadge.textContent = 'Requesting Cam...';
+
+            // Check for HTTPS / secure context requirement on mobile browsers
+            if (location.protocol !== 'https:' && location.hostname !== 'localhost' && location.hostname !== '127.0.0.1') {
+                connBadge.className = 'px-2.5 py-1 rounded-full text-[11px] font-semibold bg-amber-500/20 text-amber-300 border border-amber-500/30';
+                connBadge.textContent = 'HTTP Notice';
+                console.warn("Mobile browsers require HTTPS or localhost/tunnel (ngrok/Cloudflare) to access cameras on other devices.");
+            }
+
+            if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+                connBadge.className = 'px-2.5 py-1 rounded-full text-[11px] font-semibold bg-rose-500/20 text-rose-300 border border-rose-500/30';
+                connBadge.textContent = 'No WebRTC';
+                showCameraErrorOverlay('Your mobile browser does not support WebRTC camera streaming. Please open this link in Chrome or Safari.');
+                return;
+            }
+
+            // Strategy 1: Attempt Environment (rear) camera
+            let stream = null;
             try {
-                // Request environment/rear camera on smartphone for wider desk angle
-                const stream = await navigator.mediaDevices.getUserMedia({
-                    video: {
-                        facingMode: { ideal: "environment" },
-                        width: { ideal: 640 },
-                        height: { ideal: 480 }
-                    },
+                stream = await navigator.mediaDevices.getUserMedia({
+                    video: { facingMode: { ideal: "environment" }, width: { ideal: 640 }, height: { ideal: 480 } },
                     audio: false
                 });
+            } catch (envErr) {
+                console.warn("Rear environment camera failed, falling back to any available camera:", envErr);
+                // Strategy 2: Fallback to any camera without constraints
+                try {
+                    stream = await navigator.mediaDevices.getUserMedia({
+                        video: true,
+                        audio: false
+                    });
+                } catch (fallbackErr) {
+                    console.error("Camera access failed completely:", fallbackErr);
+                    connBadge.className = 'px-2.5 py-1 rounded-full text-[11px] font-semibold bg-rose-500/20 text-rose-300 border border-rose-500/30';
+                    connBadge.textContent = 'Camera Blocked';
+                    showCameraErrorOverlay(`Camera access was denied or unavailable (${fallbackErr.name || fallbackErr.message}). Tap "Allow Camera" or check browser site permissions.`);
+                    return;
+                }
+            }
+
+            try {
                 video.srcObject = stream;
                 await video.play();
                 isStreaming = true;
+                connBadge.className = 'px-2.5 py-1 rounded-full text-[11px] font-semibold bg-emerald-500/20 text-emerald-300 border border-emerald-500/30';
+                connBadge.textContent = 'Active Feed';
+
+                const promptBtn = document.getElementById('tap-to-start-overlay');
+                if (promptBtn) promptBtn.classList.add('hidden');
 
                 // Load lightweight COCO-SSD for mobile desk screening
                 try {
-                    cocoModel = await cocoSsd.load({ base: 'lite_mobilenet_v2' });
+                    if (typeof cocoSsd !== 'undefined') {
+                        cocoModel = await cocoSsd.load({ base: 'lite_mobilenet_v2' });
+                    }
                 } catch(e) {
-                    console.warn("Mobile COCO-SSD load optional fallback:", e);
+                    console.warn("Mobile COCO-SSD optional fallback:", e);
                 }
 
                 startHeartbeatStream();
-            } catch (err) {
-                console.error("Camera access error:", err);
-                connBadge.className = 'px-2.5 py-1 rounded-full text-[11px] font-semibold bg-rose-500/20 text-rose-300 border border-rose-500/30';
-                connBadge.textContent = 'Camera Blocked';
-                alert("Please allow camera access on your mobile device to complete secondary proctoring setup.");
+            } catch (playErr) {
+                console.error("Video play error:", playErr);
+                showCameraErrorOverlay("Video playback blocked by browser policy. Tap below to start stream.");
+            }
+        }
+
+        function showCameraErrorOverlay(msg) {
+            const overlay = document.getElementById('tap-to-start-overlay');
+            const overlayText = document.getElementById('tap-to-start-text');
+            if (overlay && overlayText) {
+                overlayText.textContent = msg;
+                overlay.classList.remove('hidden');
             }
         }
 

@@ -282,6 +282,9 @@ STRICT JSON OUTPUT RULES:
    - "correct_answer": For MCQ/TF, the exact matching option string. For short/descriptive, the comprehensive reference answer or key grading points.
    - "explanation": Brief 1-2 sentence grading rubric or explanation.
    - "points": Float mark weightage for this specific question (e.g. 1.0, 2.0, 3.0, 4.0, 5.0, 10.0).
+   - "difficulty_tier": Estimated question difficulty: "Easy", "Medium", or "Hard".
+   - "blooms_taxonomy": Cognitive level according to Bloom's Taxonomy: one of "Remember", "Understand", "Apply", "Analyze", "Evaluate", or "Create".
+   - "distractor_analysis": For MCQ questions, an object mapping incorrect options to a short 1-sentence reason why that specific distractor is wrong/misleading. Format: {{"Option text": "Reason why wrong", ...}}. If short or descriptive, provide empty object {{}}.
    - "is_or_choice": Optional boolean. Set to true if this question is an alternate OR choice to the preceding question (and prefix question_text with "[OR Alternative] ").
 
 STRICT RULES ON MATHEMATICAL NOTATION & CLARITY (CRITICAL):

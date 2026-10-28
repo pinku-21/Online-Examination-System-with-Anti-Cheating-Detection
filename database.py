@@ -254,7 +254,28 @@ def init_db():
             "ALTER TABLE questions ADD COLUMN IF NOT EXISTS difficulty_tier TEXT DEFAULT 'medium'",
             "ALTER TABLE exams ADD COLUMN IF NOT EXISTS pool_question_count INTEGER DEFAULT 0",
             "ALTER TABLE proctor_messages ADD COLUMN IF NOT EXISTS audio_payload TEXT DEFAULT ''",
+            # AI Distractor Analysis & Bloom's Taxonomy
+            "ALTER TABLE questions ADD COLUMN IF NOT EXISTS blooms_taxonomy TEXT DEFAULT 'Understand'",
+            "ALTER TABLE questions ADD COLUMN IF NOT EXISTS distractor_analysis_json TEXT DEFAULT '{}'",
         ]
+        cursor.execute("""CREATE TABLE IF NOT EXISTS question_bank (
+            id SERIAL PRIMARY KEY,
+            tutor_id INTEGER REFERENCES users(id) ON DELETE CASCADE,
+            category TEXT NOT NULL DEFAULT 'General',
+            chapter TEXT DEFAULT '',
+            question_text TEXT NOT NULL,
+            question_type TEXT NOT NULL DEFAULT 'mcq',
+            options_json TEXT,
+            correct_answer TEXT NOT NULL,
+            explanation TEXT,
+            points DOUBLE PRECISION NOT NULL DEFAULT 1.0,
+            difficulty_tier TEXT DEFAULT 'Medium',
+            blooms_taxonomy TEXT DEFAULT 'Understand',
+            distractor_analysis_json TEXT DEFAULT '{}',
+            figure_svg TEXT,
+            figure_url TEXT,
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        )""")
         cursor.execute("""CREATE TABLE IF NOT EXISTS proctor_messages (
             id SERIAL PRIMARY KEY,
             submission_id INTEGER NOT NULL,
@@ -407,11 +428,33 @@ def init_db():
             ("questions", "difficulty_tier", "TEXT DEFAULT 'medium'"),
             ("exams", "pool_question_count", "INTEGER DEFAULT 0"),
             ("proctor_messages", "audio_payload", "TEXT DEFAULT ''"),
+            # AI Distractor Analysis & Bloom's Taxonomy
+            ("questions", "blooms_taxonomy", "TEXT DEFAULT 'Understand'"),
+            ("questions", "distractor_analysis_json", "TEXT DEFAULT '{}'"),
         ]:
             columns = {row["name"] for row in cursor.execute(f"PRAGMA table_info({table})").fetchall()}
             if column not in columns:
                 cursor.execute(f"ALTER TABLE {table} ADD COLUMN {column} {definition}")
 
+        cursor.execute("""CREATE TABLE IF NOT EXISTS question_bank (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            tutor_id INTEGER,
+            category TEXT NOT NULL DEFAULT 'General',
+            chapter TEXT DEFAULT '',
+            question_text TEXT NOT NULL,
+            question_type TEXT NOT NULL DEFAULT 'mcq',
+            options_json TEXT,
+            correct_answer TEXT NOT NULL,
+            explanation TEXT,
+            points REAL NOT NULL DEFAULT 1.0,
+            difficulty_tier TEXT DEFAULT 'Medium',
+            blooms_taxonomy TEXT DEFAULT 'Understand',
+            distractor_analysis_json TEXT DEFAULT '{}',
+            figure_svg TEXT,
+            figure_url TEXT,
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            FOREIGN KEY (tutor_id) REFERENCES users(id) ON DELETE CASCADE
+        )""")
         cursor.execute("""CREATE TABLE IF NOT EXISTS proctor_messages (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
             submission_id INTEGER NOT NULL,

@@ -50,3 +50,15 @@ def test_mobile_companion_pairing_auth():
     resp = client.get("/api/submission/999/mobile-pair-token")
     assert resp.status_code in [302, 401]
 
+def test_question_bank_api_auth():
+    """ECC Test: Verifies question bank endpoints require tutor authentication."""
+    client = app.test_client()
+    resp = client.get("/api/tutor/question-bank")
+    assert resp.status_code in [302, 401]
+
+    resp_cat = client.get("/api/tutor/question-bank/categories")
+    assert resp_cat.status_code in [302, 401]
+
+    resp_post = client.post("/api/tutor/question-bank", json={"category": "Math"})
+    assert resp_post.status_code in [302, 401]
+

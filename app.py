@@ -10,7 +10,7 @@ import hashlib
 import hmac
 from functools import wraps
 from datetime import datetime, timezone, timedelta
-from flask import Flask, render_template, request, jsonify, redirect, url_for, flash, session
+from flask import Flask, render_template, render_template_string, request, jsonify, redirect, url_for, flash, session
 from werkzeug.utils import secure_filename
 
 try:
@@ -2051,9 +2051,15 @@ def api_save_exam():
         exam_id = cursor.lastrowid
         
         for q in questions_list:
+            distractors = q.get("distractor_analysis") or q.get("distractor_analysis_json") or {}
+            if isinstance(distractors, dict):
+                distractors_str = json.dumps(distractors)
+            else:
+                distractors_str = str(distractors)
+
             cursor.execute("""
-                INSERT INTO questions (exam_id, question_text, question_type, options_json, correct_answer, explanation, points, figure_svg, figure_url, is_honeypot, honeypot_signature, honeypot_perturbation_type)
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                INSERT INTO questions (exam_id, question_text, question_type, options_json, correct_answer, explanation, points, figure_svg, figure_url, is_honeypot, honeypot_signature, honeypot_perturbation_type, topic_category, difficulty_tier, blooms_taxonomy, distractor_analysis_json)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             """, (
                 exam_id,
                 q.get("question_text", ""),
@@ -2066,7 +2072,11 @@ def api_save_exam():
                 q.get("figure_url"),
                 1 if q.get("is_honeypot") in [1, True, "1"] else 0,
                 (q.get("honeypot_signature") or "").strip(),
-                (q.get("honeypot_perturbation_type") or "none").strip()
+                (q.get("honeypot_perturbation_type") or "none").strip(),
+                (q.get("topic_category") or "General").strip(),
+                (q.get("difficulty_tier") or "Medium").strip(),
+                (q.get("blooms_taxonomy") or "Understand").strip(),
+                distractors_str
             ))
         
         # Save student assignments
@@ -2094,6 +2104,120 @@ def api_save_exam():
         except Exception:
             pass
         return jsonify({"success": False, "error": f"Failed to save exam: {str(e)}"}), 500
+
+# --- TUTOR QUESTION BANK & REUSABLE CATEGORIES ---
+
+@app.route("/api/tutor/question-bank", methods=["GET", "POST"])
+@admin_required
+def api_tutor_question_bank():
+    """
+    GET: Retrieves saved reusable questions from tutor's question bank with optional category filtering.
+    POST: Saves a question (or batch of questions) into the question bank.
+    """
+    tutor_id = session.get("user_id")
+    conn = get_connection()
+    cursor = conn.cursor()
+
+    if request.method == "GET":
+        category = (request.args.get("category") or "").strip()
+        search = (request.args.get("q") or "").strip()
+        query = "SELECT * FROM question_bank WHERE tutor_id = ? OR tutor_id IS NULL"
+        params = [tutor_id]
+
+        if category:
+            query += " AND LOWER(category) = LOWER(?)"
+            params.append(category)
+        if search:
+            query += " AND (LOWER(question_text) LIKE LOWER(?) OR LOWER(chapter) LIKE LOWER(?))"
+            params.extend([f"%{search}%", f"%{search}%"])
+
+        query += " ORDER BY id DESC"
+        cursor.execute(query, tuple(params))
+        rows = cursor.fetchall()
+        conn.close()
+
+        results = []
+        for r in rows:
+            q_dict = dict(r)
+            if q_dict.get("options_json"):
+                try:
+                    q_dict["options"] = json.loads(q_dict["options_json"])
+                except Exception:
+                    q_dict["options"] = []
+            else:
+                q_dict["options"] = []
+            if q_dict.get("distractor_analysis_json"):
+                try:
+                    q_dict["distractor_analysis"] = json.loads(q_dict["distractor_analysis_json"])
+                except Exception:
+                    q_dict["distractor_analysis"] = {}
+            results.append(q_dict)
+
+        return jsonify({"success": True, "questions": results, "total": len(results)})
+
+    elif request.method == "POST":
+        data = request.get_json() or {}
+        items = data.get("questions")
+        if not items:
+            # Single question payload
+            items = [data]
+
+        saved_count = 0
+        for item in items:
+            q_text = (item.get("question_text") or "").strip()
+            if not q_text:
+                continue
+            cat = (item.get("category") or item.get("topic_category") or "General").strip()
+            chp = (item.get("chapter") or "").strip()
+            q_type = (item.get("question_type") or "mcq").strip()
+            opts = item.get("options") or []
+            ans = (item.get("correct_answer") or "").strip()
+            exp = (item.get("explanation") or "").strip()
+            pts = float(item.get("points") or 1.0)
+            diff = (item.get("difficulty_tier") or "Medium").strip()
+            bloom = (item.get("blooms_taxonomy") or "Understand").strip()
+            distractors = item.get("distractor_analysis") or item.get("distractor_analysis_json") or {}
+            distractors_str = json.dumps(distractors) if isinstance(distractors, dict) else str(distractors)
+            fig_svg = item.get("figure_svg")
+            fig_url = item.get("figure_url")
+
+            cursor.execute("""
+                INSERT INTO question_bank (tutor_id, category, chapter, question_text, question_type, options_json, correct_answer, explanation, points, difficulty_tier, blooms_taxonomy, distractor_analysis_json, figure_svg, figure_url)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            """, (tutor_id, cat, chp, q_text, q_type, json.dumps(opts), ans, exp, pts, diff, bloom, distractors_str, fig_svg, fig_url))
+            saved_count += 1
+
+        conn.commit()
+        conn.close()
+        return jsonify({"success": True, "saved_count": saved_count})
+
+@app.route("/api/tutor/question-bank/<int:qb_id>", methods=["DELETE"])
+@admin_required
+def api_delete_question_bank_item(qb_id):
+    """Deletes a question from the question bank."""
+    tutor_id = session.get("user_id")
+    conn = get_connection()
+    cursor = conn.cursor()
+    cursor.execute("DELETE FROM question_bank WHERE id = ? AND (tutor_id = ? OR tutor_id IS NULL)", (qb_id, tutor_id))
+    conn.commit()
+    conn.close()
+    return jsonify({"success": True})
+
+@app.route("/api/tutor/question-bank/categories", methods=["GET"])
+@admin_required
+def api_get_question_bank_categories():
+    """Returns distinct categories and chapters currently in the tutor's question bank."""
+    tutor_id = session.get("user_id")
+    conn = get_connection()
+    cursor = conn.cursor()
+    cursor.execute("""
+        SELECT DISTINCT category FROM question_bank WHERE tutor_id = ? OR tutor_id IS NULL ORDER BY category ASC
+    """, (tutor_id,))
+    cats = [row["category"] for row in cursor.fetchall() if row["category"]]
+    conn.close()
+    if "General" not in cats:
+        cats.insert(0, "General")
+    return jsonify({"success": True, "categories": cats})
 
 @app.route("/api/tutor/exam/<int:exam_id>/access-schedule", methods=["GET", "POST"])
 @admin_required
@@ -3744,7 +3868,15 @@ def exam_result(submission_id):
                 q_dict["awarded_marks"] = default_pts
                 q_dict["eval_feedback"] = ""
                 q_dict["eval_by"] = "auto"
-                q_dict["is_evaluated"] = False
+            # Parse AI Distractor Analysis if present
+            distractor_raw = q.get("distractor_analysis_json")
+            if distractor_raw:
+                try:
+                    q_dict["distractor_analysis"] = json.loads(distractor_raw) if isinstance(distractor_raw, str) else distractor_raw
+                except Exception:
+                    q_dict["distractor_analysis"] = {}
+            else:
+                q_dict["distractor_analysis"] = {}
 
             questions_review.append(q_dict)
 
