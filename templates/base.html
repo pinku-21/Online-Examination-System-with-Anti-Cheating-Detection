@@ -247,13 +247,13 @@
             transition: all 0.15s ease;
             cursor: pointer;
         }
-        /* Dark Mode Specific Overrides */
-        .dark body {
+        .dark body,
+        .dark main {
             background-color: hsl(var(--background)) !important;
             color: hsl(var(--foreground)) !important;
         }
         .dark header {
-            background-color: hsl(var(--card) / 0.85) !important;
+            background-color: hsl(var(--card) / 0.95) !important;
             border-color: hsl(var(--border)) !important;
         }
         .dark .shadcn-btn-default {
@@ -293,15 +293,17 @@
             background-color: hsl(var(--card));
             color: hsl(var(--foreground));
         }
-        .dark .bg-white {
+        .dark .bg-white,
+        .dark [class*="bg-white"] {
             background-color: hsl(var(--card)) !important;
             color: hsl(var(--card-foreground));
         }
-        .dark .border-slate-200 {
+        .dark .border-slate-200,
+        .dark .border-slate-300 {
             border-color: hsl(var(--border)) !important;
         }
         .dark .border-slate-100 {
-            border-color: hsl(var(--border) / 0.6) !important;
+            border-color: hsl(var(--border) / 0.5) !important;
         }
         .dark .text-slate-900 {
             color: hsl(var(--foreground)) !important;
@@ -324,11 +326,19 @@
         .dark .bg-slate-100 {
             background-color: hsl(var(--secondary)) !important;
         }
+        .dark .bg-slate-200 {
+            background-color: hsl(var(--secondary) / 0.8) !important;
+        }
         .dark .hover\:bg-slate-50:hover {
             background-color: hsl(var(--secondary) / 0.7) !important;
         }
         .dark .hover\:bg-slate-100:hover {
             background-color: hsl(var(--secondary)) !important;
+        }
+        .dark .shadow-sm,
+        .dark .shadow-md,
+        .dark .shadow-lg {
+            box-shadow: 0 4px 20px -2px rgba(0, 0, 0, 0.45) !important;
         }
     </style>
     {% block head %}{% endblock %}
