@@ -327,27 +327,27 @@ SPECIALIZED QUESTION FORMAT RULES:
 2. MATCH THE FOLLOWING (question_type: "matching"):
    - When generating Match the Following or when requested:
      Set "question_type": "matching".
-     "options": {
-       "left": [{"id": "L1", "text": "Item 1"}, {"id": "L2", "text": "Item 2"}, {"id": "L3", "text": "Item 3"}, {"id": "L4", "text": "Item 4"}],
-       "right": [{"id": "R1", "text": "Match for Item 2"}, {"id": "R2", "text": "Match for Item 1"}, {"id": "R3", "text": "Match for Item 4"}, {"id": "R4", "text": "Match for Item 3"}]
-     }
-     "correct_answer": {"L1": "R2", "L2": "R1", "L3": "R4", "L4": "R3"}
+     "options": {{
+       "left": [{{"id": "L1", "text": "Item 1"}}, {{"id": "L2", "text": "Item 2"}}, {{"id": "L3", "text": "Item 3"}}, {{"id": "L4", "text": "Item 4"}}],
+       "right": [{{"id": "R1", "text": "Match for Item 2"}}, {{"id": "R2", "text": "Match for Item 1"}}, {{"id": "R3", "text": "Match for Item 4"}}, {{"id": "R4", "text": "Match for Item 3"}}]
+     }}
+     "correct_answer": {{"L1": "R2", "L2": "R1", "L3": "R4", "L4": "R3"}}
      (AI must automatically pair every left ID to its correct matching right ID!)
 
 3. MAP & HOTSPOT IDENTIFICATION QUESTIONS (question_type: "map_hotspot"):
    - For Geography, World/Country Maps, Anatomy, Circuit, or Science Diagrams:
      Set "question_type": "map_hotspot".
      Provide either a valid illustrative map SVG in "figure_svg" or a map URL in "figure_url".
-     "options": {
+     "options": {{
        "image_url": "...",
        "hotspots": [
-         {"id": "P1", "x": 32.5, "y": 45.0, "title": "Pin 1"},
-         {"id": "P2", "x": 65.0, "y": 58.2, "title": "Pin 2"},
-         {"id": "P3", "x": 48.0, "y": 25.4, "title": "Pin 3"}
+         {{"id": "P1", "x": 32.5, "y": 45.0, "title": "Pin 1"}},
+         {{"id": "P2", "x": 65.0, "y": 58.2, "title": "Pin 2"}},
+         {{"id": "P3", "x": 48.0, "y": 25.4, "title": "Pin 3"}}
        ],
        "labels": ["Correct Name 1", "Correct Name 2", "Correct Name 3", "Distractor Label 4"]
-     }
-     "correct_answer": {"P1": "Correct Name 1", "P2": "Correct Name 2", "P3": "Correct Name 3"}
+     }}
+     "correct_answer": {{"P1": "Correct Name 1", "P2": "Correct Name 2", "P3": "Correct Name 3"}}
      (AI must set the percentage coordinates (x%, y%) and automatically match each pin to its correct label!)
 4. CASE-BASED / PASSAGE / SOURCE-BASED QUESTIONS:
    - Provide a realistic 3-4 sentence scientific or real-world passage followed by sub-questions.
