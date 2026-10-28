@@ -1,0 +1,55 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 612 696" width="100%" height="100%">
+    <defs>
+        <style>
+            .ocean { fill: #bae6fd; }
+            .land { fill: #f1f5f9; stroke: #64748b; stroke-width: 1.2; }
+            .port-dot { fill: #dc2626; stroke: #ffffff; stroke-width: 2.5; }
+            .port-label { font-family: sans-serif; font-size: 11px; font-weight: bold; fill: #0f172a; }
+            .title { font-family: sans-serif; font-size: 14px; font-weight: 800; fill: #0f172a; }
+        </style>
+    </defs>
+    <rect width="612" height="696" class="ocean"/>
+    <path class="land" d="M 230 40 L 290 85 L 350 110 L 375 140 L 460 170 L 530 160 L 580 200 L 550 250 L 480 260 L 450 310 L 430 390 L 380 490 L 320 620 L 290 620 L 250 510 L 190 410 L 170 330 L 140 310 L 180 250 L 200 180 Z"/>
+
+    <text x="180" y="40" class="title">MAJOR SEA PORTS OF INDIA</text>
+
+    <!-- Kandla Port -->
+    <circle cx="165" cy="305" r="5" class="port-dot"/>
+    <text x="105" y="300" class="port-label">Kandla (Deendayal)</text>
+
+    <!-- Mumbai / JNPT -->
+    <circle cx="195" cy="390" r="5" class="port-dot"/>
+    <text x="110" y="385" class="port-label">Mumbai &amp; JNPT</text>
+
+    <!-- Marmagao -->
+    <circle cx="215" cy="450" r="5" class="port-dot"/>
+    <text x="150" y="455" class="port-label">Marmagao</text>
+
+    <!-- New Mangalore -->
+    <circle cx="235" cy="510" r="5" class="port-dot"/>
+    <text x="145" y="515" class="port-label">New Mangalore</text>
+
+    <!-- Kochi -->
+    <circle cx="265" cy="570" r="5" class="port-dot"/>
+    <text x="215" y="585" class="port-label">Kochi</text>
+
+    <!-- Tuticorin -->
+    <circle cx="310" cy="610" r="5" class="port-dot"/>
+    <text x="320" y="615" class="port-label">V.O.C. (Tuticorin)</text>
+
+    <!-- Chennai -->
+    <circle cx="365" cy="520" r="5" class="port-dot"/>
+    <text x="375" y="525" class="port-label">Chennai</text>
+
+    <!-- Visakhapatnam -->
+    <circle cx="410" cy="430" r="5" class="port-dot"/>
+    <text x="420" y="435" class="port-label">Visakhapatnam</text>
+
+    <!-- Paradip -->
+    <circle cx="455" cy="365" r="5" class="port-dot"/>
+    <text x="465" y="365" class="port-label">Paradip</text>
+
+    <!-- Haldia / Kolkata -->
+    <circle cx="485" cy="305" r="5" class="port-dot"/>
+    <text x="480" y="295" class="port-label">Kolkata / Haldia</text>
+</svg>

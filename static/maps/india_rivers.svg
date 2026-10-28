@@ -1,0 +1,62 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 612 696" width="100%" height="100%">
+    <defs>
+        <style>
+            .ocean { fill: #bae6fd; }
+            .land { fill: #fef9c3; stroke: #64748b; stroke-width: 1.2; }
+            .river { fill: none; stroke: #0284c7; stroke-width: 2.8; stroke-linecap: round; stroke-linejoin: round; }
+            .river-label { font-family: sans-serif; font-size: 11px; font-weight: bold; fill: #0369a1; }
+            .ocean-label { font-family: sans-serif; font-size: 13px; font-weight: 800; fill: #0284c7; letter-spacing: 1px; }
+            .mountain { fill: none; stroke: #92400e; stroke-width: 2.5; stroke-dasharray: 4 3; }
+        </style>
+    </defs>
+    <!-- Ocean Background -->
+    <rect width="612" height="696" class="ocean"/>
+    
+    <!-- Simplified India Landmass -->
+    <path class="land" d="M 230 40 L 290 85 L 350 110 L 375 140 L 460 170 L 530 160 L 580 200 L 550 250 L 480 260 L 450 310 L 430 390 L 380 490 L 320 620 L 290 620 L 250 510 L 190 410 L 170 330 L 140 310 L 180 250 L 200 180 Z"/>
+
+    <!-- Himalayas Ridge -->
+    <path class="mountain" d="M 220 70 Q 320 120 480 160"/>
+    <text x="310" y="95" class="river-label" fill="#78350f">HIMALAYAS</text>
+
+    <!-- River Indus (Sindhu) -->
+    <path class="river" d="M 270 70 Q 230 110 180 180 Q 150 250 145 300"/>
+    <text x="140" y="210" class="river-label">Indus</text>
+
+    <!-- River Ganga -->
+    <path class="river" d="M 280 110 Q 330 180 430 250 Q 450 270 470 300"/>
+    <text x="350" y="200" class="river-label">Ganga</text>
+
+    <!-- River Yamuna -->
+    <path class="river" d="M 265 125 Q 310 190 390 230"/>
+    <text x="280" y="165" class="river-label">Yamuna</text>
+
+    <!-- River Brahmaputra -->
+    <path class="river" d="M 360 85 Q 480 120 560 170 Q 520 220 475 295"/>
+    <text x="490" y="145" class="river-label">Brahmaputra</text>
+
+    <!-- River Narmada -->
+    <path class="river" d="M 370 310 Q 280 320 180 325"/>
+    <text x="260" y="305" class="river-label">Narmada</text>
+
+    <!-- River Tapi -->
+    <path class="river" d="M 350 345 Q 270 350 190 355"/>
+    <text x="270" y="340" class="river-label">Tapi</text>
+
+    <!-- River Godavari -->
+    <path class="river" d="M 220 380 Q 310 400 425 430"/>
+    <text x="310" y="385" class="river-label">Godavari</text>
+
+    <!-- River Krishna -->
+    <path class="river" d="M 230 440 Q 320 460 395 490"/>
+    <text x="290" y="445" class="river-label">Krishna</text>
+
+    <!-- River Kaveri (Cauvery) -->
+    <path class="river" d="M 240 520 Q 300 535 365 550"/>
+    <text x="280" y="525" class="river-label">Kaveri</text>
+
+    <!-- Water Bodies Labels -->
+    <text x="50" y="470" class="ocean-label">ARABIAN SEA</text>
+    <text x="420" y="470" class="ocean-label">BAY OF BENGAL</text>
+    <text x="230" y="660" class="ocean-label">INDIAN OCEAN</text>
+</svg>

@@ -1,7 +1,7 @@
 <?xml version="1.0"?>
 <defs>
     <style>
-        svg { background-color: #bae6fd; } /* Blue Ocean */
+        svg { background-color: #bae6fd; }
         path {
             stroke: #475569;
             stroke-width: 0.8;

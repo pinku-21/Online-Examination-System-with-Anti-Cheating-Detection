@@ -5,20 +5,19 @@
 >
 <defs>
     <style>
-        svg { background-color: #e0f2fe; } /* Ocean Blue */
+        svg { background-color: #e0f2fe; }
         path {
             stroke: #334155;
             stroke-width: 1.2;
             stroke-linejoin: round;
             transition: all 0.2s ease;
         }
-        /* Vibrant educational pastel palette for Indian States */
-        path:nth-of-type(6n+1) { fill: #fef08a; } /* Sun Yellow */
-        path:nth-of-type(6n+2) { fill: #fed7aa; } /* Light Orange */
-        path:nth-of-type(6n+3) { fill: #bbf7d0; } /* Mint Green */
-        path:nth-of-type(6n+4) { fill: #fbcfe8; } /* Soft Pink */
-        path:nth-of-type(6n+5) { fill: #ddd6fe; } /* Lavender */
-        path:nth-of-type(6n)   { fill: #bae6fd; } /* Sky Blue */
+        path:nth-of-type(6n+1) { fill: #fef08a; }
+        path:nth-of-type(6n+2) { fill: #fed7aa; }
+        path:nth-of-type(6n+3) { fill: #bbf7d0; }
+        path:nth-of-type(6n+4) { fill: #fbcfe8; }
+        path:nth-of-type(6n+5) { fill: #ddd6fe; }
+        path:nth-of-type(6n)   { fill: #bae6fd; }
         path:hover {
             fill: #fde047 !important;
             filter: drop-shadow(0 2px 4px rgba(0,0,0,0.15));

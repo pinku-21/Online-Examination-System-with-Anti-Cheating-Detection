@@ -1,0 +1,60 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 612 696" width="100%" height="100%">
+    <defs>
+        <style>
+            .ocean { fill: #bae6fd; }
+            .land { fill: #fef08a; stroke: #475569; stroke-width: 1.2; }
+            .mountain { fill: none; stroke: #92400e; stroke-width: 4; stroke-linecap: round; }
+            .plateau { fill: #fed7aa; stroke: #c2410c; stroke-width: 1.5; stroke-dasharray: 4 3; }
+            .desert { fill: #fde047; stroke: #ca8a04; stroke-width: 1.5; }
+            .plains { fill: #bbf7d0; stroke: #16a34a; stroke-width: 1.2; }
+            .label-main { font-family: sans-serif; font-size: 13px; font-weight: 800; fill: #1e293b; letter-spacing: 0.5px; }
+            .label-sub { font-family: sans-serif; font-size: 11px; font-weight: 700; fill: #78350f; }
+            .ocean-label { font-family: sans-serif; font-size: 12px; font-weight: 800; fill: #0369a1; letter-spacing: 1px; }
+        </style>
+    </defs>
+    <!-- Ocean -->
+    <rect width="612" height="696" class="ocean"/>
+    
+    <!-- India Base Outline -->
+    <path class="land" d="M 230 40 L 290 85 L 350 110 L 375 140 L 460 170 L 530 160 L 580 200 L 550 250 L 480 260 L 450 310 L 430 390 L 380 490 L 320 620 L 290 620 L 250 510 L 190 410 L 170 330 L 140 310 L 180 250 L 200 180 Z"/>
+
+    <!-- Northern Mountains (Himalayas) -->
+    <path class="mountain" d="M 210 65 Q 330 115 520 165"/>
+    <path class="mountain" d="M 220 80 Q 340 130 500 180"/>
+    <text x="310" y="75" class="label-sub" font-size="13">THE GREAT HIMALAYAS</text>
+
+    <!-- Northern Plains -->
+    <path class="plains" d="M 220 180 Q 340 210 470 260 L 450 290 Q 330 240 210 210 Z"/>
+    <text x="290" y="235" class="label-sub" fill="#15803d">NORTHERN PLAINS</text>
+
+    <!-- Thar Desert -->
+    <ellipse cx="200" cy="240" rx="35" ry="30" class="desert"/>
+    <text x="175" y="245" class="label-sub" fill="#854d0e">THAR DESERT</text>
+
+    <!-- Aravalli Range -->
+    <path class="mountain" stroke="#b45309" stroke-width="3" d="M 210 220 L 250 270"/>
+    <text x="235" y="230" class="label-sub">Aravalli</text>
+
+    <!-- Vindhya & Satpura Ranges -->
+    <path class="mountain" stroke="#b45309" stroke-width="3" d="M 240 310 L 370 305"/>
+    <text x="280" y="300" class="label-sub">Vindhya Range</text>
+    <path class="mountain" stroke="#b45309" stroke-width="3" d="M 250 340 L 360 340"/>
+    <text x="285" y="355" class="label-sub">Satpura Range</text>
+
+    <!-- Deccan Plateau -->
+    <polygon points="260,370 380,370 320,530" class="plateau"/>
+    <text x="280" y="440" class="label-main" fill="#9a3412">DECCAN PLATEAU</text>
+
+    <!-- Western Ghats -->
+    <path class="mountain" stroke="#15803d" stroke-width="3.5" d="M 200 370 Q 240 470 290 570"/>
+    <text x="145" y="460" class="label-sub" fill="#14532d">Western Ghats</text>
+
+    <!-- Eastern Ghats -->
+    <path class="mountain" stroke="#15803d" stroke-width="3.5" stroke-dasharray="6 3" d="M 400 380 Q 370 470 340 550"/>
+    <text x="380" y="460" class="label-sub" fill="#14532d">Eastern Ghats</text>
+
+    <!-- Oceans -->
+    <text x="40" y="520" class="ocean-label">ARABIAN SEA</text>
+    <text x="410" y="520" class="ocean-label">BAY OF BENGAL</text>
+    <text x="230" y="660" class="ocean-label">INDIAN OCEAN</text>
+</svg>
