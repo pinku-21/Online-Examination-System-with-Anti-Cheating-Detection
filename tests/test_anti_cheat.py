@@ -36,3 +36,17 @@ def test_cryptographic_integrity_tamper_detection():
     assert original != tampered_score
     assert original != tampered_strikes
     assert original != tampered_status
+
+def test_secondary_camera_security_event_classification():
+    """ECC Test: Verifies SIEM event metadata for secondary camera disconnection."""
+    meta = classify_security_event("secondary_cam_disconnect")
+    assert meta["code"] == "SEC-016"
+    assert meta["severity"] == "HIGH"
+    assert "Secondary Mobile Camera" in meta["desc"]
+
+def test_mobile_companion_pairing_auth():
+    """ECC Test: Verifies unauthenticated mobile pairing returns 401/302 redirect."""
+    client = app.test_client()
+    resp = client.get("/api/submission/999/mobile-pair-token")
+    assert resp.status_code in [302, 401]
+

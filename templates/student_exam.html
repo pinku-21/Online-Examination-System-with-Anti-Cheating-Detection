@@ -25,6 +25,8 @@
     <script src="https://unpkg.com/lucide@latest"></script>
     <!-- SweetAlert2 -->
     <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
+    <!-- QRCode.js for Smartphone Secondary Camera Pairing -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
     <!-- TensorFlow.js & COCO-SSD + BlazeFace Real-time AI Vision Proctoring -->
     <script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs@latest/dist/tf.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/@tensorflow-models/coco-ssd@latest"></script>
@@ -370,28 +372,36 @@
                     </div>
                 </div>
 
-                <!-- Multi-Sensor AI Diagnostics Badges -->
-                <div class="mt-3 grid grid-cols-3 gap-1.5 text-center">
+                <!-- Multi-Sensor AI Diagnostics Badges (4-Sensor Grid) -->
+                <div class="mt-3 grid grid-cols-4 gap-1 text-center">
                     <!-- Face Status -->
-                    <div class="p-1.5 rounded-xl border border-slate-100 bg-slate-50 flex flex-col items-center">
-                        <span class="text-[10px] text-slate-400 uppercase font-semibold">Face</span>
-                        <span id="hud-face"
-                            class="text-[11px] font-extrabold text-emerald-600 mt-0.5">Detecting...</span>
+                    <div class="p-1 rounded-xl border border-slate-100 bg-slate-50 flex flex-col items-center">
+                        <span class="text-[9px] text-slate-400 uppercase font-semibold">Face</span>
+                        <span id="hud-face" class="text-[10px] font-extrabold text-emerald-600 mt-0.5 truncate w-full">Detecting</span>
                     </div>
                     <!-- Phone / Device Status -->
-                    <div class="p-1.5 rounded-xl border border-slate-100 bg-slate-50 flex flex-col items-center">
-                        <span class="text-[10px] text-slate-400 uppercase font-semibold">Devices</span>
-                        <span id="hud-phone" class="text-[11px] font-extrabold text-emerald-600 mt-0.5">Scanning</span>
+                    <div class="p-1 rounded-xl border border-slate-100 bg-slate-50 flex flex-col items-center">
+                        <span class="text-[9px] text-slate-400 uppercase font-semibold">Devices</span>
+                        <span id="hud-phone" class="text-[10px] font-extrabold text-emerald-600 mt-0.5 truncate w-full">Scanning</span>
                     </div>
                     <!-- Audio / Voice Status -->
-                    <div class="p-1.5 rounded-xl border border-slate-100 bg-slate-50 flex flex-col items-center">
-                        <span class="text-[10px] text-slate-400 uppercase font-semibold">Audio</span>
-                        <span id="hud-audio" class="text-[11px] font-extrabold text-emerald-600 mt-0.5">Quiet ✓</span>
+                    <div class="p-1 rounded-xl border border-slate-100 bg-slate-50 flex flex-col items-center">
+                        <span class="text-[9px] text-slate-400 uppercase font-semibold">Audio</span>
+                        <span id="hud-audio" class="text-[10px] font-extrabold text-emerald-600 mt-0.5 truncate w-full">Quiet ✓</span>
+                    </div>
+                    <!-- Secondary 360 Cam Status -->
+                    <div class="p-1 rounded-xl border border-slate-100 bg-slate-50 flex flex-col items-center cursor-pointer hover:bg-slate-100 transition-colors" onclick="openMobilePairModal()">
+                        <span class="text-[9px] text-slate-400 uppercase font-semibold">Desk Cam</span>
+                        <span id="hud-mobile-cam" class="text-[10px] font-extrabold text-sky-600 mt-0.5 truncate w-full">Pair QR 📱</span>
                     </div>
                 </div>
 
-                <p class="text-[10px] text-slate-400 mt-2 text-center">Real-time AI proctoring: monitors faces, devices
-                    & audio.</p>
+                <div class="mt-2.5 flex items-center justify-between text-[10px] text-slate-400 px-1">
+                    <span>360° AI Sentinel: Multi-Sensor Active</span>
+                    <button type="button" onclick="openMobilePairModal()" class="text-sky-600 hover:text-sky-700 font-semibold underline">
+                        QR Cam Pair
+                    </button>
+                </div>
             </div>
 
             <!-- Question Palette -->
@@ -1608,13 +1618,16 @@
                         // Total presence count:
                         const totalPresence = Math.max(personCount, blazeFaceCount);
 
-                        // Trigger Periodic In-Exam Biometric Verification Check (every 90s to avoid rate limit spikes)
+                        // Trigger Periodic Silent Biometric Re-Verification Heartbeat (Randomized 3-5 minutes: 180s - 300s)
+                        // Captures silent frame and compares against registered student profile to detect identity swapping
                         const nowMs = Date.now();
                         if (ENABLE_VIDEO && validVisibleFaceCount > 0 && !isGracePeriod && !isBrowsingFile) {
-                            if (!lastBiometricCheckTime) {
-                                lastBiometricCheckTime = nowMs - 60000; // First check fires ~30s after exam starts
-                            } else if (nowMs - lastBiometricCheckTime >= 90000) {
-                                lastBiometricCheckTime = nowMs;
+                            if (!window._nextBiometricTargetTime) {
+                                // First heartbeat scheduled randomly between 2.5 and 4 minutes after exam starts
+                                window._nextBiometricTargetTime = nowMs + (150000 + Math.random() * 90000);
+                            } else if (nowMs >= window._nextBiometricTargetTime) {
+                                // Randomize next silent frame 3 to 5 minutes out
+                                window._nextBiometricTargetTime = nowMs + (180000 + Math.random() * 120000);
                                 runInExamBiometricVerification(videoEl);
                             }
                         }
@@ -1880,13 +1893,13 @@
 
                 updateHudBadge('hud-phone', 'Clear ✓', 'emerald');
 
-                // Periodic biometric verification check continues to run (every 90s)
+                // Periodic silent biometric verification check continues to run (randomized 3-5 min heartbeat)
                 const nowMs = Date.now();
                 if (ENABLE_VIDEO && !isGracePeriod && !isBrowsingFile) {
-                    if (!lastBiometricCheckTime) {
-                        lastBiometricCheckTime = nowMs - 60000;
-                    } else if (nowMs - lastBiometricCheckTime >= 90000) {
-                        lastBiometricCheckTime = nowMs;
+                    if (!window._nextBiometricTargetTime) {
+                        window._nextBiometricTargetTime = nowMs + (150000 + Math.random() * 90000);
+                    } else if (nowMs >= window._nextBiometricTargetTime) {
+                        window._nextBiometricTargetTime = nowMs + (180000 + Math.random() * 120000);
                         runInExamBiometricVerification(videoEl);
                     }
                 }
@@ -2043,35 +2056,58 @@
                     filter.connect(analyser);
 
                     const dataArray = new Uint8Array(analyser.frequencyBinCount);
+                    let whisperConsecutiveCount = 0;
+                    let spectralVarianceHistory = [];
 
                     audioAnalysisInterval = setInterval(() => {
                         if (!isExamActive || isTerminated || isGracePeriod || isBrowsingFile) {
                             loudAudioConsecutiveCount = 0;
+                            whisperConsecutiveCount = 0;
                             return;
                         }
 
                         analyser.getByteFrequencyData(dataArray);
                         let sum = 0;
-                        for (let i = 0; i < dataArray.length; i++) {
-                            sum += dataArray[i];
+                        let whisperBandEnergy = 0; // 1.8kHz - 3.2kHz (fricative whispering band)
+                        let fundamentalSpeechEnergy = 0; // 300Hz - 800Hz (vocal cord pitch)
+                        const binCount = dataArray.length;
+                        
+                        for (let i = 0; i < binCount; i++) {
+                            const val = dataArray[i];
+                            sum += val;
+                            if (i >= 18 && i <= 36) whisperBandEnergy += val; // High-frequency whisper fricatives
+                            if (i >= 4 && i <= 12) fundamentalSpeechEnergy += val; // Fundamental vocal cord resonance
                         }
-                        const avgVolume = sum / dataArray.length; // 0 to 255
+                        const avgVolume = sum / binCount; // 0 to 255
+                        const avgWhisper = whisperBandEnergy / 18;
+                        const avgFundamental = fundamentalSpeechEnergy / 8;
 
-                        // Speaking generates avgVolume > 42
-                        if (avgVolume > 42) {
+                        // 1. Full Vocal Speech Detection (avgVolume > 40)
+                        if (avgVolume > 40) {
                             loudAudioConsecutiveCount++;
                             updateHudBadge('hud-audio', 'Speaking... 🎙️', 'rose');
                             if (loudAudioConsecutiveCount >= 3) {
-                                triggerViolation('voice_detected', `Continuous speaking or voice activity detected in room (level: ${Math.round(avgVolume)}).`);
+                                triggerViolation('voice_detected', `Continuous human voice activity detected (level: ${Math.round(avgVolume)}).`);
                                 loudAudioConsecutiveCount = 0;
                             }
+                        } 
+                        // 2. High-Sensitivity Whispering Detection (VAD Energy Anomaly)
+                        // Whispering produces elevated fricatives in 2kHz band with suppressed fundamental pitch
+                        else if (avgWhisper > 28 && avgFundamental < 22 && avgVolume > 14) {
+                            whisperConsecutiveCount++;
+                            updateHudBadge('hud-audio', 'Whispering 🤫', 'rose');
+                            if (whisperConsecutiveCount >= 4) {
+                                triggerViolation('voice_detected', `Sub-vocal speech / background whispering anomaly detected in room.`);
+                                whisperConsecutiveCount = 0;
+                            }
                         } else {
-                            loudAudioConsecutiveCount = 0;
+                            loudAudioConsecutiveCount = Math.max(0, loudAudioConsecutiveCount - 1);
+                            whisperConsecutiveCount = Math.max(0, whisperConsecutiveCount - 1);
                             if (Date.now() - lastCollusionAlertTime > 4000) {
                                 updateHudBadge('hud-audio', 'Quiet ✓', 'emerald');
                             }
                         }
-                    }, 800);
+                    }, 700);
                 }
             } catch (err) {
                 console.warn("Web Audio volume analyser error:", err);
@@ -2165,17 +2201,27 @@
                 }
             });
 
-            // 4. Disable Right Click Context Menu
+            // 4. Disable Right Click Context Menu with Granular Strike Logging
             document.addEventListener('contextmenu', (e) => {
                 e.preventDefault();
-                triggerViolation('right_click', 'Attempted to open context menu.');
+                const targetTag = (e.target && e.target.tagName) ? e.target.tagName : 'WINDOW';
+                triggerViolation('right_click', `Attempted unauthorized right-click context menu on <${targetTag}> (coords: ${e.clientX}, ${e.clientY}).`);
             });
 
-            // 5. Disable Copy, Cut, Paste
+            // 5. Disable Copy, Cut, Paste with Irregular Buffer Inspection
             ['copy', 'cut', 'paste'].forEach(evt => {
                 document.addEventListener(evt, (e) => {
                     e.preventDefault();
-                    triggerViolation('clipboard_attempt', `Attempted to ${evt} content.`);
+                    let clipDetail = `Attempted unauthorized ${evt.toUpperCase()} event on active exam document.`;
+                    if (evt === 'paste') {
+                        try {
+                            const clipText = (e.clipboardData || window.clipboardData).getData('text') || '';
+                            if (clipText.length > 0) {
+                                clipDetail += ` Clipboard cache payload detected (${clipText.length} chars: "${clipText.substring(0, 30)}...").`;
+                            }
+                        } catch (cErr) {}
+                    }
+                    triggerViolation('clipboard_attempt', clipDetail);
                 });
             });
 
@@ -2187,7 +2233,7 @@
                     (e.ctrlKey && (e.key === 'u' || e.key === 'U'))
                 ) {
                     e.preventDefault();
-                    triggerViolation('devtools_attempt', 'Attempted to open developer inspection tools.');
+                    triggerViolation('devtools_attempt', `Attempted developer inspection shortcut: ${e.ctrlKey ? 'Ctrl+' : ''}${e.key}`);
                 }
             });
 
@@ -2220,7 +2266,7 @@
                 }
             }, true);
 
-            // 9. Biometric Keystroke Dynamics & AI Auto-Type Burst Injection Detection
+            // 9. Biometric Keystroke Dynamics & Cadence Heuristics (AI Auto-Type Burst Injection Detection)
             // Human keystroke inter-arrival time (flight time) has natural variance (80ms - 350ms).
             // Scripted auto-typers / extensions inject uniform 2-15ms bursts or paste 60+ chars with 0 interval.
             let lastKeyTime = 0;
@@ -2233,17 +2279,29 @@
                 if (lastKeyTime > 0) {
                     const delta = now - lastKeyTime;
                     keyFlightIntervals.push(delta);
-                    if (keyFlightIntervals.length > 25) keyFlightIntervals.shift();
+                    if (keyFlightIntervals.length > 30) keyFlightIntervals.shift();
 
                     // Detect inhuman continuous high-speed injection (< 18ms per keystroke across 15+ characters)
                     if (delta < 18 && e.key.length === 1) {
                         rapidBurstCount++;
-                        if (rapidBurstCount >= 18) {
-                            triggerViolation('keystroke_anomaly', 'Automated Keystroke Injection detected: Inhuman typing velocity (>250 WPM / <18ms per key without variation).');
+                        if (rapidBurstCount >= 16) {
+                            triggerViolation('keystroke_anomaly', `Automated Keystroke Injection detected: Inhuman typing velocity (>250 WPM, flight time: ${Math.round(delta)}ms per char).`);
                             rapidBurstCount = 0;
                         }
                     } else {
                         rapidBurstCount = Math.max(0, rapidBurstCount - 1);
+                    }
+
+                    // Check for artificial zero-variance cadence (bot typing scripts that use fixed sleep intervals like exactly 50ms)
+                    if (keyFlightIntervals.length >= 20) {
+                        const avg = keyFlightIntervals.reduce((a, b) => a + b, 0) / keyFlightIntervals.length;
+                        const variance = keyFlightIntervals.reduce((sum, v) => sum + Math.pow(v - avg, 2), 0) / keyFlightIntervals.length;
+                        const stdDev = Math.sqrt(variance);
+                        // Standard deviation below 4ms across 20 keystrokes is statistically impossible for humans
+                        if (stdDev < 4.0 && avg < 120) {
+                            triggerViolation('keystroke_anomaly', `Unnatural Typing Cadence Anomaly: Near-zero cadence variance (std dev: ${stdDev.toFixed(1)}ms) indicates robotic input injector.`);
+                            keyFlightIntervals = [];
+                        }
                     }
                 }
                 lastKeyTime = now;
@@ -2254,8 +2312,8 @@
                 if (!isExamActive || isTerminated || isGracePeriod) return;
                 if (e.target && (e.target.tagName === 'TEXTAREA' || e.target.tagName === 'INPUT')) {
                     const inserted = e.data || '';
-                    // If an input event directly inserts > 80 characters in a single event without clipboard paste
-                    if (inserted.length > 80 && e.inputType !== 'insertFromPaste') {
+                    // If an input event directly inserts > 65 characters in a single event without clipboard paste
+                    if (inserted.length > 65 && e.inputType !== 'insertFromPaste') {
                         triggerViolation('keystroke_anomaly', `Unauthorized Text Block Injection: ${inserted.length} characters inserted in single synthetic event.`);
                     }
                 }
@@ -2486,6 +2544,112 @@
             } catch (err) {
                 console.error("Violation logging error:", err);
             }
+        }
+
+        // Secondary Device (Phone) QR Pairing & 360° Desk Proctoring Engine
+        let mobileCamPollInterval = null;
+        let isMobileCamPaired = false;
+        let mobileCamPairToken = null;
+
+        async function openMobilePairModal() {
+            try {
+                const resp = await fetch(`/api/submission/${SUBMISSION_ID}/mobile-pair-token`, { credentials: 'same-origin' });
+                const res = await resp.json();
+                if (!res.success) {
+                    Swal.fire('Error', res.error || 'Failed to initialize QR session', 'error');
+                    return;
+                }
+
+                mobileCamPairToken = res.token;
+                const pairUrl = res.pair_url;
+
+                Swal.fire({
+                    title: '📱 Pair Smartphone Camera',
+                    html: `
+                        <div class="flex flex-col items-center p-2 text-center">
+                            <p class="text-xs text-slate-500 mb-3">Scan this QR code with your mobile smartphone to activate 360° secondary proctoring (desk, keyboard & hands angle).</p>
+                            <div id="qrcode-container" class="p-3 bg-white border border-slate-200 rounded-2xl shadow-inner flex items-center justify-center"></div>
+                            <div class="mt-3.5 p-2.5 bg-sky-50 rounded-xl border border-sky-200 text-[11px] text-sky-800 text-left w-full space-y-1">
+                                <p class="font-semibold">Setup Instructions:</p>
+                                <p>1. Open phone camera app and scan the code.</p>
+                                <p>2. Tap the link to open the secondary proctoring camera.</p>
+                                <p>3. Prop phone up against a mug or stand at a 45° angle facing your desk.</p>
+                            </div>
+                            <div id="mobile-pair-live-status" class="mt-3 text-xs font-bold text-slate-400 animate-pulse">
+                                Waiting for smartphone connection...
+                            </div>
+                        </div>
+                    `,
+                    showConfirmButton: true,
+                    confirmButtonText: 'Done / Continue Exam',
+                    confirmButtonColor: '#0284c7',
+                    didOpen: () => {
+                        const qrBox = document.getElementById('qrcode-container');
+                        if (qrBox && typeof QRCode !== 'undefined') {
+                            qrBox.innerHTML = '';
+                            new QRCode(qrBox, {
+                                text: pairUrl,
+                                width: 180,
+                                height: 180,
+                                colorDark: "#0f172a",
+                                colorLight: "#ffffff",
+                                correctLevel: QRCode.CorrectLevel.M
+                            });
+                        }
+                    }
+                });
+
+                if (!mobileCamPollInterval) {
+                    startMobileCameraStatusPolling();
+                }
+            } catch (qrErr) {
+                console.error("QR modal error:", qrErr);
+                Swal.fire('Error', 'Unable to generate pairing QR code.', 'error');
+            }
+        }
+
+        function startMobileCameraStatusPolling() {
+            if (mobileCamPollInterval) clearInterval(mobileCamPollInterval);
+            mobileCamPollInterval = setInterval(async () => {
+                if (!isExamActive || isTerminated) {
+                    clearInterval(mobileCamPollInterval);
+                    return;
+                }
+                try {
+                    const resp = await fetch(`/api/submission/${SUBMISSION_ID}/mobile-status`, { credentials: 'same-origin' });
+                    const res = await resp.json();
+                    const hudMob = document.getElementById('hud-mobile-cam');
+                    const modalStatus = document.getElementById('mobile-pair-live-status');
+
+                    if (res.active) {
+                        isMobileCamPaired = true;
+                        if (hudMob) {
+                            hudMob.textContent = 'Active 360° ✓';
+                            hudMob.className = 'text-[10px] font-extrabold text-emerald-600 mt-0.5 truncate w-full';
+                        }
+                        if (modalStatus) {
+                            modalStatus.textContent = '✓ Smartphone Paired & Streaming Desk View';
+                            modalStatus.className = 'mt-3 text-xs font-bold text-emerald-600';
+                        }
+
+                        // Check if mobile camera detected prohibited desk objects
+                        if (res.desk_objects_detected && res.desk_objects_detected.length > 0) {
+                            triggerViolation('mobile_phone_detected', `Secondary 360° Camera: Prohibited item detected on desk perimeter (${res.desk_objects_detected.join(', ')}).`);
+                        }
+                    } else if (res.paired && !res.active) {
+                        // Phone was paired but feed disconnected / screen went black
+                        if (hudMob) {
+                            hudMob.textContent = 'Cam Lost ⚠️';
+                            hudMob.className = 'text-[10px] font-extrabold text-rose-600 mt-0.5 truncate w-full';
+                        }
+                    } else {
+                        if (hudMob) {
+                            hudMob.textContent = 'Pair QR 📱';
+                            hudMob.className = 'text-[10px] font-extrabold text-sky-600 mt-0.5 truncate w-full';
+                        }
+                    }
+                } catch(e) {}
+            }, 4000);
         }
 
         // Timer

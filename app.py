@@ -168,7 +168,8 @@ SECURITY_EVENT_CLASSIFICATION = {
     "voice_detected": {"code": "SEC-012", "severity": "MEDIUM", "desc": "Acoustic Anomaly / Unauthorized Speech Detected"},
     "session_anomaly": {"code": "SEC-013", "severity": "CRITICAL", "desc": "Concurrent Session / Device Hijacking Attempt"},
     "keystroke_anomaly": {"code": "SEC-014", "severity": "CRITICAL", "desc": "Biometric Keystroke Anomaly / Fast-Type AI Injector Detected"},
-    "extension_tamper": {"code": "SEC-015", "severity": "CRITICAL", "desc": "Browser Extension / DOM Mutation Injection Detected"}
+    "extension_tamper": {"code": "SEC-015", "severity": "CRITICAL", "desc": "Browser Extension / DOM Mutation Injection Detected"},
+    "secondary_cam_disconnect": {"code": "SEC-016", "severity": "HIGH", "desc": "Secondary Mobile Camera Disconnected / Obscured"}
 }
 
 def generate_submission_integrity_hash(submission_id, roll_number, score, total_points, warnings_count, status):
@@ -1424,6 +1425,133 @@ def api_verify_face_ai(submission_id):
             "verified_face_url": snapshot_rel_url,
             "reference_photo_url": ref_photo_url,
             "reason": reason or "Facial landmarks and structure do not match the registered candidate."
+        })
+
+# --- SECONDARY DEVICE (PHONE) QR PAIRING & DUAL-CAMERA PROCTORING ---
+_mobile_camera_sessions = {}
+_mobile_cam_lock = threading.Lock()
+
+@app.route("/api/submission/<int:submission_id>/mobile-pair-token", methods=["GET", "POST"])
+@login_required
+def api_get_mobile_pair_token(submission_id):
+    """
+    Generates a secure, cryptographically random pairing token for the student's mobile smartphone.
+    Allows dual-camera proctoring (webcam front face + smartphone desk/hands angle).
+    """
+    conn = get_connection()
+    cursor = conn.cursor()
+    cursor.execute("SELECT id, user_id, status FROM submissions WHERE id = ?", (submission_id,))
+    sub = cursor.fetchone()
+    conn.close()
+    if not sub:
+        return jsonify({"success": False, "error": "Submission not found"}), 404
+    if session.get("user_role") == "student" and sub["user_id"] != session.get("user_id"):
+        return jsonify({"success": False, "error": "Access denied"}), 403
+
+    token = secrets.token_urlsafe(16)
+    with _mobile_cam_lock:
+        _mobile_camera_sessions[submission_id] = {
+            "token": token,
+            "paired": False,
+            "last_frame_ts": 0,
+            "last_frame_url": "",
+            "desk_objects_detected": [],
+            "created_at": time.time()
+        }
+
+    # Generate companion mobile URL
+    mobile_url = url_for("mobile_camera_companion_view", submission_id=submission_id, token=token, _external=True)
+    return jsonify({
+        "success": True,
+        "token": token,
+        "pair_url": mobile_url,
+        "submission_id": submission_id
+    })
+
+@app.route("/exam/mobile-camera/<int:submission_id>/<token>")
+def mobile_camera_companion_view(submission_id, token):
+    """
+    Mobile Smartphone Companion View.
+    Opens on the student's phone after scanning the QR code on the desktop exam screen.
+    Streams back snapshots of hands, keyboard, and desk perimeter.
+    """
+    with _mobile_cam_lock:
+        sess = _mobile_camera_sessions.get(submission_id)
+        if not sess or sess.get("token") != token:
+            return render_template_string("""
+                <!DOCTYPE html>
+                <html><head><meta name="viewport" content="width=device-width, initial-scale=1.0"><title>Pairing Expired</title>
+                <script src="https://cdn.tailwindcss.com"></script></head>
+                <body class="bg-slate-900 text-white min-h-screen flex items-center justify-center p-6 text-center">
+                    <div class="max-w-sm bg-slate-800 p-6 rounded-2xl border border-slate-700">
+                        <h2 class="text-xl font-bold text-rose-400 mb-2">QR Session Expired</h2>
+                        <p class="text-xs text-slate-300">Please refresh the QR code on your desktop exam screen to re-pair your secondary camera.</p>
+                    </div>
+                </body></html>
+            """), 403
+
+    return render_template("mobile_camera_proctor.html", submission_id=submission_id, token=token)
+
+@app.route("/api/submission/<int:submission_id>/mobile-heartbeat", methods=["POST"])
+def api_mobile_heartbeat(submission_id):
+    """
+    Endpoint for mobile camera companion to send video frame snapshots (desk and hands angle).
+    """
+    token = request.headers.get("X-Pair-Token") or request.form.get("token") or (request.get_json(silent=True) or {}).get("token")
+    with _mobile_cam_lock:
+        sess = _mobile_camera_sessions.get(submission_id)
+        if not sess or sess.get("token") != token:
+            return jsonify({"success": False, "error": "Invalid or expired pairing token"}), 403
+
+    data = request.get_json(silent=True) or {}
+    frame_b64 = data.get("frame_base64") or request.form.get("frame_base64") or ""
+    detected_items = data.get("detected_items") or []
+
+    saved_url = ""
+    if frame_b64 and "base64," in frame_b64:
+        try:
+            b64_part = frame_b64.split("base64,")[1]
+            frame_bytes = base64.b64decode(b64_part)
+            fname = f"mobile_sub{submission_id}_{int(time.time())}.jpg"
+            fdir = os.path.join(os.path.dirname(__file__), "static", "mobile_frames")
+            os.makedirs(fdir, exist_ok=True)
+            fpath = os.path.join(fdir, fname)
+            with open(fpath, "wb") as f:
+                f.write(frame_bytes)
+            save_persistent_asset(f"mobile_frames/{fname}", "image/jpeg", frame_bytes)
+            saved_url = f"/static/mobile_frames/{fname}"
+        except Exception as e:
+            print(f"Mobile frame save error: {e}")
+
+    with _mobile_cam_lock:
+        sess["paired"] = True
+        sess["last_frame_ts"] = time.time()
+        if saved_url:
+            sess["last_frame_url"] = saved_url
+        if detected_items:
+            sess["desk_objects_detected"] = detected_items
+
+    return jsonify({"success": True, "status": "active", "timestamp": time.time()})
+
+@app.route("/api/submission/<int:submission_id>/mobile-status", methods=["GET"])
+@login_required
+def api_mobile_status(submission_id):
+    """
+    Polled by the desktop exam window to verify smartphone pairing and secondary camera feed health.
+    """
+    now = time.time()
+    with _mobile_cam_lock:
+        sess = _mobile_camera_sessions.get(submission_id)
+        if not sess:
+            return jsonify({"paired": False, "active": False})
+        
+        is_active = sess.get("paired", False) and (now - sess.get("last_frame_ts", 0) < 15.0)
+        return jsonify({
+            "paired": sess.get("paired", False),
+            "active": is_active,
+            "last_frame_url": sess.get("last_frame_url", ""),
+            "last_frame_ts": sess.get("last_frame_ts", 0),
+            "desk_objects_detected": sess.get("desk_objects_detected", [])
         })
 
 @app.route("/api/tutor/submission/<int:submission_id>/update-score", methods=["POST"])

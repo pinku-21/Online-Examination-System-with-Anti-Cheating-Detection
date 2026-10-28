@@ -1,0 +1,203 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>ExamGuard AI - Secondary Camera Mode</title>
+    <!-- Tailwind CSS CDN -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+        tailwind.config = {
+            darkMode: 'class',
+            theme: {
+                extend: {
+                    colors: {
+                        brand: { 50: '#f0f9ff', 500: '#0284c7', 600: '#0369a1', 700: '#075985' }
+                    }
+                }
+            }
+        }
+    </script>
+    <script src="https://unpkg.com/lucide@latest"></script>
+    <!-- TensorFlow.js & COCO-SSD for client-side desk object screening -->
+    <script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs@latest/dist/tf.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@tensorflow-models/coco-ssd@latest"></script>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap');
+        body { font-family: 'Inter', sans-serif; }
+    </style>
+</head>
+<body class="bg-slate-950 text-slate-100 min-h-screen flex flex-col justify-between p-4 select-none">
+
+    <!-- Top Status Bar -->
+    <header class="flex items-center justify-between py-2 border-b border-slate-800">
+        <div class="flex items-center space-x-2">
+            <div class="w-2.5 h-2.5 rounded-full bg-emerald-500 animate-ping"></div>
+            <span class="text-xs font-bold uppercase tracking-wider text-slate-300">ExamGuard 360° Cam</span>
+        </div>
+        <div id="connection-badge" class="px-2.5 py-1 rounded-full text-[11px] font-semibold bg-emerald-500/20 text-emerald-300 border border-emerald-500/30">
+            Active Feed
+        </div>
+    </header>
+
+    <!-- Camera Viewport / Perimeter Canvas -->
+    <main class="flex-1 flex flex-col items-center justify-center my-4 relative">
+        <div class="w-full max-w-sm aspect-[4/3] bg-black rounded-3xl overflow-hidden relative border-2 border-slate-800 shadow-2xl">
+            <video id="mobile-video" autoplay playsinline muted class="w-full h-full object-cover"></video>
+            <canvas id="mobile-canvas" class="hidden"></canvas>
+            
+            <!-- Positioning Grid Overlay -->
+            <div class="absolute inset-0 pointer-events-none border border-dashed border-emerald-500/30 rounded-3xl flex flex-col justify-between p-3">
+                <div class="flex justify-between text-[10px] text-emerald-400/80 font-mono">
+                    <span>[DESK & HANDS VIEW]</span>
+                    <span id="fps-counter">30 FPS</span>
+                </div>
+                <div class="text-center bg-black/60 backdrop-blur-sm p-2 rounded-xl text-[11px] text-slate-200">
+                    Prop phone 45° to view keyboard & hands
+                </div>
+            </div>
+
+            <!-- Warning Overlay -->
+            <div id="ai-alert-overlay" class="absolute inset-0 bg-rose-950/80 backdrop-blur-sm hidden flex-col items-center justify-center p-4 text-center">
+                <i data-lucide="alert-triangle" class="w-10 h-10 text-rose-400 mb-2 animate-bounce"></i>
+                <p id="ai-alert-text" class="text-xs font-bold text-rose-200">Unauthorized object on desk</p>
+            </div>
+        </div>
+
+        <!-- Telemetry Details -->
+        <div class="w-full max-w-sm mt-3 grid grid-cols-2 gap-2 text-center text-[11px]">
+            <div class="bg-slate-900 border border-slate-800 p-2 rounded-xl">
+                <span class="text-slate-400 block text-[10px]">Transmission Rate</span>
+                <span id="stat-heartbeat" class="font-bold text-sky-400">Syncing...</span>
+            </div>
+            <div class="bg-slate-900 border border-slate-800 p-2 rounded-xl">
+                <span class="text-slate-400 block text-[10px]">Desk Perimeter</span>
+                <span id="stat-perimeter" class="font-bold text-emerald-400">Secured ✓</span>
+            </div>
+        </div>
+    </main>
+
+    <!-- Instructions Footer -->
+    <footer class="bg-slate-900 border border-slate-800 rounded-2xl p-3 text-center">
+        <p class="text-xs text-slate-300 font-medium">Keep this screen awake during your exam session.</p>
+        <p class="text-[10px] text-slate-500 mt-0.5">Closing or locking this screen will trigger an alert on the tutor's dashboard.</p>
+    </footer>
+
+    <script>
+        const SUBMISSION_ID = {{ submission_id }};
+        const PAIR_TOKEN = "{{ token }}";
+        const video = document.getElementById('mobile-video');
+        const canvas = document.getElementById('mobile-canvas');
+        const connBadge = document.getElementById('connection-badge');
+        const statHeartbeat = document.getElementById('stat-heartbeat');
+        const statPerimeter = document.getElementById('stat-perimeter');
+        const alertOverlay = document.getElementById('ai-alert-overlay');
+        const alertText = document.getElementById('ai-alert-text');
+
+        let cocoModel = null;
+        let isStreaming = false;
+        let lastSentTs = 0;
+        let framesTransmitted = 0;
+
+        async function initCamera() {
+            try {
+                // Request environment/rear camera on smartphone for wider desk angle
+                const stream = await navigator.mediaDevices.getUserMedia({
+                    video: {
+                        facingMode: { ideal: "environment" },
+                        width: { ideal: 640 },
+                        height: { ideal: 480 }
+                    },
+                    audio: false
+                });
+                video.srcObject = stream;
+                await video.play();
+                isStreaming = true;
+
+                // Load lightweight COCO-SSD for mobile desk screening
+                try {
+                    cocoModel = await cocoSsd.load({ base: 'lite_mobilenet_v2' });
+                } catch(e) {
+                    console.warn("Mobile COCO-SSD load optional fallback:", e);
+                }
+
+                startHeartbeatStream();
+            } catch (err) {
+                console.error("Camera access error:", err);
+                connBadge.className = 'px-2.5 py-1 rounded-full text-[11px] font-semibold bg-rose-500/20 text-rose-300 border border-rose-500/30';
+                connBadge.textContent = 'Camera Blocked';
+                alert("Please allow camera access on your mobile device to complete secondary proctoring setup.");
+            }
+        }
+
+        function startHeartbeatStream() {
+            // Heartbeat: Send snapshots every 3.5 seconds
+            setInterval(async () => {
+                if (!isStreaming || video.readyState < 2) return;
+
+                canvas.width = 480;
+                canvas.height = 360;
+                const ctx = canvas.getContext('2d');
+                ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+                const frameB64 = canvas.toDataURL('image/jpeg', 0.65);
+
+                let detectedItems = [];
+                if (cocoModel) {
+                    try {
+                        const predictions = await cocoModel.detect(video);
+                        const suspicious = ['cell phone', 'laptop', 'tablet', 'book'];
+                        predictions.forEach(p => {
+                            if (p.score > 0.58 && suspicious.includes(p.class)) {
+                                detectedItems.push(p.class);
+                            }
+                        });
+                    } catch(detErr) {}
+                }
+
+                if (detectedItems.length > 0) {
+                    alertOverlay.classList.remove('hidden');
+                    alertOverlay.classList.add('flex');
+                    alertText.textContent = `Prohibited Item Detected on Desk: ${detectedItems[0].toUpperCase()}`;
+                    statPerimeter.textContent = 'Alert 🚨';
+                    statPerimeter.className = 'font-bold text-rose-400';
+                } else {
+                    alertOverlay.classList.add('hidden');
+                    alertOverlay.classList.remove('flex');
+                    statPerimeter.textContent = 'Secured ✓';
+                    statPerimeter.className = 'font-bold text-emerald-400';
+                }
+
+                try {
+                    const resp = await fetch(`/api/submission/${SUBMISSION_ID}/mobile-heartbeat`, {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json',
+                            'X-Pair-Token': PAIR_TOKEN
+                        },
+                        body: JSON.stringify({
+                            token: PAIR_TOKEN,
+                            frame_base64: frameB64,
+                            detected_items: detectedItems
+                        })
+                    });
+                    const res = await resp.json();
+                    if (res.success) {
+                        framesTransmitted++;
+                        statHeartbeat.textContent = `${framesTransmitted} frames sent`;
+                    }
+                } catch(fetchErr) {
+                    console.warn("Heartbeat transmit error:", fetchErr);
+                }
+            }, 3500);
+        }
+
+        // Keep wake lock if supported
+        if ('wakeLock' in navigator) {
+            navigator.wakeLock.request('screen').catch(() => {});
+        }
+
+        lucide.createIcons();
+        window.addEventListener('DOMContentLoaded', initCamera);
+    </script>
+</body>
+</html>
