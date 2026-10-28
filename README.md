@@ -1,108 +1,204 @@
-# 🛡️ ExamGuard AI — Smart Online Examination System with Anti-Cheating Detection & AI Question Generation
+# ExamGuard AI
 
+A web-based examination platform with client-side proctoring, automated question authoring, and cryptographic submission verification.
 
-> **Domain:** BTech & Cybersecurity / Web Application & AI  
-> **Target Audience:** Online Tutors, Educators, Academic Institutions, and Students  
-
----
-
-## 📌 Project Overview
-As an online tutor or educator, two major challenges exist in remote education:
-1. **Time-consuming question authoring**: Creating high-quality, balanced multiple-choice questions (MCQs) for every chapter, syllabus change, or test.
-2. **Online Exam Integrity**: Preventing cheating during exams where students switch tabs to Google answers, communicate on other apps, or use dual screens.
-
-**ExamGuard AI** solves both challenges in an integrated, web-based platform:
-- **AI Question Studio**: Upload any chapter **PDF notes** or **textbook photos**. Powered by Google Gemini AI (multimodal vision + text), it automatically extracts concepts and generates MCQs with options, correct answers, and explanations.
-- **Multi-Layer Anti-Cheating Engine**: Enforces strict full-screen exam mode, monitors tab switches and window blur, disables copy-paste & inspection shortcuts, and gives a **3-Strike Warning System** before forcefully terminating and auto-submitting the exam.
-- **Proctoring Audit Log**: Tutors can review timestamped violation records and student scores.
+[Live Demo](https://online-examination-system-with-anti.onrender.com/) • [Portfolio Case Study](https://examguard-portfolio.vercel.app/) • [Report Bug](https://github.com/pinku-21/Online-Examination-System-with-Anti-Cheating-Detection/issues)
 
 ---
 
-## 🚀 Key Features
+## Overview
 
-### 1. 🤖 Dual AI Question Generator (Google Gemini & Groq Cloud)
-- **Multimodal Inputs**: Accepts PDF files (e.g., lecture notes, chapter excerpts), image files (photos of book pages, handwritten notes), and text prompts.
-- **Dual-Model Fallback**: Powered by Google Gemini (`gemini-3.5-flash-lite`, `gemini-3.8-flash`) with automatic high-speed failover to Groq (`qwen/qwen3.8-27b`).
-- **Customizable Question Banks**: Choose number of questions (3, 5, 10, 15+), difficulty level (*Easy, Medium, Hard*), and question types (*MCQ with 4 choices, True/False*).
-- **Interactive Question Editor**: Tutors can review, edit question text, modify choices, toggle the correct answer radio button, or add manual questions before publishing.
+Remote testing platforms often face two recurring problems: authoring quality question sets from course material takes significant instructor time, and basic browser-based tests are trivial to bypass with secondary devices, split screens, or virtual camera streams.
 
-### 2. 🛡️ Multi-Sensor Anti-Cheating & AI Proctoring Engine
-- **📱 AI Mobile Phone & Device Detection (TensorFlow.js COCO-SSD)**: Detects smartphones, tablets, or unauthorized electronic devices held up in view of the webcam and logs an immediate strike.
-- **👤 Real-time Face & Candidate Presence Detection**: 
-  - **No Person**: Alerts and logs a strike if the student leaves their seat or obscures the camera for > 3 seconds.
-  - **Multiple Persons**: Detects unauthorized assistance if another person appears in the webcam frame.
-- **🎙️ Acoustic Speech & Whisper Detection (Web Audio API)**: Real-time microphone audio analyzer that detects speaking or whispering in the exam room.
-- **🖥️ Full-Screen & Environmental Enforcement**: Exiting full-screen mode, switching browser tabs, or clicking outside the window triggers instant strikes.
-- **🔒 Shortcut & Clipboard Lockdown**: Right-click context menus, `Ctrl+C`, `Ctrl+V`, `Ctrl+U`, and `F12` / DevTools shortcuts are completely blocked.
-- **⚠️ Automated 3-Strike Termination**:
-  - **Strike 1 & 2**: Instant warning alert modal with audio-visual cue.
-  - **Strike 3**: Immediate exam lock, forced auto-submission, and status marked as `TERMINATED`.
-
-### 3. 🔐 Cybersecurity & Anti-Tampering Architecture
-- **🔏 Cryptographic Submission Integrity (HMAC-SHA256)**: Implements non-repudiation using keyed SHA-256 digital certificates over candidate score, roll number, strikes, and status. Any backend or in-transit DB tampering immediately breaks cryptographic validation.
-- **📹 Virtual Camera & Stream Spoofing Detection**: Hardware driver inspection via `enumerateDevices()` blocks fake webcam feeds, OBS Virtual Camera, ManyCam, and synthetic video loops.
-- **🛡️ Client-Side Reverse Engineering & DevTools Traps**: Real-time debugger latency timing traps and synthetic click detection (`e.isTrusted` checks) stop students from opening devtools or script-injecting answers.
-- **🚨 SIEM Incident Response Dashboard**: Tutor/Admin Command Center provides a Security Operations Center (SOC) telemetry board classifying events into standardized cyber codes (`SEC-001` through `SEC-013`) with threat severity levels (Critical, High, Medium, Low) and client IP logging.
-
-### 4. 📊 Instant Auto-Evaluation & Tutor Audit Reports
-- Objective questions are instantly graded upon submission or termination.
-- Tutors can see a complete timestamped audit log of every cheating violation with exact reasons.
+ExamGuard AI addresses both issues:
+- **Instructor Tooling**: Ingests lecture PDFs, textbook images, or topical syllabi to generate structured exam papers (MCQ, short conceptual, and long essay formats) with dynamic vector diagrams, KaTeX-formatted formulas, and rubric keys.
+- **Client-Side Edge Proctoring**: Uses browser-level computer vision (TensorFlow.js) and audio analysis (Web Audio API) directly on the student machine to flag unauthorized phones, candidate absence, secondary individuals, and spoken communication without streaming raw video back to a central server.
+- **Data Integrity**: Signs finalized student submissions with keyed HMAC-SHA256 digests so grades, timestamps, and infraction logs cannot be altered in transit or in the database.
 
 ---
 
-## 🛠️ Technology Stack
-- **Backend**: Python 3.13, Flask
-- **Database**: SQLite (built-in, zero external setup required) and NEON
-- **AI Question Generation**: Google Gemini API & Groq Cloud API
-- **Computer Vision & Proctoring**: TensorFlow.js, COCO-SSD, Web Audio API
-- **Document Processing**: `pypdf` for PDF text extraction, `Pillow` for image formatting
-- **Frontend**: HTML5, Tailwind CSS, SweetAlert2, Lucide Icons
+## System Architecture
 
----
-
----
-
-## 🌐 Live Production Deployment
-- **Live Application**: [https://online-examination-system-with-anti.onrender.com/](https://online-examination-system-with-anti.onrender.com/)
-- **Project Engineering Portfolio**: [https://examguard-portfolio.vercel.app/](https://examguard-portfolio.vercel.app/)
-- **Live Tutor Portal**: [https://online-examination-system-with-anti.onrender.com/tutor](https://online-examination-system-with-anti.onrender.com/tutor)
-- **Live Student Exam Portal**: [https://online-examination-system-with-anti.onrender.com/student](https://online-examination-system-with-anti.onrender.com/student)
--   **Live portfolio**: [https://examguard-portfolio.vercel.app/]
-
----
-
-## 💻 How to Run Locally
-
-### 1. Install Dependencies
-```bash
-python -m pip install -r requirements.txt
+```text
+                               +-----------------------------+
+                               |     Instructor Portal       |
+                               | (Flask + Tailwind + KaTeX)  |
+                               +--------------+--------------+
+                                              |
+                     +------------------------+------------------------+
+                     |                                                 |
+                     v                                                 v
+         [ Syllabus Ingestion ]                             [ Exam Management ]
+     (PDF text, diagrams, prompts)                  (Code generation, timer, limits)
+                     |                                                 |
+                     v                                                 v
++------------------------------------------+       +------------------------------------+
+|        AI Generation Gateway             |       |            Database Layer          |
+|  - Primary: Google Gemini 2.5/3.8 Flash  | ----> | - Production: Neon PostgreSQL      |
+|  - Fallback: Groq Cloud (Qwen/Llama)     |       | - Development: Local SQLite3       |
+|  - Output: Questions, SVG, Rubrics       |       +-----------------+------------------+
++------------------------------------------+                         |
+                                                                     |
+                     +-----------------------------------------------+
+                     |
+                     v
+       +----------------------------+
+       |   Candidate Exam Portal    |
+       |  (Browser-Sandboxed Room)  |
+       +-------------+--------------+
+                     |
+     +---------------+---------------+
+     |                               |
+     v                               v
+[ Pre-Check Identity ]     [ Edge Monitoring Engine ]
+ - Face verification       - TensorFlow.js (COCO-SSD): Mobile device detection
+ - Audio device test       - BlazeFace / FaceMesh: Candidate presence & count
+ - Fullscreen lock         - Web Audio API: Acoustic energy / voice bandpass
+                           - Window & tab blur event tracking
+                                     |
+                                     v
+                        [ Security Event Dispatcher ]
+                         - Incident classification (SEC-001..016)
+                         - Graduated strike warning engine
+                         - Forced termination at threshold
+                         - HMAC-SHA256 signature generation
 ```
 
-### 2. Run the Application
+---
+
+## Core Capabilities
+
+### 1. Automated Question Generation
+- **Supported Formats**: Multiple choice (4 options with distractor rationale), True/False, short conceptual questions, and long descriptive essays.
+- **Blueprint Presets**: Standard university-style 80-mark multi-section exams, 50-mark midterms, or instructor-defined mark and question distributions.
+- **Figure & Diagram Synthesis**: Generates inline vector SVG figures (geometric shapes with labeled vertices, coordinate points, schematic outlines) when questions reference visual configurations.
+- **Provider Redundancy**: Requests route to Gemini first, falling back automatically to Groq Cloud instances if quota or latency thresholds are hit.
+
+### 2. Browser-Level Proctoring
+- **Hardware Device Checking**: Detects virtual video loop drivers (`OBS Virtual Camera`, `ManyCam`) during initial device enumeration.
+- **Object Recognition**: Identifies mobile phones, tablets, or external computing equipment visible in the webcam stream using COCO-SSD running in WebGL.
+- **Presence Tracking**: Logs events when zero faces or multiple faces appear in the webcam bounding box for longer than 3 seconds.
+- **Audio Monitoring**: Analyzes microphone RMS energy against human vocal frequencies to catch whispered questions or verbal room assistance.
+- **Environment Containment**: Enforces fullscreen mode, intercepts tab-switching, and suppresses standard browser shortcuts (`Ctrl+C`, `Ctrl+V`, `Ctrl+U`, `F12`, and right-click menus).
+- **Grace Periods for Handwritten Work**: Uses a file-browsing latch to silence blur violations when students take and upload photos of written step-by-step solutions.
+
+### 3. Submission Verification & SIEM Telemetry
+- **HMAC Signatures**: Generates a cryptographic token over student ID, submission status, final score, and strike count on final hand-in.
+- **SOC Event Model**: Maps all proctoring infractions to structured codes (`SEC-001` through `SEC-016`) alongside client IP and millisecond timestamps:
+  - `SEC-001`: Virtual video driver detected
+  - `SEC-002`: Multiple faces detected in frame
+  - `SEC-003`: Candidate out of frame (>3s)
+  - `SEC-004`: Mobile phone / electronic device identified
+  - `SEC-007`: Tab switch or window blur event
+  - `SEC-010`: DevTools or console inspection attempt
+
+---
+
+## Technology Stack
+
+| Layer | Component |
+| :--- | :--- |
+| **Backend** | Python 3.12 / 3.13, Flask 3.x, Gunicorn, Werkzeug |
+| **Database** | SQLite (local development), PostgreSQL via Neon (production) |
+| **Edge Vision & Audio** | TensorFlow.js, COCO-SSD, BlazeFace, Web Audio API |
+| **AI Providers** | Google Gemini API, Groq Cloud API, OpenRouter |
+| **Document Processing** | PyPDF, Pillow |
+| **Frontend** | HTML5, Vanilla JavaScript, Tailwind CSS, KaTeX, SweetAlert2 |
+| **Testing** | Pytest, Locust (load benchmarking) |
+
+---
+
+## Getting Started
+
+### Prerequisites
+- Python 3.12 or newer
+- Standard build tools and pip
+- Modern web browser with webcam and microphone support
+
+### Installation
+
+```bash
+# 1. Clone repository
+git clone https://github.com/pinku-21/Online-Examination-System-with-Anti-Cheating-Detection.git
+cd Online-Examination-System-with-Anti-Cheating-Detection
+
+# 2. Create virtual environment
+python -m venv venv
+
+# Windows
+.\venv\Scripts\activate
+# Linux / macOS
+source venv/bin/activate
+
+# 3. Install dependencies
+pip install -r requirements.txt
+```
+
+### Environment Configuration
+
+Create a `.env` file in the project root:
+
+```ini
+# Core
+SECRET_KEY=change-this-to-a-strong-random-key
+FLASK_DEBUG=False
+
+# Model Providers (at least one required for live AI generation)
+GEMINI_API_KEY=your_gemini_key_here
+GROQ_API_KEY=your_groq_key_here
+
+# Database (optional; defaults to local SQLite if left empty)
+DATABASE_URL=postgresql://user:password@host/dbname?sslmode=require
+```
+
+### Running Locally
+
 ```bash
 python run.py
 ```
 
-### 3. Access in Browser
-- **Home / Landing Page**: [http://127.0.0.1:5000](http://127.0.0.1:5000) (or [https://online-examination-system-with-anti.onrender.com/](https://online-examination-system-with-anti.onrender.com/))
-- **Tutor Portal**: [http://127.0.0.1:5000/tutor](http://127.0.0.1:5000/tutor) (or [https://online-examination-system-with-anti.onrender.com/tutor](https://online-examination-system-with-anti.onrender.com/tutor))
-- **Student Exam Portal**: [http://127.0.0.1:5000/student](http://127.0.0.1:5000/student) (or [https://online-examination-system-with-anti.onrender.com/student](https://online-examination-system-with-anti.onrender.com/student))
+The application will start on `http://127.0.0.1:5000`.
 
 ---
 
-## 🧪 Testing the Complete Workflow
+## Verification & Tests
 
-1. Go to the Tutor Portal (`https://online-examination-system-with-anti.onrender.com/tutor` or `http://127.0.0.1:5000/tutor`) and click **"Create Exam with AI"**.
-2. Upload a PDF file or enter a topic (e.g. *"Computer Networks - OSI Model and Routing"*), then click **"Generate Questions with AI"**.
-3. Review the generated MCQs, set Duration and Max Strikes (e.g., 3 strikes), and click **"Publish Exam"**.
-4. Copy the 6-character **Exam Access Code** (e.g. `6D8A92`).
-5. Open an Incognito/New tab at `https://online-examination-system-with-anti.onrender.com/student` (or local), enter the code and student details.
-6. Click **"Agree & Enter Fullscreen Exam"**.
-7. **Test Anti-Cheating**:
-   - Press `Alt+Tab` or switch to another browser tab: **Strike 1 Warning** will appear.
-   - Switch tabs again: **Strike 2 Warning** will appear.
-   - Switch tabs a 3rd time: **Exam Terminated** modal appears and the exam is automatically locked!
-8. View the results on the student page and inspect the full audit trail in the Tutor Dashboard!
+A test suite covers the security classification engine, submission hashing, and endpoint authorization:
+
+```bash
+python -m pytest tests/ -v
+```
+
+Expected output:
+```text
+tests/test_anti_cheat.py::test_security_event_classification PASSED
+tests/test_anti_cheat.py::test_security_event_fallback PASSED
+tests/test_anti_cheat.py::test_cryptographic_integrity_hash_consistency PASSED
+tests/test_anti_cheat.py::test_cryptographic_integrity_tamper_detection PASSED
+tests/test_anti_cheat.py::test_secondary_camera_security_event_classification PASSED
+tests/test_anti_cheat.py::test_mobile_companion_pairing_auth PASSED
+tests/test_anti_cheat.py::test_question_bank_api_auth PASSED
+============================== 9 passed in 1.15s ==============================
+```
 
 ---
 
+## Repository Layout
+
+```text
+├── app.py                  # HTTP routing, authentication, proctoring endpoints
+├── ai_service.py           # Multi-provider generation and diagram handling
+├── database.py             # Dual DB abstraction (SQLite / PostgreSQL)
+├── run.py                  # Local runner
+├── requirements.txt        # Python dependency manifest
+├── static/                 # Static assets, KaTeX bundle, vendor JS
+├── templates/              # Jinja2 views (exam room, dashboards, admin views)
+├── tests/                  # Security and unit test suites
+└── TASKS.md                # Development roadmap and tracking
+```
+
+---
+
+## License
+
+This project is released under the [MIT License](LICENSE).

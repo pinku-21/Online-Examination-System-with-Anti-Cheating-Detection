@@ -659,6 +659,9 @@ def generate_questions_unified(gemini_key=None, groq_key=None, openrouter_key=No
         available_figures=available_figures
     )
 
+    errors = []
+    futures_map = {}
+
     # Primary Provider: Google Gemini with active keys pool
     if gemini_key:
         print("Using primary active Google Gemini provider...")
