@@ -247,19 +247,96 @@
             transition: all 0.15s ease;
             cursor: pointer;
         }
-        .shadcn-tab-trigger.active {
-            background-color: #ffffff;
-            color: #0f172a;
-            box-shadow: 0 1px 2px 0 rgb(0 0 0 / 0.05);
-            font-weight: 600;
+        /* Dark Mode Specific Overrides */
+        .dark body {
+            background-color: hsl(var(--background)) !important;
+            color: hsl(var(--foreground)) !important;
+        }
+        .dark header {
+            background-color: hsl(var(--card) / 0.85) !important;
+            border-color: hsl(var(--border)) !important;
+        }
+        .dark .shadcn-btn-default {
+            background-color: hsl(var(--primary));
+            color: hsl(var(--primary-foreground));
+        }
+        .dark .shadcn-btn-default:hover {
+            background-color: hsl(var(--primary) / 0.9);
+        }
+        .dark .shadcn-btn-outline {
+            color: hsl(var(--foreground));
+            border-color: hsl(var(--border));
+        }
+        .dark .shadcn-btn-outline:hover {
+            background-color: hsl(var(--secondary));
+            border-color: hsl(var(--border));
+        }
+        .dark .shadcn-btn-secondary {
+            background-color: hsl(var(--secondary));
+            color: hsl(var(--secondary-foreground));
+            border-color: hsl(var(--border));
+        }
+        .dark .shadcn-input {
+            background-color: hsl(var(--card));
+            color: hsl(var(--foreground));
+            border-color: hsl(var(--border));
+        }
+        .dark .shadcn-input:focus {
+            border-color: hsl(var(--primary));
+            box-shadow: 0 0 0 1px hsl(var(--primary));
+        }
+        .dark .shadcn-tabs-list {
+            background-color: hsl(var(--secondary));
+            color: hsl(var(--muted-foreground));
+        }
+        .dark .shadcn-tab-trigger.active {
+            background-color: hsl(var(--card));
+            color: hsl(var(--foreground));
+        }
+        .dark .bg-white {
+            background-color: hsl(var(--card)) !important;
+            color: hsl(var(--card-foreground));
+        }
+        .dark .border-slate-200 {
+            border-color: hsl(var(--border)) !important;
+        }
+        .dark .border-slate-100 {
+            border-color: hsl(var(--border) / 0.6) !important;
+        }
+        .dark .text-slate-900 {
+            color: hsl(var(--foreground)) !important;
+        }
+        .dark .text-slate-800 {
+            color: hsl(210 20% 92%) !important;
+        }
+        .dark .text-slate-700 {
+            color: hsl(210 15% 82%) !important;
+        }
+        .dark .text-slate-600 {
+            color: hsl(215 15% 72%) !important;
+        }
+        .dark .text-slate-500 {
+            color: hsl(215 14% 60%) !important;
+        }
+        .dark .bg-slate-50 {
+            background-color: hsl(var(--background)) !important;
+        }
+        .dark .bg-slate-100 {
+            background-color: hsl(var(--secondary)) !important;
+        }
+        .dark .hover\:bg-slate-50:hover {
+            background-color: hsl(var(--secondary) / 0.7) !important;
+        }
+        .dark .hover\:bg-slate-100:hover {
+            background-color: hsl(var(--secondary)) !important;
         }
     </style>
     {% block head %}{% endblock %}
 </head>
-<body class="bg-slate-50 text-slate-800 min-h-screen flex flex-col">
+<body class="bg-background text-foreground min-h-screen flex flex-col">
 
     <!-- Top Navigation (shadcn/ui Header style) -->
-    <header class="bg-white/80 backdrop-blur-md border-b border-slate-200/80 sticky top-0 z-50 transition-all">
+    <header class="bg-card/80 backdrop-blur-md border-b border-border sticky top-0 z-50 transition-all">
         <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-16 flex items-center justify-between">
             <a href="/" class="flex items-center space-x-3 group">
                 <div class="w-9 h-9 rounded-lg bg-slate-900 border border-slate-800 flex items-center justify-center text-white shadow-xs group-hover:scale-105 transition-transform">

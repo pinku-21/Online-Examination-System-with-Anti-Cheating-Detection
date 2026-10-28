@@ -39,164 +39,206 @@
                 </button>
             </div>
 
-            <!-- OPTION 1 PANEL: Upload & AI Generator (shadcn-card) -->
-            <div id="panel-mode-ai" class="shadcn-card bg-white p-6 border border-slate-200 shadow-sm space-y-5">
+            <!-- OPTION 1 PANEL: Upload & AI Generator (shadcn-card with Step Accordions) -->
+            <div id="panel-mode-ai" class="shadcn-card bg-white p-5 sm:p-6 border border-slate-200 shadow-sm space-y-4">
                 <div class="flex items-center justify-between border-b border-slate-100 pb-3">
-                    <h3 class="font-bold text-slate-900 flex items-center space-x-2">
-                        <i data-lucide="file-up" class="w-4 h-4 text-sky-600"></i>
-                        <span>Upload Material & Generate</span>
-                    </h3>
-                    <span class="shadcn-badge bg-sky-50 text-sky-700 border-sky-200 text-[11px]">PDF or Images</span>
+                    <div>
+                        <h3 class="font-bold text-slate-900 flex items-center space-x-2">
+                            <i data-lucide="sparkles" class="w-4 h-4 text-sky-600"></i>
+                            <span>AI Generation Wizard</span>
+                        </h3>
+                        <p class="text-[11px] text-slate-500">Configure your syllabus, blueprint, and prompt in 3 structured steps.</p>
+                    </div>
+                    <span class="shadcn-badge bg-sky-50 text-sky-700 border-sky-200 text-[10px]">3 Steps</span>
                 </div>
 
-                <!-- Drag & Drop File Upload Area -->
-                <div>
-                    <label class="block text-xs font-semibold text-slate-700 mb-2">Chapter PDF or Textbook Photos</label>
-                    <div id="drop-zone" class="border-2 border-dashed border-slate-300 hover:border-slate-800 rounded-xl p-6 text-center cursor-pointer transition bg-slate-50/50 hover:bg-slate-50" onclick="document.getElementById('file-input').click()">
-                        <i data-lucide="upload-cloud" class="w-8 h-8 text-slate-400 mx-auto mb-2"></i>
-                        <p class="text-sm font-semibold text-slate-800">Click or Drag & Drop Files</p>
-                        <p class="text-xs text-slate-400 mt-1">Supports PDF notes, PNG, JPG, WEBP photos</p>
-                        <input type="file" id="file-input" multiple accept=".pdf,image/*" class="hidden" onchange="handleFileSelect(event)">
-                    </div>
-                    <!-- Selected files list -->
-                    <div id="file-list" class="mt-3 space-y-2"></div>
-
-                    <!-- Extracted PDF Figures Gallery -->
-                    <div id="pdf-figures-panel" class="hidden mt-3 p-3 bg-indigo-50/70 border border-indigo-200 rounded-xl space-y-2">
-                        <div class="flex items-center justify-between">
-                            <span class="text-xs font-bold text-indigo-900 flex items-center space-x-1.5">
-                                <i data-lucide="image" class="w-4 h-4 text-indigo-600"></i>
-                                <span id="pdf-figures-count-text">Extracted PDF Diagrams (0)</span>
-                            </span>
-                            <span class="text-[10px] text-indigo-700 bg-white px-2 py-0.5 rounded-full border border-indigo-200 font-bold">Auto-Detected</span>
+                <!-- ACCORDION STEP 1: Source Material & Study Notes -->
+                <div class="border border-slate-200 rounded-2xl overflow-hidden bg-slate-50/50">
+                    <button type="button" onclick="toggleAccordion('step-source-body', 'step-source-chevron')" class="w-full px-4 py-3 bg-white flex items-center justify-between hover:bg-slate-50 transition border-b border-slate-200 cursor-pointer">
+                        <div class="flex items-center space-x-2.5">
+                            <span class="w-6 h-6 rounded-full bg-sky-100 text-sky-700 font-extrabold text-xs flex items-center justify-center">1</span>
+                            <div class="text-left">
+                                <h4 class="text-xs font-bold text-slate-900">Source Material & Subject Context</h4>
+                                <p class="text-[10px] text-slate-500">Drop notes, PDFs, or photos and define topic context</p>
+                            </div>
                         </div>
-                        <div id="pdf-figures-thumbnails" class="grid grid-cols-4 gap-2 max-h-36 overflow-y-auto p-1.5 bg-white rounded-lg border border-indigo-100"></div>
-                        <p class="text-[10px] text-indigo-600 italic">Click "+ Attach PDF Figure" on any question to link one of these diagrams.</p>
+                        <i data-lucide="chevron-down" id="step-source-chevron" class="w-4 h-4 text-slate-400 transition-transform"></i>
+                    </button>
+
+                    <div id="step-source-body" class="p-4 space-y-4">
+                        <!-- Clean Drag & Drop Zone -->
+                        <div>
+                            <label class="block text-xs font-semibold text-slate-700 mb-1.5">Chapter PDF or Textbook Photos</label>
+                            <div id="drop-zone" class="border-2 border-dashed border-sky-300 hover:border-sky-600 rounded-2xl p-5 text-center cursor-pointer transition-all bg-sky-50/30 hover:bg-sky-50/70" onclick="document.getElementById('file-input').click()">
+                                <div class="w-10 h-10 rounded-xl bg-sky-100 text-sky-600 flex items-center justify-center mx-auto mb-2">
+                                    <i data-lucide="upload-cloud" class="w-5 h-5"></i>
+                                </div>
+                                <p class="text-xs font-bold text-slate-900">Click to Browse or Drag &amp; Drop Files Here</p>
+                                <p class="text-[11px] text-slate-500 mt-0.5">Supports PDF lecture slides, PNG, JPG notes</p>
+                                <input type="file" id="file-input" multiple accept=".pdf,image/*" class="hidden" onchange="handleFileSelect(event)">
+                            </div>
+                            <!-- Selected files list -->
+                            <div id="file-list" class="mt-2.5 space-y-1.5"></div>
+
+                            <!-- Extracted PDF Figures Gallery -->
+                            <div id="pdf-figures-panel" class="hidden mt-3 p-3 bg-indigo-50/70 border border-indigo-200 rounded-xl space-y-2">
+                                <div class="flex items-center justify-between">
+                                    <span class="text-xs font-bold text-indigo-900 flex items-center space-x-1.5">
+                                        <i data-lucide="image" class="w-4 h-4 text-indigo-600"></i>
+                                        <span id="pdf-figures-count-text">Extracted PDF Diagrams (0)</span>
+                                    </span>
+                                    <span class="text-[10px] text-indigo-700 bg-white px-2 py-0.5 rounded-full border border-indigo-200 font-bold">Auto-Detected</span>
+                                </div>
+                                <div id="pdf-figures-thumbnails" class="grid grid-cols-4 gap-2 max-h-36 overflow-y-auto p-1.5 bg-white rounded-lg border border-indigo-100"></div>
+                                <p class="text-[10px] text-indigo-600 italic">Click "+ Attach PDF Figure" on any question to link one of these diagrams.</p>
+                            </div>
+                        </div>
+
+                        <!-- Topic Context -->
+                        <div>
+                            <label class="block text-xs font-semibold text-slate-700 mb-1">Topic / Subject Context (Optional)</label>
+                            <input type="text" id="topic-text" placeholder="e.g. Computer Networks - OSI Model, TCP/IP, Routing & Subnetting" class="w-full px-3 py-2 text-xs border border-slate-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-sky-500 bg-white">
+                        </div>
                     </div>
                 </div>
 
-                <!-- AI Custom Prompt Studio & Blueprints -->
-                <div class="space-y-3 pt-2">
-                    <div class="flex items-center justify-between">
-                        <label class="block text-xs font-bold text-slate-800 flex items-center space-x-1.5">
-                            <i data-lucide="sparkles" class="w-4 h-4 text-amber-500"></i>
-                            <span>AI Custom Prompt & Blueprint (Instruct the AI)</span>
-                        </label>
-                        <span class="text-[10px] text-sky-600 bg-sky-50 px-2 py-0.5 rounded-full font-bold">Custom Control</span>
-                    </div>
+                <!-- ACCORDION STEP 2: Blueprint & Question Formatting -->
+                <div class="border border-slate-200 rounded-2xl overflow-hidden bg-slate-50/50">
+                    <button type="button" onclick="toggleAccordion('step-blueprint-body', 'step-blueprint-chevron')" class="w-full px-4 py-3 bg-white flex items-center justify-between hover:bg-slate-50 transition border-b border-slate-200 cursor-pointer">
+                        <div class="flex items-center space-x-2.5">
+                            <span class="w-6 h-6 rounded-full bg-sky-100 text-sky-700 font-extrabold text-xs flex items-center justify-center">2</span>
+                            <div class="text-left">
+                                <h4 class="text-xs font-bold text-slate-900">Blueprint, Marks &amp; Question Formats</h4>
+                                <p class="text-[10px] text-slate-500">Select target marks, question types, and difficulty rating</p>
+                            </div>
+                        </div>
+                        <i data-lucide="chevron-down" id="step-blueprint-chevron" class="w-4 h-4 text-slate-400 transition-transform"></i>
+                    </button>
 
-                    <textarea id="custom-prompt" rows="3" placeholder="Instruct the AI exactly how to build your exam... e.g. 'Create an 80-mark university paper with Section A (10 MCQs x 1 mk), Section B (10 short questions x 3 mks), Section C (4 long questions x 10 mks) with in-depth technical rubrics.'" class="w-full px-3 py-2 text-xs border border-slate-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-sky-500 font-sans leading-relaxed"></textarea>
-                </div>
+                    <div id="step-blueprint-body" class="p-4 space-y-4">
+                        <!-- AI Parameters Grid -->
+                        <div class="grid grid-cols-2 gap-3">
+                            <div>
+                                <label class="block text-xs font-semibold text-slate-700 mb-1">Target Total Marks</label>
+                                <input type="number" id="total-marks" value="80" min="5" max="200" placeholder="e.g. 80" class="w-full px-3 py-2 text-xs border border-slate-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-sky-500 font-bold text-sky-700 bg-white">
+                            </div>
+                            <div>
+                                <label class="block text-xs font-semibold text-slate-700 mb-1">Question Count</label>
+                                <select id="num-questions" onchange="handleQuestionCountChange(this.value)" class="w-full px-3 py-2 text-xs border border-slate-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-sky-500 bg-white font-medium">
+                                    <option value="24" selected>24 Questions (80-Mark Paper)</option>
+                                    <option value="17">17 Questions (50-Mark Paper)</option>
+                                    <option value="5">5 Questions (Quick)</option>
+                                    <option value="10">10 Questions</option>
+                                    <option value="15">15 Questions</option>
+                                    <option value="20">20 Questions</option>
+                                    <option value="30">30 Questions</option>
+                                    <option value="custom">✏️ Custom Count (Specify Any Number)...</option>
+                                </select>
+                                <div id="custom-num-questions-wrapper" class="hidden mt-1.5">
+                                    <div class="flex items-center space-x-1.5 bg-sky-50 border border-sky-300 rounded-xl p-1.5 shadow-2xs">
+                                        <span class="text-[11px] font-bold text-sky-800 whitespace-nowrap pl-1">Count:</span>
+                                        <input type="number" id="custom-num-questions" min="1" max="100" placeholder="e.g. 7" class="w-full px-2 py-0.5 text-xs font-extrabold text-sky-900 bg-white border border-sky-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-sky-500">
+                                        <span class="text-[10px] text-slate-500 font-semibold pr-1">Questions</span>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
 
-                <!-- Topic & Notes Context -->
-                <div>
-                    <label class="block text-xs font-semibold text-slate-700 mb-1">Topic / Subject Context (Optional)</label>
-                    <input type="text" id="topic-text" placeholder="e.g. Computer Networks - OSI Model, TCP/IP, Routing & Subnetting" class="w-full px-3 py-2 text-xs border border-slate-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-sky-500">
-                </div>
+                        <div class="grid grid-cols-2 gap-3">
+                            <div>
+                                <label class="block text-xs font-semibold text-slate-700 mb-1">Question Format</label>
+                                <select id="question-type" onchange="handleQuestionFormatChange(this.value)" class="w-full px-3 py-2 text-xs border border-slate-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-sky-500 bg-white font-medium">
+                                    <option value="blueprint_80" selected>80-Mark Multi-Section Exam</option>
+                                    <option value="blueprint_50">50-Mark Midterm Blueprint</option>
+                                    <option value="mixed">Mixed (MCQs, Short & Long)</option>
+                                    <option value="mcq">Multiple Choice Only (MCQ)</option>
+                                    <option value="short">Short Answer Questions (2–4 Marks)</option>
+                                    <option value="descriptive">Long Descriptive / Essay (5–10 Marks)</option>
+                                    <option value="tf">True / False</option>
+                                    <option value="custom">✏️ Custom Format (Mix Your Choices)...</option>
+                                </select>
+                            </div>
+                            <div>
+                                <label class="block text-xs font-semibold text-slate-700 mb-1">Difficulty</label>
+                                <select id="difficulty" class="w-full px-3 py-2 text-xs border border-slate-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-sky-500 bg-white">
+                                    <option value="Medium" selected>Medium (Standard)</option>
+                                    <option value="Hard">Hard / Advanced</option>
+                                    <option value="Easy">Easy (Foundation)</option>
+                                    <option value="Mixed">Mixed Difficulty</option>
+                                </select>
+                            </div>
+                        </div>
 
-                <!-- AI Parameters Grid -->
-                <div class="grid grid-cols-2 gap-3">
-                    <div>
-                        <label class="block text-xs font-semibold text-slate-700 mb-1">Target Total Marks</label>
-                        <input type="number" id="total-marks" value="80" min="5" max="200" placeholder="e.g. 80" class="w-full px-3 py-2 text-xs border border-slate-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-sky-500 font-bold text-sky-700 bg-white">
-                    </div>
-                    <div>
-                        <label class="block text-xs font-semibold text-slate-700 mb-1">Question Count</label>
-                        <select id="num-questions" onchange="handleQuestionCountChange(this.value)" class="w-full px-3 py-2 text-xs border border-slate-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-sky-500 bg-white font-medium">
-                            <option value="24" selected>24 Questions (80-Mark Paper)</option>
-                            <option value="17">17 Questions (50-Mark Paper)</option>
-                            <option value="5">5 Questions (Quick)</option>
-                            <option value="10">10 Questions</option>
-                            <option value="15">15 Questions</option>
-                            <option value="20">20 Questions</option>
-                            <option value="30">30 Questions</option>
-                            <option value="custom">✏️ Custom Count (Specify Any Number)...</option>
-                        </select>
-                        <div id="custom-num-questions-wrapper" class="hidden mt-1.5">
-                            <div class="flex items-center space-x-1.5 bg-sky-50 border border-sky-300 rounded-xl p-1.5 shadow-2xs">
-                                <span class="text-[11px] font-bold text-sky-800 whitespace-nowrap pl-1">Count:</span>
-                                <input type="number" id="custom-num-questions" min="1" max="100" placeholder="e.g. 7" class="w-full px-2 py-0.5 text-xs font-extrabold text-sky-900 bg-white border border-sky-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-sky-500">
-                                <span class="text-[10px] text-slate-500 font-semibold pr-1">Questions</span>
+                        <!-- Custom Format Interactive Picker Panel -->
+                        <div id="custom-format-wrapper" class="hidden p-3.5 bg-gradient-to-br from-indigo-50/70 to-sky-50/70 border border-indigo-200 rounded-xl space-y-2.5">
+                            <div class="flex items-center justify-between">
+                                <span class="text-xs font-bold text-indigo-950 flex items-center space-x-1.5">
+                                    <i data-lucide="sliders" class="w-3.5 h-3.5 text-indigo-600"></i>
+                                    <span>Customize Question Types & Layout</span>
+                                </span>
+                                <span class="text-[10px] text-indigo-700 bg-white border border-indigo-200 px-2 py-0.5 rounded-full font-bold">Select Choices</span>
+                            </div>
+
+                            <!-- Checkboxes Grid -->
+                            <div class="grid grid-cols-2 gap-2 text-xs">
+                                <label class="flex items-center space-x-2 p-2 bg-white rounded-lg border border-slate-200 hover:border-indigo-400 cursor-pointer transition">
+                                    <input type="checkbox" id="fmt-mcq" checked class="w-3.5 h-3.5 text-indigo-600 rounded">
+                                    <span class="font-semibold text-slate-800">Multiple Choice (MCQs)</span>
+                                </label>
+                                <label class="flex items-center space-x-2 p-2 bg-white rounded-lg border border-slate-200 hover:border-indigo-400 cursor-pointer transition">
+                                    <input type="checkbox" id="fmt-short" checked class="w-3.5 h-3.5 text-indigo-600 rounded">
+                                    <span class="font-semibold text-slate-800">Short Answer (2–4 Mks)</span>
+                                </label>
+                                <label class="flex items-center space-x-2 p-2 bg-white rounded-lg border border-slate-200 hover:border-indigo-400 cursor-pointer transition">
+                                    <input type="checkbox" id="fmt-descriptive" checked class="w-3.5 h-3.5 text-indigo-600 rounded">
+                                    <span class="font-semibold text-slate-800">Long / Essay (5–10 Mks)</span>
+                                </label>
+                                <label class="flex items-center space-x-2 p-2 bg-white rounded-lg border border-slate-200 hover:border-indigo-400 cursor-pointer transition">
+                                    <input type="checkbox" id="fmt-tf" class="w-3.5 h-3.5 text-indigo-600 rounded">
+                                    <span class="font-semibold text-slate-800">True / False</span>
+                                </label>
+                                <label class="flex items-center space-x-2 p-2 bg-white rounded-lg border border-slate-200 hover:border-indigo-400 cursor-pointer transition">
+                                    <input type="checkbox" id="fmt-diagram" checked class="w-3.5 h-3.5 text-indigo-600 rounded">
+                                    <span class="font-semibold text-slate-800">Figures & Diagrams</span>
+                                </label>
+                                <label class="flex items-center space-x-2 p-2 bg-white rounded-lg border border-slate-200 hover:border-indigo-400 cursor-pointer transition">
+                                    <input type="checkbox" id="fmt-numerical" class="w-3.5 h-3.5 text-indigo-600 rounded">
+                                    <span class="font-semibold text-slate-800">Numerical / Problems</span>
+                                </label>
+                            </div>
+
+                            <!-- Custom Instructions / Breakdown -->
+                            <div>
+                                <label class="block text-[11px] font-semibold text-slate-600 mb-1">Custom Section/Breakdown Specification (Optional):</label>
+                                <input type="text" id="custom-format-details" placeholder="e.g. 5 questions of 4 marks each with diagrams" class="w-full px-3 py-1.5 text-xs bg-white border border-indigo-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500 font-sans">
                             </div>
                         </div>
                     </div>
                 </div>
 
-                <div class="grid grid-cols-2 gap-3">
-                    <div>
-                        <label class="block text-xs font-semibold text-slate-700 mb-1">Question Format</label>
-                        <select id="question-type" onchange="handleQuestionFormatChange(this.value)" class="w-full px-3 py-2 text-xs border border-slate-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-sky-500 bg-white font-medium">
-                            <option value="blueprint_80" selected>80-Mark Multi-Section Exam</option>
-                            <option value="blueprint_50">50-Mark Midterm Blueprint</option>
-                            <option value="mixed">Mixed (MCQs, Short & Long)</option>
-                            <option value="mcq">Multiple Choice Only (MCQ)</option>
-                            <option value="short">Short Answer Questions (2–4 Marks)</option>
-                            <option value="descriptive">Long Descriptive / Essay (5–10 Marks)</option>
-                            <option value="tf">True / False</option>
-                            <option value="custom">✏️ Custom Format (Mix Your Choices)...</option>
-                        </select>
-                    </div>
-                    <div>
-                        <label class="block text-xs font-semibold text-slate-700 mb-1">Difficulty</label>
-                        <select id="difficulty" class="w-full px-3 py-2 text-xs border border-slate-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-sky-500 bg-white">
-                            <option value="Medium" selected>Medium (Standard)</option>
-                            <option value="Hard">Hard / Advanced</option>
-                            <option value="Easy">Easy (Foundation)</option>
-                            <option value="Mixed">Mixed Difficulty</option>
-                        </select>
+                <!-- ACCORDION STEP 3: AI Prompting & Generation -->
+                <div class="border border-slate-200 rounded-2xl overflow-hidden bg-slate-50/50">
+                    <button type="button" onclick="toggleAccordion('step-prompt-body', 'step-prompt-chevron')" class="w-full px-4 py-3 bg-white flex items-center justify-between hover:bg-slate-50 transition border-b border-slate-200 cursor-pointer">
+                        <div class="flex items-center space-x-2.5">
+                            <span class="w-6 h-6 rounded-full bg-sky-100 text-sky-700 font-extrabold text-xs flex items-center justify-center">3</span>
+                            <div class="text-left">
+                                <h4 class="text-xs font-bold text-slate-900">Custom AI Prompt &amp; Trigger</h4>
+                                <p class="text-[10px] text-slate-500">Provide direct prompt instructions to Gemini / Groq</p>
+                            </div>
+                        </div>
+                        <i data-lucide="chevron-down" id="step-prompt-chevron" class="w-4 h-4 text-slate-400 transition-transform"></i>
+                    </button>
+
+                    <div id="step-prompt-body" class="p-4 space-y-3">
+                        <textarea id="custom-prompt" rows="3" placeholder="Instruct the AI exactly how to build your exam... e.g. 'Create an 80-mark university paper with Section A (10 MCQs x 1 mk), Section B (10 short questions x 3 mks), Section C (4 long questions x 10 mks) with in-depth technical rubrics.'" class="w-full px-3 py-2 text-xs border border-slate-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-sky-500 bg-white font-sans leading-relaxed"></textarea>
+
+                        <!-- Generate Button -->
+                        <button id="btn-generate" onclick="generateQuestions()" class="w-full py-3.5 bg-gradient-to-r from-sky-600 to-indigo-600 hover:from-sky-700 hover:to-indigo-700 text-white font-bold rounded-xl shadow-md transition flex items-center justify-center space-x-2">
+                            <i data-lucide="sparkles" class="w-5 h-5 text-amber-300"></i>
+                            <span>Generate Complete Exam with AI</span>
+                        </button>
                     </div>
                 </div>
-
-                <!-- Custom Format Interactive Picker Panel -->
-                <div id="custom-format-wrapper" class="hidden p-3.5 bg-gradient-to-br from-indigo-50/70 to-sky-50/70 border border-indigo-200 rounded-xl space-y-2.5">
-                    <div class="flex items-center justify-between">
-                        <span class="text-xs font-bold text-indigo-950 flex items-center space-x-1.5">
-                            <i data-lucide="sliders" class="w-3.5 h-3.5 text-indigo-600"></i>
-                            <span>Customize Question Types & Layout</span>
-                        </span>
-                        <span class="text-[10px] text-indigo-700 bg-white border border-indigo-200 px-2 py-0.5 rounded-full font-bold">Select Choices</span>
-                    </div>
-
-                    <!-- Checkboxes Grid -->
-                    <div class="grid grid-cols-2 gap-2 text-xs">
-                        <label class="flex items-center space-x-2 p-2 bg-white rounded-lg border border-slate-200 hover:border-indigo-400 cursor-pointer transition">
-                            <input type="checkbox" id="fmt-mcq" checked class="w-3.5 h-3.5 text-indigo-600 rounded">
-                            <span class="font-semibold text-slate-800">Multiple Choice (MCQs)</span>
-                        </label>
-                        <label class="flex items-center space-x-2 p-2 bg-white rounded-lg border border-slate-200 hover:border-indigo-400 cursor-pointer transition">
-                            <input type="checkbox" id="fmt-short" checked class="w-3.5 h-3.5 text-indigo-600 rounded">
-                            <span class="font-semibold text-slate-800">Short Answer (2–4 Mks)</span>
-                        </label>
-                        <label class="flex items-center space-x-2 p-2 bg-white rounded-lg border border-slate-200 hover:border-indigo-400 cursor-pointer transition">
-                            <input type="checkbox" id="fmt-descriptive" checked class="w-3.5 h-3.5 text-indigo-600 rounded">
-                            <span class="font-semibold text-slate-800">Long / Essay (5–10 Mks)</span>
-                        </label>
-                        <label class="flex items-center space-x-2 p-2 bg-white rounded-lg border border-slate-200 hover:border-indigo-400 cursor-pointer transition">
-                            <input type="checkbox" id="fmt-tf" class="w-3.5 h-3.5 text-indigo-600 rounded">
-                            <span class="font-semibold text-slate-800">True / False</span>
-                        </label>
-                        <label class="flex items-center space-x-2 p-2 bg-white rounded-lg border border-slate-200 hover:border-indigo-400 cursor-pointer transition">
-                            <input type="checkbox" id="fmt-diagram" checked class="w-3.5 h-3.5 text-indigo-600 rounded">
-                            <span class="font-semibold text-slate-800">Figures & Diagrams</span>
-                        </label>
-                        <label class="flex items-center space-x-2 p-2 bg-white rounded-lg border border-slate-200 hover:border-indigo-400 cursor-pointer transition">
-                            <input type="checkbox" id="fmt-numerical" class="w-3.5 h-3.5 text-indigo-600 rounded">
-                            <span class="font-semibold text-slate-800">Numerical / Problems</span>
-                        </label>
-                    </div>
-
-                    <!-- Custom Instructions / Breakdown -->
-                    <div>
-                        <label class="block text-[11px] font-semibold text-slate-600 mb-1">Custom Section/Breakdown Specification (Optional):</label>
-                        <input type="text" id="custom-format-details" placeholder="e.g. 5 questions of 4 marks each with diagrams" class="w-full px-3 py-1.5 text-xs bg-white border border-indigo-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500 font-sans">
-                    </div>
-                </div>
-
-                <!-- Generate Button -->
-                <button id="btn-generate" onclick="generateQuestions()" class="w-full py-3.5 bg-gradient-to-r from-sky-600 to-indigo-600 hover:from-sky-700 hover:to-indigo-700 text-white font-bold rounded-xl shadow-md transition flex items-center justify-center space-x-2">
-                    <i data-lucide="sparkles" class="w-5 h-5 text-amber-300"></i>
-                    <span>Generate Complete Exam with AI</span>
-                </button>
             </div>
 
             <!-- OPTION 2 PANEL: Paste Existing Questions Directly -->
@@ -495,6 +537,49 @@ Section B - Short Questions (3 marks each)
 
 {% block scripts %}
 <script>
+    // Step Accordion Toggle Function
+    function toggleAccordion(bodyId, chevronId) {
+        const body = document.getElementById(bodyId);
+        const chevron = document.getElementById(chevronId);
+        if (!body) return;
+        const isHidden = body.classList.toggle('hidden');
+        if (chevron) {
+            chevron.style.transform = isHidden ? 'rotate(-90deg)' : 'rotate(0deg)';
+        }
+    }
+
+    // Modern Drag & Drop Zone Listeners with Active Border Glow
+    document.addEventListener('DOMContentLoaded', () => {
+        ['drop-zone', 'paste-drop-zone'].forEach(zoneId => {
+            const el = document.getElementById(zoneId);
+            if (!el) return;
+            ['dragenter', 'dragover'].forEach(eventName => {
+                el.addEventListener(eventName, (e) => {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    el.classList.add('border-sky-600', 'bg-sky-100/60', 'scale-[1.01]');
+                }, false);
+            });
+            ['dragleave', 'drop'].forEach(eventName => {
+                el.addEventListener(eventName, (e) => {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    el.classList.remove('border-sky-600', 'bg-sky-100/60', 'scale-[1.01]');
+                }, false);
+            });
+            el.addEventListener('drop', (e) => {
+                const dt = e.dataTransfer;
+                if (dt && dt.files && dt.files.length) {
+                    if (zoneId === 'drop-zone') {
+                        handleFileSelect({ target: { files: dt.files } });
+                    } else {
+                        handlePasteFileSelect({ target: { files: dt.files } });
+                    }
+                }
+            }, false);
+        });
+    });
+
     let selectedFiles = [];
     let selectedPasteFiles = [];
     let questionsData = [];

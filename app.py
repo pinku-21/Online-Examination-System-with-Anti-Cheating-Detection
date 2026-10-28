@@ -3320,12 +3320,13 @@ def student_exam_room(submission_id):
     conn.close()
     
     # Forensic canary payload unique to this student and submission
-    canary_token = f"CANARY-U{submission.get('user_id', 0)}-S{submission['id']}"
+    student_uid = submission["user_id"] if submission["user_id"] is not None else 0
+    canary_token = f"CANARY-U{student_uid}-S{submission['id']}"
 
     # Deterministic personalized question order per student (Pseudo-Random Seed derived from submission & student ID)
     # Ensures consistent order on page refresh, but different order across different examinees!
     import hashlib
-    seed_val = int(hashlib.sha256(f"{submission['exam_id']}-{submission['id']}-{submission.get('user_id', 0)}".encode()).hexdigest(), 16) % 10000000
+    seed_val = int(hashlib.sha256(f"{submission['exam_id']}-{submission['id']}-{student_uid}".encode()).hexdigest(), 16) % 10000000
     rng = random.Random(seed_val)
 
     questions = []

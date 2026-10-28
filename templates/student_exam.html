@@ -40,12 +40,72 @@
     <script defer src="https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/katex.min.js"></script>
     <script defer src="https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/contrib/auto-render.min.js"></script>
     <style>
-        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap');
+        @import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600&display=swap');
+
+        :root {
+            --background: 210 40% 98%;
+            --foreground: 222.2 84% 4.9%;
+            --card: 0 0% 100%;
+            --card-foreground: 222.2 84% 4.9%;
+            --border: 214.3 31.8% 91.4%;
+        }
+
+        .dark {
+            --background: 222.2 84% 4.9%;
+            --foreground: 210 40% 98%;
+            --card: 222.2 84% 6.5%;
+            --card-foreground: 210 40% 98%;
+            --border: 217.2 32.6% 17.5%;
+        }
 
         body {
-            font-family: 'Inter', sans-serif;
+            font-family: 'Plus Jakarta Sans', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
             user-select: none;
             -webkit-user-select: none;
+            background-color: hsl(var(--background));
+            color: hsl(var(--foreground));
+        }
+
+        .dark body, body.dark {
+            background-color: hsl(var(--background)) !important;
+            color: hsl(var(--foreground)) !important;
+        }
+
+        .dark .bg-white {
+            background-color: hsl(var(--card)) !important;
+            color: hsl(var(--card-foreground)) !important;
+        }
+
+        .dark .border-slate-200 {
+            border-color: hsl(var(--border)) !important;
+        }
+
+        .dark .border-slate-100 {
+            border-color: hsl(var(--border) / 0.6) !important;
+        }
+
+        .dark .text-slate-900 {
+            color: hsl(var(--foreground)) !important;
+        }
+
+        .dark .text-slate-800 {
+            color: hsl(210 20% 92%) !important;
+        }
+
+        .dark .text-slate-700 {
+            color: hsl(210 15% 82%) !important;
+        }
+
+        .dark .text-slate-500 {
+            color: hsl(215 14% 60%) !important;
+        }
+
+        .dark .bg-slate-50 {
+            background-color: hsl(222.2 84% 5%) !important;
+        }
+
+        .dark .bg-slate-100 {
+            background-color: hsl(217.2 32.6% 14%) !important;
         }
 
         .svg-diagram-box svg {
@@ -54,10 +114,53 @@
             display: block;
             margin: 0 auto;
         }
+
+        /* Floating Proctored Webcam Tile */
+        #floating-webcam-tile {
+            position: fixed;
+            bottom: 24px;
+            right: 24px;
+            z-index: 45;
+            width: 290px;
+            transition: all 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+            box-shadow: 0 20px 25px -5px rgb(0 0 0 / 0.25), 0 8px 10px -6px rgb(0 0 0 / 0.2);
+        }
+
+        #floating-webcam-tile.minimized {
+            width: 200px;
+        }
+
+        #floating-webcam-tile.minimized .webcam-feed-box {
+            display: none;
+        }
+
+        #floating-webcam-tile.minimized .webcam-hud-grid {
+            display: none;
+        }
+
+        /* Subtle shadcn Top Warning Toast Notification */
+        #shadcn-strike-alert {
+            position: fixed;
+            top: 20px;
+            left: 50%;
+            transform: translateX(-50%) translateY(-120%);
+            z-index: 60;
+            width: 90%;
+            max-width: 520px;
+            transition: transform 0.4s cubic-bezier(0.16, 1, 0.3, 1), opacity 0.3s ease;
+            opacity: 0;
+            pointer-events: none;
+        }
+
+        #shadcn-strike-alert.active {
+            transform: translateX(-50%) translateY(0);
+            opacity: 1;
+            pointer-events: auto;
+        }
     </style>
 </head>
 
-<body class="bg-slate-100 text-slate-800 min-h-screen flex flex-col select-none">
+<body class="bg-background text-foreground min-h-screen flex flex-col select-none">
 
     <!-- Sticky Network Offline Recovery Toast -->
     <div id="network-offline-banner" class="hidden fixed top-0 inset-x-0 z-50 bg-amber-500 text-white px-4 py-2 text-xs font-bold text-center flex items-center justify-center space-x-2 shadow-lg animate-pulse">
@@ -338,88 +441,213 @@
             </div>
         </div>
 
-        <!-- Right: Proctoring Feed & Question Navigator (4 cols) -->
-        <div class="lg:col-span-4 space-y-6">
+    <!-- Subtle Top Floating shadcn Warning Alert Toast -->
+    <div id="shadcn-strike-alert" class="p-4 bg-slate-900/95 dark:bg-slate-950/95 backdrop-blur-md text-white rounded-2xl shadow-2xl border border-rose-500/40">
+        <div class="flex items-start justify-between gap-3">
+            <div class="flex items-start space-x-3">
+                <div class="w-8 h-8 rounded-xl bg-rose-500/20 text-rose-400 border border-rose-500/30 flex items-center justify-center flex-shrink-0 mt-0.5">
+                    <i data-lucide="shield-alert" class="w-4 h-4"></i>
+                </div>
+                <div>
+                    <div class="flex items-center space-x-2">
+                        <span id="toast-strike-title" class="text-xs font-black uppercase tracking-wider text-rose-400">Cheating Strike Warning</span>
+                        <span id="toast-strike-pill" class="px-2 py-0.2 rounded-full text-[10px] font-extrabold bg-rose-500/30 text-rose-200 border border-rose-400/30">Strike 1/3</span>
+                    </div>
+                    <p id="toast-strike-reason" class="text-xs font-medium text-slate-200 mt-1">Multi-Face Detected: Multiple faces identified in camera frame.</p>
+                    <div class="mt-2 flex items-center space-x-2 text-[11px] text-amber-300">
+                        <i data-lucide="clock" class="w-3.5 h-3.5 animate-spin"></i>
+                        <span>Acknowledge within <strong id="toast-countdown" class="font-mono font-bold text-white text-xs">10</strong>s to avoid additional penalty</span>
+                    </div>
+                </div>
+            </div>
+            <button type="button" onclick="acknowledgeShadcnWarning()" class="px-3 py-1.5 bg-rose-600 hover:bg-rose-500 text-white text-xs font-bold rounded-xl shadow transition flex-shrink-0 cursor-pointer">
+                Return to Exam
+            </button>
+        </div>
+    </div>
 
-            <!-- Live AI Multi-Sensor Proctoring Webcam Widget -->
-            <div class="bg-white rounded-3xl border border-slate-200 p-5 shadow-sm overflow-hidden">
-                <div class="flex items-center justify-between mb-3">
-                    <span class="text-xs font-bold text-slate-800 flex items-center space-x-1.5">
-                        <i data-lucide="shield-alert" class="w-4 h-4 text-emerald-600"></i>
-                        <span>AI Proctor Cam</span>
-                    </span>
+    <!-- Floating AI Proctor Webcam Tile (Picture-in-Picture) -->
+    <div id="floating-webcam-tile" class="bg-white/95 dark:bg-slate-900/95 backdrop-blur-md rounded-2xl border border-slate-200 dark:border-slate-800 p-3 shadow-2xl">
+        <div class="flex items-center justify-between pb-2 mb-2 border-b border-slate-100 dark:border-slate-800">
+            <div class="flex items-center space-x-1.5">
+                <span class="w-2 h-2 rounded-full bg-emerald-500 animate-ping"></span>
+                <span class="text-[11px] font-bold text-slate-900 dark:text-slate-100">AI Proctor</span>
+            </div>
+            <div class="flex items-center space-x-1">
+                <button type="button" onclick="toggleWebcamTileSize()" class="p-1 rounded-lg text-slate-400 hover:text-slate-700 dark:hover:text-slate-200 transition" title="Minimize / Expand Tile">
+                    <i data-lucide="minimize-2" id="tile-minimize-icon" class="w-3.5 h-3.5"></i>
+                </button>
+            </div>
+        </div>
+
+        <div class="webcam-feed-box relative rounded-xl overflow-hidden bg-slate-950 aspect-video flex items-center justify-center border border-slate-800 shadow-inner">
+            <video id="webcam-preview" autoplay muted playsinline class="w-full h-full object-cover"></video>
+            <canvas id="ai-overlay" class="absolute inset-0 w-full h-full pointer-events-none"></canvas>
+
+            <!-- Fallback / Camera Inactive -->
+            <div id="webcam-fallback" class="absolute inset-0 flex flex-col items-center justify-center text-slate-400 p-4 text-center hidden bg-slate-950/90">
+                <i data-lucide="camera-off" class="w-6 h-6 mb-1 text-slate-600"></i>
+                <span class="text-[10px]">Connecting camera feed...</span>
+            </div>
+
+            <!-- Scan line effect -->
+            <div class="absolute inset-x-0 h-0.5 bg-gradient-to-r from-transparent via-emerald-400 to-transparent pointer-events-none animate-pulse"></div>
+        </div>
+
+        <!-- Multi-Sensor Diagnostics Grid -->
+        <div class="webcam-hud-grid mt-2 grid grid-cols-4 gap-1 text-center">
+            <div class="p-1 rounded-lg border border-slate-100 dark:border-slate-800 bg-slate-50 dark:bg-slate-950/50 flex flex-col items-center">
+                <span class="text-[8px] text-slate-400 uppercase font-semibold">Face</span>
+                <span id="hud-face" class="text-[9px] font-extrabold text-emerald-600 mt-0.5 truncate w-full">Detecting</span>
+            </div>
+            <div class="p-1 rounded-lg border border-slate-100 dark:border-slate-800 bg-slate-50 dark:bg-slate-950/50 flex flex-col items-center">
+                <span class="text-[8px] text-slate-400 uppercase font-semibold">Devices</span>
+                <span id="hud-phone" class="text-[9px] font-extrabold text-emerald-600 mt-0.5 truncate w-full">Scanning</span>
+            </div>
+            <div class="p-1 rounded-lg border border-slate-100 dark:border-slate-800 bg-slate-50 dark:bg-slate-950/50 flex flex-col items-center">
+                <span class="text-[8px] text-slate-400 uppercase font-semibold">Audio</span>
+                <span id="hud-audio" class="text-[9px] font-extrabold text-emerald-600 mt-0.5 truncate w-full">Quiet ✓</span>
+            </div>
+            <div class="p-1 rounded-lg border border-slate-100 dark:border-slate-800 bg-slate-50 dark:bg-slate-950/50 flex flex-col items-center cursor-pointer hover:bg-slate-100 dark:hover:bg-slate-800 transition" onclick="openMobilePairModal()">
+                <span class="text-[8px] text-slate-400 uppercase font-semibold">Desk Cam</span>
+                <span id="hud-mobile-cam" class="text-[9px] font-extrabold text-sky-600 mt-0.5 truncate w-full">Pair QR 📱</span>
+            </div>
+        </div>
+    </div>
+
+    <!-- Main Workspace -->
+    <div class="max-w-7xl mx-auto px-4 sm:px-6 py-6 flex-1 w-full grid grid-cols-1 lg:grid-cols-12 gap-6">
+
+        <!-- Left: Question View (8 cols) -->
+        <div
+            class="lg:col-span-8 flex flex-col justify-between bg-white rounded-3xl border border-slate-200 p-6 sm:p-8 shadow-sm min-h-[520px]">
+            <div>
+                <div class="flex items-center justify-between border-b border-slate-100 pb-4 mb-6">
+                    <div class="flex items-center space-x-2">
+                        <span id="q-number-pill"
+                            class="px-3 py-1 bg-sky-100 text-sky-800 text-xs font-extrabold rounded-full">Question 1 of
+                            {{ questions|length }}</span>
+                        <span id="q-points-pill" class="text-xs text-slate-400 font-semibold">1.0 Mark</span>
+                    </div>
+                    <button onclick="toggleMarkForReview()" id="btn-review"
+                        class="text-xs font-semibold text-slate-500 hover:text-amber-600 flex items-center space-x-1 transition">
+                        <i data-lucide="flag" class="w-3.5 h-3.5"></i>
+                        <span id="review-text">Flag for Review</span>
+                    </button>
+                </div>
+
+                <!-- Section Announcement Banner (Only displayed when section changes or on first question of a section) -->
+                <div id="section-header-banner" class="hidden mb-4 p-3 bg-indigo-50/80 border border-indigo-200 rounded-2xl flex items-center justify-between text-indigo-950 shadow-2xs">
+                    <div class="flex items-center space-x-2.5">
+                        <span class="w-7 h-7 rounded-lg bg-indigo-600 text-white flex items-center justify-center font-bold text-xs flex-shrink-0">§</span>
+                        <div>
+                            <span class="text-[10px] font-bold text-indigo-600 uppercase tracking-wider block">Exam Section</span>
+                            <h4 id="section-banner-title" class="text-xs font-black text-indigo-950">Section A</h4>
+                        </div>
+                    </div>
+                    <span id="section-banner-tag" class="px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-white text-indigo-700 border border-indigo-200">Starting Here</span>
+                </div>
+
+                <!-- OR Alternative Guidance Banner -->
+                <div id="or-choice-banner" class="hidden mb-4 p-3.5 bg-gradient-to-r from-amber-50 to-orange-50 border border-amber-300 rounded-2xl flex items-center justify-between gap-3 text-amber-900 shadow-xs">
+                    <div class="flex items-center space-x-2.5">
+                        <span class="w-8 h-8 rounded-xl bg-amber-500 text-white flex items-center justify-center font-black text-xs flex-shrink-0 shadow-xs">OR</span>
+                        <div>
+                            <h4 id="or-banner-title" class="text-xs font-black uppercase tracking-wider text-amber-900">Alternative Choice Question</h4>
+                            <p id="or-banner-desc" class="text-[11px] text-amber-800 leading-snug">You only need to answer either Part A or Part B. Only one answer will be counted for marks.</p>
+                        </div>
+                    </div>
+                    <span id="or-banner-tag" class="px-2.5 py-1 rounded-full text-[10px] font-black bg-amber-200 text-amber-900 flex-shrink-0">Attempt 1 Only</span>
+                </div>
+
+                <!-- Question Text -->
+                <h3 id="current-question-text"
+                    class="text-base sm:text-lg font-bold text-slate-900 leading-relaxed mb-4">
+                    Loading question...
+                </h3>
+
+                <!-- Question Figure / Diagram Container -->
+                <div id="figure-container" class="mb-5 hidden"></div>
+
+                <!-- Options List -->
+                <div id="options-container" class="space-y-3"></div>
+            </div>
+
+            <!-- Bottom Pagination Controls -->
+            <div class="flex items-center justify-between border-t border-slate-100 pt-6 mt-8">
+                <button onclick="prevQuestion()" id="btn-prev"
+                    class="px-4 py-2 border border-slate-300 hover:bg-slate-50 text-slate-700 text-xs font-bold rounded-xl transition flex items-center space-x-1 disabled:opacity-40">
+                    <i data-lucide="chevron-left" class="w-4 h-4"></i>
+                    <span>Previous</span>
+                </button>
+                <button onclick="nextQuestion()" id="btn-next"
+                    class="px-5 py-2 bg-sky-600 hover:bg-sky-700 text-white text-xs font-bold rounded-xl shadow-sm transition flex items-center space-x-1">
+                    <span>Next</span>
+                    <i data-lucide="chevron-right" class="w-4 h-4"></i>
+                </button>
+            </div>
+        </div>
+
+        <!-- Right: Crisp Question Navigator (4 cols) -->
+        <div class="lg:col-span-4 space-y-5">
+
+            <!-- Question Palette Card (Crisp Question Navigation Grid) -->
+            <div class="bg-white rounded-3xl border border-slate-200 p-5 shadow-sm">
+                <div class="flex items-center justify-between mb-3 border-b border-slate-100 pb-3">
+                    <div>
+                        <h4 class="text-xs font-bold text-slate-900 uppercase tracking-wider flex items-center space-x-1.5">
+                            <i data-lucide="layout-grid" class="w-4 h-4 text-sky-600"></i>
+                            <span>Question Navigator</span>
+                        </h4>
+                        <span id="answered-stat" class="text-[11px] text-slate-500 font-medium">0 / {{ questions|length }} Answered</span>
+                    </div>
                     <span id="ai-active-pill"
                         class="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-100 text-emerald-800 border border-emerald-200">
-                        <span class="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-ping mr-1"></span> AI Vision Online
+                        <span class="w-1.5 h-1.5 rounded-full bg-emerald-500 mr-1"></span> Protected
                     </span>
                 </div>
 
-                <div
-                    class="relative rounded-2xl overflow-hidden bg-slate-900 aspect-video flex items-center justify-center border border-slate-300 shadow-inner">
-                    <video id="webcam-preview" autoplay muted playsinline class="w-full h-full object-cover"></video>
-                    <canvas id="ai-overlay" class="absolute inset-0 w-full h-full pointer-events-none"></canvas>
-
-                    <!-- Fallback / Camera Inactive -->
-                    <div id="webcam-fallback"
-                        class="absolute inset-0 flex flex-col items-center justify-center text-slate-400 p-4 text-center hidden bg-slate-900/90">
-                        <i data-lucide="camera-off" class="w-8 h-8 mb-1 text-slate-500"></i>
-                        <span class="text-[11px]">Connecting camera feed...</span>
-                    </div>
-
-                    <!-- Scan line effect -->
-                    <div
-                        class="absolute inset-x-0 h-0.5 bg-gradient-to-r from-transparent via-emerald-400 to-transparent pointer-events-none animate-pulse">
-                    </div>
+                <!-- Palette Filter Tabs -->
+                <div class="flex items-center space-x-1 mb-3.5 p-1 bg-slate-100 dark:bg-slate-900 rounded-xl text-[11px] font-medium text-slate-600">
+                    <button type="button" onclick="filterPalette('all')" id="tab-pal-all" class="flex-1 py-1 text-center rounded-lg bg-white dark:bg-slate-800 text-slate-900 dark:text-white font-bold shadow-xs transition">All</button>
+                    <button type="button" onclick="filterPalette('unanswered')" id="tab-pal-unanswered" class="flex-1 py-1 text-center rounded-lg hover:text-slate-900 transition">Pending</button>
+                    <button type="button" onclick="filterPalette('flagged')" id="tab-pal-flagged" class="flex-1 py-1 text-center rounded-lg hover:text-slate-900 transition">Flagged</button>
                 </div>
 
-                <!-- Multi-Sensor AI Diagnostics Badges (4-Sensor Grid) -->
-                <div class="mt-3 grid grid-cols-4 gap-1 text-center">
-                    <!-- Face Status -->
-                    <div class="p-1 rounded-xl border border-slate-100 bg-slate-50 flex flex-col items-center">
-                        <span class="text-[9px] text-slate-400 uppercase font-semibold">Face</span>
-                        <span id="hud-face" class="text-[10px] font-extrabold text-emerald-600 mt-0.5 truncate w-full">Detecting</span>
-                    </div>
-                    <!-- Phone / Device Status -->
-                    <div class="p-1 rounded-xl border border-slate-100 bg-slate-50 flex flex-col items-center">
-                        <span class="text-[9px] text-slate-400 uppercase font-semibold">Devices</span>
-                        <span id="hud-phone" class="text-[10px] font-extrabold text-emerald-600 mt-0.5 truncate w-full">Scanning</span>
-                    </div>
-                    <!-- Audio / Voice Status -->
-                    <div class="p-1 rounded-xl border border-slate-100 bg-slate-50 flex flex-col items-center">
-                        <span class="text-[9px] text-slate-400 uppercase font-semibold">Audio</span>
-                        <span id="hud-audio" class="text-[10px] font-extrabold text-emerald-600 mt-0.5 truncate w-full">Quiet ✓</span>
-                    </div>
-                    <!-- Secondary 360 Cam Status -->
-                    <div class="p-1 rounded-xl border border-slate-100 bg-slate-50 flex flex-col items-center cursor-pointer hover:bg-slate-100 transition-colors" onclick="openMobilePairModal()">
-                        <span class="text-[9px] text-slate-400 uppercase font-semibold">Desk Cam</span>
-                        <span id="hud-mobile-cam" class="text-[10px] font-extrabold text-sky-600 mt-0.5 truncate w-full">Pair QR 📱</span>
-                    </div>
-                </div>
+                <!-- Grid Buttons -->
+                <div id="palette-grid" class="grid grid-cols-5 gap-2 max-h-[380px] overflow-y-auto p-1"></div>
 
-                <div class="mt-2.5 flex items-center justify-between text-[10px] text-slate-400 px-1">
-                    <span>360° AI Sentinel: Multi-Sensor Active</span>
-                    <button type="button" onclick="openMobilePairModal()" class="text-sky-600 hover:text-sky-700 font-semibold underline">
-                        QR Cam Pair
-                    </button>
+                <!-- Legend -->
+                <div class="mt-4 pt-3 border-t border-slate-100 grid grid-cols-3 gap-1 text-[11px] text-slate-500 text-center font-medium">
+                    <div class="flex items-center justify-center space-x-1">
+                        <span class="w-2.5 h-2.5 rounded-md bg-sky-600"></span>
+                        <span>Answered</span>
+                    </div>
+                    <div class="flex items-center justify-center space-x-1">
+                        <span class="w-2.5 h-2.5 rounded-md bg-amber-400"></span>
+                        <span>Flagged</span>
+                    </div>
+                    <div class="flex items-center justify-center space-x-1">
+                        <span class="w-2.5 h-2.5 rounded-md bg-slate-100 border border-slate-300"></span>
+                        <span>Unvisited</span>
+                    </div>
                 </div>
             </div>
 
-            <!-- Question Palette -->
-            <div class="bg-white rounded-3xl border border-slate-200 p-5 shadow-sm">
-                <div class="flex items-center justify-between mb-4">
-                    <h4 class="text-xs font-bold text-slate-800 uppercase tracking-wider">Question Navigator</h4>
-                    <span id="answered-stat" class="text-xs font-semibold text-sky-600">0 / {{ questions|length }}
-                        Answered</span>
+            <!-- Quick Integrity Status Widget -->
+            <div class="p-4 rounded-2xl bg-gradient-to-br from-slate-50 to-sky-50/50 border border-slate-200 text-xs text-slate-600 space-y-2">
+                <div class="flex items-center justify-between">
+                    <span class="font-bold text-slate-800 flex items-center space-x-1">
+                        <i data-lucide="shield-check" class="w-3.5 h-3.5 text-emerald-600"></i>
+                        <span>Integrity Guardian</span>
+                    </span>
+                    <button type="button" onclick="openMobilePairModal()" class="text-sky-600 hover:text-sky-700 font-bold text-[11px] underline">
+                        + Desk Camera
+                    </button>
                 </div>
-
-                <div id="palette-grid" class="grid grid-cols-5 gap-2"></div>
-
-                <div
-                    class="mt-4 pt-3 border-t border-slate-100 grid grid-cols-3 gap-1 text-[11px] text-slate-500 text-center">
-                    <div><span class="inline-block w-2.5 h-2.5 rounded-full bg-sky-500 mr-1"></span>Answered</div>
-                    <div><span class="inline-block w-2.5 h-2.5 rounded-full bg-amber-400 mr-1"></span>Flagged</div>
-                    <div><span class="inline-block w-2.5 h-2.5 rounded-full bg-slate-200 mr-1"></span>Unvisited</div>
-                </div>
+                <p class="text-[11px] text-slate-500 leading-relaxed">
+                    AI proctoring is actively scanning via floating camera. Keep your face centered, window full-screen, and environment quiet.
+                </p>
             </div>
 
         </div>
@@ -2399,9 +2627,42 @@
         }
 
         // Show strike warning alert with 10s countdown; adds another strike if not clicked in 10s
+        // Floating Webcam Tile Controls (Minimize / Expand / Drag)
+        let isTileMinimized = false;
+        function toggleWebcamTileSize() {
+            const tile = document.getElementById('floating-webcam-tile');
+            const icon = document.getElementById('tile-minimize-icon');
+            if (!tile) return;
+            isTileMinimized = !isTileMinimized;
+            if (isTileMinimized) {
+                tile.classList.add('minimized');
+                if (icon) icon.setAttribute('data-lucide', 'maximize-2');
+            } else {
+                tile.classList.remove('minimized');
+                if (icon) icon.setAttribute('data-lucide', 'minimize-2');
+            }
+            if (window.lucide) lucide.createIcons();
+        }
+
+        // Subtle shadcn Warning Alert Notification System
+        let strikeToastTimer = null;
+        let strikeToastSeconds = 10;
+
+        function acknowledgeShadcnWarning() {
+            const alertEl = document.getElementById('shadcn-strike-alert');
+            if (alertEl) alertEl.classList.remove('active');
+            if (strikeToastTimer) {
+                clearInterval(strikeToastTimer);
+                strikeToastTimer = null;
+            }
+            if (!document.fullscreenElement) {
+                document.documentElement.requestFullscreen().catch(() => { });
+            }
+        }
+
         function showStrikeWarningAlert(type, details) {
             if (isTerminated) return;
-            if (strikeAckTimer) clearInterval(strikeAckTimer);
+            if (strikeToastTimer) clearInterval(strikeToastTimer);
 
             // Announce voice proctor warning via speaker/headphones
             playAIVoiceWarning(type);
@@ -2413,7 +2674,7 @@
                 clearInterval(timerInterval);
                 clearInterval(aiDetectionInterval);
                 clearInterval(audioAnalysisInterval);
-                if (strikeAckTimer) clearInterval(strikeAckTimer);
+                if (strikeToastTimer) clearInterval(strikeToastTimer);
 
                 Swal.fire({
                     icon: 'error',
@@ -2432,52 +2693,34 @@
                 return;
             }
 
-            let countdown = 10;
-            const updateAlertTimerText = () => {
-                const timerSpan = document.getElementById('strike-return-countdown');
-                if (timerSpan) {
-                    timerSpan.innerText = countdown;
-                }
-            };
+            // Populate subtle shadcn top toast alert
+            const alertEl = document.getElementById('shadcn-strike-alert');
+            const pillEl = document.getElementById('toast-strike-pill');
+            const reasonEl = document.getElementById('toast-strike-reason');
+            const countdownEl = document.getElementById('toast-countdown');
 
-            Swal.fire({
-                icon: 'warning',
-                title: `⚠️ WARNING (Strike ${warningsCount}/${MAX_WARNINGS})`,
-                html: `
-                    <p class="text-sm font-semibold text-slate-800 mb-1">Violation: ${type.replace('_', ' ').toUpperCase()}</p>
-                    <p class="text-xs text-slate-500 mb-2">${details}</p>
-                    <div class="my-2 p-2 bg-amber-50 border border-amber-200 rounded-lg text-xs text-amber-900 font-medium">
-                        ⏱️ You must click <b>"Return to Exam"</b> within <span id="strike-return-countdown" class="font-bold text-rose-600 text-sm">${countdown}</span> seconds, or an <b>extra strike penalty</b> will be added!
-                    </div>
-                    <p class="text-xs font-bold text-rose-600">Re-enter full-screen and stay on this page! Reaching ${MAX_WARNINGS} strikes will permanently terminate your exam.</p>
-                `,
-                confirmButtonText: 'Return to Exam',
-                confirmButtonColor: '#0284c7',
-                allowOutsideClick: false,
-                didOpen: () => {
-                    strikeAckTimer = setInterval(() => {
-                        countdown--;
-                        updateAlertTimerText();
-                        if (countdown <= 0) {
-                            clearInterval(strikeAckTimer);
-                            strikeAckTimer = null;
-                            if (Swal.isVisible() && !isTerminated) {
-                                // Student did not return to exam within 10s: trigger additional strike penalty
-                                triggerViolation('delayed_return_penalty', 'Student failed to acknowledge warning and return to exam within 10 seconds.');
-                            }
-                        }
-                    }, 1000);
+            if (pillEl) pillEl.innerText = `Strike ${warningsCount}/${MAX_WARNINGS}`;
+            if (reasonEl) reasonEl.innerText = `${type.replace(/_/g, ' ').toUpperCase()}: ${details}`;
+
+            strikeToastSeconds = 10;
+            if (countdownEl) countdownEl.innerText = strikeToastSeconds;
+
+            if (alertEl) {
+                alertEl.classList.add('active');
+            }
+
+            strikeToastTimer = setInterval(() => {
+                strikeToastSeconds--;
+                if (countdownEl) countdownEl.innerText = strikeToastSeconds;
+                if (strikeToastSeconds <= 0) {
+                    clearInterval(strikeToastTimer);
+                    strikeToastTimer = null;
+                    if (alertEl && alertEl.classList.contains('active') && !isTerminated) {
+                        // Student failed to return in 10s: trigger delay penalty
+                        triggerViolation('delayed_return_penalty', 'Candidate did not acknowledge warning within 10 seconds.');
+                    }
                 }
-            }).then(() => {
-                if (strikeAckTimer) {
-                    clearInterval(strikeAckTimer);
-                    strikeAckTimer = null;
-                }
-                // Re-request fullscreen if lost
-                if (!document.fullscreenElement) {
-                    document.documentElement.requestFullscreen().catch(() => { });
-                }
-            });
+            }, 1000);
         }
 
         // Send violation report to backend & update warning counter
@@ -3209,8 +3452,25 @@
             }
         }
 
+        let currentPaletteFilter = 'all';
+
+        function filterPalette(filterType) {
+            currentPaletteFilter = filterType;
+            ['all', 'unanswered', 'flagged'].forEach(t => {
+                const tab = document.getElementById(`tab-pal-${t}`);
+                if (!tab) return;
+                if (t === filterType) {
+                    tab.className = 'flex-1 py-1 text-center rounded-lg bg-white dark:bg-slate-800 text-slate-900 dark:text-white font-bold shadow-xs transition';
+                } else {
+                    tab.className = 'flex-1 py-1 text-center rounded-lg text-slate-500 hover:text-slate-900 dark:hover:text-white transition';
+                }
+            });
+            renderPalette();
+        }
+
         function renderPalette() {
             const grid = document.getElementById('palette-grid');
+            if (!grid) return;
             grid.innerHTML = '';
             const labelsInfo = getQuestionDisplayLabels(QUESTIONS);
 
@@ -3235,19 +3495,23 @@
                 const isFlagged = flaggedQuestions.has(q.id);
                 const isCurrent = (idx === currentQuestionIndex);
 
-                let bgClass = 'bg-slate-100 text-slate-700 hover:bg-slate-200';
+                // Filter check
+                if (currentPaletteFilter === 'unanswered' && isAnswered) return;
+                if (currentPaletteFilter === 'flagged' && !isFlagged) return;
+
+                let bgClass = 'bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-slate-700';
                 if (isCurrent) {
-                    bgClass = 'ring-2 ring-sky-600 font-bold bg-sky-50 text-sky-700';
+                    bgClass = 'ring-2 ring-sky-500 font-bold bg-sky-50 dark:bg-sky-950/60 text-sky-700 dark:text-sky-300 shadow-sm';
                 }
                 if (isAnswered) {
-                    bgClass = 'bg-sky-600 text-white font-bold';
+                    bgClass = 'bg-sky-600 dark:bg-sky-500 text-white font-bold shadow-xs';
                 }
                 if (isFlagged) {
-                    bgClass = 'bg-amber-400 text-amber-950 font-bold';
+                    bgClass = 'bg-amber-400 text-amber-950 font-bold shadow-xs';
                 }
 
                 const btn = document.createElement('button');
-                btn.className = `min-w-10 h-10 px-1.5 rounded-xl text-xs flex items-center justify-center transition shadow-sm ${bgClass}`;
+                btn.className = `min-w-9 h-9 px-1 rounded-xl text-xs flex items-center justify-center transition shadow-2xs ${bgClass}`;
                 btn.innerText = info.label;
                 btn.title = info.isOr ? `Question ${info.label} (OR Choice)` : `Question ${info.label}`;
                 btn.onclick = () => renderQuestion(idx);
@@ -3255,7 +3519,8 @@
             });
 
             const answeredCount = Object.keys(mainAnsweredMap).length;
-            document.getElementById('answered-stat').innerText = `${answeredCount} / ${totalMainQuestions} Questions Answered`;
+            const statEl = document.getElementById('answered-stat');
+            if (statEl) statEl.innerText = `${answeredCount} / ${totalMainQuestions} Questions Answered`;
         }
 
         function confirmSubmitExam() {
