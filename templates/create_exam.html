@@ -1375,8 +1375,7 @@ Section B - Short Questions (3 marks each)
                         ` : ''}
                     </div>
                 `;
-            }
-            if (isObjective && q.options && q.options.length > 0) {
+            } else if (isObjective && q.options && q.options.length > 0) {
                 bodyHtml = `
                     <div class="space-y-2">
                         <div class="flex items-center justify-between">
@@ -1410,7 +1409,7 @@ Section B - Short Questions (3 marks each)
                 bodyHtml = `
                     <div class="space-y-1">
                         <label class="block text-xs font-semibold text-slate-600">Model Answer / Key Points for Grading:</label>
-                        <textarea oninput="questionsData[${qIndex}].correct_answer = this.value" rows="2" class="w-full px-3 py-2 text-xs bg-white border border-slate-300 rounded-lg focus:outline-none focus:ring-1 focus:ring-sky-500 font-mono text-slate-800" placeholder="Enter key grading points or reference answer">${q.correct_answer || ''}</textarea>
+                        <textarea oninput="questionsData[${qIndex}].correct_answer = this.value" rows="2" class="w-full px-3 py-2 text-xs bg-white border border-slate-300 rounded-lg focus:outline-none focus:ring-1 focus:ring-sky-500 font-mono text-slate-800" placeholder="Enter key grading points or reference answer">${(typeof q.correct_answer === 'object' && q.correct_answer !== null) ? JSON.stringify(q.correct_answer, null, 2) : (q.correct_answer || '')}</textarea>
                     </div>
                 `;
             }
