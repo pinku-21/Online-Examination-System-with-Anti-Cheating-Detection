@@ -179,19 +179,52 @@ def encode_image_base64(image_path):
         return mime_type, b64
 
 def build_exam_system_prompt(num_questions=5, question_type="mcq", difficulty="Medium", custom_prompt=None, total_marks=None, available_figures=None):
-    """Builds a rich, dynamic system prompt supporting custom blueprints, mark distributions, and figure/diagram generation."""
+    """Builds a rich, dynamic system prompt supporting CBSE official blueprints, exact question counts, and specialized question formats."""
     
-    # Handle blueprints - only apply preset if explicitly selected or if total_marks is 80/50 AND no custom prompt was provided
+    # Handle blueprints - CBSE Annual, Half-Yearly, Unit Tests, and custom presets
     blueprint_instruction = ""
     has_custom = bool(custom_prompt and custom_prompt.strip())
-    if question_type == "blueprint_80" or (total_marks and int(total_marks) == 80 and not has_custom and question_type not in ["custom", "mcq", "short", "descriptive"]):
+    
+    if question_type in ("annual_80", "blueprint_80", "cbse_annual_80") or (total_marks and int(total_marks) == 80 and not has_custom and question_type not in ["custom", "mcq", "short", "descriptive"]):
         blueprint_instruction = """
-EXAM BLUEPRINT: COMPREHENSIVE 80-MARK UNIVERSITY EXAMINATION
-Generate questions distributed across three sections:
-- Section A (Objective/MCQ): 10 MCQs, each worth 1.0 mark (Total: 10 marks).
-- Section B (Short Conceptual Questions): 10 Short Questions, each worth 3.0 marks (Total: 30 marks).
-- Section C (Long Descriptive / Essay / Architectural): 4 Long In-depth Questions, each worth 10.0 marks (Total: 40 marks).
-OVERALL SUM OF POINTS MUST EQUAL EXACTLY 80.0 MARKS.
+OFFICIAL CBSE EXAM BLUEPRINT: ANNUAL / BOARD EXAMINATION (80 MARKS - EXACT 5 SECTIONS):
+You MUST generate an examination strictly following the official CBSE 80-mark multi-section structure:
+- Section A (1-Mark Objective): 20 questions total (16 standard MCQs + 2 Assertion-Reason + 2 Match-the-following / Objective) × 1.0 mark each = 20 Marks.
+- Section B (2-Mark Very Short Answer): 6 Short Questions × 2.0 marks each = 12 Marks.
+- Section C (3-Mark Short Answer): 7 Conceptual Questions × 3.0 marks each = 21 Marks.
+- Section D (5-Mark Long Answer): 3 In-depth Questions × 5.0 marks each = 15 Marks.
+- Section E (4-Mark Case-Based / Source / Passage / Map): 3 Case-study/Data/Map Questions × 4.0 marks each = 12 Marks.
+TOTAL QUESTIONS = EXACTLY 39 QUESTIONS. TOTAL MARKS = EXACTLY 80.0 MARKS.
+"""
+    elif question_type in ("half_yearly_80", "cbse_half_yearly_80"):
+        blueprint_instruction = """
+OFFICIAL CBSE EXAM BLUEPRINT: HALF-YEARLY / MID-TERM EXAMINATION (80 MARKS):
+Generate questions distributed across the half-yearly syllabus:
+- Section A: 20 Objective MCQs & Assertion-Reason × 1.0 mark each = 20 Marks.
+- Section B: 6 Very Short Answer Questions × 2.0 marks each = 12 Marks.
+- Section C: 7 Short Answer Questions × 3.0 marks each = 21 Marks.
+- Section D: 3 Long Descriptive / Numerical Questions × 5.0 marks each = 15 Marks.
+- Section E: 3 Case Study / Integrated Units / Map Questions × 4.0 marks each = 12 Marks.
+TOTAL QUESTIONS = EXACTLY 39 QUESTIONS. TOTAL MARKS = EXACTLY 80.0 MARKS.
+"""
+    elif question_type in ("unit_test_40", "cbse_unit_test_40") or (total_marks and int(total_marks) == 40 and not has_custom and question_type not in ["custom", "mcq", "short", "descriptive"]):
+        blueprint_instruction = """
+OFFICIAL CBSE EXAM BLUEPRINT: UNIT TEST / PERIODIC TEST (40 MARKS):
+Generate questions distributed across:
+- Section A: 10 Objective / MCQs / Assertion-Reason × 1.0 mark each = 10 Marks.
+- Section B: 4 Very Short Questions × 2.0 marks each = 8 Marks.
+- Section C: 4 Short Conceptual Questions × 3.0 marks each = 12 Marks.
+- Section D: 2 Long Questions × 5.0 marks each = 10 Marks.
+TOTAL QUESTIONS = EXACTLY 20 QUESTIONS. TOTAL MARKS = EXACTLY 40.0 MARKS.
+"""
+    elif question_type in ("unit_test_20", "cbse_unit_test_20") or (total_marks and int(total_marks) == 20 and not has_custom and question_type not in ["custom", "mcq", "short", "descriptive"]):
+        blueprint_instruction = """
+OFFICIAL CBSE EXAM BLUEPRINT: UNIT TEST / CLASS TEST (20 MARKS):
+Generate questions distributed across:
+- Section A: 5 Objective MCQs / Assertion-Reason × 1.0 mark each = 5 Marks.
+- Section B: 3 Short Questions × 2.0 marks each = 6 Marks.
+- Section C: 3 Conceptual Questions × 3.0 marks each = 9 Marks.
+TOTAL QUESTIONS = EXACTLY 11 QUESTIONS. TOTAL MARKS = EXACTLY 20.0 MARKS.
 """
     elif question_type == "blueprint_50" or (total_marks and int(total_marks) == 50 and not has_custom and question_type not in ["custom", "mcq", "short", "descriptive"]):
         blueprint_instruction = """
@@ -205,24 +238,24 @@ OVERALL SUM OF POINTS MUST EQUAL EXACTLY 50.0 MARKS.
     elif question_type == "short":
         blueprint_instruction = f"""
 EXAM BLUEPRINT: SHORT ANSWER QUESTIONS
-Generate {num_questions} concise, conceptual questions (2 to 4 marks each).
+Generate EXACTLY {num_questions} concise, conceptual questions (2 to 4 marks each).
 Set "question_type": "short", "options": [], and provide a clear model answer in "correct_answer".
 """
     elif question_type == "descriptive":
         blueprint_instruction = f"""
 EXAM BLUEPRINT: LONG DESCRIPTIVE & ESSAY QUESTIONS
-Generate {num_questions} detailed, comprehensive questions (5 to 10 marks each).
+Generate EXACTLY {num_questions} detailed, comprehensive questions (5 to 10 marks each).
 Set "question_type": "descriptive", "options": [], and provide detailed evaluation rubrics in "correct_answer".
 """
     elif question_type == "mixed":
         blueprint_instruction = f"""
 EXAM BLUEPRINT: MIXED QUESTIONS
-Generate {num_questions} questions with a balanced blend of MCQs (1-2 marks), Short Questions (3-5 marks), and Long Descriptive Questions (5-10 marks).
+Generate EXACTLY {num_questions} questions with a balanced blend of MCQs (1-2 marks), Short Questions (3-5 marks), and Long Descriptive Questions (5-10 marks).
 """
     elif question_type == "custom":
         blueprint_instruction = f"""
 EXAM BLUEPRINT: CUSTOM USER-SPECIFIED FORMAT & MIXED CHOICES
-Generate {num_questions} questions adhering strictly to the instructor's customized question formats, mix, and breakdown.
+Generate EXACTLY {num_questions} questions adhering strictly to the instructor's customized question formats, mix, and breakdown.
 """
 
     custom_section = ""
@@ -244,18 +277,41 @@ The following diagram images were extracted directly from the user's PDF:
 You can reference any of these URLs in the "figure_url" field if your question corresponds to that diagram.
 """
 
-    marks_guideline = f"Target Total Marks: {total_marks}" if total_marks else "Assign realistic academic mark weightages (points: 1.0, 2.0, 3.0, 4.0, 5.0, or 10.0 depending on question depth)."
+    marks_guideline = f"TARGET TOTAL MARKS: Exactly {total_marks} marks." if total_marks else "Assign realistic academic mark weightages."
 
-    prompt = f"""You are an elite academic professor, university examiner, and syllabus creator.
+    prompt = f"""You are an elite CBSE Board Academic Paper Setter and Senior Examiner.
 Your task is to design a high-quality examination based strictly on the provided material, topic, and instructor prompt.
 
-Difficulty Level: {difficulty}
-Target Question Type: {question_type}
+DIFFICULTY LEVEL: {difficulty}
+TARGET QUESTION TYPE: {question_type}
 {marks_guideline}
+
+STRICT QUESTION COUNT & MARKS ADHERENCE (CRITICAL RULE):
+1. If the user or blueprint specifies a Question Count (e.g., {num_questions} questions), you MUST output EXACTLY that number of question objects in the JSON array. NEVER output fewer or more questions than requested!
+2. If Target Total Marks is specified ({total_marks or 'specified by blueprint'}), the arithmetic sum of "points" across all questions in the output array MUST EQUAL THAT TOTAL. NEVER assign random marks (e.g. assigning 5 marks to a 1-mark question).
+3. If an exam is for Class 9, 10, 11, or 12 CBSE, automatically format questions according to NCERT/CBSE curriculum standards.
 
 {blueprint_instruction}
 {custom_section}
 {figures_section}
+
+SPECIALIZED QUESTION FORMAT RULES:
+1. ASSERTION - REASON QUESTIONS:
+   - Format "question_text" with clear "Assertion (A): ..." and "Reason (R): ...".
+   - Set "question_type": "mcq".
+   - Options must be the standard 4 CBSE options:
+     (a) Both (A) and (R) are true and (R) is the correct explanation of (A).
+     (b) Both (A) and (R) are true but (R) is not the correct explanation of (A).
+     (c) (A) is true but (R) is false.
+     (d) (A) is false but (R) is true.
+2. MATCH THE FOLLOWING:
+   - Format "question_text" with two clearly aligned columns (Column I / Column A and Column II / Column B).
+   - Set "question_type": "mcq" with combination codes in "options" (e.g. ["(a) A-ii, B-iv, C-i, D-iii", "(b) A-i, B-ii, C-iii, D-iv", ...]) or "short" with matching pairs.
+3. MAP / DIAGRAM-BASED QUESTIONS:
+   - For Geography / History / Biology / Physics: State the location/feature to identify or sketch. Always provide either a vector SVG in "figure_svg" or a linked image in "figure_url".
+4. CASE-BASED / PASSAGE / SOURCE-BASED QUESTIONS:
+   - Provide a realistic 3-4 sentence scientific or real-world passage followed by sub-questions.
+
 
 FIGURE & DIAGRAM GENERATION RULES (CRITICAL):
 1. If the instructor requests figures or diagrams (e.g. "give figure in it", "provide figures", "draw diagram", or for geometry, triangles, math, circuits, physics, coordinate graphs):

@@ -125,19 +125,20 @@
                             <div>
                                 <label class="block text-xs font-semibold text-slate-700 mb-1">Question Count</label>
                                 <select id="num-questions" onchange="handleQuestionCountChange(this.value)" class="w-full px-3 py-2 text-xs border border-slate-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-sky-500 bg-white font-medium">
-                                    <option value="24" selected>24 Questions (80-Mark Paper)</option>
-                                    <option value="17">17 Questions (50-Mark Paper)</option>
-                                    <option value="5">5 Questions (Quick)</option>
+                                    <option value="auto" selected>✨ Auto (Based on Exam Type & Marks)</option>
+                                    <option value="5">5 Questions</option>
                                     <option value="10">10 Questions</option>
                                     <option value="15">15 Questions</option>
-                                    <option value="20">20 Questions</option>
+                                    <option value="20">20 Questions (Unit Test Standard)</option>
+                                    <option value="25">25 Questions</option>
                                     <option value="30">30 Questions</option>
-                                    <option value="custom">✏️ Custom Count (Specify Any Number)...</option>
+                                    <option value="39">39 Questions (CBSE 80-Mark Standard)</option>
+                                    <option value="custom">✏️ Custom Count (Specify Manually)...</option>
                                 </select>
                                 <div id="custom-num-questions-wrapper" class="hidden mt-1.5">
                                     <div class="flex items-center space-x-1.5 bg-sky-50 border border-sky-300 rounded-xl p-1.5 shadow-2xs">
                                         <span class="text-[11px] font-bold text-sky-800 whitespace-nowrap pl-1">Count:</span>
-                                        <input type="number" id="custom-num-questions" min="1" max="100" placeholder="e.g. 7" class="w-full px-2 py-0.5 text-xs font-extrabold text-sky-900 bg-white border border-sky-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-sky-500">
+                                        <input type="number" id="custom-num-questions" min="1" max="100" placeholder="e.g. 8" class="w-full px-2 py-0.5 text-xs font-extrabold text-sky-900 bg-white border border-sky-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-sky-500">
                                         <span class="text-[10px] text-slate-500 font-semibold pr-1">Questions</span>
                                     </div>
                                 </div>
@@ -146,23 +147,23 @@
 
                         <div class="grid grid-cols-2 gap-3">
                             <div>
-                                <label class="block text-xs font-semibold text-slate-700 mb-1">Question Format</label>
+                                <label class="block text-xs font-semibold text-slate-700 mb-1">Exam Type / Pattern</label>
                                 <select id="question-type" onchange="handleQuestionFormatChange(this.value)" class="w-full px-3 py-2 text-xs border border-slate-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-sky-500 bg-white font-medium">
-                                    <option value="blueprint_80" selected>80-Mark Multi-Section Exam</option>
-                                    <option value="blueprint_50">50-Mark Midterm Blueprint</option>
-                                    <option value="mixed">Mixed (MCQs, Short & Long)</option>
+                                    <option value="annual_80" selected>Annual Exam (80 Marks - CBSE Pattern)</option>
+                                    <option value="half_yearly_80">Half-Yearly Exam (80 Marks - CBSE Pattern)</option>
+                                    <option value="unit_test_40">Unit Test - 40 Marks (CBSE Pattern)</option>
+                                    <option value="unit_test_20">Unit Test - 20 Marks (CBSE Pattern)</option>
                                     <option value="mcq">Multiple Choice Only (MCQ)</option>
                                     <option value="short">Short Answer Questions (2–4 Marks)</option>
                                     <option value="descriptive">Long Descriptive / Essay (5–10 Marks)</option>
-                                    <option value="tf">True / False</option>
-                                    <option value="custom">✏️ Custom Format (Mix Your Choices)...</option>
+                                    <option value="custom">✏️ Customize Questions (Pick Types & Mix)...</option>
                                 </select>
                             </div>
                             <div>
                                 <label class="block text-xs font-semibold text-slate-700 mb-1">Difficulty</label>
                                 <select id="difficulty" class="w-full px-3 py-2 text-xs border border-slate-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-sky-500 bg-white">
-                                    <option value="Medium" selected>Medium (Standard)</option>
-                                    <option value="Hard">Hard / Advanced</option>
+                                    <option value="Medium" selected>Medium (Standard CBSE)</option>
+                                    <option value="Hard">Hard / Advanced HOTS</option>
                                     <option value="Easy">Easy (Foundation)</option>
                                     <option value="Mixed">Mixed Difficulty</option>
                                 </select>
@@ -179,31 +180,39 @@
                                 <span class="text-[10px] text-indigo-700 bg-white border border-indigo-200 px-2 py-0.5 rounded-full font-bold">Select Choices</span>
                             </div>
 
-                            <!-- Checkboxes Grid -->
+                            <!-- Checkboxes Grid with Assertion-Reason, Match Following, and Map Questions -->
                             <div class="grid grid-cols-2 gap-2 text-xs">
                                 <label class="flex items-center space-x-2 p-2 bg-white rounded-lg border border-slate-200 hover:border-indigo-400 cursor-pointer transition">
                                     <input type="checkbox" id="fmt-mcq" checked class="w-3.5 h-3.5 text-indigo-600 rounded">
                                     <span class="font-semibold text-slate-800">Multiple Choice (MCQs)</span>
                                 </label>
                                 <label class="flex items-center space-x-2 p-2 bg-white rounded-lg border border-slate-200 hover:border-indigo-400 cursor-pointer transition">
+                                    <input type="checkbox" id="fmt-assertion" checked class="w-3.5 h-3.5 text-indigo-600 rounded">
+                                    <span class="font-semibold text-slate-800">Assertion &amp; Reason (A/R)</span>
+                                </label>
+                                <label class="flex items-center space-x-2 p-2 bg-white rounded-lg border border-slate-200 hover:border-indigo-400 cursor-pointer transition">
+                                    <input type="checkbox" id="fmt-match" checked class="w-3.5 h-3.5 text-indigo-600 rounded">
+                                    <span class="font-semibold text-slate-800">Match the Following</span>
+                                </label>
+                                <label class="flex items-center space-x-2 p-2 bg-white rounded-lg border border-slate-200 hover:border-indigo-400 cursor-pointer transition">
+                                    <input type="checkbox" id="fmt-map" checked class="w-3.5 h-3.5 text-indigo-600 rounded">
+                                    <span class="font-semibold text-slate-800">Map / Diagram Identification</span>
+                                </label>
+                                <label class="flex items-center space-x-2 p-2 bg-white rounded-lg border border-slate-200 hover:border-indigo-400 cursor-pointer transition">
                                     <input type="checkbox" id="fmt-short" checked class="w-3.5 h-3.5 text-indigo-600 rounded">
-                                    <span class="font-semibold text-slate-800">Short Answer (2–4 Mks)</span>
+                                    <span class="font-semibold text-slate-800">Short Answer (2–3 Mks)</span>
                                 </label>
                                 <label class="flex items-center space-x-2 p-2 bg-white rounded-lg border border-slate-200 hover:border-indigo-400 cursor-pointer transition">
                                     <input type="checkbox" id="fmt-descriptive" checked class="w-3.5 h-3.5 text-indigo-600 rounded">
-                                    <span class="font-semibold text-slate-800">Long / Essay (5–10 Mks)</span>
+                                    <span class="font-semibold text-slate-800">Long / Essay (5 Mks)</span>
                                 </label>
                                 <label class="flex items-center space-x-2 p-2 bg-white rounded-lg border border-slate-200 hover:border-indigo-400 cursor-pointer transition">
-                                    <input type="checkbox" id="fmt-tf" class="w-3.5 h-3.5 text-indigo-600 rounded">
-                                    <span class="font-semibold text-slate-800">True / False</span>
+                                    <input type="checkbox" id="fmt-case" checked class="w-3.5 h-3.5 text-indigo-600 rounded">
+                                    <span class="font-semibold text-slate-800">Case-Study / Passage (4 Mks)</span>
                                 </label>
                                 <label class="flex items-center space-x-2 p-2 bg-white rounded-lg border border-slate-200 hover:border-indigo-400 cursor-pointer transition">
                                     <input type="checkbox" id="fmt-diagram" checked class="w-3.5 h-3.5 text-indigo-600 rounded">
-                                    <span class="font-semibold text-slate-800">Figures & Diagrams</span>
-                                </label>
-                                <label class="flex items-center space-x-2 p-2 bg-white rounded-lg border border-slate-200 hover:border-indigo-400 cursor-pointer transition">
-                                    <input type="checkbox" id="fmt-numerical" class="w-3.5 h-3.5 text-indigo-600 rounded">
-                                    <span class="font-semibold text-slate-800">Numerical / Problems</span>
+                                    <span class="font-semibold text-slate-800">Geometric SVG Figures</span>
                                 </label>
                             </div>
 
@@ -923,6 +932,21 @@ Section B - Short Questions (3 marks each)
         } else {
             wrapper.classList.add('hidden');
         }
+
+        // Auto-configure target marks and duration based on exam pattern
+        if (val === 'annual_80' || val === 'half_yearly_80') {
+            document.getElementById('total-marks').value = 80;
+            document.getElementById('exam-duration').value = 180; // 3 Hours
+            if (document.getElementById('num-questions').value === 'auto') {
+                // Keep auto
+            }
+        } else if (val === 'unit_test_40') {
+            document.getElementById('total-marks').value = 40;
+            document.getElementById('exam-duration').value = 90; // 1.5 Hours
+        } else if (val === 'unit_test_20') {
+            document.getElementById('total-marks').value = 20;
+            document.getElementById('exam-duration').value = 45; // 45 Minutes
+        }
     }
 
     function applyBlueprintPreset(preset) {
@@ -931,30 +955,30 @@ Section B - Short Questions (3 marks each)
         const customFmtWrapper = document.getElementById('custom-format-wrapper');
         if (customFmtWrapper) customFmtWrapper.classList.add('hidden');
 
-        if (preset === '80_marks') {
-            document.getElementById('custom-prompt').value = "Generate a comprehensive 80-mark university examination paper. Section A: 10 MCQs worth 1.0 mark each (10 marks total). Section B: 10 Short conceptual/technical questions worth 3.0 marks each (30 marks total). Section C: 4 Long in-depth descriptive/architectural questions worth 10.0 marks each (40 marks total). Total = exactly 80 marks. Provide figures/diagrams for any geometry or visual questions.";
+        if (preset === 'annual_80' || preset === '80_marks') {
+            document.getElementById('custom-prompt').value = "Generate an official CBSE pattern Annual Examination paper (Total: 80 Marks, 39 Questions across 5 Sections): Section A (20 1-mark objective questions: 16 MCQs + 2 Assertion-Reason + 2 Match/Objective), Section B (6 2-mark short questions), Section C (7 3-mark conceptual questions), Section D (3 5-mark long descriptive/numerical questions), Section E (3 4-mark case-based/passage/map questions). Total marks must equal exactly 80.";
             document.getElementById('total-marks').value = 80;
-            document.getElementById('num-questions').value = "24";
-            document.getElementById('question-type').value = "blueprint_80";
+            document.getElementById('num-questions').value = "auto";
+            document.getElementById('question-type').value = "annual_80";
             document.getElementById('exam-duration').value = 180;
-        } else if (preset === '50_marks') {
-            document.getElementById('custom-prompt').value = "Generate a 50-mark midterm examination paper. Section A: 10 MCQs worth 1.0 mark each (10 marks). Section B: 5 Short conceptual questions worth 4.0 marks each (20 marks). Section C: 2 Long descriptive questions worth 10.0 marks each (20 marks). Total = exactly 50 marks. Include diagrams where relevant.";
-            document.getElementById('total-marks').value = 50;
-            document.getElementById('num-questions').value = "17";
-            document.getElementById('question-type').value = "blueprint_50";
+        } else if (preset === 'half_yearly_80' || preset === '50_marks') {
+            document.getElementById('custom-prompt').value = "Generate an official CBSE pattern Half-Yearly Examination paper for the mid-term syllabus (Total: 80 Marks, 39 Questions across 5 Sections: Section A 20 MCQs/A-R x 1m, Section B 6 x 2m, Section C 7 x 3m, Section D 3 x 5m, Section E 3 x 4m case-based). Total marks must equal exactly 80.";
+            document.getElementById('total-marks').value = 80;
+            document.getElementById('num-questions').value = "auto";
+            document.getElementById('question-type').value = "half_yearly_80";
+            document.getElementById('exam-duration').value = 180;
+        } else if (preset === 'unit_test_40') {
+            document.getElementById('custom-prompt').value = "Generate a 40-mark CBSE Unit / Periodic Test: Section A: 10 Objective/MCQs (1m each = 10m), Section B: 4 Short questions (2m each = 8m), Section C: 4 Conceptual questions (3m each = 12m), Section D: 2 Long questions (5m each = 10m). Total exactly 40 marks.";
+            document.getElementById('total-marks').value = 40;
+            document.getElementById('num-questions').value = "20";
+            document.getElementById('question-type').value = "unit_test_40";
             document.getElementById('exam-duration').value = 90;
-        } else if (preset === '20_marks') {
-            document.getElementById('custom-prompt').value = "Generate a 20-mark assessment test: 5 questions worth 4.0 marks each (total 20 marks). If mathematical, geometrical, or scientific, include proper figures/diagrams for each question.";
+        } else if (preset === 'unit_test_20' || preset === '20_marks') {
+            document.getElementById('custom-prompt').value = "Generate a 20-mark CBSE Unit / Class Assessment: Section A: 5 MCQs & Assertion-Reason (1m each = 5m), Section B: 3 Short questions (2m each = 6m), Section C: 3 Conceptual questions (3m each = 9m). Total exactly 20 marks.";
             document.getElementById('total-marks').value = 20;
-            document.getElementById('num-questions').value = "5";
-            document.getElementById('question-type').value = "short";
+            document.getElementById('num-questions').value = "11";
+            document.getElementById('question-type').value = "unit_test_20";
             document.getElementById('exam-duration').value = 45;
-        } else if (preset === 'coding') {
-            document.getElementById('custom-prompt').value = "Generate a coding and technical assessment: 5 MCQs on syntax and algorithmic complexity (2 marks each = 10 marks), 3 code snippet output/debugging questions (5 marks each = 15 marks), and 2 algorithm design / coding problems (10 marks each = 20 marks). Total = 45 marks.";
-            document.getElementById('total-marks').value = 45;
-            document.getElementById('num-questions').value = "10";
-            document.getElementById('question-type').value = "mixed";
-            document.getElementById('exam-duration').value = 60;
         }
         
         Swal.fire({
@@ -1030,21 +1054,35 @@ Section B - Short Questions (3 marks each)
         };
 
         let numQVal = document.getElementById('num-questions').value;
+        let questionTypeVal = document.getElementById('question-type').value;
+
         if (numQVal === 'custom') {
             const customNum = parseInt(document.getElementById('custom-num-questions').value);
             numQVal = (customNum && customNum > 0) ? customNum : 5;
+        } else if (numQVal === 'auto') {
+            if (questionTypeVal === 'annual_80' || questionTypeVal === 'half_yearly_80') {
+                numQVal = 39;
+            } else if (questionTypeVal === 'unit_test_40') {
+                numQVal = 20;
+            } else if (questionTypeVal === 'unit_test_20') {
+                numQVal = 11;
+            } else {
+                const totalMks = parseFloat(document.getElementById('total-marks').value) || 20;
+                numQVal = Math.max(5, Math.round(totalMks / 3));
+            }
         }
 
-        let questionTypeVal = document.getElementById('question-type').value;
         let customFormatPrompt = '';
         if (questionTypeVal === 'custom') {
             const selectedTypes = [];
-            if (document.getElementById('fmt-mcq').checked) selectedTypes.push('Multiple Choice (MCQ)');
-            if (document.getElementById('fmt-short').checked) selectedTypes.push('Short Answer (2-4 Marks)');
-            if (document.getElementById('fmt-descriptive').checked) selectedTypes.push('Long Descriptive / Essay (5-10 Marks)');
-            if (document.getElementById('fmt-tf').checked) selectedTypes.push('True / False');
-            if (document.getElementById('fmt-diagram').checked) selectedTypes.push('Questions with Visual SVG Figures / Diagrams');
-            if (document.getElementById('fmt-numerical').checked) selectedTypes.push('Numerical / Problem Solving');
+            if (document.getElementById('fmt-mcq')?.checked) selectedTypes.push('Multiple Choice (MCQ)');
+            if (document.getElementById('fmt-assertion')?.checked) selectedTypes.push('Assertion & Reason (A/R) with standard 4 CBSE options');
+            if (document.getElementById('fmt-match')?.checked) selectedTypes.push('Match the Following (Column I and Column II)');
+            if (document.getElementById('fmt-map')?.checked) selectedTypes.push('Map Identification / Diagram-based Questions');
+            if (document.getElementById('fmt-short')?.checked) selectedTypes.push('Short Answer Questions (2-3 Marks)');
+            if (document.getElementById('fmt-descriptive')?.checked) selectedTypes.push('Long Descriptive / Essay (5 Marks)');
+            if (document.getElementById('fmt-case')?.checked) selectedTypes.push('Case-Based / Source Passage Questions (4 Marks)');
+            if (document.getElementById('fmt-diagram')?.checked) selectedTypes.push('Questions with Vector SVG Geometry / Science Diagrams');
 
             const details = document.getElementById('custom-format-details').value.trim();
             customFormatPrompt = `CUSTOM QUESTION FORMAT DIRECTIVE:\nYou MUST generate questions conforming strictly to these user-selected types: ${selectedTypes.join(', ')}.`;
@@ -1348,6 +1386,9 @@ Section B - Short Questions (3 marks each)
                         <!-- Question Type Dropdown -->
                         <select onchange="updateQuestionType(${qIndex}, this.value)" class="text-xs px-2.5 py-1 rounded-lg border border-slate-300 bg-white font-bold text-slate-700">
                             <option value="mcq" ${qType === 'mcq' ? 'selected' : ''}>MCQ (Multiple Choice)</option>
+                            <option value="assertion" ${qType === 'assertion' ? 'selected' : ''}>Assertion &amp; Reason (A/R)</option>
+                            <option value="match" ${qType === 'match' ? 'selected' : ''}>Match the Following</option>
+                            <option value="case" ${qType === 'case' ? 'selected' : ''}>Case-Based / Source Study</option>
                             <option value="short" ${qType === 'short' ? 'selected' : ''}>Short Answer</option>
                             <option value="descriptive" ${qType === 'descriptive' ? 'selected' : ''}>Long Descriptive</option>
                             <option value="tf" ${qType === 'tf' ? 'selected' : ''}>True / False</option>
@@ -1964,10 +2005,32 @@ Section B - Short Questions (3 marks each)
         if (newType === 'mcq' && (!questionsData[qIndex].options || questionsData[qIndex].options.length === 0)) {
             questionsData[qIndex].options = ["Option A", "Option B", "Option C", "Option D"];
             questionsData[qIndex].correct_answer = "Option A";
+        } else if (newType === 'assertion') {
+            questionsData[qIndex].options = [
+                "(a) Both (A) and (R) are true and (R) is the correct explanation of (A)",
+                "(b) Both (A) and (R) are true but (R) is not the correct explanation of (A)",
+                "(c) (A) is true but (R) is false",
+                "(d) (A) is false but (R) is true"
+            ];
+            questionsData[qIndex].correct_answer = questionsData[qIndex].options[0];
+            if (!questionsData[qIndex].question_text.includes("Assertion (A):")) {
+                questionsData[qIndex].question_text = "Assertion (A): \nReason (R): ";
+            }
+        } else if (newType === 'match') {
+            questionsData[qIndex].options = [
+                "(a) A-(i), B-(ii), C-(iii), D-(iv)",
+                "(b) A-(ii), B-(i), C-(iv), D-(iii)",
+                "(c) A-(iii), B-(iv), C-(i), D-(ii)",
+                "(d) A-(iv), B-(iii), C-(ii), D-(i)"
+            ];
+            questionsData[qIndex].correct_answer = questionsData[qIndex].options[0];
+            if (!questionsData[qIndex].question_text.includes("Column I")) {
+                questionsData[qIndex].question_text = "Match Column I with Column II:\nColumn I:\nA. \nB. \n\nColumn II:\n(i) \n(ii) ";
+            }
         } else if (newType === 'tf') {
             questionsData[qIndex].options = ["True", "False"];
             questionsData[qIndex].correct_answer = "True";
-        } else if (newType === 'short' || newType === 'descriptive') {
+        } else if (newType === 'short' || newType === 'descriptive' || newType === 'case') {
             questionsData[qIndex].options = [];
         }
         renderQuestions();
