@@ -1632,14 +1632,24 @@
                                             // 2. Vertical Pitch & Downward Gaze (Writing on paper, solving math on notebook):
                                             const eyeMidY = (rEye[1] + lEye[1]) / 2;
                                             const eyeToNoseDist = nose[1] - eyeMidY;
-                                            // When student bends face downward to write answers or rough work on paper
-                                            if (eyeToNoseDist < (h * 0.12)) {
+                                            // When student bends face downward to write answers or rough work on copy/notebook:
+                                            // As head tilts down, foreshortening compresses vertical distance between eyes and nose (typically < 0.22 * h)
+                                            if (eyeToNoseDist < (h * 0.22)) {
                                                 isLookingDownAtDesk = true;
                                             } else if (eyeToNoseDist > (h * 0.44)) {
                                                 // When candidate tilts head high up looking away at ceiling/wall
                                                 isLookingUp = true;
                                             }
+                                        } else if (noseInView && (rEyeInView || lEyeInView)) {
+                                            // If student bends head deep down onto paper, eyelashes or eyelids may cover one eye:
+                                            // As long as nose is visible and facing forward (not turned sideways), this is downward solving
+                                            isLookingDownAtDesk = true;
+                                            hasVisibleEyes = true;
                                         }
+                                    } else if (face.landmarks && face.landmarks.length >= 1) {
+                                        // Deep head downward bend: forehead/crown of head visible facing camera
+                                        isLookingDownAtDesk = true;
+                                        hasVisibleEyes = true;
                                     }
 
                                     // Desk View Distance Verification (Student places laptop/device 1.5 - 2.5 ft back):
@@ -1649,14 +1659,13 @@
                                         isDeskViewVerified = true;
                                     }
 
-                                    // If looking down at desk to write or solve math, do not treat partially lowered eyes or cropped chin as hidden face occlusion
-                                    const isCroppedEdge = (br[1] >= canvas.height - 10) || (tl[1] <= 5 && h < 80);
+                                    // If looking down at desk to write or solve math on copy, do not penalize downward pitch or cropped chin
+                                    const isCroppedEdge = (br[1] >= canvas.height - 5) || (tl[1] <= 5 && h < 70);
                                     if (isLookingDownAtDesk) {
-                                        // Student is bent over notebook solving/writing: valid solving mode
+                                        // Student is bent down over copy/notebook solving or writing: valid writing mode
                                         validVisibleFaceCount++;
                                         hasAnyFaceLookingDown = true;
-                                        const deskTag = isDeskViewVerified ? '✍️ Desk View Verified ✓ (Solving)' : '✍️ Solving on Notebook';
-                                        drawBoundingBox(ctx, [tl[0], tl[1], w, h], deskTag, isDeskViewVerified ? '#10b981' : '#38bdf8');
+                                        drawBoundingBox(ctx, [tl[0], tl[1], w, h], '✍️ Writing / Solving on Copy', '#10b981');
                                     } else if (!hasVisibleEyes || isCroppedEdge) {
                                         isFacePartiallyOccluded = true;
                                         drawBoundingBox(ctx, [tl[0], tl[1], w, h], '⚠️ Face/Eyes Hidden', '#f59e0b');
@@ -1799,9 +1808,7 @@
                         } else if (hasAnyFaceLookingUp) {
                             updateHudBadge('hud-face', 'Looking Up ⚠️', 'rose');
                         } else if (hasAnyFaceLookingDown) {
-                            const badgeText = isDeskViewVerified ? 'Desk View ✓' : 'Writing on Desk ✍️';
-                            const badgeColor = isDeskViewVerified ? 'emerald' : 'sky';
-                            updateHudBadge('hud-face', badgeText, badgeColor);
+                            updateHudBadge('hud-face', 'Writing on Copy ✍️', 'emerald');
                         } else {
                             updateHudBadge('hud-face', '1 Person ✓', 'emerald');
                         }
@@ -1919,55 +1926,21 @@
                                 triggerViolation('looking_away', 'Candidate tilted head and looked upward away from screen for more than 5 seconds.');
                             }
                         } else if (hasAnyFaceLookingDown) {
-                            // Candidate is looking down at notebook/copy to write or do math rough work
+                            // Candidate is looking down at copy/notebook to write answers or do rough math work
+                            // Permitted: Students are legitimately allowed to bend down and write on copy/notebook throughout the exam
                             noPersonConsecutiveCount = 0;
                             imposterConsecutiveCount = 0;
                             faceOccludedConsecutiveCount = 0;
                             lookingAwayConsecutiveCount = 0;
                             lookingUpConsecutiveCount = 0;
-                            lookingDownConsecutiveCount++;
+                            lookingDownConsecutiveCount = 0; // Reset counter - do not strike candidate for downward copy writing
 
-                            // Determine if current question is written/subjective/photo upload or if exam has rough work
-                            const currQ = (typeof currentQuestionIndex !== 'undefined' && QUESTIONS && QUESTIONS[currentQuestionIndex]) ? QUESTIONS[currentQuestionIndex] : null;
-                            const isWrittenOrMath = currQ && (currQ.question_type === 'descriptive' || currQ.question_type === 'short' || currQ.has_photo_upload || currQ.allow_upload !== false);
-
-                            // Extended writing duration:
-                            // When solving math problems or writing long answers on a copy notebook, students look down continuously.
-                            // Desk View Verified: allows up to 240 frames (~160 seconds / ~2.5 minutes) of continuous downward solving before requesting a brief glance at screen.
-                            // Standard distance: allows up to 100 frames (~65 seconds) of continuous notebook work.
-                            let maxAllowedDownFrames = isDeskViewVerified ? 240 : 100;
-                            if (isWrittenOrMath) {
-                                maxAllowedDownFrames = isDeskViewVerified ? 300 : 150; // up to 3+ minutes for designated written/math questions
-                            }
-
-                            if (lookingDownConsecutiveCount < maxAllowedDownFrames - 12) {
-                                // Friendly banner on webcam overlay
-                                if (isDeskViewVerified) {
-                                    ctx.fillStyle = 'rgba(16, 185, 129, 0.88)';
-                                    ctx.fillRect(10, 10, canvas.width - 20, 26);
-                                    ctx.fillStyle = '#ffffff';
-                                    ctx.font = 'bold 11px Inter, sans-serif';
-                                    ctx.fillText('✍️ DESK VIEW VERIFIED — SOLVING ON NOTEBOOK ALLOWED', 18, 27);
-                                } else {
-                                    ctx.fillStyle = 'rgba(14, 165, 233, 0.85)';
-                                    ctx.fillRect(10, 10, canvas.width - 20, 26);
-                                    ctx.fillStyle = '#ffffff';
-                                    ctx.font = 'bold 11px Inter, sans-serif';
-                                    ctx.fillText('✍️ SOLVING ON NOTEBOOK — PLACE LAPTOP A LITTLE FARTHER TO SHOW DESK', 18, 27);
-                                }
-                            } else {
-                                // Amber advisory before strike
-                                ctx.fillStyle = 'rgba(245, 158, 11, 0.90)';
-                                ctx.fillRect(10, 10, canvas.width - 20, 28);
-                                ctx.fillStyle = '#1e293b';
-                                ctx.font = 'bold 11px Inter, sans-serif';
-                                ctx.fillText('⚠️ SOLVING ROUGH WORK: PLEASE GLANCE AT SCREEN BRIEFLY', 18, 28);
-                            }
-
-                            if (lookingDownConsecutiveCount >= maxAllowedDownFrames) {
-                                lookingDownConsecutiveCount = 0;
-                                triggerViolation('looking_away', 'Candidate remained head-down looking away from the screen for an extended period without glancing back.');
-                            }
+                            // Display clear green indicator confirming solving on copy is fully permitted
+                            ctx.fillStyle = 'rgba(16, 185, 129, 0.90)';
+                            ctx.fillRect(10, 10, canvas.width - 20, 26);
+                            ctx.fillStyle = '#ffffff';
+                            ctx.font = 'bold 11px Inter, sans-serif';
+                            ctx.fillText('✍️ WRITING / SOLVING ON COPY ALLOWED ✓', 18, 27);
                         } else {
                             noPersonConsecutiveCount = 0;
                             imposterConsecutiveCount = 0;
