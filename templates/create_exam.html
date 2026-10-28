@@ -1268,10 +1268,114 @@ Section B - Short Questions (3 marks each)
                 : 'border border-slate-200 rounded-xl p-5 bg-slate-50/50 hover:bg-white transition relative space-y-3 shadow-2xs';
 
             const qType = q.question_type || 'mcq';
-            const isObjective = (qType === 'mcq' || qType === 'tf' || (q.options && q.options.length > 0));
+            const isObjective = (qType === 'mcq' || qType === 'tf' || (Array.isArray(q.options) && q.options.length > 0));
 
             // Options or Subjective model answer
             let bodyHtml = '';
+            if (qType === 'matching') {
+                // Interactive Match the Following Builder
+                const leftList = (q.options && q.options.left) ? q.options.left : [];
+                const rightList = (q.options && q.options.right) ? q.options.right : [];
+                const correctPairs = (typeof q.correct_answer === 'object' && q.correct_answer !== null) ? q.correct_answer : {};
+
+                bodyHtml = `
+                    <div class="space-y-3 bg-white p-4 rounded-xl border border-sky-200">
+                        <div class="flex items-center justify-between">
+                            <div class="flex items-center space-x-2">
+                                <span class="px-2 py-0.5 bg-sky-100 text-sky-800 text-[11px] font-bold rounded">Match Pairs Editor</span>
+                                <span class="text-xs text-slate-500 font-medium">Define Column A items, Column B targets, and the correct matches</span>
+                            </div>
+                            <button type="button" onclick="addMatchingPair(${qIndex})" class="px-2.5 py-1 text-xs bg-sky-50 text-sky-700 font-bold rounded-lg border border-sky-300 hover:bg-sky-100 transition flex items-center space-x-1">
+                                <i data-lucide="plus" class="w-3.5 h-3.5"></i>
+                                <span>+ Add Pair</span>
+                            </button>
+                        </div>
+                        <div class="space-y-2">
+                            ${leftList.map((item, idx) => {
+                                const lId = item.id || `L${idx+1}`;
+                                const targetRId = correctPairs[lId] || (rightList[idx] ? rightList[idx].id : `R${idx+1}`);
+                                const matchingRight = rightList.find(r => r.id === targetRId) || rightList[idx] || { id: targetRId, text: '' };
+                                return `
+                                    <div class="flex items-center gap-2 bg-slate-50 p-2.5 rounded-lg border border-slate-200">
+                                        <span class="w-6 h-6 rounded-full bg-sky-600 text-white text-[11px] font-bold flex items-center justify-center flex-shrink-0">${idx+1}</span>
+                                        <input type="text" value="${(item.text || '').replace(/"/g, '&quot;')}" placeholder="Left Item (e.g. Mitochondria)" oninput="updateMatchingLeft(${qIndex}, ${idx}, this.value)" class="flex-1 px-2.5 py-1.5 text-xs bg-white border border-slate-300 rounded-lg focus:outline-none focus:ring-1 focus:ring-sky-500 font-medium text-slate-800">
+                                        <span class="text-slate-400 font-bold px-1 text-sm">➔</span>
+                                        <input type="text" value="${(matchingRight.text || '').replace(/"/g, '&quot;')}" placeholder="Matching Target (e.g. Powerhouse of cell)" oninput="updateMatchingRight(${qIndex}, ${idx}, this.value)" class="flex-1 px-2.5 py-1.5 text-xs bg-white border border-slate-300 rounded-lg focus:outline-none focus:ring-1 focus:ring-sky-500 font-medium text-slate-800">
+                                        <button type="button" onclick="removeMatchingPair(${qIndex}, ${idx})" class="p-1 text-slate-400 hover:text-rose-600 transition" title="Delete pair">✕</button>
+                                    </div>
+                                `;
+                            }).join('')}
+                        </div>
+                        <p class="text-[11px] text-slate-400 italic">Students will see dynamic curved SVG connector lines and shuffled options when taking the test.</p>
+                    </div>
+                `;
+            } else if (qType === 'map_hotspot') {
+                // Interactive Map / Hotspot Builder
+                const hotspots = (q.options && q.options.hotspots) ? q.options.hotspots : [];
+                const labels = (q.options && q.options.labels) ? q.options.labels : [];
+                const correctPins = (typeof q.correct_answer === 'object' && q.correct_answer !== null) ? q.correct_answer : {};
+                const mapImg = q.figure_url || (q.options && q.options.image_url) || '';
+
+                bodyHtml = `
+                    <div class="space-y-4 bg-white p-4 rounded-xl border border-indigo-200">
+                        <div class="flex items-center justify-between">
+                            <span class="px-2 py-0.5 bg-indigo-100 text-indigo-800 text-[11px] font-bold rounded">Interactive Map / Diagram Hotspots</span>
+                            <span class="text-xs text-slate-500 font-medium">Click on the image preview to place pins or add target points</span>
+                        </div>
+
+                        <!-- Image Source Controls -->
+                        <div class="flex flex-wrap items-center gap-2">
+                            <input type="text" value="${mapImg.replace(/"/g, '&quot;')}" placeholder="Map / Diagram Image URL (e.g. /static/question_figures/map.png)" onchange="updateMapHotspotImage(${qIndex}, this.value)" class="flex-1 min-w-[240px] px-3 py-1.5 text-xs bg-slate-50 border border-slate-300 rounded-lg font-mono text-slate-800 focus:outline-none focus:ring-1 focus:ring-indigo-500">
+                            <label class="px-3 py-1.5 bg-indigo-50 hover:bg-indigo-100 text-indigo-700 text-xs font-bold rounded-lg border border-indigo-200 cursor-pointer flex items-center space-x-1 transition">
+                                <i data-lucide="upload" class="w-3.5 h-3.5"></i>
+                                <span>Upload Map Image</span>
+                                <input type="file" accept="image/*" class="hidden" onchange="uploadMapImageForQuestion(${qIndex}, this)">
+                            </label>
+                        </div>
+
+                        <!-- Interactive Image Canvas for Pin Placement -->
+                        ${mapImg ? `
+                            <div class="relative inline-block border-2 border-indigo-200 rounded-xl overflow-hidden bg-slate-900 shadow-sm max-w-full cursor-crosshair select-none" id="map-canvas-${qIndex}" onclick="handleMapCanvasClick(event, ${qIndex})">
+                                <img src="${mapImg}" alt="Map Question Diagram" class="max-h-[380px] w-auto block mx-auto pointer-events-none" id="map-img-${qIndex}">
+                                ${hotspots.map((h, hIdx) => `
+                                    <div class="absolute -translate-x-1/2 -translate-y-full cursor-pointer group pointer-events-auto" style="left: ${h.x}%; top: ${h.y}%;" title="Pin ${hIdx+1}: ${correctPins[h.id] || 'Click to edit'}">
+                                        <div class="w-6 h-6 rounded-full bg-rose-600 text-white text-[11px] font-black flex items-center justify-center shadow-lg border-2 border-white ring-2 ring-rose-400 group-hover:scale-125 transition">
+                                            ${hIdx+1}
+                                        </div>
+                                        <div class="hidden group-hover:block absolute top-7 left-1/2 -translate-x-1/2 bg-slate-900 text-white text-[10px] font-bold px-2 py-0.5 rounded shadow whitespace-nowrap z-30">
+                                            ${correctPins[h.id] || `Pin ${hIdx+1}`}
+                                        </div>
+                                    </div>
+                                `).join('')}
+                            </div>
+                            <p class="text-[11px] text-indigo-600 font-medium">💡 Tip: Click anywhere on the map above to drop a target pin directly at that location!</p>
+                        ` : `
+                            <div class="p-6 border-2 border-dashed border-indigo-200 rounded-xl text-center bg-indigo-50/40">
+                                <i data-lucide="map-pin" class="w-8 h-8 text-indigo-400 mx-auto mb-2"></i>
+                                <p class="text-xs text-indigo-900 font-bold">No Map Image Set</p>
+                                <p class="text-[11px] text-slate-500">Provide an image URL or click 'Upload Map Image' above to enable visual pin placement.</p>
+                            </div>
+                        `}
+
+                        <!-- Hotspots & Pin Answer Mapping Table -->
+                        ${hotspots.length > 0 ? `
+                            <div class="space-y-2 pt-2 border-t border-slate-200">
+                                <label class="block text-xs font-bold text-slate-700">Target Pins &amp; Correct Identifications:</label>
+                                <div class="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                                    ${hotspots.map((h, hIdx) => `
+                                        <div class="flex items-center space-x-2 bg-slate-50 p-2 rounded-lg border border-slate-200 text-xs">
+                                            <span class="w-5 h-5 rounded-full bg-rose-600 text-white font-bold flex items-center justify-center text-[10px] flex-shrink-0">${hIdx+1}</span>
+                                            <span class="text-[11px] text-slate-500 font-mono">(${h.x}%, ${h.y}%)</span>
+                                            <input type="text" value="${(correctPins[h.id] || '').replace(/"/g, '&quot;')}" placeholder="Correct Identification/Label" oninput="updatePinCorrectAnswer(${qIndex}, '${h.id}', this.value)" class="flex-1 px-2 py-1 bg-white border border-slate-300 rounded text-xs text-slate-800 font-medium focus:outline-none focus:ring-1 focus:ring-indigo-500">
+                                            <button type="button" onclick="removeHotspotPin(${qIndex}, ${hIdx})" class="text-slate-400 hover:text-rose-600 px-1 font-bold" title="Delete pin">✕</button>
+                                        </div>
+                                    `).join('')}
+                                </div>
+                            </div>
+                        ` : ''}
+                    </div>
+                `;
+            }
             if (isObjective && q.options && q.options.length > 0) {
                 bodyHtml = `
                     <div class="space-y-2">
@@ -1386,8 +1490,10 @@ Section B - Short Questions (3 marks each)
                         <!-- Question Type Dropdown -->
                         <select onchange="updateQuestionType(${qIndex}, this.value)" class="text-xs px-2.5 py-1 rounded-lg border border-slate-300 bg-white font-bold text-slate-700">
                             <option value="mcq" ${qType === 'mcq' ? 'selected' : ''}>MCQ (Multiple Choice)</option>
+                            <option value="matching" ${qType === 'matching' ? 'selected' : ''}>🔗 Match the Following (SVG Lines)</option>
+                            <option value="map_hotspot" ${qType === 'map_hotspot' ? 'selected' : ''}>📍 Map / Hotspot Identification</option>
                             <option value="assertion" ${qType === 'assertion' ? 'selected' : ''}>Assertion &amp; Reason (A/R)</option>
-                            <option value="match" ${qType === 'match' ? 'selected' : ''}>Match the Following</option>
+                            <option value="match" ${qType === 'match' ? 'selected' : ''}>Match MCQ (Text Matrix)</option>
                             <option value="case" ${qType === 'case' ? 'selected' : ''}>Case-Based / Source Study</option>
                             <option value="short" ${qType === 'short' ? 'selected' : ''}>Short Answer</option>
                             <option value="descriptive" ${qType === 'descriptive' ? 'selected' : ''}>Long Descriptive</option>
@@ -2027,6 +2133,46 @@ Section B - Short Questions (3 marks each)
             if (!questionsData[qIndex].question_text.includes("Column I")) {
                 questionsData[qIndex].question_text = "Match Column I with Column II:\nColumn I:\nA. \nB. \n\nColumn II:\n(i) \n(ii) ";
             }
+        } else if (newType === 'matching') {
+            questionsData[qIndex].options = {
+                left: [
+                    { id: "L1", text: "Item A" },
+                    { id: "L2", text: "Item B" },
+                    { id: "L3", text: "Item C" },
+                    { id: "L4", text: "Item D" }
+                ],
+                right: [
+                    { id: "R1", text: "Match for Item A" },
+                    { id: "R2", text: "Match for Item B" },
+                    { id: "R3", text: "Match for Item C" },
+                    { id: "R4", text: "Match for Item D" }
+                ]
+            };
+            questionsData[qIndex].correct_answer = {
+                "L1": "R1",
+                "L2": "R2",
+                "L3": "R3",
+                "L4": "R4"
+            };
+            if (!questionsData[qIndex].question_text || questionsData[qIndex].question_text === 'New Question') {
+                questionsData[qIndex].question_text = "Match the following items in Column A with their corresponding descriptions in Column B:";
+            }
+        } else if (newType === 'map_hotspot') {
+            questionsData[qIndex].options = {
+                image_url: questionsData[qIndex].figure_url || "",
+                hotspots: [
+                    { id: "P1", x: 30.0, y: 40.0, title: "Pin 1" },
+                    { id: "P2", x: 60.0, y: 55.0, title: "Pin 2" }
+                ],
+                labels: ["Feature 1", "Feature 2", "Feature 3"]
+            };
+            questionsData[qIndex].correct_answer = {
+                "P1": "Feature 1",
+                "P2": "Feature 2"
+            };
+            if (!questionsData[qIndex].question_text || questionsData[qIndex].question_text === 'New Question') {
+                questionsData[qIndex].question_text = "Identify the marked locations or diagram components shown on the map below:";
+            }
         } else if (newType === 'tf') {
             questionsData[qIndex].options = ["True", "False"];
             questionsData[qIndex].correct_answer = "True";
@@ -2354,5 +2500,122 @@ Section B - Short Questions (3 marks each)
             lucide.createIcons();
         }
     }
+
+    // Match the Following Helpers
+    function addMatchingPair(qIndex) {
+        if (!questionsData[qIndex].options || typeof questionsData[qIndex].options !== 'object' || Array.isArray(questionsData[qIndex].options)) {
+            questionsData[qIndex].options = { left: [], right: [] };
+        }
+        if (!questionsData[qIndex].options.left) questionsData[qIndex].options.left = [];
+        if (!questionsData[qIndex].options.right) questionsData[qIndex].options.right = [];
+        if (typeof questionsData[qIndex].correct_answer !== 'object' || questionsData[qIndex].correct_answer === null) {
+            questionsData[qIndex].correct_answer = {};
+        }
+
+        const count = questionsData[qIndex].options.left.length + 1;
+        const lId = 'L' + count;
+        const rId = 'R' + count;
+        questionsData[qIndex].options.left.push({ id: lId, text: 'Item ' + count });
+        questionsData[qIndex].options.right.push({ id: rId, text: 'Match for Item ' + count });
+        questionsData[qIndex].correct_answer[lId] = rId;
+        renderQuestions();
+    }
+
+    function updateMatchingLeft(qIndex, pairIdx, val) {
+        if (questionsData[qIndex].options && questionsData[qIndex].options.left && questionsData[qIndex].options.left[pairIdx]) {
+            questionsData[qIndex].options.left[pairIdx].text = val;
+        }
+    }
+
+    function updateMatchingRight(qIndex, pairIdx, val) {
+        if (questionsData[qIndex].options && questionsData[qIndex].options.right && questionsData[qIndex].options.right[pairIdx]) {
+            questionsData[qIndex].options.right[pairIdx].text = val;
+        }
+    }
+
+    function removeMatchingPair(qIndex, pairIdx) {
+        const leftArr = questionsData[qIndex].options.left;
+        const rightArr = questionsData[qIndex].options.right;
+        if (leftArr && leftArr[pairIdx]) {
+            const lId = leftArr[pairIdx].id;
+            if (questionsData[qIndex].correct_answer && questionsData[qIndex].correct_answer[lId]) {
+                delete questionsData[qIndex].correct_answer[lId];
+            }
+            leftArr.splice(pairIdx, 1);
+            if (rightArr && rightArr[pairIdx]) rightArr.splice(pairIdx, 1);
+        }
+        renderQuestions();
+    }
+
+    // Map Hotspot Helpers
+    function updateMapHotspotImage(qIndex, url) {
+        questionsData[qIndex].figure_url = url;
+        if (!questionsData[qIndex].options || typeof questionsData[qIndex].options !== 'object' || Array.isArray(questionsData[qIndex].options)) {
+            questionsData[qIndex].options = { image_url: url, hotspots: [], labels: [] };
+        } else {
+            questionsData[qIndex].options.image_url = url;
+        }
+        renderQuestions();
+    }
+
+    async function uploadMapImageForQuestion(qIndex, inputElem) {
+        const file = inputElem.files[0];
+        if (!file) return;
+        const formData = new FormData();
+        formData.append('figure_file', file);
+        try {
+            const resp = await fetch('/api/upload-figure', { method: 'POST', body: formData });
+            const res = await resp.json();
+            if (res.success && res.figure_url) {
+                updateMapHotspotImage(qIndex, res.figure_url);
+            } else {
+                Swal.fire({ icon: 'error', title: 'Upload Failed', text: res.error || 'Could not upload image' });
+            }
+        } catch (e) {
+            Swal.fire({ icon: 'error', title: 'Error', text: e.message });
+        }
+    }
+
+    function handleMapCanvasClick(event, qIndex) {
+        const rect = event.currentTarget.getBoundingClientRect();
+        const xPercent = Math.round(((event.clientX - rect.left) / rect.width) * 1000) / 10;
+        const yPercent = Math.round(((event.clientY - rect.top) / rect.height) * 1000) / 10;
+
+        if (!questionsData[qIndex].options || typeof questionsData[qIndex].options !== 'object' || Array.isArray(questionsData[qIndex].options)) {
+            questionsData[qIndex].options = { hotspots: [], labels: [] };
+        }
+        if (!questionsData[qIndex].options.hotspots) questionsData[qIndex].options.hotspots = [];
+        if (typeof questionsData[qIndex].correct_answer !== 'object' || questionsData[qIndex].correct_answer === null) {
+            questionsData[qIndex].correct_answer = {};
+        }
+
+        const pinNum = questionsData[qIndex].options.hotspots.length + 1;
+        const pinId = 'P' + pinNum;
+        questionsData[qIndex].options.hotspots.push({
+            id: pinId,
+            x: xPercent,
+            y: yPercent,
+            title: 'Pin ' + pinNum
+        });
+        questionsData[qIndex].correct_answer[pinId] = 'Location ' + pinNum;
+        renderQuestions();
+    }
+
+    function updatePinCorrectAnswer(qIndex, pinId, val) {
+        if (!questionsData[qIndex].correct_answer || typeof questionsData[qIndex].correct_answer !== 'object') {
+            questionsData[qIndex].correct_answer = {};
+        }
+        questionsData[qIndex].correct_answer[pinId] = val;
+    }
+
+    function removeHotspotPin(qIndex, pinIdx) {
+        if (questionsData[qIndex].options && questionsData[qIndex].options.hotspots && questionsData[qIndex].options.hotspots[pinIdx]) {
+            const pinId = questionsData[qIndex].options.hotspots[pinIdx].id;
+            delete questionsData[qIndex].correct_answer[pinId];
+            questionsData[qIndex].options.hotspots.splice(pinIdx, 1);
+        }
+        renderQuestions();
+    }
+
 </script>
 {% endblock %}

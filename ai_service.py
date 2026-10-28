@@ -324,11 +324,31 @@ SPECIALIZED QUESTION FORMAT RULES:
      (b) Both (A) and (R) are true but (R) is not the correct explanation of (A).
      (c) (A) is true but (R) is false.
      (d) (A) is false but (R) is true.
-2. MATCH THE FOLLOWING:
-   - Format "question_text" with two clearly aligned columns (Column I / Column A and Column II / Column B).
-   - Set "question_type": "mcq" with combination codes in "options" (e.g. ["(a) A-ii, B-iv, C-i, D-iii", "(b) A-i, B-ii, C-iii, D-iv", ...]) or "short" with matching pairs.
-3. MAP / DIAGRAM-BASED QUESTIONS:
-   - For Geography / History / Biology / Physics: State the location/feature to identify or sketch. Always provide either a vector SVG in "figure_svg" or a linked image in "figure_url".
+2. MATCH THE FOLLOWING (question_type: "matching"):
+   - When generating Match the Following or when requested:
+     Set "question_type": "matching".
+     "options": {
+       "left": [{"id": "L1", "text": "Item 1"}, {"id": "L2", "text": "Item 2"}, {"id": "L3", "text": "Item 3"}, {"id": "L4", "text": "Item 4"}],
+       "right": [{"id": "R1", "text": "Match for Item 2"}, {"id": "R2", "text": "Match for Item 1"}, {"id": "R3", "text": "Match for Item 4"}, {"id": "R4", "text": "Match for Item 3"}]
+     }
+     "correct_answer": {"L1": "R2", "L2": "R1", "L3": "R4", "L4": "R3"}
+     (AI must automatically pair every left ID to its correct matching right ID!)
+
+3. MAP & HOTSPOT IDENTIFICATION QUESTIONS (question_type: "map_hotspot"):
+   - For Geography, World/Country Maps, Anatomy, Circuit, or Science Diagrams:
+     Set "question_type": "map_hotspot".
+     Provide either a valid illustrative map SVG in "figure_svg" or a map URL in "figure_url".
+     "options": {
+       "image_url": "...",
+       "hotspots": [
+         {"id": "P1", "x": 32.5, "y": 45.0, "title": "Pin 1"},
+         {"id": "P2", "x": 65.0, "y": 58.2, "title": "Pin 2"},
+         {"id": "P3", "x": 48.0, "y": 25.4, "title": "Pin 3"}
+       ],
+       "labels": ["Correct Name 1", "Correct Name 2", "Correct Name 3", "Distractor Label 4"]
+     }
+     "correct_answer": {"P1": "Correct Name 1", "P2": "Correct Name 2", "P3": "Correct Name 3"}
+     (AI must set the percentage coordinates (x%, y%) and automatically match each pin to its correct label!)
 4. CASE-BASED / PASSAGE / SOURCE-BASED QUESTIONS:
    - Provide a realistic 3-4 sentence scientific or real-world passage followed by sub-questions.
 
@@ -351,7 +371,7 @@ STRICT JSON OUTPUT RULES:
 2. No markdown wrappers, no backticks, no explanatory commentary outside the JSON array.
 3. Every question object must strictly adhere to this schema:
    - "question_text": Clear, rigorous question statement.
-   - "question_type": One of "mcq", "tf", "short", or "descriptive".
+   - "question_type": One of "mcq", "tf", "short", "descriptive", "matching", or "map_hotspot".
    - "figure_svg": Complete SVG code string with viewBox="0 0 350 220" xmlns="http://www.w3.org/2000/svg" if figure is requested/needed, else null.
    - "figure_url": URL string of matching extracted PDF diagram, else null.
    - "options": Array of 4 string choices for "mcq", ["True", "False"] for "tf", or empty array [] for "short" and "descriptive".

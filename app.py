@@ -1682,13 +1682,50 @@ def compute_submission_score_with_or(questions, answers, manual_eval=None):
                 earned = float(manual_eval[qid_str].get("awarded_marks", 0.0))
             else:
                 ans_raw = answers.get(qid_str, "")
-                if isinstance(ans_raw, dict):
-                    student_ans = (ans_raw.get("text") or "").strip()
+                q_type = (q.get("question_type") or "mcq").strip().lower()
+                corr_raw = (q.get("correct_answer") or "").strip()
+
+                if q_type in ("matching", "map_hotspot") or (corr_raw.startswith("{") and corr_raw.endswith("}")):
+                    # Partial grading for Map Hotspots and Match the Following
+                    try:
+                        corr_dict = json.loads(corr_raw) if corr_raw.startswith("{") else {}
+                        student_dict = {}
+                        if isinstance(ans_raw, dict):
+                            if "matching" in ans_raw or "hotspots" in ans_raw:
+                                student_dict = ans_raw.get("matching") or ans_raw.get("hotspots") or {}
+                            elif "text" in ans_raw:
+                                try:
+                                    student_dict = json.loads(ans_raw["text"])
+                                except Exception:
+                                    student_dict = {}
+                            else:
+                                student_dict = ans_raw
+                        elif isinstance(ans_raw, str) and ans_raw.strip().startswith("{"):
+                            try:
+                                student_dict = json.loads(ans_raw.strip())
+                            except Exception:
+                                student_dict = {}
+
+                        if isinstance(corr_dict, dict) and len(corr_dict) > 0 and isinstance(student_dict, dict):
+                            correct_count = 0
+                            total_items = len(corr_dict)
+                            for k, expected_v in corr_dict.items():
+                                actual_v = student_dict.get(str(k)) or student_dict.get(k)
+                                if actual_v is not None and str(actual_v).strip().lower() == str(expected_v).strip().lower():
+                                    correct_count += 1
+                            earned = round((correct_count / total_items) * q_pts, 2)
+                        elif corr_raw and str(ans_raw).strip().lower() == corr_raw.lower():
+                            earned = q_pts
+                    except Exception:
+                        if corr_raw and str(ans_raw).strip().lower() == corr_raw.lower():
+                            earned = q_pts
                 else:
-                    student_ans = str(ans_raw).strip() if ans_raw else ""
-                corr = (q.get("correct_answer") or "").strip()
-                if corr and student_ans.lower() == corr.lower():
-                    earned = q_pts
+                    if isinstance(ans_raw, dict):
+                        student_ans = (ans_raw.get("text") or "").strip()
+                    else:
+                        student_ans = str(ans_raw).strip() if ans_raw else ""
+                    if corr_raw and student_ans.lower() == corr_raw.lower():
+                        earned = q_pts
 
             group_earned_scores.append(earned)
 
@@ -2101,6 +2138,24 @@ def api_save_exam():
             else:
                 distractors_str = str(distractors)
 
+            # Handle options_json for dict (matching / map_hotspot) or list (mcq)
+            raw_opts = q.get("options")
+            if raw_opts is None:
+                raw_opts = q.get("options_json")
+            if isinstance(raw_opts, (list, dict)):
+                opts_json_str = json.dumps(raw_opts)
+            elif isinstance(raw_opts, str) and raw_opts.strip().startswith(("{", "[")):
+                opts_json_str = raw_opts.strip()
+            else:
+                opts_json_str = json.dumps(raw_opts or [])
+
+            # Handle correct_answer serialization if dict
+            raw_corr = q.get("correct_answer", "")
+            if isinstance(raw_corr, dict):
+                corr_str = json.dumps(raw_corr)
+            else:
+                corr_str = str(raw_corr or "")
+
             cursor.execute("""
                 INSERT INTO questions (exam_id, question_text, question_type, options_json, correct_answer, explanation, points, figure_svg, figure_url, is_honeypot, honeypot_signature, honeypot_perturbation_type, topic_category, difficulty_tier, blooms_taxonomy, distractor_analysis_json)
                 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
@@ -2108,7 +2163,8 @@ def api_save_exam():
                 exam_id,
                 q.get("question_text", ""),
                 q.get("question_type", "mcq"),
-                json.dumps(q.get("options", [])),
+                opts_json_str,
+                corr_str,
                 q.get("correct_answer", ""),
                 q.get("explanation", ""),
                 float(q.get("points", 1.0)),
@@ -2931,11 +2987,55 @@ def tutor_submission_details(submission_id):
         q_dict["student_image_url"] = student_img
         q_dict["student_image_urls"] = student_imgs
         
-        correct_ans = (q["correct_answer"] or "").strip().lower()
-        if correct_ans:
-            q_dict["is_correct"] = (student_text.lower() == correct_ans)
+        correct_ans = (q["correct_answer"] or "").strip()
+        q_type = (q.get("question_type") or "mcq").strip().lower()
+        earned_score = 0.0
+        q_pts = float(q.get("points") or 1.0)
+
+        if q_type in ("matching", "map_hotspot") or (correct_ans.startswith("{") and correct_ans.endswith("}")):
+            try:
+                corr_dict = json.loads(correct_ans) if correct_ans.startswith("{") else {}
+                student_dict = {}
+                if isinstance(ans_raw, dict):
+                    if "matching" in ans_raw or "hotspots" in ans_raw:
+                        student_dict = ans_raw.get("matching") or ans_raw.get("hotspots") or {}
+                    elif "text" in ans_raw:
+                        try:
+                            student_dict = json.loads(ans_raw["text"])
+                        except Exception:
+                            student_dict = {}
+                    else:
+                        student_dict = ans_raw
+                elif isinstance(ans_raw, str) and ans_raw.strip().startswith("{"):
+                    try:
+                        student_dict = json.loads(ans_raw.strip())
+                    except Exception:
+                        student_dict = {}
+
+                if isinstance(corr_dict, dict) and len(corr_dict) > 0 and isinstance(student_dict, dict):
+                    c_count = 0
+                    for k, expected_v in corr_dict.items():
+                        actual_v = student_dict.get(str(k)) or student_dict.get(k)
+                        if actual_v is not None and str(actual_v).strip().lower() == str(expected_v).strip().lower():
+                            c_count += 1
+                    earned_score = round((c_count / len(corr_dict)) * q_pts, 2)
+                    q_dict["is_correct"] = (c_count == len(corr_dict))
+                elif correct_ans and student_text.lower() == correct_ans.lower():
+                    earned_score = q_pts
+                    q_dict["is_correct"] = True
+                else:
+                    q_dict["is_correct"] = False
+            except Exception:
+                q_dict["is_correct"] = (student_text.lower() == correct_ans.lower()) if correct_ans else False
+                if q_dict["is_correct"]:
+                    earned_score = q_pts
         else:
-            q_dict["is_correct"] = False
+            if correct_ans:
+                q_dict["is_correct"] = (student_text.lower() == correct_ans.lower())
+                if q_dict["is_correct"]:
+                    earned_score = q_pts
+            else:
+                q_dict["is_correct"] = False
 
         # Attach manual / AI evaluation data if present
         eval_item = manual_eval.get(q_id_str)
@@ -2953,7 +3053,7 @@ def tutor_submission_details(submission_id):
             q_dict["is_evaluated"] = True
         else:
             # Fallback to objective calculation
-            default_pts = float(q["points"]) if q_dict["is_correct"] else 0.0
+            default_pts = earned_score if (q_type in ("matching", "map_hotspot") or (correct_ans.startswith("{") and correct_ans.endswith("}"))) else (float(q["points"]) if q_dict["is_correct"] else 0.0)
             q_dict["awarded_marks"] = default_pts
             q_dict["eval_feedback"] = ""
             q_dict["eval_what_did"] = ""
@@ -4309,11 +4409,55 @@ def exam_result(submission_id):
             q_dict["student_image_url"] = student_img
             q_dict["student_image_urls"] = student_imgs
 
-            correct_ans = (q["correct_answer"] or "").strip().lower()
-            if correct_ans:
-                q_dict["is_correct"] = (student_text.lower() == correct_ans)
+            correct_ans = (q["correct_answer"] or "").strip()
+            q_type = (q.get("question_type") or "mcq").strip().lower()
+            earned_score = 0.0
+            q_pts = float(q.get("points") or 1.0)
+
+            if q_type in ("matching", "map_hotspot") or (correct_ans.startswith("{") and correct_ans.endswith("}")):
+                try:
+                    corr_dict = json.loads(correct_ans) if correct_ans.startswith("{") else {}
+                    student_dict = {}
+                    if isinstance(ans_raw, dict):
+                        if "matching" in ans_raw or "hotspots" in ans_raw:
+                            student_dict = ans_raw.get("matching") or ans_raw.get("hotspots") or {}
+                        elif "text" in ans_raw:
+                            try:
+                                student_dict = json.loads(ans_raw["text"])
+                            except Exception:
+                                student_dict = {}
+                        else:
+                            student_dict = ans_raw
+                    elif isinstance(ans_raw, str) and ans_raw.strip().startswith("{"):
+                        try:
+                            student_dict = json.loads(ans_raw.strip())
+                        except Exception:
+                            student_dict = {}
+
+                    if isinstance(corr_dict, dict) and len(corr_dict) > 0 and isinstance(student_dict, dict):
+                        c_count = 0
+                        for k, expected_v in corr_dict.items():
+                            actual_v = student_dict.get(str(k)) or student_dict.get(k)
+                            if actual_v is not None and str(actual_v).strip().lower() == str(expected_v).strip().lower():
+                                c_count += 1
+                        earned_score = round((c_count / len(corr_dict)) * q_pts, 2)
+                        q_dict["is_correct"] = (c_count == len(corr_dict))
+                    elif correct_ans and student_text.lower() == correct_ans.lower():
+                        earned_score = q_pts
+                        q_dict["is_correct"] = True
+                    else:
+                        q_dict["is_correct"] = False
+                except Exception:
+                    q_dict["is_correct"] = (student_text.lower() == correct_ans.lower()) if correct_ans else False
+                    if q_dict["is_correct"]:
+                        earned_score = q_pts
             else:
-                q_dict["is_correct"] = False
+                if correct_ans:
+                    q_dict["is_correct"] = (student_text.lower() == correct_ans.lower())
+                    if q_dict["is_correct"]:
+                        earned_score = q_pts
+                else:
+                    q_dict["is_correct"] = False
 
             eval_item = manual_eval.get(q_id_str)
             if eval_item:
@@ -4334,7 +4478,7 @@ def exam_result(submission_id):
                     pts_val = float(q["points"] or 1.0)
                 except (ValueError, TypeError):
                     pts_val = 1.0
-                default_pts = pts_val if q_dict["is_correct"] else 0.0
+                default_pts = earned_score if (q_type in ("matching", "map_hotspot") or (correct_ans.startswith("{") and correct_ans.endswith("}"))) else (pts_val if q_dict["is_correct"] else 0.0)
                 q_dict["awarded_marks"] = default_pts
                 q_dict["eval_feedback"] = ""
                 q_dict["eval_what_did"] = ""

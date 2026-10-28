@@ -280,8 +280,34 @@
                             </div>
                         {% endif %}
 
-                        <!-- Options for MCQ -->
-                        {% if q.options %}
+                        <!-- Interactive Match / Map Results Breakdown -->
+                        {% if q.question_type == 'matching' and q.options is mapping %}
+                            <div class="p-4 rounded-xl border border-sky-200 bg-sky-50/30 space-y-3">
+                                <span class="text-xs font-bold text-sky-900 uppercase tracking-wider block">Matching Pairs Review:</span>
+                                <div class="grid grid-cols-1 sm:grid-cols-2 gap-2 text-xs">
+                                    {% for left_item in q.options.left %}
+                                        <div class="p-2.5 bg-white border border-slate-200 rounded-lg flex items-center justify-between">
+                                            <span class="font-bold text-slate-800">{{ left_item.text }}</span>
+                                            <span class="text-slate-400 font-bold px-2">➔</span>
+                                            <span class="text-sky-700 font-semibold">Matched Correctly</span>
+                                        </div>
+                                    {% endfor %}
+                                </div>
+                            </div>
+                        {% elif q.question_type == 'map_hotspot' and q.options is mapping %}
+                            <div class="p-4 rounded-xl border border-indigo-200 bg-indigo-50/30 space-y-3">
+                                <span class="text-xs font-bold text-indigo-900 uppercase tracking-wider block">Map Target Identifications:</span>
+                                <div class="grid grid-cols-1 sm:grid-cols-2 gap-2 text-xs">
+                                    {% for h in q.options.hotspots %}
+                                        <div class="p-2.5 bg-white border border-slate-200 rounded-lg flex items-center justify-between">
+                                            <span class="font-bold text-indigo-900">Pin {{ loop.index }}</span>
+                                            <span class="text-slate-600 font-medium">({{ h.x }}%, {{ h.y }}%)</span>
+                                        </div>
+                                    {% endfor %}
+                                </div>
+                            </div>
+                        {% elif q.options and q.options is iterable and q.options is not string and q.options is not mapping %}
+                            <!-- Options for MCQ -->
                             <div class="grid grid-cols-1 sm:grid-cols-2 gap-2 pt-1">
                                 {% for opt in q.options %}
                                     {% set is_corr = (q.correct_answer and (opt == q.correct_answer or opt.startswith('(' ~ q.correct_answer ~ ')') or opt.startswith(q.correct_answer ~ ')') or opt.startswith(q.correct_answer ~ '.'))) %}

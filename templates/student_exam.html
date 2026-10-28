@@ -6,7 +6,327 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>{{ submission.title }} - Proctored Exam</title>
     <!-- Tailwind CSS -->
-    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdn.tailwindcss.com">
+    // ==========================================
+    // INTERACTIVE MATCH THE FOLLOWING ENGINE (SVG LINES)
+    // ==========================================
+    let activeDragConnection = null;
+
+    function renderMatchingQuestion(q, selectedAnswer, container) {
+        const leftItems = (q.options && q.options.left) ? q.options.left : [];
+        let rightItems = (q.options && q.options.right) ? [...q.options.right] : [];
+
+        // Parse student current matches
+        let currentMatches = {};
+        if (typeof selectedAnswer === 'object' && selectedAnswer !== null) {
+            currentMatches = selectedAnswer.matching || selectedAnswer;
+        } else if (typeof selectedAnswer === 'string' && selectedAnswer.startsWith('{')) {
+            try { currentMatches = json.loads ? JSON.parse(selectedAnswer) : {}; } catch(e){}
+        }
+
+        // Deterministic student shuffle of right items based on question id
+        const seedStr = String(q.id);
+        let hash = 0;
+        for (let i = 0; i < seedStr.length; i++) hash = ((hash << 5) - hash) + seedStr.charCodeAt(i);
+        rightItems.sort((a, b) => ((a.id.charCodeAt(0) + hash) % 3) - 1);
+
+        const wrapper = document.createElement('div');
+        wrapper.className = 'relative select-none py-2';
+        wrapper.id = 'matching-wrapper-' + q.id;
+
+        wrapper.innerHTML = `
+            <div class="flex items-center justify-between mb-3 px-1">
+                <span class="text-xs font-bold text-sky-800 bg-sky-50 px-2.5 py-1 rounded-full border border-sky-200">
+                    🔗 Drag connection lines from Left dots to Right dots
+                </span>
+                <button type="button" onclick="clearMatchingAnswers('${q.id}')" class="text-xs text-rose-600 hover:text-rose-800 font-semibold px-2 py-0.5 rounded border border-rose-200 hover:bg-rose-50 transition">
+                    Reset Connections
+                </button>
+            </div>
+
+            <div class="relative grid grid-cols-2 gap-12 sm:gap-24 items-start" id="matching-grid-${q.id}">
+                <!-- SVG Line Canvas Layer -->
+                <svg id="matching-svg-${q.id}" class="absolute inset-0 w-full h-full pointer-events-none z-10" style="overflow: visible;"></svg>
+
+                <!-- Left Column -->
+                <div class="space-y-3 z-20">
+                    <div class="text-xs font-bold uppercase tracking-wider text-slate-500 pb-1">Column A</div>
+                    ${leftItems.map((item, idx) => `
+                        <div class="relative bg-white border border-slate-200 rounded-xl p-3.5 shadow-2xs hover:border-sky-300 transition flex items-center justify-between group" id="left-card-${item.id}">
+                            <div class="flex items-center space-x-2.5 pr-2">
+                                <span class="w-5 h-5 rounded-full bg-slate-100 text-slate-700 text-[11px] font-bold flex items-center justify-center flex-shrink-0">${idx+1}</span>
+                                <span class="text-xs sm:text-sm font-semibold text-slate-800 leading-snug">${item.text}</span>
+                            </div>
+                            <!-- Anchor Dot -->
+                            <div class="w-4 h-4 rounded-full bg-sky-500 border-2 border-white ring-2 ring-sky-300 cursor-grab hover:scale-125 transition flex-shrink-0 anchor-left" data-left-id="${item.id}" onmousedown="startDragConnection(event, '${q.id}', '${item.id}')" ontouchstart="startDragConnection(event, '${q.id}', '${item.id}')"></div>
+                        </div>
+                    `).join('')}
+                </div>
+
+                <!-- Right Column -->
+                <div class="space-y-3 z-20">
+                    <div class="text-xs font-bold uppercase tracking-wider text-slate-500 pb-1">Column B</div>
+                    ${rightItems.map((item, idx) => `
+                        <div class="relative bg-white border border-slate-200 rounded-xl p-3.5 shadow-2xs hover:border-indigo-300 transition flex items-center justify-between group" id="right-card-${item.id}">
+                            <!-- Anchor Dot -->
+                            <div class="w-4 h-4 rounded-full bg-indigo-500 border-2 border-white ring-2 ring-indigo-300 cursor-pointer hover:scale-125 transition flex-shrink-0 anchor-right" data-right-id="${item.id}"></div>
+                            <div class="flex items-center space-x-2.5 pl-2.5 flex-1 justify-end text-right">
+                                <span class="text-xs sm:text-sm font-semibold text-slate-800 leading-snug">${item.text}</span>
+                                <span class="w-5 h-5 rounded-full bg-slate-100 text-slate-700 text-[11px] font-bold flex items-center justify-center flex-shrink-0">${String.fromCharCode(65 + idx)}</span>
+                            </div>
+                        </div>
+                    `).join('')}
+                </div>
+            </div>
+        `;
+
+        container.appendChild(wrapper);
+
+        // Render any already existing connection lines
+        setTimeout(() => redrawMatchingLines(q.id, currentMatches), 60);
+
+        // Redraw on window resize
+        window.addEventListener('resize', () => {
+            const cur = studentAnswers[String(q.id)] || {};
+            redrawMatchingLines(q.id, cur);
+        });
+    }
+
+    function startDragConnection(e, qId, leftId) {
+        e.preventDefault();
+        const svg = document.getElementById('matching-svg-' + qId);
+        const grid = document.getElementById('matching-grid-' + qId);
+        if (!svg || !grid) return;
+
+        const leftAnchor = grid.querySelector(`[data-left-id="${leftId}"]`);
+        if (!leftAnchor) return;
+
+        const gridRect = grid.getBoundingClientRect();
+        const anchorRect = leftAnchor.getBoundingClientRect();
+        const startX = anchorRect.left + anchorRect.width / 2 - gridRect.left;
+        const startY = anchorRect.top + anchorRect.height / 2 - gridRect.top;
+
+        // Create temporary dragging path
+        const dragPath = document.createElementNS('http://www.w3.org/2000/svg', 'path');
+        dragPath.setAttribute('stroke', '#0284c7');
+        dragPath.setAttribute('stroke-width', '3');
+        dragPath.setAttribute('stroke-linecap', 'round');
+        dragPath.setAttribute('stroke-dasharray', '6 4');
+        dragPath.setAttribute('fill', 'none');
+        svg.appendChild(dragPath);
+
+        function onPointerMove(moveEvent) {
+            const clientX = moveEvent.touches ? moveEvent.touches[0].clientX : moveEvent.clientX;
+            const clientY = moveEvent.touches ? moveEvent.touches[0].clientY : moveEvent.clientY;
+            const curX = clientX - gridRect.left;
+            const curY = clientY - gridRect.top;
+
+            const cX1 = startX + (curX - startX) * 0.5;
+            const cY1 = startY;
+            const cX2 = startX + (curX - startX) * 0.5;
+            const cY2 = curY;
+            dragPath.setAttribute('d', `M ${startX} ${startY} C ${cX1} ${cY1}, ${cX2} ${cY2}, ${curX} ${curY}`);
+        }
+
+        function onPointerUp(upEvent) {
+            window.removeEventListener('mousemove', onPointerMove);
+            window.removeEventListener('mouseup', onPointerUp);
+            window.removeEventListener('touchmove', onPointerMove);
+            window.removeEventListener('touchend', onPointerUp);
+            if (dragPath.parentNode) dragPath.parentNode.removeChild(dragPath);
+
+            const clientX = upEvent.changedTouches ? upEvent.changedTouches[0].clientX : upEvent.clientX;
+            const clientY = upEvent.changedTouches ? upEvent.changedTouches[0].clientY : upEvent.clientY;
+
+            // Detect if released over a right-hand anchor or right-hand card
+            const elemBelow = document.elementFromPoint(clientX, clientY);
+            if (elemBelow) {
+                const rightAnchor = elemBelow.closest('.anchor-right') || (elemBelow.closest('[id^="right-card-"]') ? elemBelow.closest('[id^="right-card-"]').querySelector('.anchor-right') : null);
+                if (rightAnchor) {
+                    const rightId = rightAnchor.getAttribute('data-right-id');
+                    commitMatchPair(qId, leftId, rightId);
+                }
+            }
+        }
+
+        window.addEventListener('mousemove', onPointerMove);
+        window.addEventListener('mouseup', onPointerUp);
+        window.addEventListener('touchmove', onPointerMove, { passive: false });
+        window.addEventListener('touchend', onPointerUp);
+    }
+
+    function commitMatchPair(qId, leftId, rightId) {
+        if (!studentAnswers[String(qId)] || typeof studentAnswers[String(qId)] !== 'object') {
+            studentAnswers[String(qId)] = {};
+        }
+        studentAnswers[String(qId)][leftId] = rightId;
+        redrawMatchingLines(qId, studentAnswers[String(qId)]);
+        saveProgressDebounced();
+        renderPalette();
+    }
+
+    function clearMatchingAnswers(qId) {
+        studentAnswers[String(qId)] = {};
+        redrawMatchingLines(qId, {});
+        saveProgressDebounced();
+        renderPalette();
+    }
+
+    function redrawMatchingLines(qId, matchDict) {
+        const svg = document.getElementById('matching-svg-' + qId);
+        const grid = document.getElementById('matching-grid-' + qId);
+        if (!svg || !grid) return;
+        svg.innerHTML = '';
+
+        const gridRect = grid.getBoundingClientRect();
+        const colors = ['#0284c7', '#10b981', '#f59e0b', '#8b5cf6', '#ec4899', '#06b6d4'];
+        let colorIdx = 0;
+
+        Object.keys(matchDict || {}).forEach(leftId => {
+            const rightId = matchDict[leftId];
+            if (!rightId) return;
+
+            const lAnchor = grid.querySelector(`[data-left-id="${leftId}"]`);
+            const rAnchor = grid.querySelector(`[data-right-id="${rightId}"]`);
+            if (!lAnchor || !rAnchor) return;
+
+            const lRect = lAnchor.getBoundingClientRect();
+            const rRect = rAnchor.getBoundingClientRect();
+
+            const x1 = lRect.left + lRect.width / 2 - gridRect.left;
+            const y1 = lRect.top + lRect.height / 2 - gridRect.top;
+            const x2 = rRect.left + rRect.width / 2 - gridRect.left;
+            const y2 = rRect.top + rRect.height / 2 - gridRect.top;
+
+            const strokeColor = colors[colorIdx % colors.length];
+            colorIdx++;
+
+            const path = document.createElementNS('http://www.w3.org/2000/svg', 'path');
+            const cX1 = x1 + (x2 - x1) * 0.5;
+            const cY1 = y1;
+            const cX2 = x1 + (x2 - x1) * 0.5;
+            const cY2 = y2;
+
+            path.setAttribute('d', `M ${x1} ${y1} C ${cX1} ${cY1}, ${cX2} ${cY2}, ${x2} ${y2}`);
+            path.setAttribute('stroke', strokeColor);
+            path.setAttribute('stroke-width', '3.5');
+            path.setAttribute('stroke-linecap', 'round');
+            path.setAttribute('fill', 'none');
+            path.style.cursor = 'pointer';
+            path.setAttribute('title', 'Click line to remove');
+            path.onclick = () => {
+                delete studentAnswers[String(qId)][leftId];
+                redrawMatchingLines(qId, studentAnswers[String(qId)]);
+                saveProgressDebounced();
+                renderPalette();
+            };
+
+            svg.appendChild(path);
+        });
+    }
+
+    // ==========================================
+    // INTERACTIVE MAP & HOTSPOT ENGINE
+    // ==========================================
+    function renderMapHotspotQuestion(q, selectedAnswer, container) {
+        const hotspots = (q.options && q.options.hotspots) ? q.options.hotspots : [];
+        const labels = (q.options && q.options.labels) ? q.options.labels : [];
+        const mapImg = q.figure_url || (q.options && q.options.image_url) || '';
+
+        let currentPins = {};
+        if (typeof selectedAnswer === 'object' && selectedAnswer !== null) {
+            currentPins = selectedAnswer.hotspots || selectedAnswer;
+        } else if (typeof selectedAnswer === 'string' && selectedAnswer.startsWith('{')) {
+            try { currentPins = JSON.parse(selectedAnswer); } catch(e){}
+        }
+
+        const wrapper = document.createElement('div');
+        wrapper.className = 'space-y-4 py-2 select-none';
+
+        wrapper.innerHTML = `
+            <div class="flex items-center justify-between px-1">
+                <span class="text-xs font-bold text-indigo-800 bg-indigo-50 px-2.5 py-1 rounded-full border border-indigo-200">
+                    📍 Click each target pin on the map to identify it
+                </span>
+                <span class="text-xs font-semibold text-slate-500" id="map-progress-${q.id}">
+                    ${Object.keys(currentPins).length} of ${hotspots.length} Pins Answered
+                </span>
+            </div>
+
+            <div class="relative inline-block border-2 border-indigo-200 rounded-2xl overflow-hidden bg-slate-900 shadow-md max-w-full mx-auto block" id="student-map-canvas-${q.id}">
+                ${mapImg ? `<img src="${mapImg}" alt="Map Question" class="max-h-[460px] w-auto block mx-auto pointer-events-none">` : `<div class="p-12 text-white">Diagram loading...</div>`}
+                
+                ${hotspots.map((h, idx) => {
+                    const ans = currentPins[h.id];
+                    const isAnswered = Boolean(ans);
+                    return `
+                        <div class="absolute -translate-x-1/2 -translate-y-full cursor-pointer group z-20" style="left: ${h.x}%; top: ${h.y}%;" onclick="openHotspotPicker('${q.id}', '${h.id}', ${idx+1})" id="pin-marker-${q.id}-${h.id}">
+                            <div class="w-7 h-7 rounded-full ${isAnswered ? 'bg-emerald-600 ring-emerald-300' : 'bg-rose-600 ring-rose-300 animate-bounce'} text-white font-black text-xs flex items-center justify-center shadow-lg border-2 border-white ring-4 transition transform group-hover:scale-125">
+                                ${idx+1}
+                            </div>
+                            <div class="absolute top-8 left-1/2 -translate-x-1/2 bg-slate-900/90 backdrop-blur-xs text-white text-[11px] font-bold px-2 py-0.5 rounded shadow whitespace-nowrap z-30">
+                                ${ans || `Pin ${idx+1}: Click to answer`}
+                            </div>
+                        </div>
+                    `;
+                }).join('')}
+            </div>
+
+            <!-- Pin Identifications Summary List -->
+            <div class="grid grid-cols-1 sm:grid-cols-2 gap-2 pt-2">
+                ${hotspots.map((h, idx) => {
+                    const ans = currentPins[h.id];
+                    return `
+                        <div class="flex items-center justify-between p-2.5 rounded-xl border ${ans ? 'border-emerald-300 bg-emerald-50/40 text-emerald-950 font-bold' : 'border-slate-200 bg-slate-50 text-slate-600'} text-xs">
+                            <span class="flex items-center space-x-2">
+                                <span class="w-5 h-5 rounded-full ${ans ? 'bg-emerald-600' : 'bg-slate-400'} text-white font-bold text-[10px] flex items-center justify-center">${idx+1}</span>
+                                <span>Pin ${idx+1}:</span>
+                            </span>
+                            <button type="button" onclick="openHotspotPicker('${q.id}', '${h.id}', ${idx+1})" class="px-2.5 py-1 text-xs rounded-lg ${ans ? 'bg-emerald-100 text-emerald-800 font-bold' : 'bg-white border border-slate-300 text-indigo-700 font-semibold'} hover:shadow-xs transition">
+                                ${ans || 'Select Answer ▾'}
+                            </button>
+                        </div>
+                    `;
+                }).join('')}
+            </div>
+        `;
+
+        container.appendChild(wrapper);
+    }
+
+    function openHotspotPicker(qId, pinId, pinNum) {
+        const q = QUESTIONS.find(item => String(item.id) === String(qId));
+        if (!q || !q.options) return;
+        const labels = q.options.labels || [];
+        const currentPins = (studentAnswers[String(qId)] && typeof studentAnswers[String(qId)] === 'object') ? studentAnswers[String(qId)] : {};
+        const curSelected = currentPins[pinId] || '';
+
+        const inputOptions = {};
+        labels.forEach(lbl => { inputOptions[lbl] = lbl; });
+
+        Swal.fire({
+            title: `Identify Pin ${pinNum}`,
+            text: 'Choose the matching location or label for this pin:',
+            input: 'select',
+            inputOptions: inputOptions,
+            inputValue: curSelected,
+            showCancelButton: true,
+            confirmButtonText: 'Assign Pin',
+            confirmButtonColor: '#4f46e5'
+        }).then((result) => {
+            if (result.isConfirmed && result.value) {
+                if (!studentAnswers[String(qId)] || typeof studentAnswers[String(qId)] !== 'object') {
+                    studentAnswers[String(qId)] = {};
+                }
+                studentAnswers[String(qId)][pinId] = result.value;
+                saveProgressDebounced();
+                renderPalette();
+                renderQuestion(currentQuestionIndex);
+            }
+        });
+    }
+
+</script>
     <script>
         tailwind.config = {
             theme: {
@@ -2953,8 +3273,15 @@
             container.innerHTML = '';
 
             const selectedAnswer = studentAnswers[String(q.id)] || '';
+            const qType = (q.question_type || '').toLowerCase();
 
-            if (q.options && q.options.length > 0) {
+            if (qType === 'matching' || (q.options && typeof q.options === 'object' && !Array.isArray(q.options) && q.options.left)) {
+                // Interactive Match the Following with dynamic SVG connecting lines
+                renderMatchingQuestion(q, selectedAnswer, container);
+            } else if (qType === 'map_hotspot' || (q.options && typeof q.options === 'object' && !Array.isArray(q.options) && q.options.hotspots)) {
+                // Interactive Map / Hotspot Identification
+                renderMapHotspotQuestion(q, selectedAnswer, container);
+            } else if (Array.isArray(q.options) && q.options.length > 0) {
                 // Objective choices (MCQ / True-False)
                 const currentChoice = typeof selectedAnswer === 'object' ? '' : selectedAnswer;
                 (q.options || []).forEach((opt, optIndex) => {
