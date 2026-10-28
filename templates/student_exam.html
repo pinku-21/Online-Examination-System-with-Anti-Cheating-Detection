@@ -1642,15 +1642,21 @@
                                     }
 
                                     // Desk View Distance Verification (Student places laptop/device 1.5 - 2.5 ft back):
-                                    // When device is set a little back to show workspace/notebook, face height h occupies <= 48% of canvas height.
+                                    // When device is set back to show workspace/notebook, face height h occupies <= 65% of canvas height.
                                     const faceHeightRatio = h / canvas.height;
-                                    if (faceHeightRatio <= 0.48) {
+                                    if (faceHeightRatio <= 0.65) {
                                         isDeskViewVerified = true;
                                     }
 
-                                    // If box is near bottom edge while looking down to write, don't flag as hidden occlusion if desk view is verified
+                                    // If looking down at desk to write or solve math, do not treat partially lowered eyes or cropped chin as hidden face occlusion
                                     const isCroppedEdge = (br[1] >= canvas.height - 10) || (tl[1] <= 5 && h < 80);
-                                    if (!hasVisibleEyes || (isCroppedEdge && !isLookingDownAtDesk)) {
+                                    if (isLookingDownAtDesk) {
+                                        // Student is bent over notebook solving/writing: valid solving mode
+                                        validVisibleFaceCount++;
+                                        hasAnyFaceLookingDown = true;
+                                        const deskTag = isDeskViewVerified ? '✍️ Desk View Verified ✓ (Solving)' : '✍️ Solving on Notebook';
+                                        drawBoundingBox(ctx, [tl[0], tl[1], w, h], deskTag, isDeskViewVerified ? '#10b981' : '#38bdf8');
+                                    } else if (!hasVisibleEyes || isCroppedEdge) {
                                         isFacePartiallyOccluded = true;
                                         drawBoundingBox(ctx, [tl[0], tl[1], w, h], '⚠️ Face/Eyes Hidden', '#f59e0b');
                                     } else if (isLookingSideways) {
@@ -1661,12 +1667,6 @@
                                         drawBoundingBox(ctx, [tl[0], tl[1], w, h], '⚠️ Looking Up at Ceiling', '#f43f5e');
                                         validVisibleFaceCount++;
                                         hasAnyFaceLookingUp = true;
-                                    } else if (isLookingDownAtDesk) {
-                                        // Writing / Rough-work on paper mode: friendly indicator with desk view badge
-                                        const deskTag = isDeskViewVerified ? '✍️ Desk View Verified ✓ (Solving)' : '✍️ Solving on Notebook';
-                                        drawBoundingBox(ctx, [tl[0], tl[1], w, h], deskTag, isDeskViewVerified ? '#10b981' : '#38bdf8');
-                                        validVisibleFaceCount++;
-                                        hasAnyFaceLookingDown = true;
                                     } else {
                                         validVisibleFaceCount++;
 
@@ -1931,14 +1931,15 @@
                             const isWrittenOrMath = currQ && (currQ.question_type === 'descriptive' || currQ.question_type === 'short' || currQ.has_photo_upload || currQ.allow_upload !== false);
 
                             // Extended writing duration:
-                            // If Desk View is verified (device placed 1.5-2.5 ft back showing desk and hands), candidate gets up to 120 frames (~80-90s) continuous solving/writing.
-                            // If sitting too close (unverified desk view), writing time is bounded to 40 frames (~26s) to encourage placing laptop a little farther.
-                            let maxAllowedDownFrames = isWrittenOrMath ? 50 : 30;
-                            if (isDeskViewVerified) {
-                                maxAllowedDownFrames = isWrittenOrMath ? 120 : 75;
+                            // When solving math problems or writing long answers on a copy notebook, students look down continuously.
+                            // Desk View Verified: allows up to 240 frames (~160 seconds / ~2.5 minutes) of continuous downward solving before requesting a brief glance at screen.
+                            // Standard distance: allows up to 100 frames (~65 seconds) of continuous notebook work.
+                            let maxAllowedDownFrames = isDeskViewVerified ? 240 : 100;
+                            if (isWrittenOrMath) {
+                                maxAllowedDownFrames = isDeskViewVerified ? 300 : 150; // up to 3+ minutes for designated written/math questions
                             }
 
-                            if (lookingDownConsecutiveCount < maxAllowedDownFrames - 8) {
+                            if (lookingDownConsecutiveCount < maxAllowedDownFrames - 12) {
                                 // Friendly banner on webcam overlay
                                 if (isDeskViewVerified) {
                                     ctx.fillStyle = 'rgba(16, 185, 129, 0.88)';
@@ -1959,7 +1960,7 @@
                                 ctx.fillRect(10, 10, canvas.width - 20, 28);
                                 ctx.fillStyle = '#1e293b';
                                 ctx.font = 'bold 11px Inter, sans-serif';
-                                ctx.fillText('⚠️ PLEASE GLANCE AT SCREEN BRIEFLY TO CONFIRM PRESENCE', 18, 28);
+                                ctx.fillText('⚠️ SOLVING ROUGH WORK: PLEASE GLANCE AT SCREEN BRIEFLY', 18, 28);
                             }
 
                             if (lookingDownConsecutiveCount >= maxAllowedDownFrames) {
