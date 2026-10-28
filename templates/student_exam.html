@@ -368,78 +368,7 @@
         </div>
     </header>
 
-    <!-- Main Workspace -->
-    <div class="max-w-7xl mx-auto px-4 sm:px-6 py-6 flex-1 w-full grid grid-cols-1 lg:grid-cols-12 gap-6">
 
-        <!-- Left: Question View (8 cols) -->
-        <div
-            class="lg:col-span-8 flex flex-col justify-between bg-white rounded-3xl border border-slate-200 p-6 sm:p-8 shadow-sm min-h-[520px]">
-            <div>
-                <div class="flex items-center justify-between border-b border-slate-100 pb-4 mb-6">
-                    <div class="flex items-center space-x-2">
-                        <span id="q-number-pill"
-                            class="px-3 py-1 bg-sky-100 text-sky-800 text-xs font-extrabold rounded-full">Question 1 of
-                            {{ questions|length }}</span>
-                        <span id="q-points-pill" class="text-xs text-slate-400 font-semibold">1.0 Mark</span>
-                    </div>
-                    <button onclick="toggleMarkForReview()" id="btn-review"
-                        class="text-xs font-semibold text-slate-500 hover:text-amber-600 flex items-center space-x-1 transition">
-                        <i data-lucide="flag" class="w-3.5 h-3.5"></i>
-                        <span id="review-text">Flag for Review</span>
-                    </button>
-                </div>
-
-                <!-- Section Announcement Banner (Only displayed when section changes or on first question of a section) -->
-                <div id="section-header-banner" class="hidden mb-4 p-3 bg-indigo-50/80 border border-indigo-200 rounded-2xl flex items-center justify-between text-indigo-950 shadow-2xs">
-                    <div class="flex items-center space-x-2.5">
-                        <span class="w-7 h-7 rounded-lg bg-indigo-600 text-white flex items-center justify-center font-bold text-xs flex-shrink-0">§</span>
-                        <div>
-                            <span class="text-[10px] font-bold text-indigo-600 uppercase tracking-wider block">Exam Section</span>
-                            <h4 id="section-banner-title" class="text-xs font-black text-indigo-950">Section A</h4>
-                        </div>
-                    </div>
-                    <span id="section-banner-tag" class="px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-white text-indigo-700 border border-indigo-200">Starting Here</span>
-                </div>
-
-                <!-- OR Alternative Guidance Banner -->
-                <div id="or-choice-banner" class="hidden mb-4 p-3.5 bg-gradient-to-r from-amber-50 to-orange-50 border border-amber-300 rounded-2xl flex items-center justify-between gap-3 text-amber-900 shadow-xs">
-                    <div class="flex items-center space-x-2.5">
-                        <span class="w-8 h-8 rounded-xl bg-amber-500 text-white flex items-center justify-center font-black text-xs flex-shrink-0 shadow-xs">OR</span>
-                        <div>
-                            <h4 id="or-banner-title" class="text-xs font-black uppercase tracking-wider text-amber-900">Alternative Choice Question</h4>
-                            <p id="or-banner-desc" class="text-[11px] text-amber-800 leading-snug">You only need to answer either Part A or Part B. Only one answer will be counted for marks.</p>
-                        </div>
-                    </div>
-                    <span id="or-banner-tag" class="px-2.5 py-1 rounded-full text-[10px] font-black bg-amber-200 text-amber-900 flex-shrink-0">Attempt 1 Only</span>
-                </div>
-
-                <!-- Question Text -->
-                <h3 id="current-question-text"
-                    class="text-base sm:text-lg font-bold text-slate-900 leading-relaxed mb-4">
-                    Loading question...
-                </h3>
-
-                <!-- Question Figure / Diagram Container -->
-                <div id="figure-container" class="mb-5 hidden"></div>
-
-                <!-- Options List -->
-                <div id="options-container" class="space-y-3"></div>
-            </div>
-
-            <!-- Bottom Pagination Controls -->
-            <div class="flex items-center justify-between border-t border-slate-100 pt-6 mt-8">
-                <button onclick="prevQuestion()" id="btn-prev"
-                    class="px-4 py-2 border border-slate-300 hover:bg-slate-50 text-slate-700 text-xs font-bold rounded-xl transition flex items-center space-x-1 disabled:opacity-40">
-                    <i data-lucide="chevron-left" class="w-4 h-4"></i>
-                    <span>Previous</span>
-                </button>
-                <button onclick="nextQuestion()" id="btn-next"
-                    class="px-5 py-2 bg-sky-600 hover:bg-sky-700 text-white text-xs font-bold rounded-xl shadow-sm transition flex items-center space-x-1">
-                    <span>Next</span>
-                    <i data-lucide="chevron-right" class="w-4 h-4"></i>
-                </button>
-            </div>
-        </div>
 
     <!-- Subtle Top Floating shadcn Warning Alert Toast -->
     <div id="shadcn-strike-alert" class="p-4 bg-slate-900/95 dark:bg-slate-950/95 backdrop-blur-md text-white rounded-2xl shadow-2xl border border-rose-500/40">
@@ -495,7 +424,7 @@
         </div>
 
         <!-- Multi-Sensor Diagnostics Grid -->
-        <div class="webcam-hud-grid mt-2 grid grid-cols-4 gap-1 text-center">
+        <div class="webcam-hud-grid mt-2 grid grid-cols-3 gap-1 text-center">
             <div class="p-1 rounded-lg border border-slate-100 dark:border-slate-800 bg-slate-50 dark:bg-slate-950/50 flex flex-col items-center">
                 <span class="text-[8px] text-slate-400 uppercase font-semibold">Face</span>
                 <span id="hud-face" class="text-[9px] font-extrabold text-emerald-600 mt-0.5 truncate w-full">Detecting</span>
@@ -507,10 +436,6 @@
             <div class="p-1 rounded-lg border border-slate-100 dark:border-slate-800 bg-slate-50 dark:bg-slate-950/50 flex flex-col items-center">
                 <span class="text-[8px] text-slate-400 uppercase font-semibold">Audio</span>
                 <span id="hud-audio" class="text-[9px] font-extrabold text-emerald-600 mt-0.5 truncate w-full">Quiet ✓</span>
-            </div>
-            <div class="p-1 rounded-lg border border-slate-100 dark:border-slate-800 bg-slate-50 dark:bg-slate-950/50 flex flex-col items-center cursor-pointer hover:bg-slate-100 dark:hover:bg-slate-800 transition" onclick="openMobilePairModal()">
-                <span class="text-[8px] text-slate-400 uppercase font-semibold">Desk Cam</span>
-                <span id="hud-mobile-cam" class="text-[9px] font-extrabold text-sky-600 mt-0.5 truncate w-full">Pair QR 📱</span>
             </div>
         </div>
     </div>
@@ -634,21 +559,7 @@
                 </div>
             </div>
 
-            <!-- Quick Integrity Status Widget -->
-            <div class="p-4 rounded-2xl bg-gradient-to-br from-slate-50 to-sky-50/50 border border-slate-200 text-xs text-slate-600 space-y-2">
-                <div class="flex items-center justify-between">
-                    <span class="font-bold text-slate-800 flex items-center space-x-1">
-                        <i data-lucide="shield-check" class="w-3.5 h-3.5 text-emerald-600"></i>
-                        <span>Integrity Guardian</span>
-                    </span>
-                    <button type="button" onclick="openMobilePairModal()" class="text-sky-600 hover:text-sky-700 font-bold text-[11px] underline">
-                        + Desk Camera
-                    </button>
-                </div>
-                <p class="text-[11px] text-slate-500 leading-relaxed">
-                    AI proctoring is actively scanning via floating camera. Keep your face centered, window full-screen, and environment quiet.
-                </p>
-            </div>
+
 
         </div>
 
@@ -1624,9 +1535,9 @@
                     return;
                 }
 
-                // Load models with a strict 10-second timeout so low-bandwidth or blocked weights don't stall
+                // Load models with 25-second timeout so low-bandwidth or mobile connections don't drop to fallback
                 const timeoutPromise = new Promise((_, reject) =>
-                    setTimeout(() => reject(new Error("Model weight loading timed out")), 10000)
+                    setTimeout(() => reject(new Error("Model weight loading timed out")), 25000)
                 );
 
                 const modelPromises = [cocoSsd.load()];
@@ -1822,24 +1733,13 @@
                                     detectedDevices.push('book');
                                     drawBoundingBox(ctx, pred.bbox, '🚨 UNAUTHORIZED BOOK', '#f43f5e');
                                 }
-                            } else if (UNAUTHORIZED_DEVICE_CLASSES.includes(pred.class) && pred.score >= 0.20) {
-                                const bbox = pred.bbox; // [x, y, w, h]
-                                const w = bbox[2];
-                                const h = bbox[3];
-                                const area = w * h;
-                                const frameArea = canvas.width * canvas.height;
-                                const areaRatio = area / frameArea;
-
-                                // Phone vs Notebook/Copy size filter:
-                                // A smartphone held in hand or on desk occupies a small area (< 18% of camera frame).
-                                // A large notebook/copy held up close to the camera is huge (> 20% of frame area) and squarish.
-                                if (pred.class === 'cell phone' && areaRatio > 0.22 && isWritingPermitted) {
-                                    // False positive: Large copy/notebook misclassified by COCO-SSD as cell phone
-                                    drawBoundingBox(ctx, bbox, '📄 Notebook / Copy (Exam Paper)', '#38bdf8');
-                                } else {
-                                    detectedDevices.push(pred.class);
-                                    drawBoundingBox(ctx, bbox, '🚨 ' + pred.class.toUpperCase(), '#f43f5e');
-                                }
+                            } else if (pred.class === 'cell phone' && pred.score >= 0.15) {
+                                // Instant Mobile Phone Detection: Flag any phone seen immediately
+                                detectedDevices.push('cell phone');
+                                drawBoundingBox(ctx, pred.bbox, '🚨 MOBILE PHONE DETECTED', '#f43f5e');
+                            } else if (UNAUTHORIZED_DEVICE_CLASSES.includes(pred.class) && pred.score >= 0.18) {
+                                detectedDevices.push(pred.class);
+                                drawBoundingBox(ctx, pred.bbox, '🚨 ' + pred.class.toUpperCase(), '#f43f5e');
                             }
                         });
 
@@ -2063,7 +1963,7 @@
                     } catch (detErr) {
                         console.error("AI detection frame error:", detErr);
                     }
-                }, 1400);
+                }, 650);
 
             } catch (err) {
                 console.warn("AI Model weight load failed/timed out, switching to Fast Vision Engine:", err);
