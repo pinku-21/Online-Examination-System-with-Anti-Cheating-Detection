@@ -2269,8 +2269,19 @@ def api_tutor_question_bank():
             cat = (item.get("category") or item.get("topic_category") or "General").strip()
             chp = (item.get("chapter") or "").strip()
             q_type = (item.get("question_type") or "mcq").strip()
-            opts = item.get("options") or []
-            ans = (item.get("correct_answer") or "").strip()
+            opts = item.get("options")
+            if opts is None:
+                opts = item.get("options_json") or []
+            if isinstance(opts, (dict, list)):
+                opts_json = json.dumps(opts)
+            else:
+                opts_json = str(opts or "[]")
+
+            raw_ans = item.get("correct_answer")
+            if isinstance(raw_ans, dict):
+                ans = json.dumps(raw_ans)
+            else:
+                ans = str(raw_ans or "").strip()
             exp = (item.get("explanation") or "").strip()
             pts = float(item.get("points") or 1.0)
             diff = (item.get("difficulty_tier") or "Medium").strip()
@@ -2283,7 +2294,7 @@ def api_tutor_question_bank():
             cursor.execute("""
                 INSERT INTO question_bank (tutor_id, category, chapter, question_text, question_type, options_json, correct_answer, explanation, points, difficulty_tier, blooms_taxonomy, distractor_analysis_json, figure_svg, figure_url)
                 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-            """, (tutor_id, cat, chp, q_text, q_type, json.dumps(opts), ans, exp, pts, diff, bloom, distractors_str, fig_svg, fig_url))
+            """, (tutor_id, cat, chp, q_text, q_type, opts_json, ans, exp, pts, diff, bloom, distractors_str, fig_svg, fig_url))
             saved_count += 1
 
         conn.commit()
