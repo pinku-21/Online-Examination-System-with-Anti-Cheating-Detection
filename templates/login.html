@@ -15,16 +15,24 @@
             <p class="text-sm text-slate-500 mt-1">Enter your credentials to access the proctored portal</p>
         </div>
 
-        <!-- Role Selector Tab (shadcn Tabs Style) -->
-        <div class="shadcn-tabs-list w-full mb-6 p-1">
-            <button type="button" id="tab-student" onclick="switchLoginRole('student')" class="shadcn-tab-trigger flex-1 py-2 text-xs flex items-center justify-center space-x-1.5 {% if role != 'admin' %}active{% endif %}">
-                <i data-lucide="user" class="w-3.5 h-3.5"></i>
-                <span>Student</span>
+        <!-- Role Selector Tab (Clear Blue for Student vs Solid Black for Admin) -->
+        <div class="p-1 rounded-xl bg-slate-100 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 flex mb-6">
+            <button type="button" id="tab-student" onclick="switchLoginRole('student')" 
+                    class="flex-1 py-2.5 px-3 rounded-lg text-xs font-bold flex items-center justify-center gap-1.5 transition-all shadow-xs {% if role != 'admin' %}bg-sky-600 text-white shadow-sky-600/20{% else %}text-slate-600 hover:text-slate-900 dark:text-slate-400{% endif %}">
+                <i data-lucide="user" class="w-4 h-4"></i>
+                <span>Student Login</span>
             </button>
-            <button type="button" id="tab-admin" onclick="switchLoginRole('admin')" class="shadcn-tab-trigger flex-1 py-2 text-xs flex items-center justify-center space-x-1.5 {% if role == 'admin' %}active{% endif %}">
-                <i data-lucide="shield" class="w-3.5 h-3.5"></i>
-                <span>Admin / Tutor</span>
+            <button type="button" id="tab-admin" onclick="switchLoginRole('admin')" 
+                    class="flex-1 py-2.5 px-3 rounded-lg text-xs font-bold flex items-center justify-center gap-1.5 transition-all shadow-xs {% if role == 'admin' %}bg-slate-950 text-white shadow-slate-950/20{% else %}text-slate-600 hover:text-slate-900 dark:text-slate-400{% endif %}">
+                <i data-lucide="shield" class="w-4 h-4"></i>
+                <span>Admin Login</span>
             </button>
+        </div>
+
+        <!-- Role Badge Indicator -->
+        <div id="role-status-badge" class="mb-5 p-2.5 rounded-xl text-center text-xs font-semibold flex items-center justify-center gap-2 border {% if role == 'admin' %}bg-slate-900 text-slate-100 border-slate-800{% else %}bg-sky-50 text-sky-800 border-sky-200 dark:bg-sky-950/50 dark:text-sky-300 dark:border-sky-800{% endif %}">
+            <span class="w-2 h-2 rounded-full {% if role == 'admin' %}bg-amber-400 animate-pulse{% else %}bg-sky-500{% endif %}"></span>
+            <span id="role-status-text">{% if role == 'admin' %}Admin / Tutor Access Mode{% else %}Candidate & Student Assessment Mode{% endif %}</span>
         </div>
 
         {% with messages = get_flashed_messages(with_categories=true) %}
@@ -43,7 +51,7 @@
             <input type="hidden" name="next" value="{{ next_url or '' }}">
 
             <div>
-                <label class="block text-xs font-semibold text-slate-700 mb-1.5" id="label-identifier">
+                <label class="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1.5" id="label-identifier">
                     {% if role == 'admin' %}Admin Username or Email{% else %}Student Username or Email{% endif %}
                 </label>
                 <div class="relative">
@@ -53,25 +61,25 @@
             </div>
 
             <div>
-                <label class="block text-xs font-semibold text-slate-700 mb-1.5">Password</label>
+                <label class="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1.5">Password</label>
                 <div class="relative">
                     <input type="password" name="password" required placeholder="••••••••" class="shadcn-input pl-9 text-sm font-mono">
                     <i data-lucide="lock" class="w-4 h-4 text-slate-400 absolute left-3 top-2.5"></i>
                 </div>
             </div>
 
-            <button type="submit" id="btn-submit" class="shadcn-btn w-full h-10 mt-5 font-semibold {% if role == 'admin' %}shadcn-btn-default{% else %}shadcn-btn-primary{% endif %}">
-                <span>Continue</span>
+            <button type="submit" id="btn-submit" class="w-full h-11 mt-5 rounded-xl font-bold text-sm text-white flex items-center justify-center gap-2 transition-all shadow-md {% if role == 'admin' %}bg-slate-950 hover:bg-slate-900 border border-slate-800{% else %}bg-sky-600 hover:bg-sky-700 shadow-sky-600/30{% endif %}">
+                <span id="btn-submit-text">{% if role == 'admin' %}Sign in to Admin Dashboard{% else %}Sign in as Student{% endif %}</span>
                 <i data-lucide="arrow-right" class="w-4 h-4"></i>
             </button>
         </form>
 
-        <div class="mt-6 pt-5 border-t border-slate-100 text-center text-xs text-slate-500 space-y-2">
+        <div class="mt-6 pt-5 border-t border-slate-100 dark:border-slate-800 text-center text-xs text-slate-500 space-y-2">
             <div id="student-register-link" class="{% if role == 'admin' %}hidden{% endif %}">
                 <span>Don't have a student account?</span>
                 <a href="/register" class="font-bold text-sky-600 hover:text-sky-800 ml-1 underline">Sign Up Free</a>
             </div>
-            <p class="text-[11px] text-slate-400">All student activity and submissions are encrypted and proctored.</p>
+            <p class="text-[11px] text-slate-400">All activity and submissions are encrypted and proctored.</p>
         </div>
 
     </div>
@@ -85,19 +93,36 @@
         const registerLink = document.getElementById('student-register-link');
         const labelId = document.getElementById('label-identifier');
         const submitBtn = document.getElementById('btn-submit');
+        const submitBtnText = document.getElementById('btn-submit-text');
+        const roleBadge = document.getElementById('role-status-badge');
+        const roleStatusText = document.getElementById('role-status-text');
 
         if (role === 'admin') {
-            tabAdmin.classList.add('active');
-            tabStudent.classList.remove('active');
+            // Admin: Solid Black Theme
+            tabAdmin.className = "flex-1 py-2.5 px-3 rounded-lg text-xs font-bold flex items-center justify-center gap-1.5 transition-all shadow-xs bg-slate-950 text-white shadow-slate-950/20";
+            tabStudent.className = "flex-1 py-2.5 px-3 rounded-lg text-xs font-bold flex items-center justify-center gap-1.5 transition-all text-slate-600 hover:text-slate-900 dark:text-slate-400";
+            
+            roleBadge.className = "mb-5 p-2.5 rounded-xl text-center text-xs font-semibold flex items-center justify-center gap-2 border bg-slate-900 text-slate-100 border-slate-800";
+            roleBadge.innerHTML = '<span class="w-2 h-2 rounded-full bg-amber-400 animate-pulse"></span><span>Admin / Tutor Access Mode</span>';
+            
             if (registerLink) registerLink.classList.add('hidden');
             labelId.innerText = 'Admin Username or Email';
-            submitBtn.className = 'shadcn-btn shadcn-btn-default w-full h-10 mt-5 font-semibold';
+            
+            submitBtn.className = "w-full h-11 mt-5 rounded-xl font-bold text-sm text-white flex items-center justify-center gap-2 transition-all shadow-md bg-slate-950 hover:bg-slate-900 border border-slate-800";
+            submitBtnText.innerText = 'Sign in to Admin Dashboard';
         } else {
-            tabStudent.classList.add('active');
-            tabAdmin.classList.remove('active');
+            // Student: Vibrant Blue Theme
+            tabStudent.className = "flex-1 py-2.5 px-3 rounded-lg text-xs font-bold flex items-center justify-center gap-1.5 transition-all shadow-xs bg-sky-600 text-white shadow-sky-600/20";
+            tabAdmin.className = "flex-1 py-2.5 px-3 rounded-lg text-xs font-bold flex items-center justify-center gap-1.5 transition-all text-slate-600 hover:text-slate-900 dark:text-slate-400";
+            
+            roleBadge.className = "mb-5 p-2.5 rounded-xl text-center text-xs font-semibold flex items-center justify-center gap-2 border bg-sky-50 text-sky-800 border-sky-200 dark:bg-sky-950/50 dark:text-sky-300 dark:border-sky-800";
+            roleBadge.innerHTML = '<span class="w-2 h-2 rounded-full bg-sky-500"></span><span>Candidate & Student Assessment Mode</span>';
+            
             if (registerLink) registerLink.classList.remove('hidden');
             labelId.innerText = 'Student Username or Email';
-            submitBtn.className = 'shadcn-btn shadcn-btn-primary w-full h-10 mt-5 font-semibold';
+            
+            submitBtn.className = "w-full h-11 mt-5 rounded-xl font-bold text-sm text-white flex items-center justify-center gap-2 transition-all shadow-md bg-sky-600 hover:bg-sky-700 shadow-sky-600/30";
+            submitBtnText.innerText = 'Sign in as Student';
         }
         lucide.createIcons();
     }

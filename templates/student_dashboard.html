@@ -5,6 +5,25 @@
 {% block content %}
 <div class="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
 
+    {% if session.get('user_role') == 'admin' %}
+    <!-- Admin Notice & Switch Banner -->
+    <div class="mb-6 p-4 rounded-2xl bg-indigo-50 border border-indigo-200 dark:bg-indigo-950/40 dark:border-indigo-800 flex flex-col sm:flex-row sm:items-center justify-between gap-3 shadow-xs">
+        <div class="flex items-center gap-3">
+            <div class="w-9 h-9 rounded-xl bg-indigo-600 text-white flex items-center justify-center flex-shrink-0 shadow-xs">
+                <i data-lucide="shield" class="w-5 h-5"></i>
+            </div>
+            <div>
+                <p class="text-sm font-bold text-indigo-950 dark:text-indigo-200">You are logged in as Administrator</p>
+                <p class="text-xs text-indigo-700 dark:text-indigo-300">You are currently previewing the Student Assessment Portal.</p>
+            </div>
+        </div>
+        <a href="/tutor" class="shadcn-btn bg-indigo-600 hover:bg-indigo-700 text-white h-9 px-4 text-xs font-semibold rounded-xl inline-flex items-center justify-center gap-1.5 shadow-sm transition">
+            <i data-lucide="layout-dashboard" class="w-3.5 h-3.5"></i>
+            <span>Return to Admin Portal</span>
+        </a>
+    </div>
+    {% endif %}
+
     <!-- Student Welcome & Quick Join Hero (shadcn UI style) -->
     <div class="shadcn-card bg-white p-6 sm:p-8 mb-8 border border-slate-200">
         <div class="flex flex-col lg:flex-row lg:items-center justify-between gap-6">

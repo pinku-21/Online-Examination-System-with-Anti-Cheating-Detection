@@ -3074,6 +3074,10 @@ def api_grant_reattempt(submission_id):
 @app.route("/student/dashboard")
 @login_required
 def student_dashboard():
+    # If logged in user is admin and hasn't explicitly requested student preview, redirect to tutor portal
+    if session.get("user_role") == "admin" and request.args.get("view") != "student":
+        return redirect(url_for("tutor_dashboard"))
+
     user_id = session.get("user_id")
     roll_number = session.get("roll_number")
     conn = get_connection()

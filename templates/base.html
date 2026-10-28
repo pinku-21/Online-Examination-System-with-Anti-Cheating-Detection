@@ -364,9 +364,10 @@
             <nav class="flex items-center space-x-2 sm:space-x-3">
                 {% if session.get('user_id') %}
                     {% if session.get('user_role') == 'admin' %}
-                        <a href="/tutor" class="hidden sm:inline-flex shadcn-btn shadcn-btn-outline h-9 px-3 text-xs font-semibold">
+                        <a href="/tutor" class="inline-flex shadcn-btn shadcn-btn-outline h-8 sm:h-9 px-2 sm:px-3 text-xs font-semibold text-indigo-700 border-indigo-200 bg-indigo-50/50 hover:bg-indigo-100">
                             <i data-lucide="shield" class="w-3.5 h-3.5 text-indigo-600"></i>
-                            <span>Admin Portal</span>
+                            <span class="hidden xs:inline sm:inline">Admin Portal</span>
+                            <span class="inline xs:hidden sm:hidden">Admin</span>
                         </a>
                     {% else %}
                         <a href="/student/dashboard" class="hidden sm:inline-flex shadcn-btn shadcn-btn-outline h-9 px-3 text-xs font-semibold">
@@ -403,12 +404,12 @@
                         <span class="hidden lg:inline">Sign Out</span>
                     </a>
                 {% else %}
-                    <a href="/login?role=student" class="shadcn-btn shadcn-btn-outline h-9 px-3 text-xs">
-                        <i data-lucide="user" class="w-3.5 h-3.5 text-slate-500"></i>
+                    <a href="/login?role=student" class="inline-flex items-center gap-1.5 h-8 sm:h-9 px-2.5 sm:px-3 text-xs font-semibold rounded-lg bg-sky-50 text-sky-700 hover:bg-sky-100 border border-sky-200 transition">
+                        <i data-lucide="user" class="w-3.5 h-3.5 text-sky-600"></i>
                         <span>Student Login</span>
                     </a>
-                    <a href="/login?role=admin" class="shadcn-btn shadcn-btn-outline h-9 px-3 text-xs">
-                        <i data-lucide="shield" class="w-3.5 h-3.5 text-indigo-600"></i>
+                    <a href="/login?role=admin" class="inline-flex items-center gap-1.5 h-8 sm:h-9 px-2.5 sm:px-3 text-xs font-semibold rounded-lg bg-slate-900 text-white hover:bg-slate-800 border border-slate-800 shadow-xs transition">
+                        <i data-lucide="shield" class="w-3.5 h-3.5 text-amber-400"></i>
                         <span>Admin Login</span>
                     </a>
                     <a href="/register" class="shadcn-btn shadcn-btn-default h-9 px-3.5 text-xs font-semibold">
@@ -602,8 +603,37 @@
 
             <!-- 4. Security & Biometric Routine -->
             <div class="shadcn-card bg-white dark:bg-slate-900 p-4 border border-slate-200 dark:border-slate-800">
-                <h4 class="text-xs font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400 mb-3">Security & Setup</h4>
+                <h4 class="text-xs font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400 mb-3">
+                    {% if session.get('user_role') == 'admin' %}Admin Controls{% else %}Security & Setup{% endif %}
+                </h4>
                 <div class="space-y-1.5">
+                    {% if session.get('user_role') == 'admin' %}
+                    <a href="/tutor" class="flex items-center justify-between p-3 rounded-2xl hover:bg-slate-50 dark:hover:bg-slate-800/60 transition group border border-transparent hover:border-slate-200 dark:hover:border-slate-700">
+                        <div class="flex items-center gap-3">
+                            <div class="w-9 h-9 rounded-xl bg-amber-50 dark:bg-amber-900/30 text-amber-600 dark:text-amber-400 flex items-center justify-center">
+                                <i data-lucide="key" class="w-4 h-4"></i>
+                            </div>
+                            <div>
+                                <span class="text-xs font-bold text-slate-900 dark:text-slate-100 block">AI API Keys & Settings</span>
+                                <span class="text-[10px] text-slate-500">Configure Gemini, Groq & OpenRouter</span>
+                            </div>
+                        </div>
+                        <i data-lucide="chevron-right" class="w-4 h-4 text-slate-400 group-hover:translate-x-1 transition-transform"></i>
+                    </a>
+
+                    <a href="/student/dashboard?view=student" class="flex items-center justify-between p-3 rounded-2xl hover:bg-slate-50 dark:hover:bg-slate-800/60 transition group border border-transparent hover:border-slate-200 dark:hover:border-slate-700">
+                        <div class="flex items-center gap-3">
+                            <div class="w-9 h-9 rounded-xl bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 flex items-center justify-center">
+                                <i data-lucide="eye" class="w-4 h-4"></i>
+                            </div>
+                            <div>
+                                <span class="text-xs font-bold text-slate-900 dark:text-slate-100 block">Preview Student Portal</span>
+                                <span class="text-[10px] text-slate-500">View what candidates see</span>
+                            </div>
+                        </div>
+                        <i data-lucide="chevron-right" class="w-4 h-4 text-slate-400 group-hover:translate-x-1 transition-transform"></i>
+                    </a>
+                    {% else %}
                     <a href="/student/dashboard" class="flex items-center justify-between p-3 rounded-2xl hover:bg-slate-50 dark:hover:bg-slate-800/60 transition group border border-transparent hover:border-slate-200 dark:hover:border-slate-700">
                         <div class="flex items-center gap-3">
                             <div class="w-9 h-9 rounded-xl bg-amber-50 dark:bg-amber-900/30 text-amber-600 dark:text-amber-400 flex items-center justify-center">
@@ -629,6 +659,7 @@
                         </div>
                         <i data-lucide="chevron-right" class="w-4 h-4 text-slate-400 group-hover:translate-x-1 transition-transform"></i>
                     </a>
+                    {% endif %}
                 </div>
             </div>
 
