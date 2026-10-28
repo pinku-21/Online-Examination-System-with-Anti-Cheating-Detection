@@ -1641,16 +1641,16 @@
                                         }
                                     }
 
-                                    // Desk View Distance Verification:
-                                    // When device is placed 1.5 - 2.5 ft back (desk view), face height h occupies <= 32% of canvas height.
+                                    // Desk View Distance Verification (Student places laptop/device 1.5 - 2.5 ft back):
+                                    // When device is set a little back to show workspace/notebook, face height h occupies <= 48% of canvas height.
                                     const faceHeightRatio = h / canvas.height;
-                                    if (faceHeightRatio <= 0.32) {
+                                    if (faceHeightRatio <= 0.48) {
                                         isDeskViewVerified = true;
                                     }
 
-                                    // If box is too near the bottom or top edge, eyes and lower face may be cut off
-                                    const isCroppedEdge = (br[1] >= canvas.height - 15) || (tl[1] <= 10 && h < 90);
-                                    if (!hasVisibleEyes || isCroppedEdge) {
+                                    // If box is near bottom edge while looking down to write, don't flag as hidden occlusion if desk view is verified
+                                    const isCroppedEdge = (br[1] >= canvas.height - 10) || (tl[1] <= 5 && h < 80);
+                                    if (!hasVisibleEyes || (isCroppedEdge && !isLookingDownAtDesk)) {
                                         isFacePartiallyOccluded = true;
                                         drawBoundingBox(ctx, [tl[0], tl[1], w, h], '⚠️ Face/Eyes Hidden', '#f59e0b');
                                     } else if (isLookingSideways) {
@@ -1663,7 +1663,7 @@
                                         hasAnyFaceLookingUp = true;
                                     } else if (isLookingDownAtDesk) {
                                         // Writing / Rough-work on paper mode: friendly indicator with desk view badge
-                                        const deskTag = isDeskViewVerified ? '✍️ Desk View Verified ✓' : '✍️ Writing on Desk';
+                                        const deskTag = isDeskViewVerified ? '✍️ Desk View Verified ✓ (Solving)' : '✍️ Solving on Notebook';
                                         drawBoundingBox(ctx, [tl[0], tl[1], w, h], deskTag, isDeskViewVerified ? '#10b981' : '#38bdf8');
                                         validVisibleFaceCount++;
                                         hasAnyFaceLookingDown = true;
@@ -1917,27 +1917,27 @@
                             const isWrittenOrMath = currQ && (currQ.question_type === 'descriptive' || currQ.question_type === 'short' || currQ.has_photo_upload || currQ.allow_upload !== false);
 
                             // Extended writing duration:
-                            // If Desk View is verified (device placed 1.5-2.5 ft back showing desk and hands), candidate gets up to 70 frames (~100s) continuous writing.
-                            // If sitting too close (unverified desk view), writing time is bounded to 25 frames (~35s) to prevent unmonitored lap/desk phone viewing.
-                            let maxAllowedDownFrames = isWrittenOrMath ? 35 : 20;
+                            // If Desk View is verified (device placed 1.5-2.5 ft back showing desk and hands), candidate gets up to 120 frames (~80-90s) continuous solving/writing.
+                            // If sitting too close (unverified desk view), writing time is bounded to 40 frames (~26s) to encourage placing laptop a little farther.
+                            let maxAllowedDownFrames = isWrittenOrMath ? 50 : 30;
                             if (isDeskViewVerified) {
-                                maxAllowedDownFrames = isWrittenOrMath ? 70 : 45;
+                                maxAllowedDownFrames = isWrittenOrMath ? 120 : 75;
                             }
 
-                            if (lookingDownConsecutiveCount < maxAllowedDownFrames - 6) {
+                            if (lookingDownConsecutiveCount < maxAllowedDownFrames - 8) {
                                 // Friendly banner on webcam overlay
                                 if (isDeskViewVerified) {
                                     ctx.fillStyle = 'rgba(16, 185, 129, 0.88)';
                                     ctx.fillRect(10, 10, canvas.width - 20, 26);
                                     ctx.fillStyle = '#ffffff';
                                     ctx.font = 'bold 11px Inter, sans-serif';
-                                    ctx.fillText('✍️ DESK VIEW VERIFIED — WRITING ON PAPER ALLOWED', 18, 27);
+                                    ctx.fillText('✍️ DESK VIEW VERIFIED — SOLVING ON NOTEBOOK ALLOWED', 18, 27);
                                 } else {
                                     ctx.fillStyle = 'rgba(14, 165, 233, 0.85)';
                                     ctx.fillRect(10, 10, canvas.width - 20, 26);
                                     ctx.fillStyle = '#ffffff';
                                     ctx.font = 'bold 11px Inter, sans-serif';
-                                    ctx.fillText('✍️ WRITING ON PAPER — PUSH LAPTOP BACK TO SHOW HANDS & DESK', 18, 27);
+                                    ctx.fillText('✍️ SOLVING ON NOTEBOOK — PLACE LAPTOP A LITTLE FARTHER TO SHOW DESK', 18, 27);
                                 }
                             } else {
                                 // Amber advisory before strike
@@ -2633,13 +2633,22 @@
             // Capture lightweight forensic snapshot of the webcam at the exact moment of incident
             let snapshotBase64 = "";
             try {
-                if (videoEl && videoEl.readyState >= 2) {
+                const liveVideo = document.getElementById('webcam-preview') || (typeof videoEl !== 'undefined' ? videoEl : null);
+                if (liveVideo && liveVideo.readyState >= 2) {
                     const snapCanvas = document.createElement('canvas');
-                    snapCanvas.width = 320;
-                    snapCanvas.height = 240;
+                    snapCanvas.width = 480;
+                    snapCanvas.height = 360;
                     const sctx = snapCanvas.getContext('2d');
-                    sctx.drawImage(videoEl, 0, 0, 320, 240);
-                    snapshotBase64 = snapCanvas.toDataURL('image/jpeg', 0.65);
+                    sctx.drawImage(liveVideo, 0, 0, 480, 360);
+                    
+                    // Also overlay the red AI detection bounding box onto the forensic snapshot if present
+                    const liveOverlay = document.getElementById('ai-overlay');
+                    if (liveOverlay) {
+                        try {
+                            sctx.drawImage(liveOverlay, 0, 0, 480, 360);
+                        } catch (ovErr) {}
+                    }
+                    snapshotBase64 = snapCanvas.toDataURL('image/jpeg', 0.72);
                 }
             } catch (snapErr) {
                 console.warn("Snapshot capture omitted:", snapErr);
