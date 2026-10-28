@@ -60,22 +60,6 @@
         </div>
 
         <div class="shadcn-card p-5 bg-white flex items-center space-x-4">
-            <div class="w-11 h-11 rounded-lg bg-emerald-50 text-emerald-600 border border-emerald-100 flex items-center justify-center">
-                <i data-lucide="check-circle" class="w-5 h-5"></i>
-            </div>
-            <div>
-                <p class="text-xs font-semibold text-slate-500 uppercase tracking-wider">Avg Passing Rate</p>
-                <h3 class="text-2xl font-bold text-slate-900 mt-0.5">
-                    {% set total_sub = exams|sum(attribute='submission_count') if exams else 0 %}
-                    {% if total_sub > 0 %}
-                        {{ ((exams|sum(attribute='passed_count') if exams else 0) / total_sub * 100)|round|int }}%
-                    {% else %}
-                        --
-                    {% endif %}
-                </h3>
-            </div>
-        </div>
-        <div class="shadcn-card p-5 bg-white flex items-center space-x-4">
             <div class="w-11 h-11 rounded-lg bg-violet-50 text-violet-700 border border-violet-100 flex items-center justify-center">
                 <i data-lucide="activity" class="w-5 h-5"></i>
             </div>
