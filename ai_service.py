@@ -500,7 +500,7 @@ def generate_questions_with_groq(api_key, text_content=None, num_questions=5, qu
     if not keys_pool:
         return {"success": False, "error": "No Groq API key provided."}
 
-    models_to_try = ["llama-3.3-70b-versatile", "llama-3.1-70b-versatile", "llama-3.1-8b-instant"]
+    models_to_try = ["llama-3.3-70b-versatile", "llama-3.1-70b-versatile", "mixtral-8x7b-32768", "gemma2-9b-it"]
     last_error = None
     
     for cur_key in keys_pool:
@@ -563,12 +563,13 @@ def generate_questions_with_openrouter(api_key, text_content=None, num_questions
     if not keys_pool:
         return {"success": False, "error": "No OpenRouter API key provided."}
 
-    # Free high-intelligence models on OpenRouter
+    # Free high-intelligence models on OpenRouter (current active endpoints)
     models_to_try = [
         "deepseek/deepseek-r1:free",
         "meta-llama/llama-3.3-70b-instruct:free",
-        "deepseek/deepseek-chat:free",
-        "google/gemini-2.0-flash-exp:free"
+        "meta-llama/llama-3.2-3b-instruct:free",
+        "mistralai/mistral-7b-instruct:free",
+        "openrouter/free"
     ]
     last_error = None
     
@@ -658,23 +659,29 @@ def generate_questions_unified(gemini_key=None, groq_key=None, openrouter_key=No
         available_figures=available_figures
     )
 
-    futures_map = {}
-    errors = []
+    # Primary Provider: Google Gemini with active keys pool
+    if gemini_key:
+        print("Using primary active Google Gemini provider...")
+        gemini_res = generate_questions_with_gemini(**kwargs_gemini)
+        if gemini_res.get("success"):
+            return gemini_res
+        else:
+            print(f"Gemini primary attempt had issue: {gemini_res.get('error')}. Falling back to secondary providers...")
+            errors.append(f"Gemini: {gemini_res.get('error')}")
 
-    with concurrent.futures.ThreadPoolExecutor(max_workers=3) as executor:
+    # Fallback Providers: Groq & OpenRouter
+    with concurrent.futures.ThreadPoolExecutor(max_workers=2) as executor:
         if groq_key:
             futures_map[executor.submit(generate_questions_with_groq, **kwargs_groq)] = "Groq"
         if openrouter_key:
             futures_map[executor.submit(generate_questions_with_openrouter, **kwargs_openrouter)] = "OpenRouter"
-        if gemini_key:
-            futures_map[executor.submit(generate_questions_with_gemini, **kwargs_gemini)] = "Gemini"
 
         for future in concurrent.futures.as_completed(futures_map, timeout=180):
             provider = futures_map[future]
             try:
                 result = future.result()
                 if result.get("success"):
-                    print(f"{provider} won the race!")
+                    print(f"{provider} won fallback race!")
                     return result
                 else:
                     errors.append(f"{provider}: {result.get('error', 'Failed')}")
@@ -1213,7 +1220,7 @@ Return ONLY a JSON object with this exact structure:
     # 3. Try Groq (if text-based or if student provided text)
     if groq_key and student_text:
         groq_keys_pool = parse_api_keys(groq_key)
-        groq_models = ["llama-3.3-70b-versatile", "llama-3.1-8b-instant"]
+        groq_models = ["llama-3.3-70b-versatile", "gemma2-9b-it", "mixtral-8x7b-32768"]
         for g_key in groq_keys_pool:
             for g_model in groq_models:
                 try:
@@ -1418,8 +1425,6 @@ OUTPUT FORMAT (JSON ONLY, NO MARKDOWN):
             if ref_b64_or and live_b64_or:
                 or_keys = parse_api_keys(openrouter_key)
                 or_vision_models = [
-                    "google/gemini-2.0-flash-exp:free",
-                    "google/gemini-flash-1.5:free",
                     "openrouter/free",
                     "nvidia/nemotron-3.5-super-vl:free",
                     "meta-llama/llama-3.2-11b-vision-instruct:free"
