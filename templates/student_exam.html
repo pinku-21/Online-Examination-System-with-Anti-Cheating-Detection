@@ -650,6 +650,52 @@
         <span>⚠️ Internet Connection Lost — Storing all progress in Offline Encrypted Vault. Your exam timer continues safely!</span>
     </div>
 
+    <!-- Fullscreen Exit Warning & Action Resolution Modal (Anti-Cheat Enforcement) -->
+    <div id="fullscreen-exit-modal" class="hidden fixed inset-0 z-[100] bg-slate-950/85 backdrop-blur-xl flex items-center justify-center p-4 select-none">
+        <div class="bg-white dark:bg-slate-900 border-2 border-rose-400 dark:border-rose-600 rounded-3xl max-w-lg w-full p-6 sm:p-8 shadow-2xl text-center animate-in fade-in zoom-in duration-200">
+            <div class="w-16 h-16 rounded-2xl bg-rose-100 dark:bg-rose-950 text-rose-600 dark:text-rose-400 flex items-center justify-center mx-auto mb-4 border border-rose-300 dark:border-rose-800 shadow-inner">
+                <i data-lucide="maximize" class="w-8 h-8 animate-pulse"></i>
+            </div>
+            
+            <div class="inline-flex items-center space-x-1.5 px-3 py-1 rounded-full text-xs font-bold bg-rose-50 text-rose-700 dark:bg-rose-950/60 dark:text-rose-300 border border-rose-200 dark:border-rose-800 mb-3">
+                <i data-lucide="alert-triangle" class="w-3.5 h-3.5 text-rose-600"></i>
+                <span>Fullscreen Mode Exited &bull; Exam Paused</span>
+            </div>
+
+            <h2 class="text-xl sm:text-2xl font-black text-slate-900 dark:text-slate-100 tracking-tight">Fullscreen Required</h2>
+            <p class="text-xs sm:text-sm text-slate-600 dark:text-slate-400 mt-2 mb-6 leading-relaxed">
+                Anti-cheat security prohibits navigating away from fullscreen. Your exam screen is currently frozen to protect assessment integrity.
+            </p>
+
+            <div class="space-y-3">
+                <!-- Action 1: Re-enter Fullscreen (with strike warning) -->
+                <button type="button" onclick="resumeFullscreenFromModal()" 
+                        class="w-full py-3.5 px-4 bg-sky-600 hover:bg-sky-500 text-white font-extrabold text-sm rounded-2xl shadow-lg shadow-sky-600/30 transition flex items-center justify-center space-x-2 cursor-pointer">
+                    <i data-lucide="maximize-2" class="w-4 h-4"></i>
+                    <span>Re-Enter Fullscreen &amp; Continue Exam</span>
+                </button>
+
+                <!-- Action 2: Request Exam Pause (Requires Tutor Approval) -->
+                <button type="button" onclick="handleModalPauseRequest()" 
+                        class="w-full py-3 px-4 bg-indigo-50 hover:bg-indigo-100 dark:bg-indigo-950/60 dark:hover:bg-indigo-900 text-indigo-700 dark:text-indigo-300 font-bold text-xs sm:text-sm rounded-2xl border border-indigo-200 dark:border-indigo-800 transition flex items-center justify-center space-x-2 cursor-pointer">
+                    <i data-lucide="pause-circle" class="w-4 h-4 text-indigo-600 dark:text-indigo-400"></i>
+                    <span>Request Pause (Tutor Must Approve)</span>
+                </button>
+
+                <!-- Action 3: Finalize & Submit Exam Now -->
+                <button type="button" onclick="handleModalSubmitExam()" 
+                        class="w-full py-2.5 px-4 bg-slate-100 hover:bg-rose-50 text-slate-700 hover:text-rose-700 dark:bg-slate-800 dark:hover:bg-rose-950/40 dark:text-slate-300 dark:hover:text-rose-300 font-semibold text-xs rounded-xl border border-slate-200 dark:border-slate-700 transition flex items-center justify-center space-x-1.5 cursor-pointer">
+                    <i data-lucide="send" class="w-3.5 h-3.5"></i>
+                    <span>Finalize &amp; Submit Exam Now</span>
+                </button>
+            </div>
+
+            <p class="text-[11px] text-slate-400 mt-5">
+                Note: An unauthorized fullscreen exit strike has been recorded in your security audit trail.
+            </p>
+        </div>
+    </div>
+
     <!-- Pre-Exam Readiness Modal -->
     <!-- Pre-Exam Readiness Modal -->
     <div id="start-modal"
@@ -1810,6 +1856,69 @@
             }
         }
 
+
+        // ── Fullscreen Exit Modal & Anti-Cheat Action Controls ───────────────────
+        let isFullscreenModalActive = false;
+
+        function showFullscreenExitModal() {
+            if (isTerminated || !isExamActive || isBrowsingFile) return;
+            isFullscreenModalActive = true;
+            const modal = document.getElementById('fullscreen-exit-modal');
+            if (modal) {
+                modal.classList.remove('hidden');
+                if (window.lucide && typeof lucide.createIcons === 'function') { try { lucide.createIcons(); } catch(e){} }
+            }
+        }
+
+        async function resumeFullscreenFromModal() {
+            try {
+                const docEl = document.documentElement;
+                if (docEl.requestFullscreen) {
+                    await docEl.requestFullscreen();
+                } else if (docEl.webkitRequestFullscreen) {
+                    await docEl.webkitRequestFullscreen();
+                } else if (docEl.msRequestFullscreen) {
+                    await docEl.msRequestFullscreen();
+                }
+            } catch (err) {
+                console.warn("Fullscreen resume error:", err);
+            }
+            const modal = document.getElementById('fullscreen-exit-modal');
+            if (modal) modal.classList.add('hidden');
+            isFullscreenModalActive = false;
+        }
+
+        async function handleModalPauseRequest() {
+            const modal = document.getElementById('fullscreen-exit-modal');
+            if (modal) modal.classList.add('hidden');
+            isFullscreenModalActive = false;
+            // Trigger pause request with automated reason
+            requestPauseExam();
+        }
+
+        async function handleModalSubmitExam() {
+            const modal = document.getElementById('fullscreen-exit-modal');
+            if (modal) modal.classList.add('hidden');
+            isFullscreenModalActive = false;
+
+            const result = await Swal.fire({
+                title: 'Submit Exam Now?',
+                text: 'Are you sure you want to finalize and submit your examination?',
+                icon: 'question',
+                showCancelButton: true,
+                confirmButtonText: 'Yes, Submit Now',
+                confirmButtonColor: '#e11d48',
+                cancelButtonText: 'Cancel',
+                cancelButtonColor: '#64748b'
+            });
+
+            if (result.isConfirmed) {
+                submitExamAnswers();
+            } else {
+                showFullscreenExitModal();
+            }
+        }
+
         // ── Request to pause the exam ────────────────────────────────────────────
         async function requestPauseExam() {
             if (!isExamActive || isTerminated || isPauseRequested) return;
@@ -2825,10 +2934,18 @@
             ['fullscreenchange', 'webkitfullscreenchange', 'mozfullscreenchange', 'MSFullscreenChange'].forEach(evt => {
                 document.addEventListener(evt, () => {
                     if (isBrowsingFile) return;
-                    if (!isExamActive || isTerminated || isGracePeriod || (typeof Swal !== 'undefined' && Swal.isVisible())) return;
                     const isFs = Boolean(document.fullscreenElement || document.webkitFullscreenElement || document.mozFullScreenElement || document.msFullscreenElement);
                     if (!isFs) {
+                        if (!isExamActive || isTerminated || isGracePeriod) return;
                         triggerViolation('fullscreen_exit', 'Student exited full-screen mode.');
+                        showFullscreenExitModal();
+                    } else {
+                        // Returned to fullscreen — dismiss modal if active
+                        const fsModal = document.getElementById('fullscreen-exit-modal');
+                        if (fsModal && !fsModal.classList.contains('hidden')) {
+                            fsModal.classList.add('hidden');
+                            isFullscreenModalActive = false;
+                        }
                     }
                 });
             });
