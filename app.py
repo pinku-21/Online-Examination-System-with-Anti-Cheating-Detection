@@ -576,7 +576,14 @@ def admin_create_student():
         class_name = request.form.get("class_name", "").strip()
         photo_file = request.files.get("profile_photo")
     else:
-        data = request.get_json() or {}
+        content_type = request.content_type or ""
+    if "application/json" in content_type:
+        data = request.get_json(silent=True) or {}
+    else:
+        try:
+            data = json.loads(request.get_data(as_text=True))
+        except Exception:
+            data = {}
         full_name = data.get("full_name", "").strip()
         roll_number = data.get("roll_number", "").strip().upper()
         username = data.get("username", "").strip().lower()
@@ -1897,17 +1904,19 @@ def api_tutor_evaluate_question(submission_id):
         "percentage": round(percentage, 1)
     })
 
-@app.route("/api/tutor/submission/<int:submission_id>/evaluate-all", methods=["POST"])
-@admin_required
-def api_tutor_evaluate_all(submission_id):
-    """Evaluates ALL questions in a submission with AI — text, MCQ, images, short/long answers."""
+def evaluate_submission_internal(submission_id):
+    """
+    Evaluates ALL questions in a submission with AI (Gemini/Groq vision & text).
+    Can be run automatically upon student submission or on-demand by tutor.
+    Leaves is_published = 0 so student only sees provisional score until tutor approves.
+    """
     conn = get_connection()
     cursor = conn.cursor()
     cursor.execute("SELECT * FROM submissions WHERE id = ?", (submission_id,))
     submission = cursor.fetchone()
     if not submission:
         conn.close()
-        return jsonify({"success": False, "error": "Submission not found."}), 404
+        return False, "Submission not found"
 
     cursor.execute("SELECT * FROM questions WHERE exam_id = ?", (submission["exam_id"],))
     all_questions = cursor.fetchall()
@@ -1920,7 +1929,6 @@ def api_tutor_evaluate_all(submission_id):
 
     results = []
     total_exam_points = 0.0
-    new_total_score = 0.0
 
     for q in all_questions:
         qid_s = str(q["id"])
@@ -1946,7 +1954,6 @@ def api_tutor_evaluate_all(submission_id):
 
         # Skip if nothing answered
         if not student_text and not student_img_urls:
-            # Use objective grading for blank / unanswered
             results.append({"question_id": qid_s, "question_text": q["question_text"][:60], "success": False, "awarded_marks": 0, "max_points": q_pts, "reason": "Not attempted"})
             continue
 
@@ -2014,13 +2021,21 @@ def api_tutor_evaluate_all(submission_id):
     """, (json.dumps(existing_eval), new_total_score, total_exam_points, percentage, submission_id))
     conn.commit()
     conn.close()
+    return True, {"results": results, "new_score": new_total_score, "total_points": total_exam_points, "percentage": percentage}
 
+@app.route("/api/tutor/submission/<int:submission_id>/evaluate-all", methods=["POST"])
+@admin_required
+def api_tutor_evaluate_all(submission_id):
+    """Evaluates ALL questions in a submission with AI — text, MCQ, images, short/long answers."""
+    success, res_data = evaluate_submission_internal(submission_id)
+    if not success:
+        return jsonify({"success": False, "error": res_data}), 404
     return jsonify({
         "success": True,
-        "results": results,
-        "new_score": new_total_score,
-        "total_points": total_exam_points,
-        "percentage": percentage
+        "results": res_data.get("results", []),
+        "new_score": res_data.get("new_score", 0.0),
+        "total_points": res_data.get("total_points", 0.0),
+        "percentage": res_data.get("percentage", 0.0)
     })
 
 
@@ -3822,12 +3837,16 @@ def api_submit_exam(submission_id):
         UPDATE submissions 
         SET answers_json = ?, score = ?, total_points = ?, percentage = ?, status = 'submitted', 
             submitted_at = CURRENT_TIMESTAMP, client_ip = ?, integrity_hash = ?,
-            honeypot_snared = ?, honeypot_details = ?
+            honeypot_snared = ?, honeypot_details = ?, is_published = 0
         WHERE id = ?
     """, (json.dumps(answers), total_score, total_points, round(percentage, 1), client_ip, integrity_token, honeypot_snared, honeypot_details, submission_id))
     
     conn.commit()
     conn.close()
+
+    # Trigger automatic AI grading for all questions (including handwritten answers) in a background thread
+    # Results remain unpublished until verified by the tutor
+    threading.Thread(target=evaluate_submission_internal, args=(submission_id,), daemon=True).start()
     
     return jsonify({"success": True, "submission_id": submission_id, "integrity_hash": integrity_token})
 

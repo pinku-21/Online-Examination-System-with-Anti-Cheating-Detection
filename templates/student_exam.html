@@ -13,7 +13,10 @@
     // ==========================================
     let activeDragConnection = null;
 
+    let selectedLeftMatchId = null;
+
     function renderMatchingQuestion(q, selectedAnswer, container) {
+        selectedLeftMatchId = null;
         const leftItems = (q.options && q.options.left) ? q.options.left : [];
         let rightItems = (q.options && q.options.right) ? [...q.options.right] : [];
 
@@ -22,7 +25,7 @@
         if (typeof selectedAnswer === 'object' && selectedAnswer !== null) {
             currentMatches = selectedAnswer.matching || selectedAnswer;
         } else if (typeof selectedAnswer === 'string' && selectedAnswer.startsWith('{')) {
-            try { currentMatches = json.loads ? JSON.parse(selectedAnswer) : {}; } catch(e){}
+            try { currentMatches = JSON.parse(selectedAnswer); } catch(e){}
         }
 
         // Deterministic student shuffle of right items based on question id
@@ -37,15 +40,15 @@
 
         wrapper.innerHTML = `
             <div class="flex items-center justify-between mb-3 px-1">
-                <span class="text-xs font-bold text-sky-800 bg-sky-50 px-2.5 py-1 rounded-full border border-sky-200">
-                    🔗 Drag connection lines from Left dots to Right dots
+                <span class="text-xs font-bold text-sky-800 bg-sky-50 px-2.5 py-1 rounded-full border border-sky-200 flex items-center gap-1.5">
+                    <span>👉 Tap Left then Right to connect, or drag line</span>
                 </span>
-                <button type="button" onclick="clearMatchingAnswers('${q.id}')" class="text-xs text-rose-600 hover:text-rose-800 font-semibold px-2 py-0.5 rounded border border-rose-200 hover:bg-rose-50 transition">
+                <button type="button" onclick="clearMatchingAnswers('${q.id}')" class="text-xs text-rose-600 hover:text-rose-800 font-semibold px-2.5 py-1 rounded-lg border border-rose-200 hover:bg-rose-50 transition cursor-pointer">
                     Reset Connections
                 </button>
             </div>
 
-            <div class="relative grid grid-cols-2 gap-12 sm:gap-24 items-start" id="matching-grid-${q.id}">
+            <div class="relative grid grid-cols-2 gap-8 sm:gap-20 items-start" id="matching-grid-${q.id}">
                 <!-- SVG Line Canvas Layer -->
                 <svg id="matching-svg-${q.id}" class="absolute inset-0 w-full h-full pointer-events-none z-10" style="overflow: visible;"></svg>
 
@@ -53,25 +56,33 @@
                 <div class="space-y-3 z-20">
                     <div class="text-xs font-bold uppercase tracking-wider text-slate-500 pb-1">Column A</div>
                     ${leftItems.map((item, idx) => `
-                        <div class="relative bg-white border border-slate-200 rounded-xl p-3.5 shadow-2xs hover:border-sky-300 transition flex items-center justify-between group" id="left-card-${item.id}">
-                            <div class="flex items-center space-x-2.5 pr-2">
+                        <div class="matching-card-left relative bg-white border-2 border-slate-200 rounded-xl p-3 sm:p-3.5 shadow-xs hover:border-sky-400 transition flex items-center justify-between cursor-pointer select-none" 
+                             id="left-card-${item.id}" 
+                             onclick="handleLeftCardTap('${q.id}', '${item.id}')">
+                            <div class="flex items-center space-x-2 pr-1">
                                 <span class="w-5 h-5 rounded-full bg-slate-100 text-slate-700 text-[11px] font-bold flex items-center justify-center flex-shrink-0">${idx+1}</span>
                                 <span class="text-xs sm:text-sm font-semibold text-slate-800 leading-snug">${item.text}</span>
                             </div>
-                            <!-- Anchor Dot -->
-                            <div class="w-4 h-4 rounded-full bg-sky-500 border-2 border-white ring-2 ring-sky-300 cursor-grab hover:scale-125 transition flex-shrink-0 anchor-left" data-left-id="${item.id}" onmousedown="startDragConnection(event, '${q.id}', '${item.id}')" ontouchstart="startDragConnection(event, '${q.id}', '${item.id}')"></div>
+                            <!-- Anchor Dot with drag support -->
+                            <div class="w-5 h-5 rounded-full bg-sky-500 border-2 border-white ring-2 ring-sky-300 cursor-grab hover:scale-125 transition flex-shrink-0 anchor-left" 
+                                 data-left-id="${item.id}" 
+                                 onmousedown="startDragConnection(event, '${q.id}', '${item.id}')" 
+                                 ontouchstart="startDragConnection(event, '${q.id}', '${item.id}')"></div>
                         </div>
                     `).join('')}
                 </div>
 
                 <!-- Right Column -->
                 <div class="space-y-3 z-20">
-                    <div class="text-xs font-bold uppercase tracking-wider text-slate-500 pb-1">Column B</div>
+                    <div class="text-xs font-bold uppercase tracking-wider text-slate-500 pb-1 text-right">Column B</div>
                     ${rightItems.map((item, idx) => `
-                        <div class="relative bg-white border border-slate-200 rounded-xl p-3.5 shadow-2xs hover:border-indigo-300 transition flex items-center justify-between group" id="right-card-${item.id}">
+                        <div class="matching-card-right relative bg-white border-2 border-slate-200 rounded-xl p-3 sm:p-3.5 shadow-xs hover:border-indigo-400 transition flex items-center justify-between cursor-pointer select-none" 
+                             id="right-card-${item.id}" 
+                             onclick="handleRightCardTap('${q.id}', '${item.id}')">
                             <!-- Anchor Dot -->
-                            <div class="w-4 h-4 rounded-full bg-indigo-500 border-2 border-white ring-2 ring-indigo-300 cursor-pointer hover:scale-125 transition flex-shrink-0 anchor-right" data-right-id="${item.id}"></div>
-                            <div class="flex items-center space-x-2.5 pl-2.5 flex-1 justify-end text-right">
+                            <div class="w-5 h-5 rounded-full bg-indigo-500 border-2 border-white ring-2 ring-indigo-300 hover:scale-125 transition flex-shrink-0 anchor-right" 
+                                 data-right-id="${item.id}"></div>
+                            <div class="flex items-center space-x-2 pl-2 flex-1 justify-end text-right">
                                 <span class="text-xs sm:text-sm font-semibold text-slate-800 leading-snug">${item.text}</span>
                                 <span class="w-5 h-5 rounded-full bg-slate-100 text-slate-700 text-[11px] font-bold flex items-center justify-center flex-shrink-0">${String.fromCharCode(65 + idx)}</span>
                             </div>
@@ -93,8 +104,41 @@
         });
     }
 
+    function handleLeftCardTap(qId, leftId) {
+        selectedLeftMatchId = leftId;
+        // Visual highlight for selected left card
+        document.querySelectorAll('.matching-card-left').forEach(el => {
+            el.classList.remove('border-sky-500', 'ring-2', 'ring-sky-300', 'bg-sky-50/50');
+        });
+        const activeCard = document.getElementById('left-card-' + leftId);
+        if (activeCard) {
+            activeCard.classList.add('border-sky-500', 'ring-2', 'ring-sky-300', 'bg-sky-50/50');
+        }
+    }
+
+    function handleRightCardTap(qId, rightId) {
+        if (!selectedLeftMatchId) {
+            if (typeof Swal !== 'undefined' && !Swal.isVisible()) {
+                Swal.fire({
+                    toast: true,
+                    position: 'top',
+                    icon: 'info',
+                    title: 'Select a Column A item first',
+                    timer: 2000,
+                    showConfirmButton: false
+                });
+            }
+            return;
+        }
+        commitMatchPair(qId, selectedLeftMatchId, rightId);
+        selectedLeftMatchId = null;
+        document.querySelectorAll('.matching-card-left').forEach(el => {
+            el.classList.remove('border-sky-500', 'ring-2', 'ring-sky-300', 'bg-sky-50/50');
+        });
+    }
+
     function startDragConnection(e, qId, leftId) {
-        e.preventDefault();
+        if (e.type !== 'touchstart') e.preventDefault();
         const svg = document.getElementById('matching-svg-' + qId);
         const grid = document.getElementById('matching-grid-' + qId);
         if (!svg || !grid) return;
@@ -110,7 +154,7 @@
         // Create temporary dragging path
         const dragPath = document.createElementNS('http://www.w3.org/2000/svg', 'path');
         dragPath.setAttribute('stroke', '#0284c7');
-        dragPath.setAttribute('stroke-width', '3');
+        dragPath.setAttribute('stroke-width', '3.5');
         dragPath.setAttribute('stroke-linecap', 'round');
         dragPath.setAttribute('stroke-dasharray', '6 4');
         dragPath.setAttribute('fill', 'none');
@@ -152,7 +196,7 @@
 
         window.addEventListener('mousemove', onPointerMove);
         window.addEventListener('mouseup', onPointerUp);
-        window.addEventListener('touchmove', onPointerMove, { passive: false });
+        window.addEventListener('touchmove', onPointerMove, { passive: true });
         window.addEventListener('touchend', onPointerUp);
     }
 
@@ -833,6 +877,7 @@
         </div>
     </div>
 
+    {% if submission.enable_video_detection in [1, True, '1'] %}
     <!-- Floating AI Proctor Webcam Tile (Picture-in-Picture) -->
     <div id="floating-webcam-tile" class="bg-white/95 dark:bg-slate-900/95 backdrop-blur-md rounded-2xl border border-slate-200 dark:border-slate-800 p-3 shadow-2xl">
         <div class="flex items-center justify-between pb-2 mb-2 border-b border-slate-100 dark:border-slate-800">
@@ -878,6 +923,7 @@
             </div>
         </div>
     </div>
+    {% endif %}
 
     <!-- Main Workspace -->
     <div class="max-w-7xl mx-auto px-4 sm:px-6 py-6 flex-1 w-full grid grid-cols-1 lg:grid-cols-12 gap-6">
@@ -1038,6 +1084,21 @@
         let _restoredProgress = {};
         try { _restoredProgress = JSON.parse(_savedProgressRaw); } catch(e) { _restoredProgress = {}; }
         const HAS_SAVED_PROGRESS = Object.keys(_restoredProgress).length > 0 || _savedTimeRemaining !== null;
+        // If candidate already started the exam and refreshed or rejoined, configure auto-resume
+        if (HAS_SAVED_PROGRESS) {
+            // Log that candidate reloaded or navigated back into the exam
+            setTimeout(() => {
+                const btnEnter = document.getElementById('btn-enter-exam');
+                const btnText = document.getElementById('btn-enter-exam-text');
+                if (btnEnter) {
+                    btnEnter.disabled = false;
+                    btnEnter.classList.remove('disabled:opacity-40', 'disabled:cursor-not-allowed', 'opacity-40', 'cursor-not-allowed');
+                }
+                if (btnText) {
+                    btnText.innerHTML = 'Resume Fullscreen Exam Session &rarr;';
+                }
+            }, 100);
+        }
         // ────────────────────────────────────────────────────────────────────────
 
         let currentQuestionIndex = 0;
@@ -1607,7 +1668,7 @@
 
         // Launch Exam & Enter Fullscreen
         async function launchExamSession() {
-            if (ENABLE_VIDEO && !isFaceVerified) {
+            if (ENABLE_VIDEO && !isFaceVerified && !HAS_SAVED_PROGRESS) {
                 Swal.fire({
                     icon: 'warning',
                     title: 'Biometric Verification Required',
@@ -1619,7 +1680,7 @@
 
             // Activate a 15-second grace period for permissions & transitions
             isGracePeriod = true;
-            setTimeout(() => { isGracePeriod = false; }, 15000);
+            setTimeout(() => { isGracePeriod = false; }, 3000);
 
             try {
                 // Request Fullscreen
@@ -2743,7 +2804,13 @@
                 if (isBrowsingFile) return;
                 if (!isExamActive || isTerminated || isGracePeriod) return;
                 if (document.hidden) {
+                    // Try fetch violation immediately
                     triggerViolation('tab_switch', 'Student switched browser tab or minimized window.');
+                    // Beacon fallback for Android mobile lifecycle
+                    try {
+                        const blob = new Blob([JSON.stringify({ type: 'tab_switch', details: 'Mobile browser app minimized or backgrounded.' })], { type: 'application/json' });
+                        navigator.sendBeacon(`/api/submission/${SUBMISSION_ID}/violation`, blob);
+                    } catch(e){}
                 }
             });
 
@@ -2754,14 +2821,16 @@
                 triggerViolation('window_blur', 'Exam window lost focus (clicked outside).');
             });
 
-            // 3. Fullscreen Exit
-            document.addEventListener('fullscreenchange', () => {
-                if (isBrowsingFile) return;
-                if (!isExamActive || isTerminated || isGracePeriod || (typeof Swal !== 'undefined' && Swal.isVisible())) return;
-                const isFs = Boolean(document.fullscreenElement || document.webkitFullscreenElement || document.mozFullScreenElement || document.msFullscreenElement);
-                if (!isFs) {
-                    triggerViolation('fullscreen_exit', 'Student exited full-screen mode.');
-                }
+            // 3. Fullscreen Exit (standard + webkit + mobile events)
+            ['fullscreenchange', 'webkitfullscreenchange', 'mozfullscreenchange', 'MSFullscreenChange'].forEach(evt => {
+                document.addEventListener(evt, () => {
+                    if (isBrowsingFile) return;
+                    if (!isExamActive || isTerminated || isGracePeriod || (typeof Swal !== 'undefined' && Swal.isVisible())) return;
+                    const isFs = Boolean(document.fullscreenElement || document.webkitFullscreenElement || document.mozFullScreenElement || document.msFullscreenElement);
+                    if (!isFs) {
+                        triggerViolation('fullscreen_exit', 'Student exited full-screen mode.');
+                    }
+                });
             });
 
             // 4. Disable Right Click Context Menu with Granular Strike Logging
