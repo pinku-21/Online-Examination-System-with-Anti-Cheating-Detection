@@ -2993,6 +2993,12 @@ def tutor_submission_details(submission_id):
             student_text = ans_raw.strip()
             
         page_suffix = f" ({len(student_imgs)} Pages Attached)" if len(student_imgs) > 1 else (" (1 Page Attached)" if student_imgs else "")
+        if isinstance(ans_raw, dict) and any(k for k in ans_raw.keys() if k != "notes"):
+            pin_parts = [f"{k}: {v}" for k, v in ans_raw.items() if k != "notes" and v]
+            if pin_parts:
+                student_text = ", ".join(pin_parts)
+                if ans_raw.get("notes"):
+                    student_text += f" | Notes: {ans_raw['notes']}"
         q_dict["student_answer"] = student_text if student_text else (f"(Handwritten Solution{page_suffix})" if student_imgs else "Not Attempted")
         q_dict["student_image_url"] = student_img
         q_dict["student_image_urls"] = student_imgs
@@ -4415,6 +4421,12 @@ def exam_result(submission_id):
                 student_text = ans_raw.strip()
 
             page_suffix = f" ({len(student_imgs)} Pages)" if len(student_imgs) > 1 else (" (1 Page)" if student_imgs else "")
+            if isinstance(ans_raw, dict) and any(k for k in ans_raw.keys() if k != "notes"):
+                pin_parts = [f"{k}: {v}" for k, v in ans_raw.items() if k != "notes" and v]
+                if pin_parts:
+                    student_text = ", ".join(pin_parts)
+                    if ans_raw.get("notes"):
+                        student_text += f" | Notes: {ans_raw['notes']}"
             q_dict["student_answer"] = student_text if student_text else (f"Handwritten Solution{page_suffix}" if student_imgs else "Not Attempted")
             q_dict["student_image_url"] = student_img
             q_dict["student_image_urls"] = student_imgs
