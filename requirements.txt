@@ -1,6 +1,6 @@
 flask>=3.0.0
 requests>=2.32.0
-pypdf>=5.1.0
+pypdf>=6.13.3
 pillow>=13.0.0
 gunicorn
 psycopg[binary]
