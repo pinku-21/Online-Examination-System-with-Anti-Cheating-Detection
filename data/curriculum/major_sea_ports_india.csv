@@ -1,0 +1,17 @@
+﻿id,port_name,city_or_area,state,coast,port_type_or_note
+P001,Deendayal Port (Kandla),Kutch region,Gujarat,Western coast,Major port
+P002,Mumbai Port,Mumbai,Maharashtra,Western coast,Major port
+P003,Jawaharlal Nehru Port (Nhava Sheva),Navi Mumbai region,Maharashtra,Western coast,Major port
+P004,Mormugao Port,Mormugao,Goa,Western coast,Major port
+P005,New Mangalore Port,Mangaluru,Karnataka,Western coast,Major port
+P006,Cochin Port,Kochi,Kerala,Western coast,Major port
+P007,V.O. Chidambaranar Port (Tuticorin),Thoothukudi,Tamil Nadu,Eastern coast,Major port
+P008,Chennai Port,Chennai,Tamil Nadu,Eastern coast,Major port
+P009,Visakhapatnam Port,Visakhapatnam,Andhra Pradesh,Eastern coast,Major port
+P010,Paradip Port,Paradip,Odisha,Eastern coast,Major port
+P011,Syama Prasad Mookerjee Port (Kolkata–Haldia system),Kolkata/Haldia,West Bengal,Eastern coast,Major port system
+P012,Kamarajar Port (Ennore),Chennai region,Tamil Nadu,Eastern coast,Major port
+P013,Krishnapatnam Port,Nellore region,Andhra Pradesh,Eastern coast,Private/non-major port; included for extended practice
+P014,Dhamra Port,Bhadrak district,Odisha,Eastern coast,Private/non-major port; included for extended practice
+P015,Mundra Port,Kutch region,Gujarat,Western coast,Private/non-major port; included for extended practice
+P016,Pipavav Port,Amreli district,Gujarat,Western coast,Private/non-major port; included for extended practice

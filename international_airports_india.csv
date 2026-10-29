@@ -1,0 +1,19 @@
+﻿id,airport_name,city_or_area,state_or_territory,classification_note,region
+A001,Indira Gandhi International Airport,Delhi,Delhi,International airport,Northern India
+A002,Chhatrapati Shivaji Maharaj International Airport,Mumbai,Maharashtra,International airport,Western India
+A003,Netaji Subhas Chandra Bose International Airport,Kolkata,West Bengal,International airport,Eastern India
+A004,Chennai International Airport,Chennai,Tamil Nadu,International airport,Southern India
+A005,Rajiv Gandhi International Airport,Hyderabad,Telangana,International airport,Southern India
+A006,Sri Guru Ram Dass Jee International Airport,Amritsar,Punjab,International airport,Northern India
+A007,Kempegowda International Airport,Bengaluru,Karnataka,International airport,Southern India
+A008,Cochin International Airport,Kochi region,Kerala,International airport,Southern India
+A009,Calicut International Airport,Kozhikode region,Kerala,International airport,Southern India
+A010,Thiruvananthapuram International Airport,Thiruvananthapuram,Kerala,International airport,Southern India
+A011,Sardar Vallabhbhai Patel International Airport,Ahmedabad,Gujarat,International airport,Western India
+A012,Biju Patnaik International Airport,Bhubaneswar,Odisha,International airport,Eastern India
+A013,Lokpriya Gopinath Bordoloi International Airport,Guwahati,Assam,International airport,Northeastern India
+A014,Jaipur International Airport,Jaipur,Rajasthan,International airport,Northwestern India
+A015,Kannur International Airport,Kannur,Kerala,International airport,Southern India
+A016,Mangaluru International Airport,Mangaluru,Karnataka,International airport,Southern India
+A017,Veer Savarkar International Airport,Port Blair,Andaman and Nicobar Islands,International airport designation/name; verify current classification,Island region
+A018,Devi Ahilya Bai Holkar Airport,Indore,Madhya Pradesh,Domestic airport; international status/routes can change,Central India

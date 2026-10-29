@@ -1,0 +1,17 @@
+﻿id,crop,state,major_area,region,map_or_production_note,data_quality_note
+CJ001,Cotton,Gujarat,"Rajkot, Surendranagar, Bharuch regions",Western India,Major cotton-growing state,Verify annual production statistics for quantitative use
+CJ002,Cotton,Maharashtra,Vidarbha and Marathwada regions,Western India,Major cotton-growing state,Verify annual production statistics for quantitative use
+CJ003,Cotton,Telangana,Warangal and Adilabad regions,Southern India,Major cotton-growing state,Verify annual production statistics for quantitative use
+CJ004,Cotton,Karnataka,Haveri and Dharwad regions,Southern India,Cotton-growing state,Verify annual production statistics for quantitative use
+CJ005,Cotton,Rajasthan,Sri Ganganagar and Hanumangarh regions,Northwestern India,Cotton-growing state,Verify annual production statistics for quantitative use
+CJ006,Cotton,Madhya Pradesh,Malwa region,Central India,Cotton-growing state,Verify annual production statistics for quantitative use
+CJ007,Cotton,Andhra Pradesh,Guntur region and other cotton areas,Southern India,Cotton-growing state,Verify annual production statistics for quantitative use
+CJ008,Cotton,Punjab,Bathinda and Mansa regions,Northern India,Cotton-growing state,Verify annual production statistics for quantitative use
+CJ009,Cotton,Haryana,Hisar and Sirsa regions,Northern India,Cotton-growing state,Verify annual production statistics for quantitative use
+CJ010,Cotton,Tamil Nadu,Coimbatore region and other cotton areas,Southern India,Cotton-growing state,Verify annual production statistics for quantitative use
+CJ011,Jute,West Bengal,Hooghly belt and Ganga delta,Eastern India,Principal traditional jute-growing state,Verify annual production statistics for quantitative use
+CJ012,Jute,Bihar,Purnia and adjoining regions,Eastern India,Jute-growing state,Verify annual production statistics for quantitative use
+CJ013,Jute,Assam,Brahmaputra Valley,Northeastern India,Jute-growing state,Verify annual production statistics for quantitative use
+CJ014,Jute,Odisha,Selected eastern districts,Eastern India,Jute cultivation in some areas,Verify annual production statistics for quantitative use
+CJ015,Jute,Meghalaya,Selected areas,Northeastern India,Limited/local cultivation; verify before quantitative use,Verify annual production statistics for quantitative use
+CJ016,Jute,Tripura,Selected agricultural areas,Northeastern India,Limited/local cultivation; verify before quantitative use,Verify annual production statistics for quantitative use
