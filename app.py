@@ -34,6 +34,11 @@ from database import (
     save_persistent_asset,
     get_persistent_asset
 )
+from cloud_services import (
+    init_sentry,
+    upload_image_to_cloud,
+    send_transactional_email
+)
 import base64
 from ai_service import (
     extract_text_from_pdf, 
@@ -55,6 +60,7 @@ def get_current_time():
     return datetime.now(IST).replace(tzinfo=None)
 
 app = Flask(__name__, static_url_path=None)
+init_sentry(app)
 # Ensure strong secret key in production (prevent default key session hijacking)
 DEFAULT_DEV_SECRET = "examguard-super-secret-key-2026"
 configured_secret = os.environ.get("SECRET_KEY")
@@ -855,6 +861,19 @@ def tutor_save_settings():
         set_setting("openrouter_api_key", openrouter_key)
     if public_url is not None:
         set_setting("public_url", public_url)
+
+    # Free-for-dev Cloud Services Configuration
+    cloudinary_cloud = request.form.get("cloudinary_cloud_name", "").strip()
+    cloudinary_key = request.form.get("cloudinary_api_key", "").strip()
+    cloudinary_secret = request.form.get("cloudinary_api_secret", "").strip()
+    resend_key = request.form.get("resend_api_key", "").strip()
+    sentry_dsn = request.form.get("sentry_dsn", "").strip()
+
+    if cloudinary_cloud: set_setting("cloudinary_cloud_name", cloudinary_cloud)
+    if cloudinary_key: set_setting("cloudinary_api_key", cloudinary_key)
+    if cloudinary_secret: set_setting("cloudinary_api_secret", cloudinary_secret)
+    if resend_key: set_setting("resend_api_key", resend_key)
+    if sentry_dsn: set_setting("sentry_dsn", sentry_dsn)
         
     flash("Settings updated successfully!", "success")
     return redirect(url_for("tutor_dashboard"))
@@ -1194,9 +1213,13 @@ def api_upload_answer_image(submission_id):
     # Also save permanently to database so it never vanishes on Render restarts
     save_persistent_asset(f"student_answers/{unique_name}", mime_type, file_bytes)
     
+    # Cloudinary Persistent Cloud Upload (Free-for-dev)
+    is_cloud, cloud_url = upload_image_to_cloud(file_bytes, folder="examguard/student_answers", public_id=unique_name.rsplit('.', 1)[0])
+    img_url_to_return = cloud_url if is_cloud else f"/static/student_answers/{unique_name}"
+    
     return jsonify({
         "success": True, 
-        "image_url": f"/static/student_answers/{unique_name}"
+        "image_url": img_url_to_return
     })
 
 def _send_static_file_with_persistence(filename):
@@ -3701,7 +3724,8 @@ def api_log_violation(submission_id):
             with open(os.path.join(snap_dir, snap_filename), "wb") as sf:
                 sf.write(snap_bytes)
             save_persistent_asset(f"forensic_snapshots/{snap_filename}", "image/jpeg", snap_bytes)
-            snapshot_url = f"/static/forensic_snapshots/{snap_filename}"
+            is_cloud_snap, cloud_snap_url = upload_image_to_cloud(snap_bytes, folder="examguard/forensic_snapshots", public_id=snap_filename.rsplit('.', 1)[0])
+            snapshot_url = cloud_snap_url if is_cloud_snap else f"/static/forensic_snapshots/{snap_filename}"
         except Exception as snap_err:
             print(f"Forensic snapshot save error: {snap_err}")
         
@@ -4145,6 +4169,40 @@ def api_toggle_submission_published(submission_id):
     conn.close()
 
     status_str = "Published" if new_val == 1 else "Unpublished"
+
+    # Send Result Published Email Notification via Resend (Free-for-dev)
+    if new_val == 1:
+        try:
+            cursor.execute("SELECT u.email, e.title as exam_title, s.score, s.total_points, s.percentage FROM submissions s JOIN users u ON s.user_id = u.id JOIN exams e ON s.exam_id = e.id WHERE s.id = ?", (submission_id,))
+            student_info = cursor.fetchone()
+            if student_info and student_info.get("email"):
+                st_email = student_info["email"]
+                st_score = student_info.get("score", 0.0)
+                st_tot = student_info.get("total_points", 0.0)
+                st_pct = student_info.get("percentage", 0.0)
+                exam_t = student_info.get("exam_title", "Examination")
+                res_url = f"{request.host_url.rstrip('/')}/student/result/{submission_id}"
+                
+                email_html = f"""
+                <div style='font-family: sans-serif; max-width: 600px; margin: 0 auto; padding: 20px; border: 1px solid #e2e8f0; border-radius: 12px;'>
+                    <h2 style='color: #0284c7; margin-bottom: 8px;'>ExamGuard AI &bull; Results Published</h2>
+                    <p style='color: #475569; font-size: 14px;'>Hello <strong>{sub['student_name']}</strong>,</p>
+                    <p style='color: #475569; font-size: 14px;'>Your tutor has reviewed, verified, and published your evaluation report for <strong>{exam_t}</strong>.</p>
+                    <div style='background: #f8fafc; border: 1px solid #cbd5e1; border-radius: 8px; padding: 15px; margin: 20px 0; text-align: center;'>
+                        <p style='margin: 0; font-size: 13px; color: #64748b; text-transform: uppercase;'>Your Final Score</p>
+                        <h1 style='margin: 5px 0; color: #0f172a;'>{st_score} / {st_tot}</h1>
+                        <p style='margin: 0; color: #0284c7; font-weight: bold;'>{st_pct}%</p>
+                    </div>
+                    <p style='text-align: center; margin: 25px 0;'>
+                        <a href='{res_url}' style='background: #0284c7; color: white; padding: 12px 24px; text-decoration: none; border-radius: 8px; font-weight: bold; font-size: 14px; display: inline-block;'>View Detailed Mistake Breakdown &amp; Solutions &rarr;</a>
+                    </p>
+                    <p style='font-size: 11px; color: #94a3b8; border-top: 1px solid #e2e8f0; padding-top: 12px;'>ExamGuard AI Assessment Security System</p>
+                </div>
+                """
+                threading.Thread(target=send_transactional_email, args=(st_email, f"Results Published: {exam_t}", email_html), daemon=True).start()
+        except Exception as mail_err:
+            print(f"[Resend] Notification skipped: {mail_err}")
+
     return jsonify({
         "success": True,
         "is_published": bool(new_val),
