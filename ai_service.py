@@ -362,7 +362,24 @@ SPECIALIZED QUESTION FORMAT RULES:
        Set "figure_url": "/static/maps/world.svg"
        Set "figure_svg": null
        Set "options": {{ "image_url": "/static/maps/world.svg", "hotspots": [...], "labels": [...] }}
-     * For scientific/biology/circuit diagrams: You can supply a high-fidelity SVG or diagram URL.
+     * For Human Anatomy & Biology Diagrams (Human Heart, Brain, Cells, Digestive, Respiratory):
+       Use the official curriculum anatomy assets:
+       - Human Heart: Set "figure_url": "/static/diagrams/science/human_heart.svg"
+         (Key Hotspot Pin Coordinates for Human Heart:
+           - Aorta: x=48.0, y=28.0
+           - Superior Vena Cava: x=34.0, y=36.0
+           - Pulmonary Artery: x=60.0, y=38.0
+           - Right Atrium: x=33.0, y=52.0
+           - Left Atrium: x=66.0, y=50.0
+           - Right Ventricle: x=42.0, y=70.0
+           - Left Ventricle: x=58.0, y=72.0
+         )
+       - Circulatory System: Set "figure_url": "/static/diagrams/science/circulatory_system.svg"
+       - Human Brain: Set "figure_url": "/static/diagrams/science/human_brain.svg"
+       - Respiratory System: Set "figure_url": "/static/diagrams/science/respiratory_system.svg"
+       - Digestive System: Set "figure_url": "/static/diagrams/science/digestive_system.svg"
+       - Plant Cell: Set "figure_url": "/static/diagrams/science/plant_cell.svg"
+       - Animal Cell: Set "figure_url": "/static/diagrams/science/animal_cell.svg"
    - Hotspot & Answer Matching:
      Always provide accurate (x%, y%) coordinates, the list of candidate labels in "labels", and the ground-truth pin map in "correct_answer": {{"P1": "Jaipur", "P2": "Mumbai", ...}}.
 4. CASE-BASED / PASSAGE / SOURCE-BASED QUESTIONS:

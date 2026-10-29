@@ -932,6 +932,14 @@ def api_generate_questions():
                     extracted_figures.extend(pdf_figs)
             elif ext in [".jpg", ".jpeg", ".png", ".webp"]:
                 saved_images.append(file_path)
+            elif ext in [".csv", ".txt", ".json"]:
+                try:
+                    with open(file_path, "r", encoding="utf-8-sig", errors="replace") as df:
+                        raw_data = df.read()
+                        if raw_data.strip():
+                            extracted_pdf_texts.append(f"--- ATTACHED DATASET/CURRICULUM ({filename}) ---\n" + raw_data[:50000])
+                except Exception as read_err:
+                    print(f"Dataset read warning ({filename}): {read_err}")
 
     combined_text = ""
     if topic_text:

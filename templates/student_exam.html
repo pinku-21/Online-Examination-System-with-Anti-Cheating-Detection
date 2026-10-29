@@ -282,7 +282,17 @@
             // Intelligent fallback: auto-assign curriculum map if missing
             if (!mapImg) {
                 const qTxt = (q.question_text || '').toLowerCase();
-                if (qTxt.includes('cancer') || qTxt.includes('ghat') || qTxt.includes('desert') || qTxt.includes('mountain') || qTxt.includes('plateau') || qTxt.includes('physical') || qTxt.includes('relief')) {
+                if (qTxt.includes('heart') || qTxt.includes('cardiac') || qTxt.includes('atrium') || qTxt.includes('ventricle') || qTxt.includes('aorta')) {
+                    mapImg = '/static/diagrams/science/human_heart.svg';
+                } else if (qTxt.includes('brain') || qTxt.includes('cerebrum') || qTxt.includes('cerebellum') || qTxt.includes('medulla')) {
+                    mapImg = '/static/diagrams/science/human_brain.svg';
+                } else if (qTxt.includes('respiratory') || qTxt.includes('trachea') || qTxt.includes('alveoli') || qTxt.includes('lung')) {
+                    mapImg = '/static/diagrams/science/respiratory_system.svg';
+                } else if (qTxt.includes('digestive') || qTxt.includes('stomach') || qTxt.includes('liver') || qTxt.includes('intestine')) {
+                    mapImg = '/static/diagrams/science/digestive_system.svg';
+                } else if (qTxt.includes('circulatory') || qTxt.includes('circulation') || qTxt.includes('blood vessel')) {
+                    mapImg = '/static/diagrams/science/circulatory_system.svg';
+                } else if (qTxt.includes('cancer') || qTxt.includes('ghat') || qTxt.includes('desert') || qTxt.includes('mountain') || qTxt.includes('plateau') || qTxt.includes('physical') || qTxt.includes('relief')) {
                     mapImg = '/static/maps/india_physical.svg';
                 } else if (qTxt.includes('river') || qTxt.includes('water') || qTxt.includes('basin') || qTxt.includes('ocean') || qTxt.includes('sea')) {
                     mapImg = '/static/maps/india_rivers.svg';
