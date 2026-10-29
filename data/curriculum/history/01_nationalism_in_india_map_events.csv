@@ -1,0 +1,11 @@
+id,event_or_site,state,lat,lng,x_pct,y_pct,historical_significance,syllabus_tag
+HIST_01,Champaran,Bihar,26.8,84.8,55.0,33.5,Movement of Indigo Planters (1917) - First Satyagraha by Mahatma Gandhi in India,CBSE Class 10 Nationalism in India
+HIST_02,Kheda,Gujarat,22.7,72.7,21.0,42.0,Peasant Satyagraha (1917) for revenue remission due to crop failure,CBSE Class 10 Nationalism in India
+HIST_03,Ahmedabad,Gujarat,23.0,72.6,20.5,41.0,Cotton Mill Workers Satyagraha (1918) for plague bonus,CBSE Class 10 Nationalism in India
+HIST_04,Amritsar (Jallianwala Bagh),Punjab,31.6,74.9,28.5,22.0,Jallianwala Bagh Massacre on 13 April 1919 by General Dyer,CBSE Class 10 Nationalism in India
+HIST_05,Chauri Chaura,Uttar Pradesh,26.6,83.6,52.5,33.8,Police station set on fire in Feb 1922; prompted Gandhi to withdraw Non-Cooperation Movement,CBSE Class 10 Nationalism in India
+HIST_06,Dandi,Gujarat,20.9,72.8,21.0,49.0,"Culmination of Salt March on 6 April 1930, launching Civil Disobedience Movement",CBSE Class 10 Nationalism in India
+HIST_07,Calcutta (September 1920),West Bengal,22.6,88.4,66.5,44.0,Special Congress Session where Non-Cooperation resolution was mooted,CBSE Class 10 INC Sessions
+HIST_08,Nagpur (December 1920),Maharashtra,21.1,79.1,39.5,47.0,Annual Congress Session where Non-Cooperation program was formally adopted,CBSE Class 10 INC Sessions
+HIST_09,Madras (1927),Tamil Nadu,13.1,80.3,42.0,75.5,"INC Session presided by Dr. M.A. Ansari, resolved to boycott Simon Commission",CBSE Class 10 INC Sessions
+HIST_10,Lahore (December 1929),Punjab (Historic),31.5,74.3,27.5,22.5,INC Session under Jawaharlal Nehru declaring Purna Swaraj (Complete Independence),CBSE Class 10 INC Sessions

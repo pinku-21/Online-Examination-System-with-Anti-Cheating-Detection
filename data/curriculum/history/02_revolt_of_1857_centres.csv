@@ -1,0 +1,9 @@
+id,centre,state,lat,lng,x_pct,y_pct,leaders,significance
+REV_01,Meerut,Uttar Pradesh,29.0,77.7,35.0,27.5,Sepoys of 3rd Native Cavalry,"Outbreak of the Revolt of 1857 on May 10, 1857"
+REV_02,Delhi,Delhi,28.6,77.2,34.0,28.5,"Bahadur Shah Zafar II, General Bakht Khan",Nominal capital and imperial symbol of the 1857 uprising
+REV_03,Kanpur,Uttar Pradesh,26.4,80.3,44.5,34.5,"Nana Saheb, Tatya Tope, Azimullah Khan",Major battleground and siege during the Revolt
+REV_04,Lucknow,Uttar Pradesh,26.8,80.9,46.5,32.0,"Begum Hazrat Mahal, Birjis Qadr",Siege of the Lucknow Residency and Awadh revolt
+REV_05,Jhansi,Uttar Pradesh,25.4,78.6,38.5,36.5,Rani Lakshmibai,Heroic resistance against British forces led by Sir Hugh Rose
+REV_06,Gwalior,Madhya Pradesh,26.2,78.2,37.0,34.0,"Rani Lakshmibai, Tatya Tope",Captured by Rani Lakshmibai and Tatya Tope in June 1858
+REV_07,Arrah / Jagdishpur,Bihar,25.6,84.7,55.0,34.8,Kunwar Singh,Led the Bihar revolt against British forces at age 80
+REV_08,Barrackpore,West Bengal,22.8,88.4,66.8,43.5,Mangal Pandey,"First martyrdom on March 29, 1857 protesting enfield greased cartridges"
