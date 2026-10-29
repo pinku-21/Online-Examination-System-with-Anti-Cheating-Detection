@@ -1,0 +1,20 @@
+﻿id,topic,theorem_or_rule,statement_or_formula,typical_use,sample_exam_prompt,classes
+G001,Angles,Angles on a straight line,Sum = 180°,Find an unknown angle,Find x if adjacent angles are x and 65° on a straight line.,5-8
+G002,Angles,Angles around a point,Sum = 360°,Find missing angle,"Three angles around a point are 90°, 120° and x. Find x.",5-8
+G003,Parallel lines,Corresponding angles,Equal when parallel lines are cut by a transversal,Prove angle equality,Find a corresponding angle.,7-10
+G004,Parallel lines,Alternate interior angles,Equal when parallel lines are cut by a transversal,Prove angle equality,Find an alternate interior angle.,7-10
+G005,Parallel lines,Co-interior angles,Sum = 180° when parallel lines are cut by a transversal,Find supplementary angle,Find x from co-interior angles x and 110°.,7-10
+G006,Triangles,Angle sum property,Interior angles sum to 180°,Find third angle,Two angles are 45° and 65°. Find the third angle.,5-8
+G007,Triangles,Exterior angle theorem,Exterior angle equals sum of two opposite interior angles,Find exterior angle,Find an exterior angle from two remote interior angles.,7-10
+G008,Triangles,Isosceles triangle,Angles opposite equal sides are equal,Find base angles,An isosceles triangle has vertex angle 40°. Find each base angle.,6-9
+G009,Triangles,Equilateral triangle,All sides equal; each angle 60°,Use side/angle properties,State each angle of an equilateral triangle.,5-8
+G010,Triangles,Pythagorean theorem,"For a right triangle, a² + b² = c²",Find missing side,Find hypotenuse for legs 6 cm and 8 cm.,8-10
+G011,Triangles,Congruence SSS,Three corresponding sides equal,Prove triangles congruent,Which congruence criterion applies?,8-10
+G012,Triangles,Congruence SAS,Two sides and included angle equal,Prove triangles congruent,Apply SAS to prove two triangles congruent.,8-10
+G013,Triangles,Congruence ASA/AAS,Two angles and a corresponding side equal,Prove triangles congruent,Identify the congruence criterion.,8-10
+G014,Triangles,RHS congruence,"Right angle, hypotenuse and one side equal",Prove right triangles congruent,Apply RHS criterion.,9-10
+G015,Triangles,Similarity AA,Two corresponding angles equal,Prove triangles similar,Show two triangles are similar using AA.,9-10
+G016,Triangles,Basic proportionality theorem (Thales),A line parallel to one side of a triangle divides the other two sides proportionally,Find an unknown segment,Use BPT to find x.,9-10
+G017,Triangles,Similarity side ratio,Corresponding sides of similar triangles are proportional,Calculate side lengths,Find a corresponding side in similar triangles.,9-10
+G018,Triangles,Area ratio of similar triangles,Ratio of areas = square of ratio of corresponding sides,Compare areas,Find area ratio when side ratio is 2:3.,9-10
+G019,Triangles,Triangle inequality,Sum of any two sides is greater than the third side,Check if side lengths form a triangle,"Can 2 cm, 3 cm and 6 cm form a triangle?",6-9

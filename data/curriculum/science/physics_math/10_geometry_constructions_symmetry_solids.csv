@@ -1,0 +1,19 @@
+﻿id,topic,concept_or_construction,rule_or_method,sample_exam_prompt,classes
+X001,Basic geometry,"Line segment, ray and line",A segment has two endpoints; a ray has one endpoint; a line extends both ways,"Draw and name a line, ray and line segment.",5-7
+X002,Angles,Types of angles,Acute <90°; right =90°; obtuse between 90° and 180°; straight =180°,Classify angles by measure.,5-7
+X003,Polygons,Triangle classification,"By sides: scalene, isosceles, equilateral; by angles: acute, right, obtuse",Classify a triangle.,5-8
+X004,Quadrilaterals,Parallelogram,Opposite sides parallel and equal; opposite angles equal,Identify properties of a parallelogram.,6-10
+X005,Quadrilaterals,Rectangle,Opposite sides equal; all angles 90°; diagonals equal and bisect each other,State rectangle properties.,5-9
+X006,Quadrilaterals,Rhombus,All sides equal; diagonals bisect at right angles,State rhombus properties.,6-10
+X007,Quadrilaterals,Square,All sides equal; all angles 90°; diagonals equal and perpendicular bisectors,List properties of a square.,5-9
+X008,Constructions,Perpendicular bisector,Construct equal arcs from endpoints and join arc intersections,Construct perpendicular bisector of a segment.,6-10
+X009,Constructions,Angle bisector,Construct equal arcs from both arms and intersecting arcs inside angle,Bisect a given angle using compass and ruler.,6-10
+X010,Symmetry,Line symmetry,A line divides a shape into mirror-image halves,Draw lines of symmetry.,5-8
+X011,Transformations,Translation,Slide without rotation or reflection,Describe a translation on a grid.,6-9
+X012,Transformations,Reflection,Flip across a line,Reflect a point across an axis.,7-10
+X013,Solids,Cube,"6 square faces, 12 edges, 8 vertices","State faces, edges and vertices of a cube.",5-8
+X014,Solids,Cuboid,"6 rectangular faces, 12 edges, 8 vertices","State faces, edges and vertices of a cuboid.",5-8
+X015,Solids,Cylinder,2 circular flat faces and 1 curved surface,Identify surfaces of a cylinder.,5-8
+X016,Solids,Cone,1 circular base and 1 curved surface; one vertex,State properties of a cone.,5-8
+X017,Solids,Sphere,One continuous curved surface; no edges or vertices,State properties of a sphere.,5-8
+X018,Geometry,Circle parts,"Centre, radius, diameter, chord, arc, sector, segment, tangent, secant",Label parts of a circle.,6-10

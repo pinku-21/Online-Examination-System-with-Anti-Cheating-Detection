@@ -1,0 +1,18 @@
+﻿id,topic,concept,rule_or_formula,sample_exam_prompt,classes
+P001,Measurement,SI unit of length,metre (m),State the SI unit of length.,5-8
+P002,Measurement,SI unit of mass,kilogram (kg),State the SI unit of mass.,5-8
+P003,Measurement,SI unit of time,second (s),State the SI unit of time.,5-8
+P004,Motion,Speed,speed = distance / time,Calculate speed from distance and time.,6-10
+P005,Motion,Average speed,total distance / total time,Find average speed for a journey.,7-10
+P006,Motion,Acceleration,a = (v − u)/t,Calculate acceleration.,9-10
+P007,Force,Newton's second law,F = ma,Calculate force from mass and acceleration.,8-10
+P008,Pressure,Pressure,P = F/A,Calculate pressure from force and area.,8-10
+P009,Work,Work,W = F × displacement in direction of force,Calculate work done by a constant force.,9-10
+P010,Power,Power,P = work / time,Calculate power.,9-10
+P011,Energy,Kinetic energy,KE = 1/2 mv²,Calculate kinetic energy.,9-10
+P012,Energy,Gravitational potential energy near Earth's surface,PE = mgh,Calculate gravitational potential energy.,9-10
+P013,Density,Density,density = mass / volume,Calculate density.,6-10
+P014,Heat,Temperature conversion,K = °C + 273.15,Convert Celsius to kelvin.,8-10
+P015,Waves,Wave speed,v = fλ,Calculate wave speed from frequency and wavelength.,9-10
+P016,Electricity,Electric power,P = VI = I²R = V²/R for an ohmic resistor,Calculate electrical power.,9-10
+P017,Electricity,Electrical energy,E = Pt,Calculate energy used by an appliance.,9-10

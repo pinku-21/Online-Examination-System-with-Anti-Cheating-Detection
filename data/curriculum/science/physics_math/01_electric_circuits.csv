@@ -1,0 +1,18 @@
+﻿id,topic,component_or_setup,symbol_or_connection,purpose_or_rule,sample_exam_prompt,classes
+C001,Circuit symbols,Cell,Long and short parallel lines,Supplies electrical energy,Draw the symbol of a cell.,6-10
+C002,Circuit symbols,Battery,Several cell symbols in series,Supplies electrical energy,Draw a battery symbol.,6-10
+C003,Circuit symbols,Switch open,Break in conducting path,Circuit is incomplete; current does not flow in an ideal circuit,Draw an open switch.,6-10
+C004,Circuit symbols,Switch closed,Connected switch contacts,Completes the circuit,Draw a closed switch.,6-10
+C005,Circuit symbols,Bulb/lamp,Circle with a cross,Converts electrical energy mainly to light and heat,Draw a bulb symbol.,6-10
+C006,Circuit symbols,Resistor,Rectangle (IEC/Indian school convention),Opposes current,Draw a resistor symbol.,8-10
+C007,Circuit symbols,Variable resistor,Resistor with diagonal arrow,Resistance can be adjusted,Draw a variable resistor symbol.,9-10
+C008,Circuit symbols,Ammeter,Circle marked A,Measures current; connected in series,Show an ammeter in a circuit.,8-10
+C009,Circuit symbols,Voltmeter,Circle marked V,Measures potential difference; connected in parallel across a component,Show a voltmeter across a resistor.,8-10
+C010,Circuit setup,Resistors in series,One path; components end-to-end,Equivalent resistance: R = R1 + R2 + ...,Draw two resistors in series.,9-10
+C011,Circuit setup,Resistors in parallel,Separate branches across same two nodes,For two resistors: 1/R = 1/R1 + 1/R2,Draw two resistors in parallel.,9-10
+C012,Circuit setup,Ammeter placement,In series with component,Low resistance ideal meter,Correct a circuit with an ammeter in parallel.,9-10
+C013,Circuit setup,Voltmeter placement,In parallel across component,High resistance ideal meter,Correct a circuit with a voltmeter in series.,9-10
+C014,Circuit setup,Short circuit,Very low-resistance path,Can cause excessive current and overheating,Explain why a short circuit is dangerous.,7-10
+C015,Circuit setup,Fuse,Series safety component,Melts when current exceeds safe rating,Show where a fuse is placed in a circuit.,7-10
+C016,Circuit setup,Earth wire,Protective connection,Helps reduce electric-shock risk in suitable appliances,State the purpose of earthing.,8-10
+C017,Circuit setup,Ohm's law,V = IR,"At constant temperature, current is proportional to potential difference for an ohmic conductor",State and apply Ohm's law.,9-10

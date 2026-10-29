@@ -1,0 +1,11 @@
+﻿id,topic,concept,rule_or_formula,sample_exam_prompt,classes
+L001,Light,Reflection,Angle of incidence = angle of reflection,Draw a reflected ray and label angles.,6-10
+L002,Light,Plane mirror image,"Virtual, erect, same size; image distance equals object distance",State two properties of a plane-mirror image.,6-8
+L003,Light,Refraction,Change in direction due to change in wave speed between media,Draw a ray entering glass from air.,8-10
+L004,Light,Refractive index,n = speed of light in vacuum / speed in medium,Calculate refractive index.,9-10
+L005,Light,Lens power,"P = 1/f (f in metres), unit dioptre",Find power for focal length 0.5 m.,10
+L006,Sound,Frequency,Number of vibrations per second; hertz (Hz),Define frequency.,6-10
+L007,Sound,Wave relation,v = fλ,Find wavelength from speed and frequency.,9-10
+L008,Heat,Heat transfer,"Conduction, convection and radiation",Give an example of each heat-transfer method.,5-8
+L009,Heat,Specific heat capacity,Q = mcΔT,Calculate heat supplied.,9-10
+L010,Magnetism,Magnetic poles,Like poles repel; unlike poles attract,Predict the interaction of two poles.,5-8

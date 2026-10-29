@@ -1,0 +1,18 @@
+﻿id,topic,concept,rule_or_formula,sample_exam_prompt,classes
+A001,Arithmetic,Order of operations,"Brackets, powers, division/multiplication, addition/subtraction (left to right within equal priority)",Evaluate an expression using order of operations.,5-8
+A002,Fractions,Equivalent fractions,Multiply/divide numerator and denominator by same nonzero number,Write an equivalent fraction.,5-8
+A003,Percentages,Percentage,Percentage = (part/whole) × 100%,Find 15% of 240.,6-10
+A004,Ratio,Equivalent ratios,Multiply/divide each term by the same nonzero factor,Simplify 18:24.,6-8
+A005,Proportion,Direct proportion,y = kx,Solve a direct proportion word problem.,7-10
+A006,Integers,Integer operations,"Use sign rules for addition, subtraction, multiplication and division",Evaluate an integer expression.,6-9
+A007,Exponents,Laws of exponents,aᵐ × aⁿ = aᵐ⁺ⁿ; aᵐ/aⁿ = aᵐ⁻ⁿ for a ≠ 0,Simplify an expression with powers.,7-10
+A008,Algebra,Linear equation,ax + b = c,Solve 3x + 5 = 20.,6-9
+A009,Algebra,Identities,(a+b)² = a² + 2ab + b²,Expand a binomial square.,8-10
+A010,Algebra,Difference of squares,a² − b² = (a−b)(a+b),Factorise x² − 49.,8-10
+A011,Algebra,Quadratic equation,"ax² + bx + c = 0, a ≠ 0",Solve a quadratic equation.,10
+A012,Sequences,Arithmetic progression nth term,aₙ = a + (n−1)d,Find the 15th term of an AP.,9-10
+A013,Sequences,Arithmetic progression sum,Sₙ = n/2[2a + (n−1)d],Find sum of first n terms.,9-10
+A014,Coordinate geometry,Distance formula,d = √[(x₂−x₁)² + (y₂−y₁)²],Find distance between two points.,9-10
+A015,Coordinate geometry,Midpoint formula,"((x₁+x₂)/2, (y₁+y₂)/2)",Find midpoint of a line segment.,9-10
+A016,Statistics,Mean,Mean = sum of observations / number of observations,Calculate the mean.,5-10
+A017,Probability,Basic probability,P(E) = favourable outcomes / total equally likely outcomes,Find probability of getting an even number on a fair die.,8-10

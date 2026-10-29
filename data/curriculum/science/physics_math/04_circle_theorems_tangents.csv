@@ -1,0 +1,10 @@
+﻿id,topic,theorem_or_rule,statement_or_formula,typical_use,sample_exam_prompt,classes
+T001,Circles,Radius and tangent,Radius to point of contact is perpendicular to tangent,Use 90° angle,A tangent touches a circle at P. Find angle between radius OP and tangent.,9-10
+T002,Circles,Tangents from an external point,Lengths of two tangents drawn from the same external point are equal,Find unknown tangent length,"PA and PB are tangents from P. If PA = 7 cm, find PB.",9-10
+T003,Circles,Angle in a semicircle,Angle subtended by a diameter at the circumference is 90°,Find triangle angle,AB is a diameter and C lies on the circle. Find angle ACB.,8-10
+T004,Circles,Angles in the same segment,Angles subtended by the same chord in the same segment are equal,Prove angle equality,Use a common chord to show two angles are equal.,9-10
+T005,Circles,Cyclic quadrilateral,Opposite angles sum to 180°,Find missing angle,One angle of a cyclic quadrilateral is 105°. Find its opposite angle.,9-10
+T006,Circles,Angle at centre and circumference,Angle at centre is twice the angle at circumference subtended by the same arc,Find central/inscribed angle,An angle at the circumference is 35°. Find the central angle.,9-10
+T007,Circles,Perpendicular from centre to chord,Perpendicular from centre to a chord bisects the chord,Find chord segment,A perpendicular from the centre meets a chord. Explain why it bisects the chord.,9-10
+T008,Circles,Equal chords,Equal chords subtend equal angles at the centre,Compare chords/angles,Two chords are equal. Compare their central angles.,9-10
+T009,Circles,Tangent-chord theorem,Angle between tangent and chord equals angle in alternate segment,Find angle,Use the tangent-chord theorem to find an angle.,10

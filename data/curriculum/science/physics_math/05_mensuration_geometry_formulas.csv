@@ -1,0 +1,21 @@
+﻿id,topic,shape_or_measure,formula,units_or_notes,sample_exam_prompt,classes
+M001,Perimeter,Square,P = 4a,Length units,Find perimeter of a square of side 5 cm.,5-8
+M002,Perimeter,Rectangle,P = 2(l + w),Length units,Find perimeter of a rectangle.,5-8
+M003,Area,Square,A = a²,Square units,Find area of a square of side 7 cm.,5-8
+M004,Area,Rectangle,A = l × w,Square units,Find area of a rectangle.,5-8
+M005,Area,Triangle,A = 1/2 × base × height,Square units,Find triangle area from base and height.,6-10
+M006,Area,Parallelogram,A = base × perpendicular height,Square units,Find area of a parallelogram.,7-10
+M007,Area,Trapezium,A = 1/2 × (sum of parallel sides) × height,Square units,Find area of a trapezium.,8-10
+M008,Circle,Circumference,C = 2πr = πd,Length units,Find circumference for r = 7 cm.,7-10
+M009,Circle,Area,A = πr²,Square units,Find area of a circle.,7-10
+M010,Surface area,Cuboid,TSA = 2(lw + lh + wh),Square units,Find total surface area of a cuboid.,8-10
+M011,Volume,Cuboid,V = lwh,Cubic units,Find volume of a cuboid.,7-10
+M012,Surface area,Cube,TSA = 6a²,Square units,Find total surface area of a cube.,7-10
+M013,Volume,Cube,V = a³,Cubic units,Find volume of a cube.,7-10
+M014,Cylinder,Curved surface area,CSA = 2πrh,Square units,Find CSA of a cylinder.,9-10
+M015,Cylinder,Volume,V = πr²h,Cubic units,Find volume of a cylinder.,9-10
+M016,Cone,Volume,V = 1/3 πr²h,Cubic units,Find volume of a cone.,9-10
+M017,Sphere,Surface area,SA = 4πr²,Square units,Find surface area of a sphere.,9-10
+M018,Sphere,Volume,V = 4/3 πr³,Cubic units,Find volume of a sphere.,9-10
+M019,Hemisphere,Curved surface area,CSA = 2πr²,Square units,Find curved surface area of a hemisphere.,9-10
+M020,Hemisphere,Total surface area,TSA = 3πr²,Includes circular base,Find total surface area of a hemisphere.,9-10

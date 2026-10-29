@@ -1,0 +1,19 @@
+﻿id,topic,optical_device_or_case,ray_rule_or_result,image_characteristics,sample_exam_prompt,classes
+R001,Spherical mirrors,Concave mirror: object beyond C,Parallel ray reflects through F; ray through C retraces path,"Real, inverted, diminished image between C and F",Draw ray diagram for object beyond C.,9-10
+R002,Spherical mirrors,Concave mirror: object at C,Principal rays meet at C,"Real, inverted, same size at C",Draw image when object is at C.,9-10
+R003,Spherical mirrors,Concave mirror: object between C and F,Reflected rays meet beyond C,"Real, inverted, enlarged",Draw the ray diagram.,9-10
+R004,Spherical mirrors,Concave mirror: object at F,Reflected rays are parallel,Image at infinity; highly enlarged in ideal model,Draw the ray diagram for object at F.,9-10
+R005,Spherical mirrors,Concave mirror: object between F and pole,Reflected rays diverge; backward extensions meet behind mirror,"Virtual, erect, enlarged",Draw the ray diagram.,9-10
+R006,Spherical mirrors,Convex mirror,Parallel ray appears to come from F behind mirror,"Virtual, erect, diminished for a real object",State why convex mirrors are used as rear-view mirrors.,9-10
+R007,Lenses,Convex lens: object beyond 2F1,Ray parallel to axis refracts through F2,"Real, inverted, diminished between F2 and 2F2",Draw the ray diagram.,9-10
+R008,Lenses,Convex lens: object at 2F1,Principal rays meet at 2F2,"Real, inverted, same size",Draw the ray diagram.,9-10
+R009,Lenses,Convex lens: object between F1 and 2F1,Refracted rays meet beyond 2F2,"Real, inverted, enlarged",Draw the ray diagram.,9-10
+R010,Lenses,Convex lens: object at F1,Emergent rays parallel,Image at infinity in ideal model,Draw the ray diagram.,9-10
+R011,Lenses,Convex lens: object between lens and F1,Refracted rays diverge; backward extensions meet on object side,"Virtual, erect, enlarged",Draw the ray diagram.,9-10
+R012,Lenses,Concave lens,Parallel ray diverges as if from F1,"Virtual, erect, diminished for a real object",Draw the ray diagram for a concave lens.,9-10
+R013,Ray rules,Mirror ray parallel to principal axis,Reflects through F for concave mirror; appears from F for convex mirror,Use with a second principal ray,State a principal-ray rule for mirrors.,9-10
+R014,Ray rules,Lens ray parallel to principal axis,Refracts through far focus for convex lens; appears from near focus for concave lens,Use with a second principal ray,State a principal-ray rule for lenses.,9-10
+R015,Optics formula,Mirror formula,1/f = 1/v + 1/u (Cartesian sign convention),Use consistent sign convention,Solve a mirror-formula problem.,10
+R016,Optics formula,Lens formula,1/f = 1/v - 1/u (Cartesian sign convention),Use consistent sign convention,Solve a lens-formula problem.,10
+R017,Optics formula,Magnification in mirrors,m = -v/u,Sign indicates image orientation under Cartesian convention,Calculate mirror magnification.,10
+R018,Optics formula,Magnification in lenses,m = v/u,Sign indicates image orientation under Cartesian convention,Calculate lens magnification.,10

@@ -1,0 +1,9 @@
+﻿id,topic,concept,rule_or_formula,sample_exam_prompt,classes
+S001,Data handling,Tally marks,Group counts in fives,Represent class survey data using tally marks.,5-7
+S002,Data handling,Pictograph,Use a key to represent counts with pictures/symbols,Interpret a pictograph.,5-7
+S003,Data handling,Bar graph,Bars represent category values,Draw a bar graph from a frequency table.,5-8
+S004,Statistics,Mean,Sum of values divided by number of values,Find the mean of five numbers.,6-10
+S005,Statistics,Median,Middle value after sorting; average of two middle values if even count,Find the median.,7-10
+S006,Statistics,Mode,Most frequent value,Find the mode.,6-10
+S007,Probability,Experimental probability,Number of observed successes / number of trials,Calculate experimental probability from results.,7-10
+S008,Probability,Theoretical probability,Favourable equally likely outcomes / total equally likely outcomes,Find probability from a die or coin.,8-10
