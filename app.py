@@ -2514,7 +2514,18 @@ def tutor_exam_details(exam_id):
         WHERE s.exam_id = ?
         ORDER BY s.started_at DESC
     """, (exam_id,))
-    submissions = cursor.fetchall()
+    raw_submissions = cursor.fetchall()
+    submissions = []
+    for s in raw_submissions:
+        s_dict = dict(s)
+        geo = {}
+        if s_dict.get('geo_location_json'):
+            try:
+                geo = json.loads(s_dict['geo_location_json'])
+            except Exception:
+                geo = {}
+        s_dict['geo_info'] = geo
+        submissions.append(s_dict)
     cursor.execute("SELECT id, full_name, roll_number, class_name FROM users WHERE role = 'student' ORDER BY full_name ASC")
     students = cursor.fetchall()
 
@@ -3538,10 +3549,17 @@ def student_start():
         return redirect(url_for("student_exam_room", submission_id=existing["id"]))
 
     # No active session found — create a new in_progress submission
+    # Detect real client IP & Geolocation / VPN risk flags (free-for-dev)
+    client_ip = (request.remote_addr or '127.0.0.1').strip()
+    if request.headers.get('X-Forwarded-For'):
+        client_ip = request.headers.get('X-Forwarded-For').split(',')[0].strip()
+    from cloud_services import get_ip_intelligence
+    geo_data = get_ip_intelligence(client_ip)
+    geo_json = json.dumps(geo_data)
     cursor.execute("""
-        INSERT INTO submissions (exam_id, student_name, roll_number, status, started_at, user_id)
-        VALUES (?, ?, ?, 'in_progress', CURRENT_TIMESTAMP, ?)
-    """, (exam["id"], student_name, roll_number, user_id))
+        INSERT INTO submissions (exam_id, student_name, roll_number, status, started_at, user_id, client_ip, geo_location_json)
+        VALUES (?, ?, ?, 'in_progress', CURRENT_TIMESTAMP, ?, ?, ?)
+    """, (exam['id'], student_name, roll_number, user_id, client_ip, geo_json))
     submission_id = cursor.lastrowid
     conn.commit()
     conn.close()

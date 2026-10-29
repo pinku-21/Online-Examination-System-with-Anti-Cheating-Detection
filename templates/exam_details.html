@@ -222,9 +222,21 @@
                                     <td class="px-6 py-4">
                                         <div class="font-semibold text-slate-900">{{ sub.student_name }}</div>
                                         {% if sub.client_ip %}
-                                            <span class="inline-flex items-center gap-1 text-[11px] font-mono text-slate-400 mt-0.5">
-                                                <i data-lucide="globe" class="w-3 h-3 text-slate-400"></i> {{ sub.client_ip }}
-                                            </span>
+                                            <div class="flex items-center gap-1.5 flex-wrap mt-0.5">
+                                                <span class="inline-flex items-center gap-1 text-[11px] font-mono text-slate-400">
+                                                    <i data-lucide="globe" class="w-3 h-3 text-slate-400"></i> {{ sub.client_ip }}
+                                                </span>
+                                                {% if sub.geo_info and sub.geo_info.city and sub.geo_info.city != "Unknown" %}
+                                                    <span class="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] bg-slate-100 text-slate-600 font-medium">
+                                                        <i data-lucide="map-pin" class="w-2.5 h-2.5 text-slate-400"></i> {{ sub.geo_info.city }}, {{ sub.geo_info.country }}
+                                                    </span>
+                                                {% endif %}
+                                                {% if sub.geo_info and sub.geo_info.is_suspicious %}
+                                                    <span class="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] bg-rose-100 text-rose-700 font-bold border border-rose-200" title="{{ sub.geo_info.risk_reason }}">
+                                                        <i data-lucide="shield-alert" class="w-2.5 h-2.5 text-rose-600"></i> VPN/Proxy Detected
+                                                    </span>
+                                                {% endif %}
+                                            </div>
                                         {% endif %}
                                     </td>
                                     <td class="px-6 py-4 font-mono text-xs text-slate-600">{{ sub.roll_number }}</td>

@@ -104,3 +104,81 @@ def send_transactional_email(to_email, subject, html_content):
         print(f"[CloudServices] Resend email send error: {e}")
         return {"success": False, "error": str(e)}
 
+
+# ── 4. IP GEOLOCATION & PROXY/VPN DETECTOR (free-for-dev) ──────────────────────
+def get_ip_intelligence(client_ip):
+    """
+    Looks up IP geolocation and VPN/hosting/datacenter flags via ipapi.co (free tier).
+    Returns a dict with location, ISP, and risk indicators.
+    """
+    if not client_ip or client_ip in ("127.0.0.1", "::1", "localhost"):
+        return {
+            "ip": client_ip,
+            "city": "Localhost / Dev",
+            "region": "Local",
+            "country": "Local",
+            "isp": "Local Loopback",
+            "is_suspicious": False,
+            "risk_reason": None
+        }
+
+    try:
+        import urllib.request
+        import json
+
+        # Support clean comma-separated X-Forwarded-For IPs
+        clean_ip = client_ip.split(",")[0].strip()
+        url = f"https://ipapi.co/{clean_ip}/json/"
+        req = urllib.request.Request(url, headers={"User-Agent": "ExamGuardAI/1.0"})
+
+        with urllib.request.urlopen(req, timeout=3.5) as resp:
+            data = json.loads(resp.read().decode("utf-8"))
+
+        if data.get("error"):
+            return {
+                "ip": clean_ip,
+                "city": "Unknown",
+                "country": "Unknown",
+                "isp": "Unknown",
+                "is_suspicious": False,
+                "risk_reason": None
+            }
+
+        city = data.get("city") or "Unknown"
+        region = data.get("region") or ""
+        country = data.get("country_name") or data.get("country") or "Unknown"
+        org = data.get("org") or data.get("asn") or ""
+
+        # Known datacenter/hosting/VPN providers that indicate candidates not taking exam directly
+        vpn_indicators = [
+            "digitalocean", "linode", "ovh", "hetzner", "amazon", "aws", "microsoft",
+            "azure", "google cloud", "vultr", "nordvpn", "expressvpn", "mullvad",
+            "surfshark", "proton", "datacenter", "hosting", "tor exit"
+        ]
+
+        org_lower = org.lower()
+        is_suspicious = any(indicator in org_lower for indicator in vpn_indicators)
+        risk_reason = f"Datacenter/VPN/Proxy ASN: {org}" if is_suspicious else None
+
+        return {
+            "ip": clean_ip,
+            "city": city,
+            "region": region,
+            "country": country,
+            "isp": org,
+            "is_suspicious": is_suspicious,
+            "risk_reason": risk_reason
+        }
+    except Exception as e:
+        print(f"[CloudServices] IP Geolocation lookup warning for {client_ip}: {e}")
+        return {
+            "ip": client_ip,
+            "city": "Undetected",
+            "region": "",
+            "country": "",
+            "isp": "",
+            "is_suspicious": False,
+            "risk_reason": None
+        }
+
+
