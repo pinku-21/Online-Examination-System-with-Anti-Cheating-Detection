@@ -3284,7 +3284,18 @@
             if (qType === 'matching' || (q.options && typeof q.options === 'object' && !Array.isArray(q.options) && q.options.left)) {
                 // Interactive Match the Following with dynamic SVG connecting lines
                 renderMatchingQuestion(q, selectedAnswer, container);
-            } else if (qType === 'map_hotspot' || (q.options && typeof q.options === 'object' && !Array.isArray(q.options) && q.options.hotspots)) {
+            } else if (
+                qType === 'map_hotspot' || 
+                qType === 'map' || 
+                (q.figure_url && (q.figure_url.includes('/maps/') || q.figure_url.includes('map'))) ||
+                (q.question_text && (
+                    q.question_text.toLowerCase().includes('outline map') || 
+                    q.question_text.toLowerCase().includes('map of india') || 
+                    q.question_text.toLowerCase().includes('locate and label') ||
+                    q.question_text.toLowerCase().includes('on the given map')
+                )) ||
+                (q.options && typeof q.options === 'object' && !Array.isArray(q.options) && q.options.hotspots)
+            ) {
                 // Interactive Map / Hotspot Identification
                 renderMapHotspotQuestion(q, selectedAnswer, container);
             } else if (Array.isArray(q.options) && q.options.length > 0) {
