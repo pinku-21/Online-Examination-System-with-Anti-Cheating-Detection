@@ -453,11 +453,11 @@ def generate_questions_with_gemini(api_key, text_content=None, image_paths=None,
         return []
 
     models_to_try = [
-        "gemini-3.8-flash",
+        "gemini-flash-lite-latest",
         "gemini-flash-latest",
-        "gemini-3.5-flash",
-        "gemini-3.5-flash-lite",
-        "gemini-flash-lite-latest"
+        "gemini-2.5-flash",
+        "gemini-2.0-flash",
+        "gemini-1.5-flash"
     ]
     
     last_error = None
@@ -473,7 +473,7 @@ def generate_questions_with_gemini(api_key, text_content=None, image_paths=None,
             }
             
             try:
-                resp = http_post(url, json=payload, headers={"Content-Type": "application/json"}, timeout=300)
+                resp = http_post(url, json=payload, headers={"Content-Type": "application/json"}, timeout=45)
                 if resp.status_code == 200:
                     result_json = resp.json()
                     raw_text = result_json["candidates"][0]["content"]["parts"][0]["text"].strip()
@@ -927,13 +927,10 @@ def parse_existing_paper_with_gemini(api_key, raw_text, image_paths=None, availa
     """Parses raw pasted exam paper or uploaded photos/scans using Gemini multimodal vision."""
     system_prompt = build_paper_parser_system_prompt(available_figures=available_figures)
     models = [
-        "gemini-3.8-flash",
-        "gemini-3.5-flash",
-        "gemini-3.7-flash",
+        "gemini-flash-lite-latest",
         "gemini-flash-latest",
-        "gemini-3.5-flash-lite",
-        "gemini-3.1-flash-lite",
-        "gemini-flash-lite-latest"
+        "gemini-2.5-flash",
+        "gemini-2.0-flash"
     ]
     last_err = None
 
@@ -1374,11 +1371,10 @@ STRICT JSON OUTPUT FORMAT (NO MARKDOWN CODEBLOCKS, ONLY VALID JSON):
                 print(f"Error encoding student answer image {img_p}: {e}")
 
         models = [
-            "gemini-3.8-flash",
+            "gemini-flash-lite-latest",
             "gemini-flash-latest",
-            "gemini-3.5-flash",
-            "gemini-3.5-flash-lite",
-            "gemini-flash-lite-latest"
+            "gemini-2.5-flash",
+            "gemini-2.0-flash"
         ]
 
         keys_pool = parse_api_keys(gemini_key)
@@ -1512,18 +1508,11 @@ OUTPUT FORMAT (JSON ONLY, NO MARKDOWN):
 
             # Models to try across v1 and v1beta endpoints, prioritizing Gemini 3.8 & 3.5
             models = [
-                "gemini-3.8-flash",
-                "gemini-3.5-flash",
-                "gemini-3.5-flash-lite",
-                "gemini-3.0-pro",
-                "gemini-flash-latest",
                 "gemini-flash-lite-latest",
+                "gemini-flash-latest",
                 "gemini-2.5-flash",
                 "gemini-2.0-flash",
-                "gemini-1.5-flash",
-                "gemini-2.5-flash-lite",
-                "gemini-2.0-flash-lite",
-                "gemini-1.5-flash-8b"
+                "gemini-1.5-flash"
             ]
 
             api_versions = ["v1beta", "v1"]
