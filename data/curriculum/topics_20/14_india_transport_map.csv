@@ -1,0 +1,11 @@
+﻿map_topic,feature,location_or_region,label,latitude_approx,longitude_approx,teacher_note
+14_india_transport_map,Delhi,Delhi,Major airport/transport hub,28.56,77.1,Approximate airport-area coordinate
+14_india_transport_map,Mumbai,Maharashtra,Major airport/transport hub,19.09,72.87,Approximate airport-area coordinate
+14_india_transport_map,Kolkata,West Bengal,Major airport/transport hub,22.65,88.45,Approximate airport-area coordinate
+14_india_transport_map,Chennai,Tamil Nadu,Major airport/transport hub,12.99,80.17,Approximate airport-area coordinate
+14_india_transport_map,Hyderabad,Telangana,Major airport/transport hub,17.24,78.43,Approximate airport-area coordinate
+14_india_transport_map,Bengaluru,Karnataka,Major airport/transport hub,13.2,77.71,Approximate airport-area coordinate
+14_india_transport_map,Bhubaneswar,Odisha,Major airport/transport hub,20.25,85.82,Approximate airport-area coordinate
+14_india_transport_map,Golden Quadrilateral,Major inter-city corridor,Road network,,,Line feature; use a transport map
+14_india_transport_map,Konkan Railway,Western coastal corridor,Railway line,,,Line feature; use a transport map
+14_india_transport_map,Delhi–Mumbai corridor,Northwestern to western India,Transport corridor,,,Line feature; schematic route depends on map

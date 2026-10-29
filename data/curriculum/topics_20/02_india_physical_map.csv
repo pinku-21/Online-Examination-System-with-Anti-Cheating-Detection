@@ -1,0 +1,13 @@
+﻿map_topic,feature,location_or_region,label,latitude_approx,longitude_approx,teacher_note
+02_india_physical_map,Himalayas,Northern India,Mountain system,30.5,80.0,"Label mountain belt, not a single point"
+02_india_physical_map,Northern Plains,Northern India,Plain,27.5,80.0,Broad region
+02_india_physical_map,Thar Desert,Western Rajasthan,Desert,27.0,71.0,Broad region
+02_india_physical_map,Peninsular Plateau,Central and southern India,Plateau,18.5,78.0,Broad region
+02_india_physical_map,Deccan Plateau,Southern India,Plateau,17.5,76.5,Broad region
+02_india_physical_map,Western Coastal Plains,Western coast,Coastal plain,14.0,74.0,Broad region
+02_india_physical_map,Eastern Coastal Plains,Eastern coast,Coastal plain,15.0,81.0,Broad region
+02_india_physical_map,Aravalli Range,Rajasthan and nearby areas,Mountain range,26.0,74.5,Approximate range centre
+02_india_physical_map,Western Ghats,Western peninsular edge,Mountain range,14.0,74.0,Approximate range centre
+02_india_physical_map,Eastern Ghats,Eastern peninsular India,Mountain range,16.0,82.0,Approximate range centre
+02_india_physical_map,Chota Nagpur Plateau,Jharkhand region,Plateau,23.5,85.5,Broad region
+02_india_physical_map,Brahmaputra Valley,Assam,Valley,26.5,92.5,Broad region

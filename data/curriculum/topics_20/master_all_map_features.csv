@@ -1,0 +1,231 @@
+﻿map_topic,feature,location_or_region,label,latitude_approx,longitude_approx,teacher_note
+01_india_political_map,Andhra Pradesh,Southeastern India,State,15.9,79.7,Approximate state-centre coordinate
+01_india_political_map,Arunachal Pradesh,Northeastern India,State,28.2,94.7,Approximate state-centre coordinate
+01_india_political_map,Assam,Northeastern India,State,26.2,92.9,Approximate state-centre coordinate
+01_india_political_map,Bihar,Eastern India,State,25.9,85.5,Approximate state-centre coordinate
+01_india_political_map,Chhattisgarh,Central-eastern India,State,21.3,82.0,Approximate state-centre coordinate
+01_india_political_map,Goa,Western coast,State,15.3,74.0,Approximate state-centre coordinate
+01_india_political_map,Gujarat,Western India,State,22.3,71.6,Approximate state-centre coordinate
+01_india_political_map,Haryana,Northern India,State,29.0,76.1,Approximate state-centre coordinate
+01_india_political_map,Himachal Pradesh,Himalayan region,State,31.8,77.2,Approximate state-centre coordinate
+01_india_political_map,Jharkhand,Eastern India,State,23.6,85.3,Approximate state-centre coordinate
+01_india_political_map,Karnataka,Southern India,State,15.3,75.7,Approximate state-centre coordinate
+01_india_political_map,Kerala,Southwestern coast,State,10.5,76.3,Approximate state-centre coordinate
+01_india_political_map,Madhya Pradesh,Central India,State,23.5,78.5,Approximate state-centre coordinate
+01_india_political_map,Maharashtra,Western India,State,19.7,75.7,Approximate state-centre coordinate
+01_india_political_map,Manipur,Northeastern India,State,24.7,93.9,Approximate state-centre coordinate
+01_india_political_map,Meghalaya,Northeastern India,State,25.5,91.3,Approximate state-centre coordinate
+01_india_political_map,Mizoram,Northeastern India,State,23.2,92.8,Approximate state-centre coordinate
+01_india_political_map,Nagaland,Northeastern India,State,26.0,94.5,Approximate state-centre coordinate
+01_india_political_map,Odisha,Eastern India,State,20.5,84.4,Approximate state-centre coordinate
+01_india_political_map,Punjab,Northwestern India,State,31.0,75.4,Approximate state-centre coordinate
+01_india_political_map,Rajasthan,Northwestern India,State,26.8,73.8,Approximate state-centre coordinate
+01_india_political_map,Sikkim,Himalayan region,State,27.5,88.5,Approximate state-centre coordinate
+01_india_political_map,Tamil Nadu,Southern India,State,11.0,78.5,Approximate state-centre coordinate
+01_india_political_map,Telangana,Southern India,State,17.9,79.0,Approximate state-centre coordinate
+01_india_political_map,Tripura,Northeastern India,State,23.8,91.3,Approximate state-centre coordinate
+01_india_political_map,Uttar Pradesh,Northern India,State,27.0,80.9,Approximate state-centre coordinate
+01_india_political_map,Uttarakhand,Himalayan region,State,30.1,79.0,Approximate state-centre coordinate
+01_india_political_map,West Bengal,Eastern India,State,23.0,87.8,Approximate state-centre coordinate
+01_india_political_map,Andaman and Nicobar Islands,Bay of Bengal,Union Territory,11.7,92.7,Approximate archipelago coordinate
+01_india_political_map,Chandigarh,Northern India,Union Territory,30.7,76.8,City/UT coordinate
+01_india_political_map,Dadra and Nagar Haveli and Daman and Diu,Western India,Union Territory,20.4,72.9,Approximate coordinate; UT has separated parts
+01_india_political_map,Delhi (National Capital Territory),Northern India,Union Territory,28.6,77.2,City/UT coordinate
+01_india_political_map,Jammu and Kashmir,Northern India,Union Territory,33.8,76.5,Approximate coordinate; territory spans a large area
+01_india_political_map,Ladakh,Northern India,Union Territory,34.2,77.6,Approximate coordinate
+01_india_political_map,Lakshadweep,Arabian Sea,Union Territory,10.6,72.6,Approximate archipelago coordinate
+01_india_political_map,Puducherry,Southern/eastern coast,Union Territory,11.9,79.8,Approximate coordinate; includes separated enclaves
+02_india_physical_map,Himalayas,Northern India,Mountain system,30.5,80.0,"Label mountain belt, not a single point"
+02_india_physical_map,Northern Plains,Northern India,Plain,27.5,80.0,Broad region
+02_india_physical_map,Thar Desert,Western Rajasthan,Desert,27.0,71.0,Broad region
+02_india_physical_map,Peninsular Plateau,Central and southern India,Plateau,18.5,78.0,Broad region
+02_india_physical_map,Deccan Plateau,Southern India,Plateau,17.5,76.5,Broad region
+02_india_physical_map,Western Coastal Plains,Western coast,Coastal plain,14.0,74.0,Broad region
+02_india_physical_map,Eastern Coastal Plains,Eastern coast,Coastal plain,15.0,81.0,Broad region
+02_india_physical_map,Aravalli Range,Rajasthan and nearby areas,Mountain range,26.0,74.5,Approximate range centre
+02_india_physical_map,Western Ghats,Western peninsular edge,Mountain range,14.0,74.0,Approximate range centre
+02_india_physical_map,Eastern Ghats,Eastern peninsular India,Mountain range,16.0,82.0,Approximate range centre
+02_india_physical_map,Chota Nagpur Plateau,Jharkhand region,Plateau,23.5,85.5,Broad region
+02_india_physical_map,Brahmaputra Valley,Assam,Valley,26.5,92.5,Broad region
+03_india_outline_map,Northernmost mainland region,Ladakh,Practice boundary/position,35.0,77.0,Use a current official blank outline map
+03_india_outline_map,Southernmost mainland region,Kanyakumari region,Practice boundary/position,8.1,77.5,Approximate point
+03_india_outline_map,Westernmost region,Gujarat/Rajasthan border region,Practice boundary/position,23.7,68.2,Approximate point
+03_india_outline_map,Easternmost region,Arunachal Pradesh,Practice boundary/position,28.0,97.0,Approximate point
+03_india_outline_map,Arabian Sea,West of India,Water body,15.0,68.0,Label outside mainland
+03_india_outline_map,Bay of Bengal,East of India,Water body,15.0,87.0,Label outside mainland
+03_india_outline_map,Indian Ocean,South of India,Water body,0.0,80.0,Label outside mainland
+04_india_rivers_map,Ganga,Northern India,River,25.3,83.0,Approximate central course location
+04_india_rivers_map,Yamuna,Northern India,River,27.0,79.0,Approximate central course location
+04_india_rivers_map,Brahmaputra,Northeastern India,River,26.2,92.0,Approximate central course location
+04_india_rivers_map,Indus,Ladakh and northwest region,River,34.0,77.5,Approximate course location
+04_india_rivers_map,Narmada,Central India,River,22.7,78.5,Approximate central course location
+04_india_rivers_map,Tapi (Tapti),Central-western India,River,21.0,75.5,Approximate central course location
+04_india_rivers_map,Godavari,Central and southeastern India,River,18.7,80.0,Approximate central course location
+04_india_rivers_map,Krishna,Southern India,River,16.5,78.5,Approximate central course location
+04_india_rivers_map,Mahanadi,Central-eastern India,River,20.5,83.5,Approximate central course location
+04_india_rivers_map,Kaveri (Cauvery),Southern India,River,11.8,78.8,Approximate central course location
+04_india_rivers_map,Sutlej,Northern India,River,31.5,76.5,Approximate course location
+04_india_rivers_map,Chenab,Northern India,River,33.0,75.5,Approximate course location
+05_india_mountains_map,Karakoram Range,Ladakh/northern region,Mountain range,35.0,77.5,Broad range location
+05_india_mountains_map,Himalayas,Northern India,Mountain system,30.5,80.0,Broad range location
+05_india_mountains_map,Aravalli Range,Rajasthan,Mountain range,26.0,74.5,Broad range location
+05_india_mountains_map,Vindhya Range,Central India,Mountain range,24.5,79.0,Broad range location
+05_india_mountains_map,Satpura Range,Central India,Mountain range,22.5,78.0,Broad range location
+05_india_mountains_map,Western Ghats,Western peninsular India,Mountain range,14.0,74.0,Broad range location
+05_india_mountains_map,Eastern Ghats,Eastern peninsular India,Mountain range,16.0,82.0,Broad range location
+05_india_mountains_map,Nilgiri Hills,Tamil Nadu/Kerala/Karnataka junction,Hills,11.4,76.7,Approximate location
+05_india_mountains_map,Garo Hills,Meghalaya,Hills,25.6,90.5,Approximate location
+05_india_mountains_map,Khasi Hills,Meghalaya,Hills,25.4,91.7,Approximate location
+06_india_soil_map,Alluvial soil,Northern Plains and river deltas,Soil region,,,Thematic region; use a soil-region map
+06_india_soil_map,Black soil,Deccan Trap region,Soil region,,,Thematic region; especially Maharashtra and adjoining areas
+06_india_soil_map,Red and yellow soil,Parts of eastern and southern plateau,Soil region,,,Thematic region
+06_india_soil_map,Laterite soil,High-rainfall areas of Western/Eastern Ghats,Soil region,,,Thematic region
+06_india_soil_map,Arid soil,Western Rajasthan and adjoining areas,Soil region,,,Thematic region
+06_india_soil_map,Forest and mountain soil,Himalayan and highland regions,Soil region,,,Thematic region
+06_india_soil_map,Saline/alkaline soil,Scattered dry and irrigated regions,Soil region,,,Thematic region
+06_india_soil_map,Peaty and marshy soil,Selected wetland/coastal areas,Soil region,,,Thematic region
+07_india_climate_map,Tropical wet climate,Western coast and northeastern pockets,Climate region,,,Use official/textbook climate classification
+07_india_climate_map,Tropical wet-and-dry climate,Large parts of peninsular India,Climate region,,,Broad school-level classification
+07_india_climate_map,Arid climate,Western Rajasthan,Climate region,,,Broad region
+07_india_climate_map,Semi-arid climate,Parts of northwest and Deccan,Climate region,,,Broad region
+07_india_climate_map,Humid subtropical climate,Northern plains,Climate region,,,Classification varies by source
+07_india_climate_map,Mountain climate,Himalayan region,Climate region,,,Broad region
+08_india_rainfall_map,Very heavy rainfall,Meghalaya and parts of Western Ghats,Rainfall region,,,Use an annual/normal rainfall map
+08_india_rainfall_map,Heavy rainfall,Western coast and northeast,Rainfall region,,,Broad region
+08_india_rainfall_map,Moderate rainfall,Parts of central and eastern India,Rainfall region,,,Broad region
+08_india_rainfall_map,Low rainfall,Interior Deccan and parts of northwest,Rainfall region,,,Broad region
+08_india_rainfall_map,Very low rainfall,Western Rajasthan,Rainfall region,,,Broad region
+09_india_agriculture_map,Rice,"West Bengal, Odisha, Chhattisgarh, Andhra Pradesh and others",Crop region,,,Crop areas vary by year
+09_india_agriculture_map,Wheat,"Punjab, Haryana, Uttar Pradesh and Madhya Pradesh",Crop region,,,Crop areas vary by year
+09_india_agriculture_map,Cotton,"Gujarat, Maharashtra, Telangana and others",Crop region,,,Crop areas vary by year
+09_india_agriculture_map,Jute,West Bengal and parts of eastern India,Crop region,,,West Bengal is the principal traditional jute state
+09_india_agriculture_map,Tea,"Assam, West Bengal hills, Tamil Nadu and Kerala",Crop region,,,Crop areas vary by year
+09_india_agriculture_map,Coffee,"Karnataka, Kerala and Tamil Nadu hills",Crop region,,,Crop areas vary by year
+09_india_agriculture_map,Sugarcane,"Uttar Pradesh, Maharashtra, Karnataka and others",Crop region,,,Crop areas vary by year
+09_india_agriculture_map,Millets,"Rajasthan, Maharashtra, Karnataka and others",Crop region,,,Crop areas vary by year
+09_india_agriculture_map,Rubber,Kerala and adjoining areas,Crop region,,,Crop areas vary by year
+10_india_mineral_map,Coal,"Jharkhand, Odisha, Chhattisgarh, West Bengal and others",Mineral region,,,Use current mineral-resource map
+10_india_mineral_map,Iron ore,"Odisha, Chhattisgarh, Karnataka and Jharkhand",Mineral region,,,Use current mineral-resource map
+10_india_mineral_map,Bauxite,"Odisha, Gujarat, Jharkhand and others",Mineral region,,,Use current mineral-resource map
+10_india_mineral_map,Manganese,"Odisha, Karnataka, Madhya Pradesh and others",Mineral region,,,Use current mineral-resource map
+10_india_mineral_map,Petroleum,"Assam, Gujarat, offshore western coast and others",Mineral region,,,Use current petroleum field map
+10_india_mineral_map,Natural gas,"Western offshore, Gujarat, Assam and eastern offshore areas",Mineral region,,,Use current resource map
+10_india_mineral_map,Mica,"Jharkhand, Bihar region, Andhra Pradesh and Rajasthan",Mineral region,,,Use current mineral-resource map
+10_india_mineral_map,Limestone,"Rajasthan, Madhya Pradesh, Andhra Pradesh and others",Mineral region,,,Use current mineral-resource map
+11_india_industrial_map,Jamshedpur Steel Plant,Jharkhand,Iron and steel plant,22.8,86.2,Approximate city coordinate
+11_india_industrial_map,Bokaro Steel Plant,Jharkhand,Iron and steel plant,23.7,86.1,Approximate city coordinate
+11_india_industrial_map,Bhilai Steel Plant,Chhattisgarh,Iron and steel plant,21.2,81.4,Approximate city coordinate
+11_india_industrial_map,Rourkela Steel Plant,Odisha,Iron and steel plant,22.2,84.9,Approximate city coordinate
+11_india_industrial_map,Durgapur Steel Plant,West Bengal,Iron and steel plant,23.5,87.3,Approximate city coordinate
+11_india_industrial_map,Burnpur/IISCO Steel Plant,West Bengal,Iron and steel plant,23.7,86.9,Approximate city coordinate
+11_india_industrial_map,Vijayanagar Steel Plant,Karnataka,Iron and steel plant,15.2,76.6,Approximate location
+11_india_industrial_map,Salem Steel Plant,Tamil Nadu,Steel plant,11.7,78.2,Approximate city coordinate
+11_india_industrial_map,Mumbai,Maharashtra,Major industrial centre,19.1,72.9,Approximate city coordinate
+11_india_industrial_map,Ahmedabad,Gujarat,Major industrial centre,23.0,72.6,Approximate city coordinate
+11_india_industrial_map,Pune,Maharashtra,Major industrial centre,18.5,73.9,Approximate city coordinate
+11_india_industrial_map,Bengaluru,Karnataka,Major industrial/IT centre,12.97,77.59,Approximate city coordinate
+12_india_power_plants_map,Singrauli Super Thermal Power Station,Uttar Pradesh/Madhya Pradesh region,Thermal power,24.1,82.7,Approximate location; verify station/site name
+12_india_power_plants_map,Ramagundam Super Thermal Power Station,Telangana,Thermal power,18.8,79.5,Approximate location
+12_india_power_plants_map,Namrup Thermal Power Station,Assam,Thermal power,27.2,95.0,Approximate location; verify current status
+12_india_power_plants_map,Talcher Kaniha Super Thermal Power Station,Odisha,Thermal power,20.9,85.2,Approximate location
+12_india_power_plants_map,Tarapur Atomic Power Station,Maharashtra,Nuclear power,19.8,72.7,Approximate location
+12_india_power_plants_map,Rajasthan Atomic Power Station,Rajasthan,Nuclear power,24.9,75.6,Approximate location
+12_india_power_plants_map,Madras Atomic Power Station,"Kalpakkam, Tamil Nadu",Nuclear power,12.6,80.2,Approximate location
+12_india_power_plants_map,Narora Atomic Power Station,Uttar Pradesh,Nuclear power,28.2,78.4,Approximate location
+12_india_power_plants_map,Kakrapar Atomic Power Station,Gujarat,Nuclear power,21.2,73.4,Approximate location
+12_india_power_plants_map,Kaiga Generating Station,Karnataka,Nuclear power,14.9,74.4,Approximate location
+12_india_power_plants_map,Kudankulam Nuclear Power Plant,Tamil Nadu,Nuclear power,8.2,77.7,Approximate location
+13_india_dams_map,Bhakra Dam,Himachal Pradesh,Dam,31.4,76.4,Approximate location
+13_india_dams_map,Tehri Dam,Uttarakhand,Dam,30.4,78.5,Approximate location
+13_india_dams_map,Sardar Sarovar Dam,Gujarat,Dam,21.8,73.7,Approximate location
+13_india_dams_map,Hirakud Dam,Odisha,Dam,21.5,83.9,Approximate location
+13_india_dams_map,Nagarjuna Sagar Dam,Telangana/Andhra Pradesh region,Dam,16.6,79.3,Approximate location
+13_india_dams_map,Tungabhadra Dam,Karnataka,Dam,15.3,76.3,Approximate location
+13_india_dams_map,Salal Dam,Jammu and Kashmir,Dam,33.1,74.8,Approximate location
+13_india_dams_map,Rana Pratap Sagar Dam,Rajasthan,Dam,24.9,75.6,Approximate location
+13_india_dams_map,Mettur Dam,Tamil Nadu,Dam,11.8,77.8,Approximate location
+13_india_dams_map,Idukki Dam,Kerala,Dam,9.8,76.9,Approximate location
+14_india_transport_map,Delhi,Delhi,Major airport/transport hub,28.56,77.1,Approximate airport-area coordinate
+14_india_transport_map,Mumbai,Maharashtra,Major airport/transport hub,19.09,72.87,Approximate airport-area coordinate
+14_india_transport_map,Kolkata,West Bengal,Major airport/transport hub,22.65,88.45,Approximate airport-area coordinate
+14_india_transport_map,Chennai,Tamil Nadu,Major airport/transport hub,12.99,80.17,Approximate airport-area coordinate
+14_india_transport_map,Hyderabad,Telangana,Major airport/transport hub,17.24,78.43,Approximate airport-area coordinate
+14_india_transport_map,Bengaluru,Karnataka,Major airport/transport hub,13.2,77.71,Approximate airport-area coordinate
+14_india_transport_map,Bhubaneswar,Odisha,Major airport/transport hub,20.25,85.82,Approximate airport-area coordinate
+14_india_transport_map,Golden Quadrilateral,Major inter-city corridor,Road network,,,Line feature; use a transport map
+14_india_transport_map,Konkan Railway,Western coastal corridor,Railway line,,,Line feature; use a transport map
+14_india_transport_map,Delhi–Mumbai corridor,Northwestern to western India,Transport corridor,,,Line feature; schematic route depends on map
+15_india_ports_map,Deendayal Port (Kandla),Gujarat,Sea port,23.0,70.2,Approximate port-area coordinate
+15_india_ports_map,Mumbai Port,Maharashtra,Sea port,18.9,72.8,Approximate port-area coordinate
+15_india_ports_map,Jawaharlal Nehru Port,Maharashtra,Sea port,18.9,72.9,Approximate port-area coordinate
+15_india_ports_map,Mormugao Port,Goa,Sea port,15.4,73.8,Approximate port-area coordinate
+15_india_ports_map,New Mangalore Port,Karnataka,Sea port,12.9,74.8,Approximate port-area coordinate
+15_india_ports_map,Cochin Port,Kerala,Sea port,9.97,76.3,Approximate port-area coordinate
+15_india_ports_map,Chennai Port,Tamil Nadu,Sea port,13.1,80.3,Approximate port-area coordinate
+15_india_ports_map,V.O. Chidambaranar Port,Tamil Nadu,Sea port,8.8,78.2,Approximate port-area coordinate
+15_india_ports_map,Visakhapatnam Port,Andhra Pradesh,Sea port,17.7,83.3,Approximate port-area coordinate
+15_india_ports_map,Paradip Port,Odisha,Sea port,20.3,86.7,Approximate port-area coordinate
+15_india_ports_map,Syama Prasad Mookerjee Port,West Bengal,Sea/river port system,22.5,88.3,Kolkata–Haldia port system; approximate
+15_india_ports_map,Kamarajar Port,Tamil Nadu,Sea port,13.3,80.3,Approximate port-area coordinate
+16_world_political_map,India,South Asia,Country,20.6,78.9,Approximate country-centre coordinate
+16_world_political_map,China,East Asia,Country,35.9,104.2,Approximate country-centre coordinate
+16_world_political_map,Japan,East Asia,Country,36.2,138.3,Approximate country-centre coordinate
+16_world_political_map,Australia,Oceania,Country,-25.3,133.8,Approximate country-centre coordinate
+16_world_political_map,Egypt,North Africa,Country,26.8,30.8,Approximate country-centre coordinate
+16_world_political_map,Nigeria,West Africa,Country,9.1,8.7,Approximate country-centre coordinate
+16_world_political_map,South Africa,Southern Africa,Country,-30.6,22.9,Approximate country-centre coordinate
+16_world_political_map,United Kingdom,Europe,Country,55.4,-3.4,Approximate country-centre coordinate
+16_world_political_map,France,Europe,Country,46.2,2.2,Approximate country-centre coordinate
+16_world_political_map,Germany,Europe,Country,51.2,10.4,Approximate country-centre coordinate
+16_world_political_map,Russia,Europe and Asia,Country,61.5,105.3,Approximate country-centre coordinate
+16_world_political_map,United States,North America,Country,39.8,-98.6,Approximate country-centre coordinate
+16_world_political_map,Canada,North America,Country,56.1,-106.3,Approximate country-centre coordinate
+16_world_political_map,Mexico,North America,Country,23.6,-102.5,Approximate country-centre coordinate
+16_world_political_map,Brazil,South America,Country,-10.8,-52.9,Approximate country-centre coordinate
+16_world_political_map,Argentina,South America,Country,-38.4,-63.6,Approximate country-centre coordinate
+16_world_political_map,Saudi Arabia,West Asia,Country,23.9,45.1,Approximate country-centre coordinate
+16_world_political_map,Indonesia,Southeast Asia,Country,-0.8,113.9,Approximate country-centre coordinate
+16_world_political_map,New Zealand,Oceania,Country,-40.9,174.9,Approximate country-centre coordinate
+16_world_political_map,Greenland,North Atlantic/Arctic,Autonomous territory,71.7,-42.6,Not a sovereign country
+17_world_physical_map,Himalayas,Asia,Mountain range,28.0,86.9,Approximate range centre
+17_world_physical_map,Andes,South America,Mountain range,-20.0,-69.0,Approximate range centre
+17_world_physical_map,Rocky Mountains,North America,Mountain range,40.0,-110.0,Approximate range centre
+17_world_physical_map,Alps,Europe,Mountain range,46.5,10.5,Approximate range centre
+17_world_physical_map,Sahara Desert,North Africa,Desert,23.0,13.0,Broad region
+17_world_physical_map,Gobi Desert,Mongolia/China,Desert,42.5,105.0,Broad region
+17_world_physical_map,Amazon River,South America,River,-3.5,-60.0,Approximate course location
+17_world_physical_map,Nile River,Northeastern Africa,River,15.0,32.5,Approximate course location
+17_world_physical_map,Mississippi River,North America,River,35.0,-90.0,Approximate course location
+17_world_physical_map,Yangtze River,China,River,30.5,111.0,Approximate course location
+17_world_physical_map,Great Dividing Range,Eastern Australia,Mountain range,-25.0,151.0,Approximate range centre
+17_world_physical_map,Tibetan Plateau,Central Asia,Plateau,32.0,88.0,Broad region
+18_world_continents_oceans_map,Asia,Continent,Continent,34.0,100.0,Approximate centre
+18_world_continents_oceans_map,Africa,Continent,Continent,0.0,20.0,Approximate centre
+18_world_continents_oceans_map,North America,Continent,Continent,45.0,-100.0,Approximate centre
+18_world_continents_oceans_map,South America,Continent,Continent,-15.0,-60.0,Approximate centre
+18_world_continents_oceans_map,Antarctica,Continent,Continent,-82.0,0.0,Approximate centre
+18_world_continents_oceans_map,Europe,Continent,Continent,54.0,15.0,Approximate centre
+18_world_continents_oceans_map,Australia,Continent/landmass,Continent/landmass,-25.0,134.0,School convention commonly treats Australia as a continent
+18_world_continents_oceans_map,Pacific Ocean,Ocean,Ocean,0.0,-150.0,Approximate central location
+18_world_continents_oceans_map,Atlantic Ocean,Ocean,Ocean,0.0,-30.0,Approximate central location
+18_world_continents_oceans_map,Indian Ocean,Ocean,Ocean,-20.0,80.0,Approximate central location
+18_world_continents_oceans_map,Arctic Ocean,Ocean,Ocean,85.0,0.0,Approximate central location
+18_world_continents_oceans_map,Southern Ocean,Ocean,Ocean,-65.0,0.0,Approximate central location
+19_world_climate_map,Tropical zone,Near the Equator,Climate zone,,,Broad climatic belt; boundaries vary by classification
+19_world_climate_map,Dry/desert zone,"Sahara, Arabian Peninsula, central Australia",Climate zone,,,Broad region
+19_world_climate_map,Mediterranean climate,"Mediterranean basin, California, central Chile, Cape region, southwest Australia",Climate region,,,Broad region
+19_world_climate_map,Temperate maritime climate,Western Europe and selected coastal regions,Climate region,,,Broad region
+19_world_climate_map,Continental climate,Interior mid-latitude land areas,Climate region,,,Broad region
+19_world_climate_map,Polar climate,Antarctica and Arctic areas,Climate region,,,Broad region
+19_world_climate_map,Highland climate,Major mountain ranges,Climate region,,,Broad region
+19_world_climate_map,Monsoon climate,South and Southeast Asia,Climate region,,,Broad region
+20_world_time_zones_map,UTC−12,Far-western Pacific date-line zone,Time-zone offset,,,Time-zone boundaries are political and irregular
+20_world_time_zones_map,UTC−8,Pacific coast of North America (standard-time examples),Time-zone offset,,,Seasonal daylight saving may alter local time
+20_world_time_zones_map,UTC−5,Eastern North America (standard-time examples),Time-zone offset,,,Seasonal daylight saving may alter local time
+20_world_time_zones_map,UTC+0,Greenwich/UTC reference,Time-zone offset,51.48,0.0,UTC reference point
+20_world_time_zones_map,UTC+1,Central Europe (standard-time examples),Time-zone offset,,,Seasonal daylight saving may alter local time
+20_world_time_zones_map,UTC+5:30,India Standard Time,Time-zone offset,28.6,77.2,India uses one standard time zone
+20_world_time_zones_map,UTC+8,China and parts of East/Southeast Asia,Time-zone offset,,,China officially uses one standard time zone
+20_world_time_zones_map,UTC+9,Japan Standard Time,Time-zone offset,,,Japan standard time
+20_world_time_zones_map,UTC+10,Eastern Australia (examples),Time-zone offset,,,Local rules vary
+20_world_time_zones_map,UTC+12,New Zealand standard-time region (examples),Time-zone offset,,,Seasonal daylight saving may alter local time

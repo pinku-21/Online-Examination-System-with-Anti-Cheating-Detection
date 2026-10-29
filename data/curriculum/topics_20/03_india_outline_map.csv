@@ -1,0 +1,8 @@
+﻿map_topic,feature,location_or_region,label,latitude_approx,longitude_approx,teacher_note
+03_india_outline_map,Northernmost mainland region,Ladakh,Practice boundary/position,35.0,77.0,Use a current official blank outline map
+03_india_outline_map,Southernmost mainland region,Kanyakumari region,Practice boundary/position,8.1,77.5,Approximate point
+03_india_outline_map,Westernmost region,Gujarat/Rajasthan border region,Practice boundary/position,23.7,68.2,Approximate point
+03_india_outline_map,Easternmost region,Arunachal Pradesh,Practice boundary/position,28.0,97.0,Approximate point
+03_india_outline_map,Arabian Sea,West of India,Water body,15.0,68.0,Label outside mainland
+03_india_outline_map,Bay of Bengal,East of India,Water body,15.0,87.0,Label outside mainland
+03_india_outline_map,Indian Ocean,South of India,Water body,0.0,80.0,Label outside mainland

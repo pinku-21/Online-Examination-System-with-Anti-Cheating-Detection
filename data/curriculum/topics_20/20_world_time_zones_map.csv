@@ -1,0 +1,11 @@
+﻿map_topic,feature,location_or_region,label,latitude_approx,longitude_approx,teacher_note
+20_world_time_zones_map,UTC−12,Far-western Pacific date-line zone,Time-zone offset,,,Time-zone boundaries are political and irregular
+20_world_time_zones_map,UTC−8,Pacific coast of North America (standard-time examples),Time-zone offset,,,Seasonal daylight saving may alter local time
+20_world_time_zones_map,UTC−5,Eastern North America (standard-time examples),Time-zone offset,,,Seasonal daylight saving may alter local time
+20_world_time_zones_map,UTC+0,Greenwich/UTC reference,Time-zone offset,51.48,0.0,UTC reference point
+20_world_time_zones_map,UTC+1,Central Europe (standard-time examples),Time-zone offset,,,Seasonal daylight saving may alter local time
+20_world_time_zones_map,UTC+5:30,India Standard Time,Time-zone offset,28.6,77.2,India uses one standard time zone
+20_world_time_zones_map,UTC+8,China and parts of East/Southeast Asia,Time-zone offset,,,China officially uses one standard time zone
+20_world_time_zones_map,UTC+9,Japan Standard Time,Time-zone offset,,,Japan standard time
+20_world_time_zones_map,UTC+10,Eastern Australia (examples),Time-zone offset,,,Local rules vary
+20_world_time_zones_map,UTC+12,New Zealand standard-time region (examples),Time-zone offset,,,Seasonal daylight saving may alter local time

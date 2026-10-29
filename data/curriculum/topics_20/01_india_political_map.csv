@@ -1,0 +1,37 @@
+﻿map_topic,feature,location_or_region,label,latitude_approx,longitude_approx,teacher_note
+01_india_political_map,Andhra Pradesh,Southeastern India,State,15.9,79.7,Approximate state-centre coordinate
+01_india_political_map,Arunachal Pradesh,Northeastern India,State,28.2,94.7,Approximate state-centre coordinate
+01_india_political_map,Assam,Northeastern India,State,26.2,92.9,Approximate state-centre coordinate
+01_india_political_map,Bihar,Eastern India,State,25.9,85.5,Approximate state-centre coordinate
+01_india_political_map,Chhattisgarh,Central-eastern India,State,21.3,82.0,Approximate state-centre coordinate
+01_india_political_map,Goa,Western coast,State,15.3,74.0,Approximate state-centre coordinate
+01_india_political_map,Gujarat,Western India,State,22.3,71.6,Approximate state-centre coordinate
+01_india_political_map,Haryana,Northern India,State,29.0,76.1,Approximate state-centre coordinate
+01_india_political_map,Himachal Pradesh,Himalayan region,State,31.8,77.2,Approximate state-centre coordinate
+01_india_political_map,Jharkhand,Eastern India,State,23.6,85.3,Approximate state-centre coordinate
+01_india_political_map,Karnataka,Southern India,State,15.3,75.7,Approximate state-centre coordinate
+01_india_political_map,Kerala,Southwestern coast,State,10.5,76.3,Approximate state-centre coordinate
+01_india_political_map,Madhya Pradesh,Central India,State,23.5,78.5,Approximate state-centre coordinate
+01_india_political_map,Maharashtra,Western India,State,19.7,75.7,Approximate state-centre coordinate
+01_india_political_map,Manipur,Northeastern India,State,24.7,93.9,Approximate state-centre coordinate
+01_india_political_map,Meghalaya,Northeastern India,State,25.5,91.3,Approximate state-centre coordinate
+01_india_political_map,Mizoram,Northeastern India,State,23.2,92.8,Approximate state-centre coordinate
+01_india_political_map,Nagaland,Northeastern India,State,26.0,94.5,Approximate state-centre coordinate
+01_india_political_map,Odisha,Eastern India,State,20.5,84.4,Approximate state-centre coordinate
+01_india_political_map,Punjab,Northwestern India,State,31.0,75.4,Approximate state-centre coordinate
+01_india_political_map,Rajasthan,Northwestern India,State,26.8,73.8,Approximate state-centre coordinate
+01_india_political_map,Sikkim,Himalayan region,State,27.5,88.5,Approximate state-centre coordinate
+01_india_political_map,Tamil Nadu,Southern India,State,11.0,78.5,Approximate state-centre coordinate
+01_india_political_map,Telangana,Southern India,State,17.9,79.0,Approximate state-centre coordinate
+01_india_political_map,Tripura,Northeastern India,State,23.8,91.3,Approximate state-centre coordinate
+01_india_political_map,Uttar Pradesh,Northern India,State,27.0,80.9,Approximate state-centre coordinate
+01_india_political_map,Uttarakhand,Himalayan region,State,30.1,79.0,Approximate state-centre coordinate
+01_india_political_map,West Bengal,Eastern India,State,23.0,87.8,Approximate state-centre coordinate
+01_india_political_map,Andaman and Nicobar Islands,Bay of Bengal,Union Territory,11.7,92.7,Approximate archipelago coordinate
+01_india_political_map,Chandigarh,Northern India,Union Territory,30.7,76.8,City/UT coordinate
+01_india_political_map,Dadra and Nagar Haveli and Daman and Diu,Western India,Union Territory,20.4,72.9,Approximate coordinate; UT has separated parts
+01_india_political_map,Delhi (National Capital Territory),Northern India,Union Territory,28.6,77.2,City/UT coordinate
+01_india_political_map,Jammu and Kashmir,Northern India,Union Territory,33.8,76.5,Approximate coordinate; territory spans a large area
+01_india_political_map,Ladakh,Northern India,Union Territory,34.2,77.6,Approximate coordinate
+01_india_political_map,Lakshadweep,Arabian Sea,Union Territory,10.6,72.6,Approximate archipelago coordinate
+01_india_political_map,Puducherry,Southern/eastern coast,Union Territory,11.9,79.8,Approximate coordinate; includes separated enclaves

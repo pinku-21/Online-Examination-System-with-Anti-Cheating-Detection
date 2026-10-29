@@ -1,0 +1,13 @@
+﻿map_topic,feature,location_or_region,label,latitude_approx,longitude_approx,teacher_note
+18_world_continents_oceans_map,Asia,Continent,Continent,34.0,100.0,Approximate centre
+18_world_continents_oceans_map,Africa,Continent,Continent,0.0,20.0,Approximate centre
+18_world_continents_oceans_map,North America,Continent,Continent,45.0,-100.0,Approximate centre
+18_world_continents_oceans_map,South America,Continent,Continent,-15.0,-60.0,Approximate centre
+18_world_continents_oceans_map,Antarctica,Continent,Continent,-82.0,0.0,Approximate centre
+18_world_continents_oceans_map,Europe,Continent,Continent,54.0,15.0,Approximate centre
+18_world_continents_oceans_map,Australia,Continent/landmass,Continent/landmass,-25.0,134.0,School convention commonly treats Australia as a continent
+18_world_continents_oceans_map,Pacific Ocean,Ocean,Ocean,0.0,-150.0,Approximate central location
+18_world_continents_oceans_map,Atlantic Ocean,Ocean,Ocean,0.0,-30.0,Approximate central location
+18_world_continents_oceans_map,Indian Ocean,Ocean,Ocean,-20.0,80.0,Approximate central location
+18_world_continents_oceans_map,Arctic Ocean,Ocean,Ocean,85.0,0.0,Approximate central location
+18_world_continents_oceans_map,Southern Ocean,Ocean,Ocean,-65.0,0.0,Approximate central location
