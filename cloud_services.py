@@ -103,3 +103,4 @@ def send_transactional_email(to_email, subject, html_content):
     except Exception as e:
         print(f"[CloudServices] Resend email send error: {e}")
         return {"success": False, "error": str(e)}
+
