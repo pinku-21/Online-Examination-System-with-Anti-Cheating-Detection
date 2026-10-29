@@ -1444,9 +1444,11 @@ Section B - Short Questions (3 marks each)
                 `;
             }
 
-            // Figure & Diagram block
+            // Figure & Diagram block (Suppress redundant static preview if map_hotspot question)
             let figureHtml = '';
-            if (q.figure_svg) {
+            if (qType === 'map_hotspot') {
+                figureHtml = '';
+            } else if (q.figure_svg) {
                 figureHtml = `
                     <div class="border border-sky-200 bg-sky-50/50 rounded-xl p-3 space-y-2">
                         <div class="flex items-center justify-between">
@@ -2474,6 +2476,46 @@ Section B - Short Questions (3 marks each)
                 return;
             }
         }
+
+        // Auto-sanitize and guarantee Map Hotspot data structure before publishing
+        questionsData.forEach((q, idx) => {
+            const isMap = (q.question_type === 'map_hotspot') || (q.figure_url && q.figure_url.includes('/maps/')) || (q.question_text && (q.question_text.includes('outline map') || q.question_text.includes('physical map') || q.question_text.includes('map of india')));
+            if (isMap) {
+                q.question_type = 'map_hotspot';
+                if (!q.options || typeof q.options !== 'object' || Array.isArray(q.options)) {
+                    q.options = { hotspots: [], labels: [], image_url: q.figure_url || '/static/maps/india_physical.svg' };
+                }
+                if (!q.figure_url && q.options.image_url) {
+                    q.figure_url = q.options.image_url;
+                }
+                // Ensure hotspots exist
+                if (!q.options.hotspots || q.options.hotspots.length === 0) {
+                    const matches = [...(q.question_text || '').matchAll(/(?:Pin\s*P?(\d+)|\(([a-zA-Z0-9]+)\))\s*[:\-–]?\s*([^\n\(]+)/g)];
+                    if (matches.length > 0) {
+                        const extractedLabels = matches.map(m => (m[3] || '').trim().replace(/[\.\;\,]+$/, ''));
+                        const coords = [
+                            { x: 26.0, y: 68.0 }, // West (Western Ghats)
+                            { x: 21.0, y: 32.0 }, // North-West (Thar Desert)
+                            { x: 40.0, y: 42.0 }, // Central (Tropic of Cancer)
+                            { x: 48.0, y: 17.0 }, // North (Himalayas)
+                            { x: 46.0, y: 65.0 }  // East (Eastern Ghats)
+                        ];
+                        q.options.hotspots = extractedLabels.map((lbl, hIdx) => ({
+                            id: 'P' + (hIdx + 1),
+                            x: (coords[hIdx] ? coords[hIdx].x : (25 + (hIdx * 20) % 55)),
+                            y: (coords[hIdx] ? coords[hIdx].y : (30 + (hIdx * 18) % 55))
+                        }));
+                        q.options.labels = extractedLabels;
+                        if (!q.correct_answer || typeof q.correct_answer !== 'object') {
+                            q.correct_answer = {};
+                            q.options.hotspots.forEach((h, hIdx) => {
+                                q.correct_answer[h.id] = extractedLabels[hIdx] || ('Location ' + (hIdx + 1));
+                            });
+                        }
+                    }
+                }
+            }
+        });
 
         const payload = {
             title: title,

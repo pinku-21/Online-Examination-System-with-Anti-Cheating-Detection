@@ -3279,7 +3279,19 @@
 
             // Render Figure / Diagram if present (For Map Hotspot questions, the interactive map canvas renders inside options-container)
             const figContainer = document.getElementById('figure-container');
-            const isMapQ = (q.question_type || '').toLowerCase() === 'map_hotspot' || (q.options && typeof q.options === 'object' && !Array.isArray(q.options) && q.options.hotspots);
+            const isMapQ = (
+                (q.question_type || '').toLowerCase() === 'map_hotspot' || 
+                (q.question_type || '').toLowerCase() === 'map' || 
+                (q.figure_url && (q.figure_url.includes('/maps/') || q.figure_url.includes('map'))) ||
+                (q.question_text && (
+                    q.question_text.toLowerCase().includes('outline map') || 
+                    q.question_text.toLowerCase().includes('physical map') || 
+                    q.question_text.toLowerCase().includes('map of india') || 
+                    q.question_text.toLowerCase().includes('locate and label') ||
+                    q.question_text.toLowerCase().includes('on the given map')
+                )) ||
+                (q.options && typeof q.options === 'object' && !Array.isArray(q.options) && q.options.hotspots)
+            );
 
             if (isMapQ) {
                 // Hide static figure container so students interact directly with the pin-drop map canvas below
