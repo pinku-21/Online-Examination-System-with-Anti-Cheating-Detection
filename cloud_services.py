@@ -122,12 +122,50 @@ def get_ip_intelligence(client_ip):
             "risk_reason": None
         }
 
-    try:
-        import urllib.request
-        import json
+    clean_ip = client_ip.split(",")[0].strip()
+    bdc_key = os.environ.get("BIGDATACLOUD_API_KEY", "").strip() or get_setting("bigdatacloud_api_key", "").strip()
 
-        # Support clean comma-separated X-Forwarded-For IPs
-        clean_ip = client_ip.split(",")[0].strip()
+    import urllib.request
+    import json
+
+    # 1. Try BigDataCloud if API key is configured (provides dedicated VPN & Tor hazard analysis)
+    if bdc_key:
+        try:
+            bdc_url = f"https://api.bigdatacloud.net/data/ip-geolocation-full?ip={clean_ip}&key={bdc_key}"
+            with urllib.request.urlopen(bdc_url, timeout=3.5) as resp:
+                bdc_data = json.loads(resp.read().decode("utf-8"))
+            
+            city = (bdc_data.get("location") or {}).get("city") or "Unknown"
+            country = (bdc_data.get("country") or {}).get("name") or "Unknown"
+            isp = (bdc_data.get("network") or {}).get("organisation") or ""
+            hazard = bdc_data.get("hazardReport") or {}
+
+            is_vpn = hazard.get("isKnownAsVpn", False)
+            is_tor = hazard.get("isKnownAsTorServer", False)
+            is_proxy = hazard.get("isKnownAsProxy", False)
+            is_hosting = hazard.get("isHostingAsn", False) or hazard.get("hostingLikelihood", 0) > 50
+
+            is_suspicious = is_vpn or is_tor or is_proxy or is_hosting
+            reasons = []
+            if is_vpn: reasons.append("VPN Detected")
+            if is_tor: reasons.append("Tor Exit Node")
+            if is_proxy: reasons.append("Proxy Server")
+            if is_hosting: reasons.append("Datacenter IP")
+
+            return {
+                "ip": clean_ip,
+                "city": city,
+                "region": (bdc_data.get("location") or {}).get("principalSubdivision") or "",
+                "country": country,
+                "isp": isp,
+                "is_suspicious": is_suspicious,
+                "risk_reason": " | ".join(reasons) if reasons else None
+            }
+        except Exception as bdc_err:
+            print(f"[CloudServices] BigDataCloud lookup warning: {bdc_err}, falling back to ipapi...")
+
+    # 2. Fallback to free ipapi.co
+    try:
         url = f"https://ipapi.co/{clean_ip}/json/"
         req = urllib.request.Request(url, headers={"User-Agent": "ExamGuardAI/1.0"})
 
