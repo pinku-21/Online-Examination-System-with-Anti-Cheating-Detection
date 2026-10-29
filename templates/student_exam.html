@@ -229,9 +229,49 @@
     // INTERACTIVE MAP & HOTSPOT ENGINE
     // ==========================================
     function renderMapHotspotQuestion(q, selectedAnswer, container) {
-        const hotspots = (q.options && q.options.hotspots) ? q.options.hotspots : [];
-        const labels = (q.options && q.options.labels) ? q.options.labels : [];
-        const mapImg = q.figure_url || (q.options && q.options.image_url) || '';
+        let hotspots = (q.options && q.options.hotspots) ? q.options.hotspots : [];
+        let labels = (q.options && q.options.labels) ? q.options.labels : [];
+        let mapImg = q.figure_url || (q.options && q.options.image_url) || '';
+        // Intelligent fallback: auto-assign curriculum map if missing
+        if (!mapImg) {
+            const qTxt = (q.question_text || '').toLowerCase();
+            if (qTxt.includes('cancer') || qTxt.includes('ghat') || qTxt.includes('desert') || qTxt.includes('mountain') || qTxt.includes('plateau') || qTxt.includes('physical') || qTxt.includes('relief')) {
+                mapImg = '/static/maps/india_physical.svg';
+            } else if (qTxt.includes('river') || qTxt.includes('water') || qTxt.includes('basin') || qTxt.includes('ocean') || qTxt.includes('sea')) {
+                mapImg = '/static/maps/india_rivers.svg';
+            } else if (qTxt.includes('world') || qTxt.includes('continent')) {
+                mapImg = '/static/maps/world.svg';
+            } else {
+                mapImg = '/static/maps/india.svg';
+            }
+        }
+
+        // Auto-extract targets if hotspots are empty (e.g. from '(a) The Tropic of Cancer (b) The Western Ghats (c) The Thar Desert')
+        if ((!hotspots || hotspots.length === 0) && q.question_text) {
+            const matches = [...q.question_text.matchAll(/\(([a-zA-Z0-9]+)\)\s*([^\n\(]+)/g)];
+            if (matches.length > 0) {
+                const extractedLabels = matches.map(m => m[2].trim().replace(/[\.\;\,]+$/, ''));
+                labels = extractedLabels;
+                const coords = [
+                    { x: 40.0, y: 42.0 }, // Central (Tropic of Cancer)
+                    { x: 26.0, y: 68.0 }, // West (Western Ghats)
+                    { x: 21.0, y: 32.0 }, // North-West (Thar Desert)
+                    { x: 48.0, y: 17.0 }, // North (Himalayas)
+                    { x: 46.0, y: 65.0 }  // East (Eastern Ghats)
+                ];
+                hotspots = extractedLabels.map((lbl, idx) => ({
+                    id: 'P' + (idx + 1),
+                    x: (coords[idx] ? coords[idx].x : (25 + (idx * 20) % 55)),
+                    y: (coords[idx] ? coords[idx].y : (30 + (idx * 18) % 55))
+                }));
+                if (!q.options || typeof q.options !== 'object' || Array.isArray(q.options)) {
+                    q.options = { hotspots: hotspots, labels: labels, image_url: mapImg };
+                } else {
+                    q.options.hotspots = hotspots;
+                    q.options.labels = labels;
+                }
+            }
+        }
 
         let currentPins = {};
         if (typeof selectedAnswer === 'object' && selectedAnswer !== null) {
