@@ -3583,8 +3583,8 @@ def student_exam_room(submission_id):
         q_dict["question_text"] = encode_canary_watermark(original_text, canary_token)
         questions.append(q_dict)
 
-    # Shuffle questions per student seed
-    rng.shuffle(questions)
+    # Preserve strictly defined tutor question order (Chronological order)
+    # Do not randomize question order so Section A, Section B, OR questions and numbering remain identical for all students.
         
     # Restore saved progress (answers, timer, current question index) for page-refresh recovery
     saved_progress = None

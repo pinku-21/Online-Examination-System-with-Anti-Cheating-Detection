@@ -1078,7 +1078,7 @@ Section B - Short Questions (3 marks each)
             if (document.getElementById('fmt-mcq')?.checked) selectedTypes.push('Multiple Choice (MCQ)');
             if (document.getElementById('fmt-assertion')?.checked) selectedTypes.push('Assertion & Reason (A/R) with standard 4 CBSE options');
             if (document.getElementById('fmt-match')?.checked) selectedTypes.push('Match the Following (Column I and Column II)');
-            if (document.getElementById('fmt-map')?.checked) selectedTypes.push('Map Identification / Diagram-based Questions');
+            if (document.getElementById('fmt-map')?.checked) selectedTypes.push('Map / Hotspot Identification (MUST set question_type: map_hotspot, provide figure_url from /static/maps/ (e.g. /static/maps/india.svg or /static/maps/india_physical.svg), and set options with hotspots coordinates and labels)');
             if (document.getElementById('fmt-short')?.checked) selectedTypes.push('Short Answer Questions (2-3 Marks)');
             if (document.getElementById('fmt-descriptive')?.checked) selectedTypes.push('Long Descriptive / Essay (5 Marks)');
             if (document.getElementById('fmt-case')?.checked) selectedTypes.push('Case-Based / Source Passage Questions (4 Marks)');
