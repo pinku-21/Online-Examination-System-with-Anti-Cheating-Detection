@@ -329,9 +329,49 @@ def test_postgresql_fresh_initialization_live(monkeypatch):
         "question_bank", "proctor_messages"
     }
     missing = required - tables
-    conn.close()
-
     assert not missing, f"PostgreSQL database is missing required tables: {missing}"
+
+    # Verify critical migration columns were added to the tables
+    cursor.execute("""
+        SELECT column_name 
+        FROM information_schema.columns 
+        WHERE table_schema = 'public' AND table_name = 'submissions'
+    """)
+    sub_cols = {r["column_name"] for r in cursor.fetchall()}
+    for col in [
+        "user_id", "manual_evaluation_json", "integrity_hash", "client_ip",
+        "geo_location_json", "diagnostic_analysis_json", "honeypot_snared",
+        "time_remaining_seconds", "progress_answers_json", "device_switch_approved"
+    ]:
+        assert col in sub_cols, f"Missing critical migration column '{col}' in PostgreSQL submissions table"
+
+    cursor.execute("""
+        SELECT column_name 
+        FROM information_schema.columns 
+        WHERE table_schema = 'public' AND table_name = 'proctor_messages'
+    """)
+    pm_cols = {r["column_name"] for r in cursor.fetchall()}
+    assert "audio_payload" in pm_cols, "Missing critical migration column 'audio_payload' in PostgreSQL proctor_messages table"
+
+    cursor.execute("""
+        SELECT column_name 
+        FROM information_schema.columns 
+        WHERE table_schema = 'public' AND table_name = 'questions'
+    """)
+    q_cols = {r["column_name"] for r in cursor.fetchall()}
+    for col in ["blooms_taxonomy", "distractor_analysis_json", "difficulty_tier", "topic_category", "is_honeypot"]:
+        assert col in q_cols, f"Missing critical migration column '{col}' in PostgreSQL questions table"
+
+    cursor.execute("""
+        SELECT column_name 
+        FROM information_schema.columns 
+        WHERE table_schema = 'public' AND table_name = 'exams'
+    """)
+    ex_cols = {r["column_name"] for r in cursor.fetchall()}
+    for col in ["enable_video_detection", "enable_audio_detection", "access_type", "pool_question_count", "results_published"]:
+        assert col in ex_cols, f"Missing critical migration column '{col}' in PostgreSQL exams table"
+
+    conn.close()
 
 
 def test_database_url_safety_check():
