@@ -2475,7 +2475,7 @@
                                     const w = br[0] - tl[0];
                                     const h = br[1] - tl[1];
                                     
-                                     // Check if key landmarks (eyes, nose) are present and inside frame boundaries
+                                    // Check if key landmarks (eyes, nose) are present and inside frame boundaries
                                     let hasVisibleEyes = false;
                                     let isLookingSideways = false;
                                     let isLookingDownAtDesk = false;
@@ -2494,36 +2494,38 @@
                                         if (rEyeInView && lEyeInView && noseInView) {
                                             hasVisibleEyes = true;
                                             
-                                            // 1. Head Turn / Horizontal Yaw Anomaly Detection (Looking sideways to cheat/ask someone):
+                                            // 1. Strict Sideways / Yaw Check (Looking left or right to cheat / glance away):
                                             const distToL = Math.abs(nose[0] - lEye[0]);
                                             const distToR = Math.abs(nose[0] - rEye[0]);
                                             if (distToL > 0 && distToR > 0) {
                                                 const yawRatio = distToL / distToR;
-                                                // Looking completely left or right (> 3.5 or < 0.28)
-                                                if (yawRatio > 3.5 || yawRatio < 0.28) {
+                                                // STRICT: Yaw ratio > 3.0 or < 0.33 flags looking sideways immediately
+                                                if (yawRatio > 3.0 || yawRatio < 0.33) {
                                                     isLookingSideways = true;
                                                 }
                                             }
 
-                                            // 2. Vertical Pitch & Downward Gaze (Writing on paper, solving math on notebook):
+                                            // 2. Strict Upward Pitch Check (Looking up at ceiling / room):
                                             const eyeMidY = (rEye[1] + lEye[1]) / 2;
                                             const eyeToNoseDist = nose[1] - eyeMidY;
-                                            // When student bends face downward to write answers or rough work on copy/notebook:
-                                            if (eyeToNoseDist < (h * 0.32)) {
-                                                isLookingDownAtDesk = true;
-                                            } else if (eyeToNoseDist > (h * 0.46)) {
-                                                // When candidate tilts head high up looking away at ceiling/wall
+                                            if (eyeToNoseDist > (h * 0.44)) {
                                                 isLookingUp = true;
                                             }
-                                        } else if (noseInView || rEyeInView || lEyeInView) {
-                                            // When student bends or tilts head downward to write or solve on copy:
-                                            // Eyelids/eyelashes or foreshortening may obscure one or both eyes.
-                                            // As long as student's face landmark is in view and not looking sideways/up, consider it downward writing!
+
+                                            // 3. Downward Tilt / Pitch (Writing or solving on copy / notebook):
+                                            // ONLY allow downward tilt if NOT looking sideways and NOT looking up!
+                                            if (!isLookingSideways && !isLookingUp) {
+                                                if (eyeToNoseDist < (h * 0.30)) {
+                                                    isLookingDownAtDesk = true;
+                                                }
+                                            }
+                                        } else if (!isLookingSideways && (noseInView || rEyeInView || lEyeInView)) {
+                                            // Student is tilting head downward towards notebook, eyelids/lashes foreshorten:
                                             isLookingDownAtDesk = true;
                                             hasVisibleEyes = true;
                                         }
-                                    } else {
-                                        // BlazeFace detected face bounding box even without complete landmarks (deep head bend down to desk)
+                                    } else if (!isLookingSideways) {
+                                        // Head bent low over desk solving math
                                         isLookingDownAtDesk = true;
                                         hasVisibleEyes = true;
                                     }
@@ -2537,27 +2539,33 @@
 
                                     // If looking down at desk to write or solve math on copy, do not penalize downward pitch or cropped chin
                                     const isCroppedEdge = (br[1] >= canvas.height - 2) || (tl[1] <= 2 && h < 50);
-                                    if (isLookingDownAtDesk) {
-                                        // Student is bent down over copy/notebook solving or writing: valid writing mode
-                                        validVisibleFaceCount++;
-                                        hasAnyFaceLookingDown = true;
-                                        isFacePartiallyOccluded = false; // Never flag occluded when writing downward
-                                        drawBoundingBox(ctx, [tl[0], tl[1], w, h], '✍️ Writing / Solving on Copy', '#10b981');
-                                    } else if (!hasVisibleEyes || isCroppedEdge) {
-                                        isFacePartiallyOccluded = true;
-                                        drawBoundingBox(ctx, [tl[0], tl[1], w, h], '⚠️ Face/Eyes Hidden', '#f59e0b');
-                                    } else if (isLookingSideways) {
+                                    if (isLookingSideways) {
+                                        // STRICT: Left/Right turning is NEVER excused by downward tilt
                                         drawBoundingBox(ctx, [tl[0], tl[1], w, h], '⚠️ Looking Sideways', '#f97316');
                                         validVisibleFaceCount++;
                                         hasAnyFaceLookingAway = true;
                                     } else if (isLookingUp) {
+                                        // STRICT: Looking up is NEVER excused
                                         drawBoundingBox(ctx, [tl[0], tl[1], w, h], '⚠️ Looking Up at Ceiling', '#f43f5e');
                                         validVisibleFaceCount++;
                                         hasAnyFaceLookingUp = true;
+                                    } else if (isLookingDownAtDesk) {
+                                        // ONLY downward tilt allowed for solving/writing on paper:
+                                        // In downward pitch, vertical facial geometry foreshortens.
+                                        // We do NOT run geometric vector comparison (which falsely flags impostor)
+                                        // and reset mismatch so valid student isn't flagged as an impostor!
+                                        validVisibleFaceCount++;
+                                        hasAnyFaceLookingDown = true;
+                                        isFacePartiallyOccluded = false;
+                                        isBiometricMismatch = false;
+                                        drawBoundingBox(ctx, [tl[0], tl[1], w, h], '✍️ Writing / Solving on Copy', '#10b981');
+                                    } else if (!hasVisibleEyes || isCroppedEdge) {
+                                        isFacePartiallyOccluded = true;
+                                        drawBoundingBox(ctx, [tl[0], tl[1], w, h], '⚠️ Face/Eyes Hidden', '#f59e0b');
                                     } else {
                                         validVisibleFaceCount++;
 
-                                        // --- Machine Learning Biometric Vector Comparison ---
+                                        // --- Machine Learning Biometric Vector Comparison (Frontal Normal Gaze) ---
                                         const liveVec = extractFaceBiometricVector(face);
                                         let isMLPersonMatch = true;
 
