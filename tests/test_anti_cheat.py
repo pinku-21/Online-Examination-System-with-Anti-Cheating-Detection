@@ -62,8 +62,9 @@ def test_question_bank_api_auth():
     resp_cat = client.get("/api/tutor/question-bank/categories")
     assert resp_cat.status_code in [302, 401]
 
+    # Without CSRF or tutor authentication, unauthenticated state-changing POST is blocked (401 or 403)
     resp_post = client.post("/api/tutor/question-bank", json={"category": "Math"})
-    assert resp_post.status_code in [302, 401]
+    assert resp_post.status_code in [302, 401, 403]
 
 def test_pdf_certificate_auth():
     """ECC Test: Verifies unauthenticated certificate download requires login."""
