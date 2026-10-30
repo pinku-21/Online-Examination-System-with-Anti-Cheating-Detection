@@ -1,4 +1,5 @@
 import os
+import re
 import json
 import random
 import string
@@ -509,12 +510,24 @@ def register():
         roll_number = request.form.get("roll_number", "").strip().upper()
         username = request.form.get("username", "").strip().lower()
         password = request.form.get("password", "").strip()
-        email = request.form.get("email", "").strip().lower() or None
+        email = request.form.get("email", "").strip().lower()
         class_name = request.form.get("class_name", "").strip()
         photo_file = request.files.get("profile_photo")
 
-        if not full_name or not roll_number or not username or not password:
-            flash("Full Name, Roll Number, Username, and Password are all required.", "danger")
+        # 1. Mandatory Fields Validation
+        if not full_name or not roll_number or not username or not password or not email or not class_name:
+            flash("Full Name, Roll Number, Username, Class, Email Address, and Password are all mandatory.", "danger")
+            return render_template("register.html")
+
+        # 2. Strict Full Name Validation: Must be a genuine human name (letters only, min 2 letters, not numbers/symbols)
+        name_letters = sum(1 for c in full_name if c.isalpha())
+        if len(full_name) < 3 or name_letters < 2 or full_name.isdigit() or not re.match(r"^[A-Za-z\s.'-]+$", full_name):
+            flash("Please enter a valid human Full Name (alphabets only, e.g. 'Rahul Sharma'). Numbers and random characters are strictly not allowed.", "danger")
+            return render_template("register.html")
+
+        # 3. Email Address Validation: Must be valid RFC email format
+        if not re.match(r"^[^@\s]+@[^@\s]+\.[^@\s]+$", email):
+            flash("Please enter a valid Email Address (e.g. student@school.com) to receive exam results and proctoring notices.", "danger")
             return render_template("register.html")
 
         if len(password) < 8 or not any(c.isupper() for c in password) or not any(c.isdigit() for c in password):
