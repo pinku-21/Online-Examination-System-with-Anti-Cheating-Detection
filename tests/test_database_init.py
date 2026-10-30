@@ -10,6 +10,7 @@ Covers:
 """
 import os
 import sqlite3
+from urllib.parse import urlparse
 import pytest
 import database
 from database import init_db, get_connection, run_pg_migrations
@@ -21,14 +22,27 @@ RAW_TEST_PG_URL = os.environ.get("TEST_DATABASE_URL", "").strip()
 def validate_test_database_url(url: str) -> bool:
     """Verifies that the provided URL explicitly identifies a disposable test database.
     
-    Prevents tests from running against production databases.
+    Parses the PostgreSQL URL and validates the actual database name in the path.
+    Rejects the URL if the database name itself does not indicate a test environment,
+    even if 'test' appears in the username, password, hostname, or query parameters.
     """
     if not url:
         return False
-    # Must explicitly contain 'test' in the database name or path
-    # e.g., 'postgresql://user:pass@host/mydb_test' or '?dbname=test_...'
-    lower_url = url.lower()
-    return "test" in lower_url
+    try:
+        parsed = urlparse(url)
+        # Scheme must be postgresql / postgres
+        if parsed.scheme not in ("postgresql", "postgres"):
+            return False
+        # Extract the database name from the path component (e.g. '/test_db' -> 'test_db')
+        raw_path = parsed.path.lstrip("/")
+        # In case of multiple path segments or query params attached, take the primary dbname
+        dbname = raw_path.split("/")[0].strip().lower()
+        if not dbname:
+            return False
+        # The database name itself must contain 'test'
+        return "test" in dbname
+    except Exception:
+        return False
 
 
 TEST_PG_URL = RAW_TEST_PG_URL if validate_test_database_url(RAW_TEST_PG_URL) else None
@@ -206,12 +220,15 @@ def test_migration_ordering_sql_definitions():
 
 # --- Test E: Migration Runner Failure and Transaction Recovery ---
 def test_migration_runner_recovers_from_failure(tmp_path, monkeypatch):
-    """Test E1: Exercises run_pg_migrations with a controlled failure statement.
+    """Test E1 (Simulation): Exercises run_pg_migrations with a controlled failure statement.
+    
+    NOTE: This is a unit test simulation exercising transaction rollback logic.
+    Live PostgreSQL integration verification is handled separately in Test A.
     
     Verifies that:
-    1. A faulty migration statement causes a rollback and is recorded in migration_errors.
-    2. Benign statements (duplicate column / already exists) are ignored as expected.
-    3. Subsequent valid migrations in the sequence succeed.
+    1. A faulty migration statement triggers rollback and is captured in returned errors.
+    2. Benign statements (duplicate column / already exists) are skipped.
+    3. Subsequent valid migrations in the sequence proceed.
     4. The connection remains usable and uncorrupted after the failure.
     """
     test_db = str(tmp_path / "test_migration_recovery.db")
@@ -317,15 +334,31 @@ def test_postgresql_fresh_initialization_live(monkeypatch):
 
 
 def test_database_url_safety_check():
-    """Safety Test: Verifies that validate_test_database_url rejects unsafe or production URLs."""
-    # Production-style URLs lacking 'test' must be rejected
+    """Safety Test: Verifies that validate_test_database_url parses the URL and strictly
+
+    validates the actual database name, rejecting URLs where 'test' is only present
+    in hostnames, usernames, passwords, or query parameters.
+    """
+    # 1. Production-style URLs lacking 'test' in the database name must be rejected
     assert validate_test_database_url("postgresql://user:pass@ep-cool-fog-123.us-east-2.aws.neon.tech/examguard_prod") is False
     assert validate_test_database_url("postgresql://postgres:pass@localhost:5432/examguard") is False
     assert validate_test_database_url("") is False
     assert validate_test_database_url(None) is False
 
-    # URLs with 'test' in the name are permitted
+    # 2. URLs where 'test' is deceptively present in user, password, host, or query param MUST be rejected
+    # Username has 'test', but dbname is 'production'
+    assert validate_test_database_url("postgresql://test_user:secret@localhost:5432/production") is False
+    # Password has 'test', but dbname is 'examguard'
+    assert validate_test_database_url("postgresql://admin:test_pass@localhost:5432/examguard") is False
+    # Hostname has 'test', but dbname is 'production_db'
+    assert validate_test_database_url("postgresql://admin:secret@test-db.neon.tech:5432/production_db") is False
+    # Query parameter has 'test', but dbname is 'live_prod'
+    assert validate_test_database_url("postgresql://admin:secret@localhost:5432/live_prod?test=true") is False
+
+    # 3. Only URLs where the database name itself contains 'test' are permitted
     assert validate_test_database_url("postgresql://user:pass@ep-cool-fog-123.us-east-2.aws.neon.tech/examguard_test") is True
     assert validate_test_database_url("postgresql://postgres:pass@localhost:5432/test_db") is True
+    assert validate_test_database_url("postgres://postgres:pass@localhost:5432/examguard_integration_test?sslmode=require") is True
+
 
 

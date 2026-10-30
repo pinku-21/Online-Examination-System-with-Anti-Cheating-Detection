@@ -138,190 +138,15 @@ def run_pg_migrations(cursor, conn, migrations):
 def init_db():
     conn = get_connection()
     cursor = conn.cursor()
-    is_postgres = bool(DATABASE_URL)
-
-    if is_postgres:
-        # Create referenced tables before tables that have foreign keys to them.
-        id_type = "SERIAL PRIMARY KEY"
-        cursor.execute("""CREATE TABLE IF NOT EXISTS users (
-            id SERIAL PRIMARY KEY,
-            username TEXT UNIQUE NOT NULL,
-            email TEXT UNIQUE,
-            password_hash TEXT NOT NULL,
-            full_name TEXT NOT NULL,
-            role TEXT NOT NULL DEFAULT 'student',
-            roll_number TEXT,
-            class_name TEXT DEFAULT '',
-            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-        )""")
-        cursor.execute("""CREATE TABLE IF NOT EXISTS exams (
-            id SERIAL PRIMARY KEY,
-            exam_code TEXT UNIQUE NOT NULL,
-            title TEXT NOT NULL,
-            description TEXT,
-            duration_minutes INTEGER NOT NULL DEFAULT 30,
-            max_warnings INTEGER NOT NULL DEFAULT 3,
-            passing_percentage DOUBLE PRECISION NOT NULL DEFAULT 40.0,
-            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-            is_active INTEGER DEFAULT 1,
-            enable_video_detection INTEGER DEFAULT 1,
-            enable_audio_detection INTEGER DEFAULT 1,
-            access_type TEXT DEFAULT 'all',
-            assigned_class TEXT DEFAULT '',
-            schedule_type TEXT DEFAULT 'anytime',
-            start_time TEXT,
-            end_time TEXT
-        )""")
-        cursor.execute("""CREATE TABLE IF NOT EXISTS questions (
-            id SERIAL PRIMARY KEY,
-            exam_id INTEGER NOT NULL REFERENCES exams(id) ON DELETE CASCADE,
-            question_text TEXT NOT NULL,
-            question_type TEXT NOT NULL DEFAULT 'mcq',
-            options_json TEXT,
-            correct_answer TEXT NOT NULL,
-            explanation TEXT,
-            points DOUBLE PRECISION NOT NULL DEFAULT 1.0,
-            figure_svg TEXT,
-            figure_url TEXT
-        )""")
-        cursor.execute("""CREATE TABLE IF NOT EXISTS exam_assignments (
-            id SERIAL PRIMARY KEY,
-            exam_id INTEGER NOT NULL REFERENCES exams(id) ON DELETE CASCADE,
-            user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
-            assigned_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-            UNIQUE (exam_id, user_id)
-        )""")
-        cursor.execute("""CREATE TABLE IF NOT EXISTS submissions (
-            id SERIAL PRIMARY KEY,
-            exam_id INTEGER NOT NULL REFERENCES exams(id) ON DELETE CASCADE,
-            student_name TEXT NOT NULL,
-            roll_number TEXT NOT NULL,
-            answers_json TEXT,
-            score DOUBLE PRECISION DEFAULT 0.0,
-            total_points DOUBLE PRECISION DEFAULT 0.0,
-            percentage DOUBLE PRECISION DEFAULT 0.0,
-            warnings_count INTEGER DEFAULT 0,
-            status TEXT NOT NULL DEFAULT 'in_progress',
-            termination_reason TEXT,
-            started_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-            submitted_at TIMESTAMP,
-            user_id INTEGER
-        )""")
-        cursor.execute("""CREATE TABLE IF NOT EXISTS violations (
-            id SERIAL PRIMARY KEY,
-            submission_id INTEGER NOT NULL REFERENCES submissions(id) ON DELETE CASCADE,
-            violation_type TEXT NOT NULL,
-            details TEXT,
-            timestamp TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-        )""")
-        cursor.execute("""CREATE TABLE IF NOT EXISTS settings (
-            key TEXT PRIMARY KEY,
-            value TEXT
-        )""")
-        cursor.execute("""CREATE TABLE IF NOT EXISTS ai_generation_jobs (
-            job_id TEXT PRIMARY KEY,
-            status TEXT NOT NULL DEFAULT 'running',
-            result_json TEXT,
-            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-        )""")
-        cursor.execute("""CREATE TABLE IF NOT EXISTS persistent_assets (
-            asset_key TEXT PRIMARY KEY,
-            mime_type TEXT NOT NULL,
-            data_base64 TEXT NOT NULL,
-            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-        )""")
-        cursor.execute("""CREATE TABLE IF NOT EXISTS question_bank (
-            id SERIAL PRIMARY KEY,
-            tutor_id INTEGER REFERENCES users(id) ON DELETE CASCADE,
-            category TEXT NOT NULL DEFAULT 'General',
-            chapter TEXT DEFAULT '',
-            question_text TEXT NOT NULL,
-            question_type TEXT NOT NULL DEFAULT 'mcq',
-            options_json TEXT,
-            correct_answer TEXT NOT NULL,
-            explanation TEXT,
-            points DOUBLE PRECISION NOT NULL DEFAULT 1.0,
-            difficulty_tier TEXT DEFAULT 'Medium',
-            blooms_taxonomy TEXT DEFAULT 'Understand',
-            distractor_analysis_json TEXT DEFAULT '{}',
-            figure_svg TEXT,
-            figure_url TEXT,
-            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-        )""")
-        cursor.execute("""CREATE TABLE IF NOT EXISTS proctor_messages (
-            id SERIAL PRIMARY KEY,
-            submission_id INTEGER NOT NULL,
-            sender_id INTEGER NOT NULL,
-            message_text TEXT NOT NULL,
-            severity TEXT DEFAULT 'warning',
-            is_read INTEGER DEFAULT 0,
-            audio_payload TEXT DEFAULT '',
-            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-        )""")
-        # Commit base table creation first so all required tables exist before running migrations
-        conn.commit()
-
-        # Safe, repeatable migrations for databases created by an earlier version.
-        migrations = [
-            "ALTER TABLE users ADD COLUMN IF NOT EXISTS class_name TEXT DEFAULT ''",
-            "ALTER TABLE exams ADD COLUMN IF NOT EXISTS enable_video_detection INTEGER DEFAULT 1",
-            "ALTER TABLE exams ADD COLUMN IF NOT EXISTS enable_audio_detection INTEGER DEFAULT 1",
-            "ALTER TABLE exams ADD COLUMN IF NOT EXISTS access_type TEXT DEFAULT 'all'",
-            "ALTER TABLE exams ADD COLUMN IF NOT EXISTS assigned_class TEXT DEFAULT ''",
-            "ALTER TABLE exams ADD COLUMN IF NOT EXISTS schedule_type TEXT DEFAULT 'anytime'",
-            "ALTER TABLE exams ADD COLUMN IF NOT EXISTS start_time TEXT",
-            "ALTER TABLE exams ADD COLUMN IF NOT EXISTS end_time TEXT",
-            "ALTER TABLE questions ADD COLUMN IF NOT EXISTS figure_svg TEXT",
-            "ALTER TABLE questions ADD COLUMN IF NOT EXISTS figure_url TEXT",
-            "ALTER TABLE submissions ADD COLUMN IF NOT EXISTS user_id INTEGER",
-            "ALTER TABLE submissions ADD COLUMN IF NOT EXISTS manual_evaluation_json TEXT",
-            "ALTER TABLE users ADD COLUMN IF NOT EXISTS profile_photo TEXT DEFAULT ''",
-            "ALTER TABLE submissions ADD COLUMN IF NOT EXISTS verified_face_url TEXT DEFAULT ''",
-            "ALTER TABLE submissions ADD COLUMN IF NOT EXISTS is_face_verified INTEGER DEFAULT 0",
-            "ALTER TABLE submissions ADD COLUMN IF NOT EXISTS face_match_confidence DOUBLE PRECISION DEFAULT 0.0",
-            # Pause/resume and progress-save columns
-            "ALTER TABLE submissions ADD COLUMN IF NOT EXISTS time_remaining_seconds INTEGER",
-            "ALTER TABLE submissions ADD COLUMN IF NOT EXISTS progress_answers_json TEXT",
-            "ALTER TABLE submissions ADD COLUMN IF NOT EXISTS pause_requested_at TIMESTAMP",
-            "ALTER TABLE submissions ADD COLUMN IF NOT EXISTS pause_reason TEXT",
-            "ALTER TABLE submissions ADD COLUMN IF NOT EXISTS current_question_index INTEGER DEFAULT 0",
-            # Results publishing and single-device session enforcement
-            "ALTER TABLE exams ADD COLUMN IF NOT EXISTS results_published INTEGER DEFAULT 0",
-            "ALTER TABLE submissions ADD COLUMN IF NOT EXISTS is_published INTEGER DEFAULT 0",
-            "ALTER TABLE submissions ADD COLUMN IF NOT EXISTS device_switch_approved INTEGER DEFAULT 0",
-            "ALTER TABLE users ADD COLUMN IF NOT EXISTS active_session_token TEXT DEFAULT ''",
-            "ALTER TABLE submissions ADD COLUMN IF NOT EXISTS integrity_hash TEXT DEFAULT ''",
-            "ALTER TABLE submissions ADD COLUMN IF NOT EXISTS client_ip TEXT DEFAULT ''",
-            "ALTER TABLE violations ADD COLUMN IF NOT EXISTS severity TEXT DEFAULT 'HIGH'",
-            "ALTER TABLE violations ADD COLUMN IF NOT EXISTS event_code TEXT DEFAULT 'SEC-ALERT'",
-            "ALTER TABLE violations ADD COLUMN IF NOT EXISTS is_resolved INTEGER DEFAULT 0",
-            "ALTER TABLE violations ADD COLUMN IF NOT EXISTS snapshot_url TEXT DEFAULT ''",
-            # AI Honeypot & Counter-Espionage Trap
-            "ALTER TABLE questions ADD COLUMN IF NOT EXISTS is_honeypot INTEGER DEFAULT 0",
-            "ALTER TABLE questions ADD COLUMN IF NOT EXISTS honeypot_signature TEXT DEFAULT ''",
-            "ALTER TABLE questions ADD COLUMN IF NOT EXISTS honeypot_perturbation_type TEXT DEFAULT 'none'",
-            "ALTER TABLE submissions ADD COLUMN IF NOT EXISTS honeypot_snared INTEGER DEFAULT 0",
-            "ALTER TABLE submissions ADD COLUMN IF NOT EXISTS honeypot_details TEXT DEFAULT ''",
-            # Feature 1 & 2: Diagnostic Weak-Area Analysis & Dynamic Permutations
-            "ALTER TABLE submissions ADD COLUMN IF NOT EXISTS diagnostic_analysis_json TEXT DEFAULT ''",
-            "ALTER TABLE questions ADD COLUMN IF NOT EXISTS topic_category TEXT DEFAULT 'General'",
-            "ALTER TABLE questions ADD COLUMN IF NOT EXISTS difficulty_tier TEXT DEFAULT 'medium'",
-            "ALTER TABLE exams ADD COLUMN IF NOT EXISTS pool_question_count INTEGER DEFAULT 0",
-            "ALTER TABLE proctor_messages ADD COLUMN IF NOT EXISTS audio_payload TEXT DEFAULT ''",
-            # AI Distractor Analysis & Bloom's Taxonomy
-            "ALTER TABLE questions ADD COLUMN IF NOT EXISTS blooms_taxonomy TEXT DEFAULT 'Understand'",
-            "ALTER TABLE questions ADD COLUMN IF NOT EXISTS distractor_analysis_json TEXT DEFAULT '{}'",
-            # IP Geolocation & Hazard Intelligence
-            "ALTER TABLE submissions ADD COLUMN IF NOT EXISTS geo_location_json TEXT DEFAULT ''",
-        ]
-        migration_errors = run_pg_migrations(cursor, conn, migrations)
-        if migration_errors:
-            print(f"Database initialization encountered {len(migration_errors)} unexpected migration failure(s): {migration_errors}")
-    else:
-        # Create all application tables first before running any additive migrations.
-        for table_sql in [
-            """CREATE TABLE IF NOT EXISTS users (
-                id INTEGER PRIMARY KEY AUTOINCREMENT,
+    migration_errors = []
+    try:
+        is_postgres = bool(DATABASE_URL)
+    
+        if is_postgres:
+            # Create referenced tables before tables that have foreign keys to them.
+            id_type = "SERIAL PRIMARY KEY"
+            cursor.execute("""CREATE TABLE IF NOT EXISTS users (
+                id SERIAL PRIMARY KEY,
                 username TEXT UNIQUE NOT NULL,
                 email TEXT UNIQUE,
                 password_hash TEXT NOT NULL,
@@ -330,15 +155,15 @@ def init_db():
                 roll_number TEXT,
                 class_name TEXT DEFAULT '',
                 created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-            )""",
-            """CREATE TABLE IF NOT EXISTS exams (
-                id INTEGER PRIMARY KEY AUTOINCREMENT,
+            )""")
+            cursor.execute("""CREATE TABLE IF NOT EXISTS exams (
+                id SERIAL PRIMARY KEY,
                 exam_code TEXT UNIQUE NOT NULL,
                 title TEXT NOT NULL,
                 description TEXT,
                 duration_minutes INTEGER NOT NULL DEFAULT 30,
                 max_warnings INTEGER NOT NULL DEFAULT 3,
-                passing_percentage REAL NOT NULL DEFAULT 40.0,
+                passing_percentage DOUBLE PRECISION NOT NULL DEFAULT 40.0,
                 created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
                 is_active INTEGER DEFAULT 1,
                 enable_video_detection INTEGER DEFAULT 1,
@@ -348,70 +173,68 @@ def init_db():
                 schedule_type TEXT DEFAULT 'anytime',
                 start_time TEXT,
                 end_time TEXT
-            )""",
-            """CREATE TABLE IF NOT EXISTS questions (
-                id INTEGER PRIMARY KEY AUTOINCREMENT,
-                exam_id INTEGER NOT NULL,
+            )""")
+            cursor.execute("""CREATE TABLE IF NOT EXISTS questions (
+                id SERIAL PRIMARY KEY,
+                exam_id INTEGER NOT NULL REFERENCES exams(id) ON DELETE CASCADE,
                 question_text TEXT NOT NULL,
                 question_type TEXT NOT NULL DEFAULT 'mcq',
                 options_json TEXT,
                 correct_answer TEXT NOT NULL,
                 explanation TEXT,
-                points REAL NOT NULL DEFAULT 1.0,
+                points DOUBLE PRECISION NOT NULL DEFAULT 1.0,
                 figure_svg TEXT,
-                figure_url TEXT,
-                FOREIGN KEY (exam_id) REFERENCES exams(id) ON DELETE CASCADE
-            )""",
-            """CREATE TABLE IF NOT EXISTS exam_assignments (
-                id INTEGER PRIMARY KEY AUTOINCREMENT,
-                exam_id INTEGER NOT NULL,
-                user_id INTEGER NOT NULL,
+                figure_url TEXT
+            )""")
+            cursor.execute("""CREATE TABLE IF NOT EXISTS exam_assignments (
+                id SERIAL PRIMARY KEY,
+                exam_id INTEGER NOT NULL REFERENCES exams(id) ON DELETE CASCADE,
+                user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
                 assigned_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-                FOREIGN KEY (exam_id) REFERENCES exams(id) ON DELETE CASCADE,
-                FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
                 UNIQUE (exam_id, user_id)
-            )""",
-            """CREATE TABLE IF NOT EXISTS submissions (
-                id INTEGER PRIMARY KEY AUTOINCREMENT,
-                exam_id INTEGER NOT NULL,
+            )""")
+            cursor.execute("""CREATE TABLE IF NOT EXISTS submissions (
+                id SERIAL PRIMARY KEY,
+                exam_id INTEGER NOT NULL REFERENCES exams(id) ON DELETE CASCADE,
                 student_name TEXT NOT NULL,
                 roll_number TEXT NOT NULL,
                 answers_json TEXT,
-                score REAL DEFAULT 0.0,
-                total_points REAL DEFAULT 0.0,
-                percentage REAL DEFAULT 0.0,
+                score DOUBLE PRECISION DEFAULT 0.0,
+                total_points DOUBLE PRECISION DEFAULT 0.0,
+                percentage DOUBLE PRECISION DEFAULT 0.0,
                 warnings_count INTEGER DEFAULT 0,
                 status TEXT NOT NULL DEFAULT 'in_progress',
                 termination_reason TEXT,
                 started_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
                 submitted_at TIMESTAMP,
-                user_id INTEGER,
-                FOREIGN KEY (exam_id) REFERENCES exams(id) ON DELETE CASCADE
-            )""",
-            """CREATE TABLE IF NOT EXISTS violations (
-                id INTEGER PRIMARY KEY AUTOINCREMENT,
-                submission_id INTEGER NOT NULL,
+                user_id INTEGER
+            )""")
+            cursor.execute("""CREATE TABLE IF NOT EXISTS violations (
+                id SERIAL PRIMARY KEY,
+                submission_id INTEGER NOT NULL REFERENCES submissions(id) ON DELETE CASCADE,
                 violation_type TEXT NOT NULL,
                 details TEXT,
-                timestamp TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-                FOREIGN KEY (submission_id) REFERENCES submissions(id) ON DELETE CASCADE
-            )""",
-            """CREATE TABLE IF NOT EXISTS settings (key TEXT PRIMARY KEY, value TEXT)""",
-            """CREATE TABLE IF NOT EXISTS ai_generation_jobs (
+                timestamp TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            )""")
+            cursor.execute("""CREATE TABLE IF NOT EXISTS settings (
+                key TEXT PRIMARY KEY,
+                value TEXT
+            )""")
+            cursor.execute("""CREATE TABLE IF NOT EXISTS ai_generation_jobs (
                 job_id TEXT PRIMARY KEY,
                 status TEXT NOT NULL DEFAULT 'running',
                 result_json TEXT,
                 created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-            )""",
-            """CREATE TABLE IF NOT EXISTS persistent_assets (
+            )""")
+            cursor.execute("""CREATE TABLE IF NOT EXISTS persistent_assets (
                 asset_key TEXT PRIMARY KEY,
                 mime_type TEXT NOT NULL,
                 data_base64 TEXT NOT NULL,
                 created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-            )""",
-            """CREATE TABLE IF NOT EXISTS question_bank (
-                id INTEGER PRIMARY KEY AUTOINCREMENT,
-                tutor_id INTEGER,
+            )""")
+            cursor.execute("""CREATE TABLE IF NOT EXISTS question_bank (
+                id SERIAL PRIMARY KEY,
+                tutor_id INTEGER REFERENCES users(id) ON DELETE CASCADE,
                 category TEXT NOT NULL DEFAULT 'General',
                 chapter TEXT DEFAULT '',
                 question_text TEXT NOT NULL,
@@ -419,116 +242,306 @@ def init_db():
                 options_json TEXT,
                 correct_answer TEXT NOT NULL,
                 explanation TEXT,
-                points REAL NOT NULL DEFAULT 1.0,
+                points DOUBLE PRECISION NOT NULL DEFAULT 1.0,
                 difficulty_tier TEXT DEFAULT 'Medium',
                 blooms_taxonomy TEXT DEFAULT 'Understand',
                 distractor_analysis_json TEXT DEFAULT '{}',
                 figure_svg TEXT,
                 figure_url TEXT,
-                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-                FOREIGN KEY (tutor_id) REFERENCES users(id) ON DELETE CASCADE
-            )""",
-            """CREATE TABLE IF NOT EXISTS proctor_messages (
-                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            )""")
+            cursor.execute("""CREATE TABLE IF NOT EXISTS proctor_messages (
+                id SERIAL PRIMARY KEY,
                 submission_id INTEGER NOT NULL,
                 sender_id INTEGER NOT NULL,
                 message_text TEXT NOT NULL,
                 severity TEXT DEFAULT 'warning',
                 is_read INTEGER DEFAULT 0,
                 audio_payload TEXT DEFAULT '',
-                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-                FOREIGN KEY (submission_id) REFERENCES submissions(id) ON DELETE CASCADE
-            )"""
-        ]:
-            cursor.execute(table_sql)
-
-        # Repair older SQLite databases using idempotent migration style.
-        for table, column, definition in [
-            ("users", "class_name", "TEXT DEFAULT ''"),
-            ("exams", "enable_video_detection", "INTEGER DEFAULT 1"),
-            ("exams", "enable_audio_detection", "INTEGER DEFAULT 1"),
-            ("exams", "access_type", "TEXT DEFAULT 'all'"),
-            ("exams", "assigned_class", "TEXT DEFAULT ''"),
-            ("exams", "schedule_type", "TEXT DEFAULT 'anytime'"),
-            ("exams", "start_time", "TEXT"),
-            ("exams", "end_time", "TEXT"),
-            ("questions", "figure_svg", "TEXT"),
-            ("questions", "figure_url", "TEXT"),
-            ("submissions", "user_id", "INTEGER"),
-            ("submissions", "manual_evaluation_json", "TEXT"),
-            ("users", "profile_photo", "TEXT DEFAULT ''"),
-            ("submissions", "verified_face_url", "TEXT DEFAULT ''"),
-            ("submissions", "is_face_verified", "INTEGER DEFAULT 0"),
-            ("submissions", "face_match_confidence", "REAL DEFAULT 0.0"),
-            # Pause/resume and progress-save columns
-            ("submissions", "time_remaining_seconds", "INTEGER"),
-            ("submissions", "progress_answers_json", "TEXT"),
-            ("submissions", "pause_requested_at", "TIMESTAMP"),
-            ("submissions", "pause_reason", "TEXT"),
-            ("submissions", "current_question_index", "INTEGER DEFAULT 0"),
-            # Results publishing and single-device session enforcement
-            ("exams", "results_published", "INTEGER DEFAULT 0"),
-            ("submissions", "is_published", "INTEGER DEFAULT 0"),
-            ("submissions", "device_switch_approved", "INTEGER DEFAULT 0"),
-            ("users", "active_session_token", "TEXT DEFAULT ''"),
-            ("submissions", "integrity_hash", "TEXT DEFAULT ''"),
-            ("submissions", "client_ip", "TEXT DEFAULT ''"),
-            ("violations", "severity", "TEXT DEFAULT 'HIGH'"),
-            ("violations", "event_code", "TEXT DEFAULT 'SEC-ALERT'"),
-            ("violations", "is_resolved", "INTEGER DEFAULT 0"),
-            ("violations", "snapshot_url", "TEXT DEFAULT ''"),
-            # AI Honeypot & Counter-Espionage Trap
-            ("questions", "is_honeypot", "INTEGER DEFAULT 0"),
-            ("questions", "honeypot_signature", "TEXT DEFAULT ''"),
-            ("questions", "honeypot_perturbation_type", "TEXT DEFAULT 'none'"),
-            ("submissions", "honeypot_snared", "INTEGER DEFAULT 0"),
-            ("submissions", "honeypot_details", "TEXT DEFAULT ''"),
-            # Feature 1 & 2: Diagnostic Weak-Area Analysis & Dynamic Permutations
-            ("submissions", "diagnostic_analysis_json", "TEXT DEFAULT ''"),
-            ("questions", "topic_category", "TEXT DEFAULT 'General'"),
-            ("questions", "difficulty_tier", "TEXT DEFAULT 'medium'"),
-            ("exams", "pool_question_count", "INTEGER DEFAULT 0"),
-            ("proctor_messages", "audio_payload", "TEXT DEFAULT ''"),
-            # AI Distractor Analysis & Bloom's Taxonomy
-            ("questions", "blooms_taxonomy", "TEXT DEFAULT 'Understand'"),
-            ("questions", "distractor_analysis_json", "TEXT DEFAULT '{}'"),
-            # IP Geolocation & Hazard Intelligence
-            ("submissions", "geo_location_json", "TEXT DEFAULT ''"),
-        ]:
-            columns = {row["name"] for row in cursor.execute(f"PRAGMA table_info({table})").fetchall()}
-            if column not in columns:
-                cursor.execute(f"ALTER TABLE {table} ADD COLUMN {column} {definition}")
-
-    # Seed initial admin(s) if provided via environment variables.
-    from werkzeug.security import generate_password_hash
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            )""")
+            # Commit base table creation first so all required tables exist before running migrations
+            conn.commit()
     
-    # Primary Admin
-    initial_password = os.environ.get("ADMIN_INITIAL_PASSWORD", "").strip()
-    if initial_password:
-        initial_username = os.environ.get("ADMIN_INITIAL_USERNAME", "admin").strip()
-        initial_email = os.environ.get("ADMIN_INITIAL_EMAIL", f"{initial_username.lower()}@examguard.ai").strip()
-        cursor.execute("SELECT id FROM users WHERE LOWER(username) = LOWER(?)", (initial_username,))
-        if not cursor.fetchone():
-            cursor.execute("INSERT INTO users (username, email, password_hash, full_name, role) VALUES (?, ?, ?, ?, ?)",
-                           (initial_username, initial_email, generate_password_hash(initial_password), "ExamGuard Administrator", "admin"))
-            print(f"Created initial admin account: {initial_username}")
-
-    # Second Admin
-    sec_password = os.environ.get("ADMIN_SECOND_INITIAL_PASSWORD", "").strip()
-    if sec_password:
-        sec_username = os.environ.get("ADMIN_SECOND_INITIAL_USERNAME", "admin2").strip()
-        sec_email = os.environ.get("ADMIN_SECOND_INITIAL_EMAIL", f"{sec_username.lower()}@examguard.ai").strip()
-        cursor.execute("SELECT id FROM users WHERE LOWER(username) = LOWER(?)", (sec_username,))
-        if not cursor.fetchone():
-            cursor.execute("INSERT INTO users (username, email, password_hash, full_name, role) VALUES (?, ?, ?, ?, ?)",
-                           (sec_username, sec_email, generate_password_hash(sec_password), "ExamGuard Co-Administrator", "admin"))
-            print(f"Created second admin account: {sec_username}")
+            # Safe, repeatable migrations for databases created by an earlier version.
+            migrations = [
+                "ALTER TABLE users ADD COLUMN IF NOT EXISTS class_name TEXT DEFAULT ''",
+                "ALTER TABLE exams ADD COLUMN IF NOT EXISTS enable_video_detection INTEGER DEFAULT 1",
+                "ALTER TABLE exams ADD COLUMN IF NOT EXISTS enable_audio_detection INTEGER DEFAULT 1",
+                "ALTER TABLE exams ADD COLUMN IF NOT EXISTS access_type TEXT DEFAULT 'all'",
+                "ALTER TABLE exams ADD COLUMN IF NOT EXISTS assigned_class TEXT DEFAULT ''",
+                "ALTER TABLE exams ADD COLUMN IF NOT EXISTS schedule_type TEXT DEFAULT 'anytime'",
+                "ALTER TABLE exams ADD COLUMN IF NOT EXISTS start_time TEXT",
+                "ALTER TABLE exams ADD COLUMN IF NOT EXISTS end_time TEXT",
+                "ALTER TABLE questions ADD COLUMN IF NOT EXISTS figure_svg TEXT",
+                "ALTER TABLE questions ADD COLUMN IF NOT EXISTS figure_url TEXT",
+                "ALTER TABLE submissions ADD COLUMN IF NOT EXISTS user_id INTEGER",
+                "ALTER TABLE submissions ADD COLUMN IF NOT EXISTS manual_evaluation_json TEXT",
+                "ALTER TABLE users ADD COLUMN IF NOT EXISTS profile_photo TEXT DEFAULT ''",
+                "ALTER TABLE submissions ADD COLUMN IF NOT EXISTS verified_face_url TEXT DEFAULT ''",
+                "ALTER TABLE submissions ADD COLUMN IF NOT EXISTS is_face_verified INTEGER DEFAULT 0",
+                "ALTER TABLE submissions ADD COLUMN IF NOT EXISTS face_match_confidence DOUBLE PRECISION DEFAULT 0.0",
+                # Pause/resume and progress-save columns
+                "ALTER TABLE submissions ADD COLUMN IF NOT EXISTS time_remaining_seconds INTEGER",
+                "ALTER TABLE submissions ADD COLUMN IF NOT EXISTS progress_answers_json TEXT",
+                "ALTER TABLE submissions ADD COLUMN IF NOT EXISTS pause_requested_at TIMESTAMP",
+                "ALTER TABLE submissions ADD COLUMN IF NOT EXISTS pause_reason TEXT",
+                "ALTER TABLE submissions ADD COLUMN IF NOT EXISTS current_question_index INTEGER DEFAULT 0",
+                # Results publishing and single-device session enforcement
+                "ALTER TABLE exams ADD COLUMN IF NOT EXISTS results_published INTEGER DEFAULT 0",
+                "ALTER TABLE submissions ADD COLUMN IF NOT EXISTS is_published INTEGER DEFAULT 0",
+                "ALTER TABLE submissions ADD COLUMN IF NOT EXISTS device_switch_approved INTEGER DEFAULT 0",
+                "ALTER TABLE users ADD COLUMN IF NOT EXISTS active_session_token TEXT DEFAULT ''",
+                "ALTER TABLE submissions ADD COLUMN IF NOT EXISTS integrity_hash TEXT DEFAULT ''",
+                "ALTER TABLE submissions ADD COLUMN IF NOT EXISTS client_ip TEXT DEFAULT ''",
+                "ALTER TABLE violations ADD COLUMN IF NOT EXISTS severity TEXT DEFAULT 'HIGH'",
+                "ALTER TABLE violations ADD COLUMN IF NOT EXISTS event_code TEXT DEFAULT 'SEC-ALERT'",
+                "ALTER TABLE violations ADD COLUMN IF NOT EXISTS is_resolved INTEGER DEFAULT 0",
+                "ALTER TABLE violations ADD COLUMN IF NOT EXISTS snapshot_url TEXT DEFAULT ''",
+                # AI Honeypot & Counter-Espionage Trap
+                "ALTER TABLE questions ADD COLUMN IF NOT EXISTS is_honeypot INTEGER DEFAULT 0",
+                "ALTER TABLE questions ADD COLUMN IF NOT EXISTS honeypot_signature TEXT DEFAULT ''",
+                "ALTER TABLE questions ADD COLUMN IF NOT EXISTS honeypot_perturbation_type TEXT DEFAULT 'none'",
+                "ALTER TABLE submissions ADD COLUMN IF NOT EXISTS honeypot_snared INTEGER DEFAULT 0",
+                "ALTER TABLE submissions ADD COLUMN IF NOT EXISTS honeypot_details TEXT DEFAULT ''",
+                # Feature 1 & 2: Diagnostic Weak-Area Analysis & Dynamic Permutations
+                "ALTER TABLE submissions ADD COLUMN IF NOT EXISTS diagnostic_analysis_json TEXT DEFAULT ''",
+                "ALTER TABLE questions ADD COLUMN IF NOT EXISTS topic_category TEXT DEFAULT 'General'",
+                "ALTER TABLE questions ADD COLUMN IF NOT EXISTS difficulty_tier TEXT DEFAULT 'medium'",
+                "ALTER TABLE exams ADD COLUMN IF NOT EXISTS pool_question_count INTEGER DEFAULT 0",
+                "ALTER TABLE proctor_messages ADD COLUMN IF NOT EXISTS audio_payload TEXT DEFAULT ''",
+                # AI Distractor Analysis & Bloom's Taxonomy
+                "ALTER TABLE questions ADD COLUMN IF NOT EXISTS blooms_taxonomy TEXT DEFAULT 'Understand'",
+                "ALTER TABLE questions ADD COLUMN IF NOT EXISTS distractor_analysis_json TEXT DEFAULT '{}'",
+                # IP Geolocation & Hazard Intelligence
+                "ALTER TABLE submissions ADD COLUMN IF NOT EXISTS geo_location_json TEXT DEFAULT ''",
+            ]
+            migration_errors = run_pg_migrations(cursor, conn, migrations)
         else:
-            # If user already exists, ensure role is upgraded to admin
-            cursor.execute("UPDATE users SET role = 'admin' WHERE LOWER(username) = LOWER(?)", (sec_username,))
-
-    conn.commit()
-    conn.close()
+            # Create all application tables first before running any additive migrations.
+            for table_sql in [
+                """CREATE TABLE IF NOT EXISTS users (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    username TEXT UNIQUE NOT NULL,
+                    email TEXT UNIQUE,
+                    password_hash TEXT NOT NULL,
+                    full_name TEXT NOT NULL,
+                    role TEXT NOT NULL DEFAULT 'student',
+                    roll_number TEXT,
+                    class_name TEXT DEFAULT '',
+                    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+                )""",
+                """CREATE TABLE IF NOT EXISTS exams (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    exam_code TEXT UNIQUE NOT NULL,
+                    title TEXT NOT NULL,
+                    description TEXT,
+                    duration_minutes INTEGER NOT NULL DEFAULT 30,
+                    max_warnings INTEGER NOT NULL DEFAULT 3,
+                    passing_percentage REAL NOT NULL DEFAULT 40.0,
+                    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                    is_active INTEGER DEFAULT 1,
+                    enable_video_detection INTEGER DEFAULT 1,
+                    enable_audio_detection INTEGER DEFAULT 1,
+                    access_type TEXT DEFAULT 'all',
+                    assigned_class TEXT DEFAULT '',
+                    schedule_type TEXT DEFAULT 'anytime',
+                    start_time TEXT,
+                    end_time TEXT
+                )""",
+                """CREATE TABLE IF NOT EXISTS questions (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    exam_id INTEGER NOT NULL,
+                    question_text TEXT NOT NULL,
+                    question_type TEXT NOT NULL DEFAULT 'mcq',
+                    options_json TEXT,
+                    correct_answer TEXT NOT NULL,
+                    explanation TEXT,
+                    points REAL NOT NULL DEFAULT 1.0,
+                    figure_svg TEXT,
+                    figure_url TEXT,
+                    FOREIGN KEY (exam_id) REFERENCES exams(id) ON DELETE CASCADE
+                )""",
+                """CREATE TABLE IF NOT EXISTS exam_assignments (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    exam_id INTEGER NOT NULL,
+                    user_id INTEGER NOT NULL,
+                    assigned_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                    FOREIGN KEY (exam_id) REFERENCES exams(id) ON DELETE CASCADE,
+                    FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
+                    UNIQUE (exam_id, user_id)
+                )""",
+                """CREATE TABLE IF NOT EXISTS submissions (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    exam_id INTEGER NOT NULL,
+                    student_name TEXT NOT NULL,
+                    roll_number TEXT NOT NULL,
+                    answers_json TEXT,
+                    score REAL DEFAULT 0.0,
+                    total_points REAL DEFAULT 0.0,
+                    percentage REAL DEFAULT 0.0,
+                    warnings_count INTEGER DEFAULT 0,
+                    status TEXT NOT NULL DEFAULT 'in_progress',
+                    termination_reason TEXT,
+                    started_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                    submitted_at TIMESTAMP,
+                    user_id INTEGER,
+                    FOREIGN KEY (exam_id) REFERENCES exams(id) ON DELETE CASCADE
+                )""",
+                """CREATE TABLE IF NOT EXISTS violations (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    submission_id INTEGER NOT NULL,
+                    violation_type TEXT NOT NULL,
+                    details TEXT,
+                    timestamp TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                    FOREIGN KEY (submission_id) REFERENCES submissions(id) ON DELETE CASCADE
+                )""",
+                """CREATE TABLE IF NOT EXISTS settings (key TEXT PRIMARY KEY, value TEXT)""",
+                """CREATE TABLE IF NOT EXISTS ai_generation_jobs (
+                    job_id TEXT PRIMARY KEY,
+                    status TEXT NOT NULL DEFAULT 'running',
+                    result_json TEXT,
+                    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+                )""",
+                """CREATE TABLE IF NOT EXISTS persistent_assets (
+                    asset_key TEXT PRIMARY KEY,
+                    mime_type TEXT NOT NULL,
+                    data_base64 TEXT NOT NULL,
+                    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+                )""",
+                """CREATE TABLE IF NOT EXISTS question_bank (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    tutor_id INTEGER,
+                    category TEXT NOT NULL DEFAULT 'General',
+                    chapter TEXT DEFAULT '',
+                    question_text TEXT NOT NULL,
+                    question_type TEXT NOT NULL DEFAULT 'mcq',
+                    options_json TEXT,
+                    correct_answer TEXT NOT NULL,
+                    explanation TEXT,
+                    points REAL NOT NULL DEFAULT 1.0,
+                    difficulty_tier TEXT DEFAULT 'Medium',
+                    blooms_taxonomy TEXT DEFAULT 'Understand',
+                    distractor_analysis_json TEXT DEFAULT '{}',
+                    figure_svg TEXT,
+                    figure_url TEXT,
+                    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                    FOREIGN KEY (tutor_id) REFERENCES users(id) ON DELETE CASCADE
+                )""",
+                """CREATE TABLE IF NOT EXISTS proctor_messages (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    submission_id INTEGER NOT NULL,
+                    sender_id INTEGER NOT NULL,
+                    message_text TEXT NOT NULL,
+                    severity TEXT DEFAULT 'warning',
+                    is_read INTEGER DEFAULT 0,
+                    audio_payload TEXT DEFAULT '',
+                    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                    FOREIGN KEY (submission_id) REFERENCES submissions(id) ON DELETE CASCADE
+                )"""
+            ]:
+                cursor.execute(table_sql)
+    
+            # Repair older SQLite databases using idempotent migration style.
+            for table, column, definition in [
+                ("users", "class_name", "TEXT DEFAULT ''"),
+                ("exams", "enable_video_detection", "INTEGER DEFAULT 1"),
+                ("exams", "enable_audio_detection", "INTEGER DEFAULT 1"),
+                ("exams", "access_type", "TEXT DEFAULT 'all'"),
+                ("exams", "assigned_class", "TEXT DEFAULT ''"),
+                ("exams", "schedule_type", "TEXT DEFAULT 'anytime'"),
+                ("exams", "start_time", "TEXT"),
+                ("exams", "end_time", "TEXT"),
+                ("questions", "figure_svg", "TEXT"),
+                ("questions", "figure_url", "TEXT"),
+                ("submissions", "user_id", "INTEGER"),
+                ("submissions", "manual_evaluation_json", "TEXT"),
+                ("users", "profile_photo", "TEXT DEFAULT ''"),
+                ("submissions", "verified_face_url", "TEXT DEFAULT ''"),
+                ("submissions", "is_face_verified", "INTEGER DEFAULT 0"),
+                ("submissions", "face_match_confidence", "REAL DEFAULT 0.0"),
+                # Pause/resume and progress-save columns
+                ("submissions", "time_remaining_seconds", "INTEGER"),
+                ("submissions", "progress_answers_json", "TEXT"),
+                ("submissions", "pause_requested_at", "TIMESTAMP"),
+                ("submissions", "pause_reason", "TEXT"),
+                ("submissions", "current_question_index", "INTEGER DEFAULT 0"),
+                # Results publishing and single-device session enforcement
+                ("exams", "results_published", "INTEGER DEFAULT 0"),
+                ("submissions", "is_published", "INTEGER DEFAULT 0"),
+                ("submissions", "device_switch_approved", "INTEGER DEFAULT 0"),
+                ("users", "active_session_token", "TEXT DEFAULT ''"),
+                ("submissions", "integrity_hash", "TEXT DEFAULT ''"),
+                ("submissions", "client_ip", "TEXT DEFAULT ''"),
+                ("violations", "severity", "TEXT DEFAULT 'HIGH'"),
+                ("violations", "event_code", "TEXT DEFAULT 'SEC-ALERT'"),
+                ("violations", "is_resolved", "INTEGER DEFAULT 0"),
+                ("violations", "snapshot_url", "TEXT DEFAULT ''"),
+                # AI Honeypot & Counter-Espionage Trap
+                ("questions", "is_honeypot", "INTEGER DEFAULT 0"),
+                ("questions", "honeypot_signature", "TEXT DEFAULT ''"),
+                ("questions", "honeypot_perturbation_type", "TEXT DEFAULT 'none'"),
+                ("submissions", "honeypot_snared", "INTEGER DEFAULT 0"),
+                ("submissions", "honeypot_details", "TEXT DEFAULT ''"),
+                # Feature 1 & 2: Diagnostic Weak-Area Analysis & Dynamic Permutations
+                ("submissions", "diagnostic_analysis_json", "TEXT DEFAULT ''"),
+                ("questions", "topic_category", "TEXT DEFAULT 'General'"),
+                ("questions", "difficulty_tier", "TEXT DEFAULT 'medium'"),
+                ("exams", "pool_question_count", "INTEGER DEFAULT 0"),
+                ("proctor_messages", "audio_payload", "TEXT DEFAULT ''"),
+                # AI Distractor Analysis & Bloom's Taxonomy
+                ("questions", "blooms_taxonomy", "TEXT DEFAULT 'Understand'"),
+                ("questions", "distractor_analysis_json", "TEXT DEFAULT '{}'"),
+                # IP Geolocation & Hazard Intelligence
+                ("submissions", "geo_location_json", "TEXT DEFAULT ''"),
+            ]:
+                columns = {row["name"] for row in cursor.execute(f"PRAGMA table_info({table})").fetchall()}
+                if column not in columns:
+                    cursor.execute(f"ALTER TABLE {table} ADD COLUMN {column} {definition}")
+    
+        # Seed initial admin(s) if provided via environment variables.
+        from werkzeug.security import generate_password_hash
+        
+        # Primary Admin
+        initial_password = os.environ.get("ADMIN_INITIAL_PASSWORD", "").strip()
+        if initial_password:
+            initial_username = os.environ.get("ADMIN_INITIAL_USERNAME", "admin").strip()
+            initial_email = os.environ.get("ADMIN_INITIAL_EMAIL", f"{initial_username.lower()}@examguard.ai").strip()
+            cursor.execute("SELECT id FROM users WHERE LOWER(username) = LOWER(?)", (initial_username,))
+            if not cursor.fetchone():
+                cursor.execute("INSERT INTO users (username, email, password_hash, full_name, role) VALUES (?, ?, ?, ?, ?)",
+                               (initial_username, initial_email, generate_password_hash(initial_password), "ExamGuard Administrator", "admin"))
+                print(f"Created initial admin account: {initial_username}")
+    
+        # Second Admin
+        sec_password = os.environ.get("ADMIN_SECOND_INITIAL_PASSWORD", "").strip()
+        if sec_password:
+            sec_username = os.environ.get("ADMIN_SECOND_INITIAL_USERNAME", "admin2").strip()
+            sec_email = os.environ.get("ADMIN_SECOND_INITIAL_EMAIL", f"{sec_username.lower()}@examguard.ai").strip()
+            cursor.execute("SELECT id FROM users WHERE LOWER(username) = LOWER(?)", (sec_username,))
+            if not cursor.fetchone():
+                cursor.execute("INSERT INTO users (username, email, password_hash, full_name, role) VALUES (?, ?, ?, ?, ?)",
+                               (sec_username, sec_email, generate_password_hash(sec_password), "ExamGuard Co-Administrator", "admin"))
+                print(f"Created second admin account: {sec_username}")
+            else:
+                # If user already exists, ensure role is upgraded to admin
+                cursor.execute("UPDATE users SET role = 'admin' WHERE LOWER(username) = LOWER(?)", (sec_username,))
+    
+        conn.commit()
+    
+        # If unexpected migration errors were encountered, raise an exception to prevent starting in a broken state
+        if migration_errors:
+            error_details = "; ".join(f"[{stmt} -> {err}]" for stmt, err in migration_errors)
+            raise RuntimeError(f"Database initialization failed due to {len(migration_errors)} migration error(s): {error_details}")
+    finally:
+        try:
+            cursor.close()
+        except Exception:
+            pass
+        try:
+            conn.close()
+        except Exception:
+            pass
 
 def create_user(username, email, password, full_name, role="student", roll_number=None, class_name=None, profile_photo=""):
     from werkzeug.security import generate_password_hash
