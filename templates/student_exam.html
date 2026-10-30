@@ -2499,8 +2499,8 @@
                                             const distToR = Math.abs(nose[0] - rEye[0]);
                                             if (distToL > 0 && distToR > 0) {
                                                 const yawRatio = distToL / distToR;
-                                                // Looking completely left or right (> 3.2 or < 0.31)
-                                                if (yawRatio > 3.2 || yawRatio < 0.31) {
+                                                // Looking completely left or right (> 3.5 or < 0.28)
+                                                if (yawRatio > 3.5 || yawRatio < 0.28) {
                                                     isLookingSideways = true;
                                                 }
                                             }
@@ -2509,21 +2509,21 @@
                                             const eyeMidY = (rEye[1] + lEye[1]) / 2;
                                             const eyeToNoseDist = nose[1] - eyeMidY;
                                             // When student bends face downward to write answers or rough work on copy/notebook:
-                                            // As head tilts down, foreshortening compresses vertical distance between eyes and nose (typically < 0.22 * h)
-                                            if (eyeToNoseDist < (h * 0.22)) {
+                                            if (eyeToNoseDist < (h * 0.32)) {
                                                 isLookingDownAtDesk = true;
-                                            } else if (eyeToNoseDist > (h * 0.44)) {
+                                            } else if (eyeToNoseDist > (h * 0.46)) {
                                                 // When candidate tilts head high up looking away at ceiling/wall
                                                 isLookingUp = true;
                                             }
-                                        } else if (noseInView && (rEyeInView || lEyeInView)) {
-                                            // If student bends head deep down onto paper, eyelashes or eyelids may cover one eye:
-                                            // As long as nose is visible and facing forward (not turned sideways), this is downward solving
+                                        } else if (noseInView || rEyeInView || lEyeInView) {
+                                            // When student bends or tilts head downward to write or solve on copy:
+                                            // Eyelids/eyelashes or foreshortening may obscure one or both eyes.
+                                            // As long as student's face landmark is in view and not looking sideways/up, consider it downward writing!
                                             isLookingDownAtDesk = true;
                                             hasVisibleEyes = true;
                                         }
-                                    } else if (face.landmarks && face.landmarks.length >= 1) {
-                                        // Deep head downward bend: forehead/crown of head visible facing camera
+                                    } else {
+                                        // BlazeFace detected face bounding box even without complete landmarks (deep head bend down to desk)
                                         isLookingDownAtDesk = true;
                                         hasVisibleEyes = true;
                                     }
@@ -2536,11 +2536,12 @@
                                     }
 
                                     // If looking down at desk to write or solve math on copy, do not penalize downward pitch or cropped chin
-                                    const isCroppedEdge = (br[1] >= canvas.height - 5) || (tl[1] <= 5 && h < 70);
+                                    const isCroppedEdge = (br[1] >= canvas.height - 2) || (tl[1] <= 2 && h < 50);
                                     if (isLookingDownAtDesk) {
                                         // Student is bent down over copy/notebook solving or writing: valid writing mode
                                         validVisibleFaceCount++;
                                         hasAnyFaceLookingDown = true;
+                                        isFacePartiallyOccluded = false; // Never flag occluded when writing downward
                                         drawBoundingBox(ctx, [tl[0], tl[1], w, h], '✍️ Writing / Solving on Copy', '#10b981');
                                     } else if (!hasVisibleEyes || isCroppedEdge) {
                                         isFacePartiallyOccluded = true;
@@ -2744,7 +2745,7 @@
                                     triggerViolation('impersonation_mismatch', `Impostor detected in webcam feed.`);
                                 }
                             }
-                        } else if (isFacePartiallyOccluded || (blazeFaceModel && blazeFaceCount > 0 && validVisibleFaceCount === 0)) {
+                        } else if (!hasAnyFaceLookingDown && (isFacePartiallyOccluded || (blazeFaceModel && blazeFaceCount > 0 && validVisibleFaceCount === 0))) {
                             noPersonConsecutiveCount = 0;
                             imposterConsecutiveCount = 0;
                             lookingAwayConsecutiveCount = 0;
@@ -2757,10 +2758,10 @@
                             ctx.fillRect(10, 10, canvas.width - 20, 28);
                             ctx.fillStyle = '#1e293b';
                             ctx.font = 'bold 12px Inter, sans-serif';
-                            ctx.fillText('⚠️ FACE / EYES NOT FULLY VISIBLE — LOOK DIRECTLY AT CAMERA (STRIKE IN 4s)', 18, 28);
+                            ctx.fillText('⚠️ FACE / EYES NOT FULLY VISIBLE — LOOK DIRECTLY AT CAMERA (STRIKE IN 6s)', 18, 28);
 
-                            // Trigger violation after 3 consecutive frames (~4.2 seconds) of persistent occlusion
-                            if (faceOccludedConsecutiveCount >= 3) {
+                            // Trigger violation after 5 consecutive frames (~7 seconds) of persistent occlusion
+                            if (faceOccludedConsecutiveCount >= 5) {
                                 faceOccludedConsecutiveCount = 0;
                                 triggerViolation('face_occluded', 'Candidate face and eyes are partially hidden or out of camera frame. Keep full face and eyes visible.');
                             }
