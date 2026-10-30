@@ -304,8 +304,8 @@ def test_transaction_rollback_and_recovery(tmp_path, monkeypatch):
 )
 def test_postgresql_fresh_initialization_live(monkeypatch):
     """Test A: Connects to a real disposable PostgreSQL database, runs init_db(), and confirms
-
-    fresh schema creation succeeds with all tables and columns present.
+    fresh schema creation succeeds with all tables, critical columns, and column data types present.
+    Guarantees resource cleanup via a try...finally block.
     """
     monkeypatch.setattr(database, "DATABASE_URL", TEST_PG_URL)
 
@@ -315,63 +315,112 @@ def test_postgresql_fresh_initialization_live(monkeypatch):
     conn = database.get_connection()
     cursor = conn.cursor()
 
-    cursor.execute("""
-        SELECT table_name 
-        FROM information_schema.tables 
-        WHERE table_schema = 'public'
-    """)
-    rows = cursor.fetchall()
-    tables = {r["table_name"] for r in rows}
+    try:
+        cursor.execute("""
+            SELECT table_name 
+            FROM information_schema.tables 
+            WHERE table_schema = 'public'
+        """)
+        rows = cursor.fetchall()
+        tables = {r["table_name"] for r in rows}
 
-    required = {
-        "users", "exams", "questions", "exam_assignments", "submissions",
-        "violations", "settings", "ai_generation_jobs", "persistent_assets",
-        "question_bank", "proctor_messages"
-    }
-    missing = required - tables
-    assert not missing, f"PostgreSQL database is missing required tables: {missing}"
+        required = {
+            "users", "exams", "questions", "exam_assignments", "submissions",
+            "violations", "settings", "ai_generation_jobs", "persistent_assets",
+            "question_bank", "proctor_messages"
+        }
+        missing = required - tables
+        assert not missing, f"PostgreSQL database is missing required tables: {missing}"
 
-    # Verify critical migration columns were added to the tables
-    cursor.execute("""
-        SELECT column_name 
-        FROM information_schema.columns 
-        WHERE table_schema = 'public' AND table_name = 'submissions'
-    """)
-    sub_cols = {r["column_name"] for r in cursor.fetchall()}
-    for col in [
-        "user_id", "manual_evaluation_json", "integrity_hash", "client_ip",
-        "geo_location_json", "diagnostic_analysis_json", "honeypot_snared",
-        "time_remaining_seconds", "progress_answers_json", "device_switch_approved"
-    ]:
-        assert col in sub_cols, f"Missing critical migration column '{col}' in PostgreSQL submissions table"
+        # Verify critical migration columns and their expected data types in submissions table
+        cursor.execute("""
+            SELECT column_name, data_type 
+            FROM information_schema.columns 
+            WHERE table_schema = 'public' AND table_name = 'submissions'
+        """)
+        sub_cols = {r["column_name"]: r["data_type"].lower() for r in cursor.fetchall()}
+        expected_sub_cols = {
+            "user_id": "integer",
+            "manual_evaluation_json": "text",
+            "integrity_hash": "text",
+            "client_ip": "text",
+            "geo_location_json": "text",
+            "diagnostic_analysis_json": "text",
+            "honeypot_snared": "integer",
+            "time_remaining_seconds": "integer",
+            "progress_answers_json": "text",
+            "device_switch_approved": "integer",
+            "face_match_confidence": "double precision",
+            "pause_requested_at": "timestamp without time zone",
+        }
+        for col, exp_type in expected_sub_cols.items():
+            assert col in sub_cols, f"Missing critical migration column '{col}' in PostgreSQL submissions table"
+            assert sub_cols[col] == exp_type, (
+                f"Column '{col}' in submissions has type '{sub_cols[col]}', expected '{exp_type}'"
+            )
 
-    cursor.execute("""
-        SELECT column_name 
-        FROM information_schema.columns 
-        WHERE table_schema = 'public' AND table_name = 'proctor_messages'
-    """)
-    pm_cols = {r["column_name"] for r in cursor.fetchall()}
-    assert "audio_payload" in pm_cols, "Missing critical migration column 'audio_payload' in PostgreSQL proctor_messages table"
+        # Verify proctor_messages columns and types
+        cursor.execute("""
+            SELECT column_name, data_type 
+            FROM information_schema.columns 
+            WHERE table_schema = 'public' AND table_name = 'proctor_messages'
+        """)
+        pm_cols = {r["column_name"]: r["data_type"].lower() for r in cursor.fetchall()}
+        assert "audio_payload" in pm_cols, "Missing critical migration column 'audio_payload' in PostgreSQL proctor_messages table"
+        assert pm_cols["audio_payload"] == "text", f"Column 'audio_payload' has type '{pm_cols['audio_payload']}', expected 'text'"
 
-    cursor.execute("""
-        SELECT column_name 
-        FROM information_schema.columns 
-        WHERE table_schema = 'public' AND table_name = 'questions'
-    """)
-    q_cols = {r["column_name"] for r in cursor.fetchall()}
-    for col in ["blooms_taxonomy", "distractor_analysis_json", "difficulty_tier", "topic_category", "is_honeypot"]:
-        assert col in q_cols, f"Missing critical migration column '{col}' in PostgreSQL questions table"
+        # Verify questions columns and types
+        cursor.execute("""
+            SELECT column_name, data_type 
+            FROM information_schema.columns 
+            WHERE table_schema = 'public' AND table_name = 'questions'
+        """)
+        q_cols = {r["column_name"]: r["data_type"].lower() for r in cursor.fetchall()}
+        expected_q_cols = {
+            "blooms_taxonomy": "text",
+            "distractor_analysis_json": "text",
+            "difficulty_tier": "text",
+            "topic_category": "text",
+            "is_honeypot": "integer",
+            "points": "double precision",
+        }
+        for col, exp_type in expected_q_cols.items():
+            assert col in q_cols, f"Missing critical migration column '{col}' in PostgreSQL questions table"
+            assert q_cols[col] == exp_type, (
+                f"Column '{col}' in questions has type '{q_cols[col]}', expected '{exp_type}'"
+            )
 
-    cursor.execute("""
-        SELECT column_name 
-        FROM information_schema.columns 
-        WHERE table_schema = 'public' AND table_name = 'exams'
-    """)
-    ex_cols = {r["column_name"] for r in cursor.fetchall()}
-    for col in ["enable_video_detection", "enable_audio_detection", "access_type", "pool_question_count", "results_published"]:
-        assert col in ex_cols, f"Missing critical migration column '{col}' in PostgreSQL exams table"
+        # Verify exams columns and types
+        cursor.execute("""
+            SELECT column_name, data_type 
+            FROM information_schema.columns 
+            WHERE table_schema = 'public' AND table_name = 'exams'
+        """)
+        ex_cols = {r["column_name"]: r["data_type"].lower() for r in cursor.fetchall()}
+        expected_ex_cols = {
+            "enable_video_detection": "integer",
+            "enable_audio_detection": "integer",
+            "access_type": "text",
+            "pool_question_count": "integer",
+            "results_published": "integer",
+            "passing_percentage": "double precision",
+            "duration_minutes": "integer",
+        }
+        for col, exp_type in expected_ex_cols.items():
+            assert col in ex_cols, f"Missing critical migration column '{col}' in PostgreSQL exams table"
+            assert ex_cols[col] == exp_type, (
+                f"Column '{col}' in exams has type '{ex_cols[col]}', expected '{exp_type}'"
+            )
 
-    conn.close()
+    finally:
+        try:
+            cursor.close()
+        except Exception:
+            pass
+        try:
+            conn.close()
+        except Exception:
+            pass
 
 
 def test_database_url_safety_check():
