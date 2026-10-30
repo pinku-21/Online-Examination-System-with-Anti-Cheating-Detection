@@ -453,7 +453,7 @@ def login():
                     SELECT s.id, s.exam_id, s.status, s.device_switch_approved, e.title as exam_title
                     FROM submissions s
                     JOIN exams e ON s.exam_id = e.id
-                    WHERE (s.user_id = ? OR s.roll_number = ?)
+                    WHERE (s.user_id = ? OR (s.user_id IS NULL AND s.roll_number = ?))
                       AND s.status IN ('in_progress', 'paused', 'pause_requested')
                     ORDER BY s.started_at DESC LIMIT 1
                 """, (user["id"], user.get("roll_number") or ""))
@@ -3355,14 +3355,16 @@ def student_dashboard():
         session["profile_photo"] = u_row["profile_photo"]
 
     # Fetch all active exams, including any in-progress session for this student
+    # Note: Query MUST match strictly by user_id for logged-in accounts, or roll_number only if user_id is null,
+    # to prevent a new student sharing a numeric roll number (e.g. Roll 23) from inheriting another student's submission!
     cursor.execute("""
         SELECT e.*,
                (SELECT COUNT(*) FROM questions WHERE exam_id = e.id) as question_count,
-               (SELECT id FROM submissions WHERE exam_id = e.id AND (user_id = ? OR roll_number = ?) AND status NOT IN ('in_progress','pause_requested','paused') ORDER BY started_at DESC LIMIT 1) as completed_sub_id,
-               (SELECT score FROM submissions WHERE exam_id = e.id AND (user_id = ? OR roll_number = ?) AND status NOT IN ('in_progress','pause_requested','paused') ORDER BY started_at DESC LIMIT 1) as completed_score,
-               (SELECT percentage FROM submissions WHERE exam_id = e.id AND (user_id = ? OR roll_number = ?) AND status NOT IN ('in_progress','pause_requested','paused') ORDER BY started_at DESC LIMIT 1) as completed_pct,
-               (SELECT id FROM submissions WHERE exam_id = e.id AND (user_id = ? OR roll_number = ?) AND status IN ('in_progress','pause_requested','paused') ORDER BY started_at DESC LIMIT 1) as active_sub_id,
-               (SELECT status FROM submissions WHERE exam_id = e.id AND (user_id = ? OR roll_number = ?) AND status IN ('in_progress','pause_requested','paused') ORDER BY started_at DESC LIMIT 1) as active_sub_status
+               (SELECT id FROM submissions WHERE exam_id = e.id AND (user_id = ? OR (user_id IS NULL AND roll_number = ?)) AND status NOT IN ('in_progress','pause_requested','paused') ORDER BY started_at DESC LIMIT 1) as completed_sub_id,
+               (SELECT score FROM submissions WHERE exam_id = e.id AND (user_id = ? OR (user_id IS NULL AND roll_number = ?)) AND status NOT IN ('in_progress','pause_requested','paused') ORDER BY started_at DESC LIMIT 1) as completed_score,
+               (SELECT percentage FROM submissions WHERE exam_id = e.id AND (user_id = ? OR (user_id IS NULL AND roll_number = ?)) AND status NOT IN ('in_progress','pause_requested','paused') ORDER BY started_at DESC LIMIT 1) as completed_pct,
+               (SELECT id FROM submissions WHERE exam_id = e.id AND (user_id = ? OR (user_id IS NULL AND roll_number = ?)) AND status IN ('in_progress','pause_requested','paused') ORDER BY started_at DESC LIMIT 1) as active_sub_id,
+               (SELECT status FROM submissions WHERE exam_id = e.id AND (user_id = ? OR (user_id IS NULL AND roll_number = ?)) AND status IN ('in_progress','pause_requested','paused') ORDER BY started_at DESC LIMIT 1) as active_sub_status
         FROM exams e
         WHERE e.is_active = 1
         ORDER BY e.created_at DESC
@@ -3432,11 +3434,11 @@ def api_student_active_exams():
     cursor.execute("""
         SELECT e.id, e.title, e.exam_code, e.duration_minutes, e.schedule_type, e.start_time, e.end_time, e.access_type, e.assigned_class, e.results_published,
                (SELECT COUNT(*) FROM questions WHERE exam_id = e.id) as question_count,
-               (SELECT id FROM submissions WHERE exam_id = e.id AND (user_id = ? OR roll_number = ?) AND status IN ('in_progress','pause_requested','paused') ORDER BY started_at DESC LIMIT 1) as active_sub_id,
-               (SELECT status FROM submissions WHERE exam_id = e.id AND (user_id = ? OR roll_number = ?) AND status IN ('in_progress','pause_requested','paused') ORDER BY started_at DESC LIMIT 1) as active_sub_status,
-               (SELECT id FROM submissions WHERE exam_id = e.id AND (user_id = ? OR roll_number = ?) AND status NOT IN ('in_progress','pause_requested','paused') ORDER BY started_at DESC LIMIT 1) as completed_sub_id,
-               (SELECT percentage FROM submissions WHERE exam_id = e.id AND (user_id = ? OR roll_number = ?) AND status NOT IN ('in_progress','pause_requested','paused') ORDER BY started_at DESC LIMIT 1) as completed_pct,
-               (SELECT is_published FROM submissions WHERE exam_id = e.id AND (user_id = ? OR roll_number = ?) AND status NOT IN ('in_progress','pause_requested','paused') ORDER BY started_at DESC LIMIT 1) as completed_is_published
+               (SELECT id FROM submissions WHERE exam_id = e.id AND (user_id = ? OR (user_id IS NULL AND roll_number = ?)) AND status IN ('in_progress','pause_requested','paused') ORDER BY started_at DESC LIMIT 1) as active_sub_id,
+               (SELECT status FROM submissions WHERE exam_id = e.id AND (user_id = ? OR (user_id IS NULL AND roll_number = ?)) AND status IN ('in_progress','pause_requested','paused') ORDER BY started_at DESC LIMIT 1) as active_sub_status,
+               (SELECT id FROM submissions WHERE exam_id = e.id AND (user_id = ? OR (user_id IS NULL AND roll_number = ?)) AND status NOT IN ('in_progress','pause_requested','paused') ORDER BY started_at DESC LIMIT 1) as completed_sub_id,
+               (SELECT percentage FROM submissions WHERE exam_id = e.id AND (user_id = ? OR (user_id IS NULL AND roll_number = ?)) AND status NOT IN ('in_progress','pause_requested','paused') ORDER BY started_at DESC LIMIT 1) as completed_pct,
+               (SELECT is_published FROM submissions WHERE exam_id = e.id AND (user_id = ? OR (user_id IS NULL AND roll_number = ?)) AND status NOT IN ('in_progress','pause_requested','paused') ORDER BY started_at DESC LIMIT 1) as completed_is_published
         FROM exams e
         WHERE e.is_active = 1
         ORDER BY e.created_at DESC
@@ -3575,7 +3577,7 @@ def student_start():
     # → redirect straight to it instead of creating a duplicate.
     cursor.execute("""
         SELECT id FROM submissions
-        WHERE exam_id = ? AND (user_id = ? OR roll_number = ?)
+        WHERE exam_id = ? AND (user_id = ? OR (user_id IS NULL AND roll_number = ?))
           AND status IN ('in_progress', 'pause_requested', 'paused')
         ORDER BY started_at DESC LIMIT 1
     """, (exam["id"], user_id, roll_number))
