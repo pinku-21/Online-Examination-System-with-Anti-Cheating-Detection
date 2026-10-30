@@ -177,14 +177,64 @@ SECURITY_EVENT_CLASSIFICATION = {
     "secondary_cam_disconnect": {"code": "SEC-016", "severity": "HIGH", "desc": "Secondary Mobile Camera Disconnected / Obscured"}
 }
 
-def generate_submission_integrity_hash(submission_id, roll_number, score, total_points, warnings_count, status):
-    """
-    Computes an HMAC-SHA-256 cryptographic verification token for the submission.
-    Ensures non-repudiation and detects unauthorized tampering in database or transit.
-    """
-    secret = app.secret_key.encode('utf-8')
-    payload = f"EXAMGUARD_V1|SUB:{submission_id}|ROLL:{roll_number}|SCORE:{score}/{total_points}|STRK:{warnings_count}|STATUS:{status}".encode('utf-8')
+def _canonical_answers_digest(answers_json):
+    """Return a stable SHA-256 digest for submitted answers, regardless of JSON key order."""
+    if answers_json in (None, ""):
+        parsed_answers = {}
+    elif isinstance(answers_json, str):
+        try:
+            parsed_answers = json.loads(answers_json)
+        except (TypeError, ValueError):
+            parsed_answers = answers_json
+    else:
+        parsed_answers = answers_json
+    canonical = json.dumps(parsed_answers, sort_keys=True, separators=(",", ":"), ensure_ascii=False)
+    return hashlib.sha256(canonical.encode("utf-8")).hexdigest()
+
+
+def generate_submission_integrity_hash(
+    submission_id, roll_number, score, total_points, warnings_count, status,
+    answers_json=None
+):
+    """Generate a V2 HMAC covering metadata and a canonical digest of submitted answers."""
+    secret = app.secret_key.encode("utf-8")
+    payload = {
+        "version": 2,
+        "submission_id": submission_id,
+        "roll_number": roll_number or "",
+        "score": float(score or 0.0),
+        "total_points": float(total_points or 0.0),
+        "warnings_count": int(warnings_count or 0),
+        "status": status or "",
+        "answers_sha256": _canonical_answers_digest(answers_json),
+    }
+    message = json.dumps(payload, sort_keys=True, separators=(",", ":")).encode("utf-8")
+    return hmac.new(secret, message, hashlib.sha256).hexdigest()
+
+
+def generate_legacy_submission_integrity_hash(
+    submission_id, roll_number, score, total_points, warnings_count, status
+):
+    """Verify historical V1 records during the transition to answer-bound V2 hashes."""
+    secret = app.secret_key.encode("utf-8")
+    payload = (
+        f"EXAMGUARD_V1|SUB:{submission_id}|ROLL:{roll_number}|"
+        f"SCORE:{score}/{total_points}|STRK:{warnings_count}|STATUS:{status}"
+    ).encode("utf-8")
     return hmac.new(secret, payload, hashlib.sha256).hexdigest()
+
+
+def validate_password_strength(password):
+    """Return an explanatory error for weak passwords, or None when valid."""
+    if not isinstance(password, str) or len(password) < 12:
+        return "Password must contain at least 12 characters."
+    if not any(char.isupper() for char in password):
+        return "Password must contain at least one uppercase letter."
+    if not any(char.islower() for char in password):
+        return "Password must contain at least one lowercase letter."
+    if not any(char.isdigit() for char in password):
+        return "Password must contain at least one number."
+    return None
 
 def classify_security_event(violation_type):
     """SIEM-style classification for anti-cheat and security violations."""
@@ -554,8 +604,9 @@ def register():
             flash("Please enter a valid Email Address (e.g. student@school.com) to receive exam results and proctoring notices.", "danger")
             return render_template("register.html")
 
-        if len(password) < 8 or not any(c.isupper() for c in password) or not any(c.isdigit() for c in password):
-            flash("Password must be strong: minimum 8 characters with at least 1 uppercase letter (A-Z) and 1 number (0-9).", "danger")
+        password_error = validate_password_strength(password)
+        if password_error:
+            flash(password_error, "danger")
             return render_template("register.html")
 
         if not photo_file or not photo_file.filename:
@@ -637,8 +688,9 @@ def admin_create_student():
 
     if not full_name or not roll_number or not username or not password:
         return jsonify({"success": False, "error": "Full Name, Roll Number, Username, and Password are all required."})
-    if len(password) < 4:
-        return jsonify({"success": False, "error": "Password must be at least 4 characters."})
+    password_error = validate_password_strength(password)
+    if password_error:
+        return jsonify({"success": False, "error": password_error}), 400
 
     # Save profile photo if provided
     profile_photo_url = ""
@@ -727,8 +779,9 @@ def admin_reset_password():
     new_password = data.get("new_password", "").strip()
     if not student_id or not new_password:
         return jsonify({"success": False, "error": "Student ID and new password are required."})
-    if len(new_password) < 4:
-        return jsonify({"success": False, "error": "Password must be at least 4 characters."})
+    password_error = validate_password_strength(new_password)
+    if password_error:
+        return jsonify({"success": False, "error": password_error}), 400
     conn = get_connection()
     cursor = conn.cursor()
     cursor.execute("SELECT id, role FROM users WHERE id = ?", (student_id,))
@@ -759,8 +812,9 @@ def student_change_password():
     if not current_password or not new_password:
         return jsonify({"success": False, "error": "Current password and new password are required."})
 
-    if len(new_password) < 4:
-        return jsonify({"success": False, "error": "New password must be at least 4 characters long."})
+    password_error = validate_password_strength(new_password)
+    if password_error:
+        return jsonify({"success": False, "error": password_error}), 400
 
     if new_password != confirm_password:
         return jsonify({"success": False, "error": "New password and confirmation do not match."})
@@ -1670,13 +1724,19 @@ def tutor_update_submission_score(submission_id):
         return jsonify({"success": False, "error": "Submission not found"}), 404
         
     total_points = float(submission["total_points"]) if submission["total_points"] else 1.0
+    new_score = round(new_score, 1)
     percentage = (new_score / total_points * 100) if total_points > 0 else 0.0
-    
+    integrity_hash = generate_submission_integrity_hash(
+        submission_id, submission["roll_number"], new_score, total_points,
+        submission.get("warnings_count") or 0, submission.get("status") or "",
+        submission.get("answers_json")
+    )
+
     cursor.execute("""
-        UPDATE submissions 
-        SET score = ?, percentage = ?
+        UPDATE submissions
+        SET score = ?, percentage = ?, integrity_hash = ?
         WHERE id = ?
-    """, (round(new_score, 1), round(percentage, 1), submission_id))
+    """, (new_score, round(percentage, 1), integrity_hash, submission_id))
     
     conn.commit()
     conn.close()
@@ -1949,11 +2009,18 @@ def api_tutor_evaluate_question(submission_id):
         all_questions, student_answers, existing_eval
     )
 
+    integrity_hash = generate_submission_integrity_hash(
+        submission_id, submission["roll_number"], new_total_score, total_exam_points,
+        submission.get("warnings_count") or 0, submission.get("status") or "",
+        submission.get("answers_json")
+    )
     cursor.execute("""
         UPDATE submissions
-        SET manual_evaluation_json = ?, score = ?, total_points = ?, percentage = ?
+        SET manual_evaluation_json = ?, score = ?, total_points = ?, percentage = ?,
+            integrity_hash = ?
         WHERE id = ?
-    """, (json.dumps(existing_eval), new_total_score, total_exam_points, percentage, submission_id))
+    """, (json.dumps(existing_eval), new_total_score, total_exam_points, percentage,
+          integrity_hash, submission_id))
 
     conn.commit()
     conn.close()
@@ -2086,11 +2153,18 @@ def evaluate_submission_internal(submission_id):
         all_questions, student_answers, existing_eval
     )
 
+    integrity_hash = generate_submission_integrity_hash(
+        submission_id, submission["roll_number"], new_total_score, total_exam_points,
+        submission.get("warnings_count") or 0, submission.get("status") or "",
+        submission.get("answers_json")
+    )
     cursor.execute("""
         UPDATE submissions
-        SET manual_evaluation_json = ?, score = ?, total_points = ?, percentage = ?
+        SET manual_evaluation_json = ?, score = ?, total_points = ?, percentage = ?,
+            integrity_hash = ?
         WHERE id = ?
-    """, (json.dumps(existing_eval), new_total_score, total_exam_points, percentage, submission_id))
+    """, (json.dumps(existing_eval), new_total_score, total_exam_points, percentage,
+          integrity_hash, submission_id))
     conn.commit()
     conn.close()
     return True, {"results": results, "new_score": new_total_score, "total_points": total_exam_points, "percentage": percentage}
@@ -2162,11 +2236,18 @@ def api_tutor_update_question_score(submission_id):
         all_questions, student_answers, existing_eval
     )
 
+    integrity_hash = generate_submission_integrity_hash(
+        submission_id, submission["roll_number"], new_total_score, total_exam_points,
+        submission.get("warnings_count") or 0, submission.get("status") or "",
+        submission.get("answers_json")
+    )
     cursor.execute("""
         UPDATE submissions
-        SET manual_evaluation_json = ?, score = ?, total_points = ?, percentage = ?
+        SET manual_evaluation_json = ?, score = ?, total_points = ?, percentage = ?,
+            integrity_hash = ?
         WHERE id = ?
-    """, (json.dumps(existing_eval), new_total_score, total_exam_points, percentage, submission_id))
+    """, (json.dumps(existing_eval), new_total_score, total_exam_points, percentage,
+          integrity_hash, submission_id))
 
     conn.commit()
     conn.close()
@@ -3824,15 +3905,15 @@ def api_log_violation(submission_id):
         termination_reason = f"Exceeded maximum allowed anti-cheating warnings ({new_warnings}/{max_allowed} strikes). Violation: {violation_type.replace('_', ' ').title()}"
         
         # Calculate cryptographic integrity token for the terminated record
+        terminated_answers = submission.get("answers_json")
+        if not terminated_answers or terminated_answers == "{}":
+            terminated_answers = submission.get("progress_answers_json") or "{}"
         term_hash = generate_submission_integrity_hash(
-            submission_id, 
-            submission["roll_number"], 
-            submission.get("score") or 0.0, 
-            submission.get("total_points") or 0.0, 
-            new_warnings, 
-            'terminated'
+            submission_id, submission["roll_number"],
+            submission.get("score") or 0.0, submission.get("total_points") or 0.0,
+            new_warnings, "terminated", terminated_answers
         )
-        
+
         # Save any partially-answered questions (from progress_answers_json) into answers_json
         cursor.execute("""
             UPDATE submissions 
@@ -3939,8 +4020,9 @@ def api_submit_exam(submission_id):
         submission["roll_number"], 
         total_score, 
         total_points, 
-        submission.get("warnings_count", 0), 
-        'submitted'
+        submission.get("warnings_count", 0),
+        'submitted',
+        json.dumps(answers)
     )
     
     cursor.execute("""
@@ -4732,9 +4814,15 @@ def exam_result(submission_id):
         sub_dict.get("score") or 0.0,
         sub_dict.get("total_points") or 0.0,
         sub_dict.get("warnings_count") or 0,
+        sub_dict.get("status") or "submitted",
+        sub_dict.get("answers_json")
+    )
+    expected_legacy_hash = generate_legacy_submission_integrity_hash(
+        sub_dict["id"], sub_dict["roll_number"], sub_dict.get("score") or 0.0,
+        sub_dict.get("total_points") or 0.0, sub_dict.get("warnings_count") or 0,
         sub_dict.get("status") or "submitted"
     )
-    
+
     stored_hash = sub_dict.get("integrity_hash") or ""
     # If not previously stored (historical submission), persist current valid hash
     if not stored_hash and sub_dict.get("status") in ("submitted", "terminated"):
@@ -4748,7 +4836,13 @@ def exam_result(submission_id):
         except Exception:
             stored_hash = expected_hash
             
-    is_tamper_verified = bool(stored_hash and hmac.compare_digest(stored_hash, expected_hash))
+    # Accept valid V1 signatures for historical records; all new writes use V2.
+    is_tamper_verified = bool(
+        stored_hash and (
+            hmac.compare_digest(stored_hash, expected_hash)
+            or hmac.compare_digest(stored_hash, expected_legacy_hash)
+        )
+    )
 
     return render_template("exam_result.html", 
                            submission=sub_dict, 
