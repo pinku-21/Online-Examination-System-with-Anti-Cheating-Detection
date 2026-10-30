@@ -120,3 +120,19 @@ def test_legacy_integrity_hash_remains_verifiable():
     legacy = generate_legacy_submission_integrity_hash(10, "CS-001", 45, 50, 0, "submitted")
     assert len(legacy) == 64
     assert legacy == generate_legacy_submission_integrity_hash(10, "CS-001", 45, 50, 0, "submitted")
+
+
+
+def test_state_changing_request_requires_csrf_even_without_existing_session():
+    client = app.test_client()
+    response = client.post("/login", json={})
+    assert response.status_code == 403
+
+
+def test_state_changing_request_accepts_session_csrf_token():
+    client = app.test_client()
+    client.get("/login")
+    with client.session_transaction() as sess:
+        token = sess["csrf_token"]
+    response = client.post("/login", json={}, headers={"X-CSRF-Token": token})
+    assert response.status_code == 200
