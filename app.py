@@ -450,25 +450,24 @@ def csrf_protect_check():
                     "error": "Cross-Site Request Blocked (CSRF Security Violation): Origin mismatch."
                 }), 403
 
-        # 2. Token Verification for Session-Backed Users
-        # If the user has a session, they MUST supply a matching csrf_token
-        session_token = session.get("csrf_token")
-        if session_token:
-            request_token = request.headers.get("X-CSRF-Token") or request.form.get("csrf_token")
-            # If not in headers or form, check JSON payload if present
-            if not request_token and request.is_json:
-                json_data = request.get_json(silent=True) or {}
-                if isinstance(json_data, dict):
-                    request_token = json_data.get("csrf_token")
-            
-            if not request_token or not secrets.compare_digest(request_token, session_token):
-                if request.is_json or request.path.startswith("/api/"):
-                    return jsonify({
-                        "success": False,
-                        "error": "CSRF Token Missing or Invalid (Security Violation SEC-016). Request rejected."
-                    }), 403
-                flash("Your security token expired or was invalid. Please try again.", "warning")
-                return redirect(request.referrer or url_for("student_dashboard"))
+        # 2. Require a synchronizer token even when the client has no prior session.
+        # This closes the login-CSRF gap where an attacker submits a first-ever POST
+        # without first loading a page that creates the session token.
+        session_token = get_csrf_token()
+        request_token = request.headers.get("X-CSRF-Token") or request.form.get("csrf_token")
+        if not request_token and request.is_json:
+            json_data = request.get_json(silent=True) or {}
+            if isinstance(json_data, dict):
+                request_token = json_data.get("csrf_token")
+
+        if not request_token or not secrets.compare_digest(request_token, session_token):
+            if request.is_json or request.path.startswith("/api/"):
+                return jsonify({
+                    "success": False,
+                    "error": "CSRF Token Missing or Invalid (Security Violation SEC-016). Request rejected."
+                }), 403
+            flash("Your security token expired or was invalid. Please try again.", "warning")
+            return redirect(request.referrer or url_for("login"))
 
 def get_csrf_token():
     if "csrf_token" not in session:
