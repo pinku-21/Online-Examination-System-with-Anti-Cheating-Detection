@@ -61,7 +61,6 @@ def get_current_time():
     return datetime.now(IST).replace(tzinfo=None)
 
 app = Flask(__name__, static_url_path=None)
-init_sentry(app)
 # Ensure strong secret key in production (prevent default key session hijacking)
 DEFAULT_DEV_SECRET = "examguard-super-secret-key-2026"
 configured_secret = os.environ.get("SECRET_KEY")

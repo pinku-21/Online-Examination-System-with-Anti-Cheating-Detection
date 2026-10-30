@@ -12,26 +12,10 @@ import time
 import base64
 from database import get_setting
 
-# ── 1. SENTRY ERROR & CRASH MONITORING ───────────────────────────────────────
+# ── 1. SENTRY ERROR & CRASH MONITORING (DISABLED) ───────────────────────────
 def init_sentry(app=None):
-    """Initializes Sentry SDK if SENTRY_DSN is configured in environment or settings."""
-    dsn = os.environ.get("SENTRY_DSN", "").strip() or get_setting("sentry_dsn", "").strip()
-    if not dsn:
-        return False
-    try:
-        import sentry_sdk
-        from sentry_sdk.integrations.flask import FlaskIntegration
-        sentry_sdk.init(
-            dsn=dsn,
-            integrations=[FlaskIntegration()] if app else [],
-            traces_sample_rate=0.2,
-            environment=os.environ.get("FLASK_ENV", "production")
-        )
-        print("[CloudServices] Sentry error monitoring initialized successfully.")
-        return True
-    except Exception as e:
-        print(f"[CloudServices] Sentry init warning: {e}")
-        return False
+    """Sentry error monitoring has been disabled per user request."""
+    return False
 
 
 # ── 2. CLOUDINARY PERSISTENT MEDIA STORAGE ──────────────────────────────────
