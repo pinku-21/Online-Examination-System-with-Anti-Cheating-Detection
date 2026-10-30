@@ -39,8 +39,9 @@ def validate_test_database_url(url: str) -> bool:
         dbname = raw_path.split("/")[0].strip().lower()
         if not dbname:
             return False
-        # The database name itself must contain 'test'
-        return "test" in dbname
+        # The database name itself must strictly start with 'test_' or end with '_test'
+        # e.g., 'test_examguard' or 'examguard_test'. Names like 'latestest_prod' are rejected.
+        return dbname.startswith("test_") or dbname.endswith("_test")
     except Exception:
         return False
 
@@ -355,10 +356,16 @@ def test_database_url_safety_check():
     # Query parameter has 'test', but dbname is 'live_prod'
     assert validate_test_database_url("postgresql://admin:secret@localhost:5432/live_prod?test=true") is False
 
-    # 3. Only URLs where the database name itself contains 'test' are permitted
+    # 3. Names containing 'test' as a substring but not starting with 'test_' or ending with '_test' must be rejected
+    assert validate_test_database_url("postgresql://postgres:pass@localhost:5432/latestest_prod") is False
+    assert validate_test_database_url("postgresql://postgres:pass@localhost:5432/mytestdb") is False
+    assert validate_test_database_url("postgresql://postgres:pass@localhost:5432/contest") is False
+
+    # 4. Only URLs where the database name itself starts with 'test_' or ends with '_test' are permitted
     assert validate_test_database_url("postgresql://user:pass@ep-cool-fog-123.us-east-2.aws.neon.tech/examguard_test") is True
     assert validate_test_database_url("postgresql://postgres:pass@localhost:5432/test_db") is True
     assert validate_test_database_url("postgres://postgres:pass@localhost:5432/examguard_integration_test?sslmode=require") is True
+    assert validate_test_database_url("postgresql://postgres:pass@localhost:5432/test_examguard") is True
 
 
 
