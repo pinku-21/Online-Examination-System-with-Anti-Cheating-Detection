@@ -207,6 +207,37 @@ def init_db():
             data_base64 TEXT NOT NULL,
             created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
         )""")
+        cursor.execute("""CREATE TABLE IF NOT EXISTS question_bank (
+            id SERIAL PRIMARY KEY,
+            tutor_id INTEGER REFERENCES users(id) ON DELETE CASCADE,
+            category TEXT NOT NULL DEFAULT 'General',
+            chapter TEXT DEFAULT '',
+            question_text TEXT NOT NULL,
+            question_type TEXT NOT NULL DEFAULT 'mcq',
+            options_json TEXT,
+            correct_answer TEXT NOT NULL,
+            explanation TEXT,
+            points DOUBLE PRECISION NOT NULL DEFAULT 1.0,
+            difficulty_tier TEXT DEFAULT 'Medium',
+            blooms_taxonomy TEXT DEFAULT 'Understand',
+            distractor_analysis_json TEXT DEFAULT '{}',
+            figure_svg TEXT,
+            figure_url TEXT,
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        )""")
+        cursor.execute("""CREATE TABLE IF NOT EXISTS proctor_messages (
+            id SERIAL PRIMARY KEY,
+            submission_id INTEGER NOT NULL,
+            sender_id INTEGER NOT NULL,
+            message_text TEXT NOT NULL,
+            severity TEXT DEFAULT 'warning',
+            is_read INTEGER DEFAULT 0,
+            audio_payload TEXT DEFAULT '',
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        )""")
+        # Commit base table creation first so all required tables exist before running migrations
+        conn.commit()
+
         # Safe, repeatable migrations for databases created by an earlier version.
         migrations = [
             "ALTER TABLE users ADD COLUMN IF NOT EXISTS class_name TEXT DEFAULT ''",
@@ -260,38 +291,12 @@ def init_db():
             # IP Geolocation & Hazard Intelligence
             "ALTER TABLE submissions ADD COLUMN IF NOT EXISTS geo_location_json TEXT DEFAULT ''",
         ]
-        cursor.execute("""CREATE TABLE IF NOT EXISTS question_bank (
-            id SERIAL PRIMARY KEY,
-            tutor_id INTEGER REFERENCES users(id) ON DELETE CASCADE,
-            category TEXT NOT NULL DEFAULT 'General',
-            chapter TEXT DEFAULT '',
-            question_text TEXT NOT NULL,
-            question_type TEXT NOT NULL DEFAULT 'mcq',
-            options_json TEXT,
-            correct_answer TEXT NOT NULL,
-            explanation TEXT,
-            points DOUBLE PRECISION NOT NULL DEFAULT 1.0,
-            difficulty_tier TEXT DEFAULT 'Medium',
-            blooms_taxonomy TEXT DEFAULT 'Understand',
-            distractor_analysis_json TEXT DEFAULT '{}',
-            figure_svg TEXT,
-            figure_url TEXT,
-            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-        )""")
-        cursor.execute("""CREATE TABLE IF NOT EXISTS proctor_messages (
-            id SERIAL PRIMARY KEY,
-            submission_id INTEGER NOT NULL,
-            sender_id INTEGER NOT NULL,
-            message_text TEXT NOT NULL,
-            severity TEXT DEFAULT 'warning',
-            is_read INTEGER DEFAULT 0,
-            audio_payload TEXT DEFAULT '',
-            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-        )""")
         for statement in migrations:
             try:
                 cursor.execute(statement)
+                conn.commit()
             except Exception as e:
+                conn.rollback()
                 print(f"Migration warning: {e}")
     else:
         cursor.execute("""CREATE TABLE IF NOT EXISTS users (

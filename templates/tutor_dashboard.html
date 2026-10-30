@@ -555,6 +555,7 @@
         </div>
 
         <form action="/tutor/settings" method="POST" class="space-y-4">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
 
             <!-- Google Gemini -->
             <div class="p-3 bg-slate-50 border border-slate-200 rounded-xl">

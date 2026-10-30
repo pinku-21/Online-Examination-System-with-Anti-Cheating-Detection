@@ -47,6 +47,7 @@
         {% endwith %}
 
         <form action="/login" method="POST" class="space-y-4">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
             <input type="hidden" name="role" id="login-role-input" value="{{ role or 'student' }}">
             <input type="hidden" name="next" value="{{ next_url or '' }}">
 

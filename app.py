@@ -377,26 +377,48 @@ def login_required(f):
 @app.before_request
 def csrf_protect_check():
     """
-    ECC Security Pattern: Validates Origin / Referer on all state-changing HTTP methods
-    (POST, PUT, DELETE, PATCH) to prevent Cross-Site Request Forgery (CSRF).
+    Industry-Grade CSRF Defense:
+    1. Origin / Referer Validation: Blocks cross-origin POST, PUT, DELETE, PATCH.
+    2. Cryptographic Synchronizer / Double-Submit Token Verification:
+       Validates that incoming state-changing requests contain a valid CSRF token matching
+       the authenticated session (via 'X-CSRF-Token' header or 'csrf_token' form parameter).
     """
     if request.method in ("POST", "PUT", "DELETE", "PATCH"):
-        # Exempt external webhook or health check routes if any
-        if request.path in ("/health", "/ping"):
+        # Exempt public health checks, unauthenticated external pings, and companion pairing heartbeats
+        if request.path in ("/health", "/ping") or request.path.endswith("/mobile-heartbeat"):
             return None
-            
+
+        # 1. Origin / Referer Host Validation
         origin = request.headers.get("Origin") or request.headers.get("Referer")
         if origin:
-            # Parse host from origin/referer
             from urllib.parse import urlparse
             origin_host = urlparse(origin).netloc.lower()
             current_host = request.host.lower()
-            # If origin host is present and does not match our current host
             if origin_host and origin_host != current_host:
                 return jsonify({
                     "success": False,
                     "error": "Cross-Site Request Blocked (CSRF Security Violation): Origin mismatch."
                 }), 403
+
+        # 2. Token Verification for Session-Backed Users
+        # If the user has a session, they MUST supply a matching csrf_token
+        session_token = session.get("csrf_token")
+        if session_token:
+            request_token = request.headers.get("X-CSRF-Token") or request.form.get("csrf_token")
+            # If not in headers or form, check JSON payload if present
+            if not request_token and request.is_json:
+                json_data = request.get_json(silent=True) or {}
+                if isinstance(json_data, dict):
+                    request_token = json_data.get("csrf_token")
+            
+            if not request_token or not secrets.compare_digest(request_token, session_token):
+                if request.is_json or request.path.startswith("/api/"):
+                    return jsonify({
+                        "success": False,
+                        "error": "CSRF Token Missing or Invalid (Security Violation SEC-016). Request rejected."
+                    }), 403
+                flash("Your security token expired or was invalid. Please try again.", "warning")
+                return redirect(request.referrer or url_for("student_dashboard"))
 
 def get_csrf_token():
     if "csrf_token" not in session:

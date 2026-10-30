@@ -26,6 +26,7 @@
         {% endwith %}
 
         <form action="/student/start" method="POST" class="space-y-4">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
             <div>
                 <label class="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1.5">Exam Access Code</label>
                 <input type="text" name="exam_code" value="{{ prefill_code }}" required placeholder="e.g. 6D8A92" class="w-full px-4 py-3 bg-slate-50 border border-slate-300 rounded-xl font-mono text-center text-lg tracking-widest font-bold text-sky-700 uppercase focus:bg-white focus:outline-none focus:ring-2 focus:ring-sky-500">
