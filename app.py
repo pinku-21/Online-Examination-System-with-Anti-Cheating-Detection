@@ -3174,12 +3174,20 @@ def tutor_submission_details(submission_id):
         })
 
     questions_review = attach_question_display_labels(questions_review)
+    geo_info = {}
+    if submission.get("geo_location_json"):
+        try:
+            geo_info = json.loads(submission["geo_location_json"])
+        except Exception:
+            geo_info = {}
+
     conn.close()
     return render_template("submission_details.html", 
                            submission=submission, 
                            violations=violations, 
                            violations_json=json.dumps(violations_clean, default=str),
-                           questions=questions_review)
+                           questions=questions_review,
+                           geo_info=geo_info)
 
 
 @app.route("/api/tutor/submission/<int:submission_id>/generate-viva", methods=["POST"])

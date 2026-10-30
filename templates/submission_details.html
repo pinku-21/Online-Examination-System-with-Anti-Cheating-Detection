@@ -300,8 +300,32 @@
                 </div>
             </div>
             {% if submission.client_ip %}
-            <div class="text-right flex-shrink-0 text-[11px] font-mono text-slate-400">
-                <span>Verified Origin: <strong class="text-slate-200">{{ submission.client_ip }}</strong></span>
+            <div class="text-left sm:text-right flex-shrink-0 space-y-1">
+                <div class="text-[11px] font-mono text-slate-400">
+                    <span>Verified Origin: <strong class="text-slate-200">{{ submission.client_ip }}</strong></span>
+                </div>
+                {% if geo_info and geo_info.city and geo_info.city != "Unknown" %}
+                <div class="flex items-center sm:justify-end gap-1.5 flex-wrap">
+                    <span class="inline-flex items-center gap-1 px-2 py-0.5 rounded text-[11px] bg-slate-800 text-sky-300 border border-slate-700">
+                        <i data-lucide="map-pin" class="w-3 h-3 text-sky-400"></i>
+                        {{ geo_info.city }}{% if geo_info.region %}, {{ geo_info.region }}{% endif %}, {{ geo_info.country }}
+                    </span>
+                    {% if geo_info.isp %}
+                    <span class="inline-flex items-center gap-1 px-2 py-0.5 rounded text-[10px] bg-slate-800/80 text-slate-300 font-mono">
+                        <i data-lucide="network" class="w-2.5 h-2.5 text-slate-400"></i> {{ geo_info.isp }}
+                    </span>
+                    {% endif %}
+                    {% if geo_info.is_suspicious %}
+                    <span class="inline-flex items-center gap-1 px-2 py-0.5 rounded text-[10px] bg-rose-900/80 text-rose-200 font-bold border border-rose-500/50 animate-pulse" title="{{ geo_info.risk_reason }}">
+                        <i data-lucide="shield-alert" class="w-2.5 h-2.5 text-rose-400"></i> VPN/Proxy Detected ({{ geo_info.risk_reason }})
+                    </span>
+                    {% else %}
+                    <span class="inline-flex items-center gap-1 px-2 py-0.5 rounded text-[10px] bg-emerald-950/80 text-emerald-300 border border-emerald-500/30">
+                        <i data-lucide="shield-check" class="w-2.5 h-2.5 text-emerald-400"></i> Residential / Clean IP
+                    </span>
+                    {% endif %}
+                </div>
+                {% endif %}
             </div>
             {% endif %}
         </div>
