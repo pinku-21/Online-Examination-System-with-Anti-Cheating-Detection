@@ -1851,13 +1851,16 @@ def api_tutor_evaluate_question(submission_id):
         conn.close()
         return jsonify({"success": False, "error": "Student did not submit text or photo for this question."}), 400
 
-    # Resolve local file paths for all uploaded pages
+    # Resolve image paths/URLs for all uploaded pages (handles Cloudinary and local storage)
     abs_img_paths = []
     for u in student_img_urls:
-        clean_rel = u.lstrip("/").replace("/", os.sep)
-        local_cand = os.path.join(os.path.dirname(__file__), clean_rel)
-        if os.path.exists(local_cand):
-            abs_img_paths.append(local_cand)
+        if u.startswith("http://") or u.startswith("https://"):
+            abs_img_paths.append(u)
+        else:
+            clean_rel = u.lstrip("/").replace("/", os.sep)
+            local_cand = os.path.join(os.path.dirname(__file__), clean_rel)
+            if os.path.exists(local_cand):
+                abs_img_paths.append(local_cand)
 
     gemini_key = get_setting("gemini_api_key", "").strip() or os.environ.get("GEMINI_API_KEY", "").strip()
     groq_key = get_setting("groq_api_key", "").strip() or os.environ.get("GROQ_API_KEY", "").strip()
@@ -1988,13 +1991,16 @@ def evaluate_submission_internal(submission_id):
             results.append({"question_id": qid_s, "question_text": q["question_text"][:60], "success": False, "awarded_marks": 0, "max_points": q_pts, "reason": "Not attempted"})
             continue
 
-        # Resolve image paths for all pages
+        # Resolve image paths/URLs for all pages (handles Cloudinary and local storage)
         abs_img_paths = []
         for u in student_img_urls:
-            clean_rel = u.lstrip("/").replace("/", os.sep)
-            local_cand = os.path.join(os.path.dirname(__file__), clean_rel)
-            if os.path.exists(local_cand):
-                abs_img_paths.append(local_cand)
+            if u.startswith("http://") or u.startswith("https://"):
+                abs_img_paths.append(u)
+            else:
+                clean_rel = u.lstrip("/").replace("/", os.sep)
+                local_cand = os.path.join(os.path.dirname(__file__), clean_rel)
+                if os.path.exists(local_cand):
+                    abs_img_paths.append(local_cand)
 
         eval_result = evaluate_answer_with_ai(
             gemini_key=gemini_key,
@@ -3050,13 +3056,22 @@ def tutor_submission_details(submission_id):
             student_text = ans_raw.strip()
             
         page_suffix = f" ({len(student_imgs)} Pages Attached)" if len(student_imgs) > 1 else (" (1 Page Attached)" if student_imgs else "")
-        if isinstance(ans_raw, dict) and any(k for k in ans_raw.keys() if k != "notes"):
-            pin_parts = [f"{k}: {v}" for k, v in ans_raw.items() if k != "notes" and v]
+        if isinstance(ans_raw, dict):
+            # Extract clean written text, ignoring media keys
+            typed_val = ans_raw.get("text", "")
+            notes_val = ans_raw.get("notes", "")
+            pin_parts = [f"{k}: {v}" for k, v in ans_raw.items() if k not in ("notes", "image_url", "image_urls", "text") and v]
             if pin_parts:
                 student_text = ", ".join(pin_parts)
-                if ans_raw.get("notes"):
-                    student_text += f" | Notes: {ans_raw['notes']}"
-        q_dict["student_answer"] = student_text if student_text else (f"(Handwritten Solution{page_suffix})" if student_imgs else "Not Attempted")
+                if notes_val:
+                    student_text += f" | Notes: {notes_val}"
+            elif typed_val:
+                student_text = typed_val
+                if notes_val:
+                    student_text += f" | Notes: {notes_val}"
+            else:
+                student_text = ""
+        q_dict["student_answer"] = student_text if student_text else (f"Handwritten Solution{page_suffix}" if student_imgs else "Not Attempted")
         q_dict["student_image_url"] = student_img
         q_dict["student_image_urls"] = student_imgs
         
@@ -4524,12 +4539,20 @@ def exam_result(submission_id):
                 student_text = ans_raw.strip()
 
             page_suffix = f" ({len(student_imgs)} Pages)" if len(student_imgs) > 1 else (" (1 Page)" if student_imgs else "")
-            if isinstance(ans_raw, dict) and any(k for k in ans_raw.keys() if k != "notes"):
-                pin_parts = [f"{k}: {v}" for k, v in ans_raw.items() if k != "notes" and v]
+            if isinstance(ans_raw, dict):
+                typed_val = ans_raw.get("text", "")
+                notes_val = ans_raw.get("notes", "")
+                pin_parts = [f"{k}: {v}" for k, v in ans_raw.items() if k not in ("notes", "image_url", "image_urls", "text") and v]
                 if pin_parts:
                     student_text = ", ".join(pin_parts)
-                    if ans_raw.get("notes"):
-                        student_text += f" | Notes: {ans_raw['notes']}"
+                    if notes_val:
+                        student_text += f" | Notes: {notes_val}"
+                elif typed_val:
+                    student_text = typed_val
+                    if notes_val:
+                        student_text += f" | Notes: {notes_val}"
+                else:
+                    student_text = ""
             q_dict["student_answer"] = student_text if student_text else (f"Handwritten Solution{page_suffix}" if student_imgs else "Not Attempted")
             q_dict["student_image_url"] = student_img
             q_dict["student_image_urls"] = student_imgs

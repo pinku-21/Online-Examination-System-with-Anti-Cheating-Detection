@@ -165,23 +165,34 @@ def extract_figures_from_pdf(pdf_path, output_base_dir="static/extracted_figures
         print(f"Error extracting figures from PDF {pdf_path}: {e}")
         return []
 
-def encode_image_base64(image_path):
+def encode_image_base64(image_path_or_url):
     """
-    Encodes an image to base64 string and detects mime type.
+    Encodes an image (local file path or remote HTTP/HTTPS/Cloudinary URL) to base64 string and detects mime type.
     Automatically applies PIL ImageOps.exif_transpose to ensure rotated/tilted
     mobile camera uploads are normalized upright before AI vision inspection.
     """
     mime_type = "image/jpeg"
-    ext = os.path.splitext(image_path)[1].lower()
-    if ext == ".png":
-        mime_type = "image/png"
-    elif ext == ".webp":
-        mime_type = "image/webp"
+    is_remote = isinstance(image_path_or_url, str) and (image_path_or_url.startswith("http://") or image_path_or_url.startswith("https://"))
 
     try:
         from PIL import Image, ImageOps
         import io
-        with Image.open(image_path) as img:
+
+        if is_remote:
+            import urllib.request
+            req = urllib.request.Request(image_path_or_url, headers={"User-Agent": "ExamGuardAI/1.0"})
+            with urllib.request.urlopen(req, timeout=10) as resp:
+                raw_bytes = resp.read()
+            img = Image.open(io.BytesIO(raw_bytes))
+        else:
+            ext = os.path.splitext(image_path_or_url)[1].lower()
+            if ext == ".png":
+                mime_type = "image/png"
+            elif ext == ".webp":
+                mime_type = "image/webp"
+            img = Image.open(image_path_or_url)
+
+        with img:
             # Transpose orientation tag if present (crucial for mobile camera uploads)
             img = ImageOps.exif_transpose(img)
             # Ensure RGB mode for JPEG/PNG
@@ -193,10 +204,12 @@ def encode_image_base64(image_path):
             b64 = base64.b64encode(buf.getvalue()).decode("utf-8")
             return "image/jpeg", b64
     except Exception as e:
-        # Fallback to direct raw file read if PIL processing fails
-        with open(image_path, "rb") as image_file:
-            b64 = base64.b64encode(image_file.read()).decode("utf-8")
-            return mime_type, b64
+        print(f"[AIService] Image base64 encode warning for {image_path_or_url}: {e}")
+        if not is_remote and os.path.exists(image_path_or_url):
+            with open(image_path_or_url, "rb") as image_file:
+                b64 = base64.b64encode(image_file.read()).decode("utf-8")
+                return mime_type, b64
+        raise e
 
 def build_exam_system_prompt(num_questions=5, question_type="mcq", difficulty="Medium", custom_prompt=None, total_marks=None, available_figures=None):
     """Builds a rich, dynamic system prompt supporting CBSE official blueprints, exact question counts, and specialized question formats."""
@@ -1253,13 +1266,21 @@ def evaluate_answer_with_ai(gemini_key=None, groq_key=None, question_text="", ma
     """
     max_pts = float(max_points) if max_points else 1.0
 
-    # Collect all valid image paths (single or multiple pages)
+    # Collect all valid image paths or remote Cloudinary URLs (single or multiple pages)
     all_imgs = []
+    def _is_valid_img(img_ref):
+        if not img_ref or not isinstance(img_ref, str):
+            return False
+        img_ref = img_ref.strip()
+        if img_ref.startswith("http://") or img_ref.startswith("https://"):
+            return True
+        return os.path.exists(img_ref)
+
     if image_paths and isinstance(image_paths, list):
         for p in image_paths:
-            if p and os.path.exists(p) and p not in all_imgs:
+            if _is_valid_img(p) and p not in all_imgs:
                 all_imgs.append(p)
-    if image_path and os.path.exists(image_path) and image_path not in all_imgs:
+    if image_path and _is_valid_img(image_path) and image_path not in all_imgs:
         all_imgs.append(image_path)
 
     pages_note = f" (Student attached {len(all_imgs)} page(s) of handwritten solution)" if all_imgs else ""
