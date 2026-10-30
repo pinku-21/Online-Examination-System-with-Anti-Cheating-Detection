@@ -411,9 +411,13 @@ def admin_required(f):
     @wraps(f)
     def decorated_function(*args, **kwargs):
         if not session.get("user_id"):
+            if request.path.startswith("/api/") or request.is_json:
+                return jsonify({"success": False, "error": "Admin authentication required. Please sign in."}), 401
             flash("Please sign in with your Admin ID and password to access the Tutor area.", "warning")
             return redirect(url_for("login", next=request.path, role="admin"))
         if session.get("user_role") != "admin":
+            if request.path.startswith("/api/") or request.is_json:
+                return jsonify({"success": False, "error": "Access Restricted: Only Admin / Tutor accounts can access this endpoint."}), 403
             flash("Access Restricted: Only Admin / Tutor accounts can access this section.", "danger")
             return redirect(url_for("student_dashboard"))
         return f(*args, **kwargs)
@@ -583,8 +587,9 @@ def admin_create_student():
     """Admin creates a new student account with preset credentials.
     Accepts multipart/form-data (with optional profile_photo file) or JSON.
     """
-    # Support both multipart FormData and legacy JSON
-    if request.content_type and "multipart" in request.content_type:
+    # Support both multipart FormData and JSON
+    content_type = request.content_type or ""
+    if "multipart" in content_type:
         full_name = request.form.get("full_name", "").strip()
         roll_number = request.form.get("roll_number", "").strip().upper()
         username = request.form.get("username", "").strip().lower()
@@ -593,14 +598,13 @@ def admin_create_student():
         class_name = request.form.get("class_name", "").strip()
         photo_file = request.files.get("profile_photo")
     else:
-        content_type = request.content_type or ""
-    if "application/json" in content_type:
-        data = request.get_json(silent=True) or {}
-    else:
-        try:
-            data = json.loads(request.get_data(as_text=True))
-        except Exception:
-            data = {}
+        if "application/json" in content_type:
+            data = request.get_json(silent=True) or {}
+        else:
+            try:
+                data = json.loads(request.get_data(as_text=True))
+            except Exception:
+                data = {}
         full_name = data.get("full_name", "").strip()
         roll_number = data.get("roll_number", "").strip().upper()
         username = data.get("username", "").strip().lower()
