@@ -836,6 +836,11 @@
             errEl.classList.remove('hidden');
             return;
         }
+        if (password.length < 12 || !/[A-Z]/.test(password) || !/[a-z]/.test(password) || !/[0-9]/.test(password)) {
+            errEl.textContent = 'Use at least 12 characters with uppercase, lowercase, and a number.';
+            errEl.classList.remove('hidden');
+            return;
+        }
 
         const btn = document.getElementById('ns-btn');
         btn.disabled = true;
