@@ -107,7 +107,7 @@
                 </div>
                 
                 <div class="relative">
-                    <input type="password" name="password" id="password" required minlength="8" placeholder="Enter a strong password" autocomplete="new-password" class="w-full pl-10 pr-10 py-2.5 bg-slate-50 border border-slate-300 rounded-xl text-sm focus:bg-white focus:outline-none focus:ring-2 focus:ring-sky-500 font-mono transition">
+                    <input type="password" name="password" id="password" required minlength="12" placeholder="At least 12 characters" autocomplete="new-password" class="w-full pl-10 pr-10 py-2.5 bg-slate-50 border border-slate-300 rounded-xl text-sm focus:bg-white focus:outline-none focus:ring-2 focus:ring-sky-500 font-mono transition">
                     <i data-lucide="lock" class="w-4 h-4 text-slate-400 absolute left-3.5 top-3"></i>
                     <button type="button" onclick="togglePasswordVisibility()" class="absolute right-3 top-2.5 text-slate-400 hover:text-slate-600 p-0.5">
                         <i data-lucide="eye" id="pwd-eye-icon" class="w-4 h-4"></i>
@@ -133,7 +133,7 @@
                     <div class="grid grid-cols-2 gap-1.5 text-[11px] text-slate-500">
                         <div id="crit-length" class="flex items-center gap-1.5">
                             <span class="crit-icon flex items-center justify-center"><svg class="w-3.5 h-3.5 text-slate-300 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="9" /></svg></span>
-                            <span>At least 8 characters</span>
+                            <span>At least 12 characters</span>
                         </div>
                         <div id="crit-upper" class="flex items-center gap-1.5">
                             <span class="crit-icon flex items-center justify-center"><svg class="w-3.5 h-3.5 text-slate-300 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="9" /></svg></span>
@@ -143,9 +143,9 @@
                             <span class="crit-icon flex items-center justify-center"><svg class="w-3.5 h-3.5 text-slate-300 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="9" /></svg></span>
                             <span>Number (0-9)</span>
                         </div>
-                        <div id="crit-special" class="flex items-center gap-1.5">
+                        <div id="crit-lower" class="flex items-center gap-1.5">
                             <span class="crit-icon flex items-center justify-center"><svg class="w-3.5 h-3.5 text-slate-300 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="9" /></svg></span>
-                            <span>Special symbol (!@#$)</span>
+                            <span>Lowercase (a-z)</span>
                         </div>
                     </div>
                 </div>
@@ -223,7 +223,7 @@
     const critLength = document.getElementById('crit-length');
     const critUpper = document.getElementById('crit-upper');
     const critNumber = document.getElementById('crit-number');
-    const critSpecial = document.getElementById('crit-special');
+    const critLower = document.getElementById('crit-lower');
 
     const CHECK_SVG = `<svg class="w-3.5 h-3.5 text-emerald-500 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5"><path stroke-linecap="round" stroke-linejoin="round" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>`;
     const CIRCLE_SVG = `<svg class="w-3.5 h-3.5 text-slate-300 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="9" /></svg>`;
@@ -242,21 +242,21 @@
 
     function evaluatePassword(pwd) {
         pwd = pwd || "";
-        const hasLength = pwd.length >= 8;
+        const hasLength = pwd.length >= 12;
         const hasUpper = /[A-Z]/.test(pwd);
         const hasNumber = /[0-9]/.test(pwd);
-        const hasSpecial = /[^A-Za-z0-9]/.test(pwd);
+        const hasLower = /[a-z]/.test(pwd);
 
         updateCriterion(critLength, hasLength);
         updateCriterion(critUpper, hasUpper);
         updateCriterion(critNumber, hasNumber);
-        updateCriterion(critSpecial, hasSpecial);
+        updateCriterion(critLower, hasLower);
 
         let score = 0;
         if (hasLength) score++;
         if (hasUpper) score++;
         if (hasNumber) score++;
-        if (hasSpecial) score++;
+        if (hasLower) score++;
 
         // Reset bars
         bars.forEach(b => {
@@ -314,17 +314,22 @@
     }
 
     function generateStrongPassword() {
-        const charset = "abcdefghjkmnpqrstuvwxyzABCDEFGHJKLMNPQRSTUVWXYZ23456789!@#$%^&*";
-        let pass = "";
-        pass += "ABCDEFGHJKLMNPQRSTUVWXYZ"[Math.floor(Math.random() * 24)];
-        pass += "abcdefghjkmnpqrstuvwxyz"[Math.floor(Math.random() * 24)];
-        pass += "23456789"[Math.floor(Math.random() * 8)];
-        pass += "!@#$%^&*"[Math.floor(Math.random() * 8)];
-        for (let i = 4; i < 12; i++) {
-            pass += charset[Math.floor(Math.random() * charset.length)];
+        const upper = "ABCDEFGHJKLMNPQRSTUVWXYZ";
+        const lower = "abcdefghjkmnpqrstuvwxyz";
+        const digits = "23456789";
+        const charset = upper + lower + digits;
+        const randomIndex = max => {
+            const values = new Uint32Array(1);
+            crypto.getRandomValues(values);
+            return values[0] % max;
+        };
+        const chars = [upper[randomIndex(upper.length)], lower[randomIndex(lower.length)], digits[randomIndex(digits.length)]];
+        for (let i = chars.length; i < 16; i++) chars.push(charset[randomIndex(charset.length)]);
+        for (let i = chars.length - 1; i > 0; i--) {
+            const j = randomIndex(i + 1);
+            [chars[i], chars[j]] = [chars[j], chars[i]];
         }
-        // Shuffle
-        pass = pass.split('').sort(() => 0.5 - Math.random()).join('');
+        const pass = chars.join('');
         pwdInput.value = pass;
         pwdInput.type = 'text';
         const eyeIcon = document.getElementById('pwd-eye-icon');
@@ -367,13 +372,13 @@
                 return;
             }
 
-            const hasLength = pwd.length >= 8;
+            const hasLength = pwd.length >= 12;
             const hasUpper = /[A-Z]/.test(pwd);
             const hasNumber = /[0-9]/.test(pwd);
 
-            if (!hasLength || !hasUpper || !hasNumber) {
+            if (!hasLength || !hasUpper || !hasNumber || !/[a-z]/.test(pwd)) {
                 e.preventDefault();
-                alert("Please make your password stronger:\n- At least 8 characters\n- At least 1 uppercase letter (A-Z)\n- At least 1 number (0-9)");
+                alert("Please use at least 12 characters with uppercase, lowercase, and at least one number.");
                 pwdInput.focus();
                 return;
             }
