@@ -313,9 +313,10 @@ def test_postgresql_fresh_initialization_live(monkeypatch):
     init_db()
 
     conn = database.get_connection()
-    cursor = conn.cursor()
+    cursor = None
 
     try:
+        cursor = conn.cursor()
         cursor.execute("""
             SELECT table_name 
             FROM information_schema.tables 
@@ -414,13 +415,10 @@ def test_postgresql_fresh_initialization_live(monkeypatch):
 
     finally:
         try:
-            cursor.close()
-        except Exception:
-            pass
-        try:
+            if cursor is not None:
+                cursor.close()
+        finally:
             conn.close()
-        except Exception:
-            pass
 
 
 def test_database_url_safety_check():
