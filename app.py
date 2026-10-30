@@ -3028,6 +3028,22 @@ def verify_certificate_public(token):
         WHERE s.integrity_hash = ?
     """, (token,))
     sub = cursor.fetchone()
+    if sub:
+        expected_v2 = generate_submission_integrity_hash(
+            sub["id"], sub["roll_number"], sub["score"] or 0.0,
+            sub["total_points"] or 0.0, sub["warnings_count"] or 0,
+            sub["status"] or "submitted", sub["answers_json"]
+        )
+        expected_v1 = generate_legacy_submission_integrity_hash(
+            sub["id"], sub["roll_number"], sub["score"] or 0.0,
+            sub["total_points"] or 0.0, sub["warnings_count"] or 0,
+            sub["status"] or "submitted"
+        )
+        if not (
+            hmac.compare_digest(token, expected_v2)
+            or hmac.compare_digest(token, expected_v1)
+        ):
+            sub = None
     conn.close()
 
     if not sub:
