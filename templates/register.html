@@ -47,8 +47,44 @@
 
             <div class="grid grid-cols-2 gap-3">
                 <div>
-                    <label class="block text-xs font-semibold text-slate-700 mb-1.5">Class / Batch</label>
-                    <input type="text" name="class_name" id="class_name" placeholder="e.g. Class 10-A" autocomplete="organization-title" class="shadcn-input text-sm">
+                    <label class="block text-xs font-semibold text-slate-700 mb-1.5">Class / Standard *</label>
+                    <div class="relative">
+                        <select name="class_name" id="class_name" required class="shadcn-input text-sm pr-8 bg-white cursor-pointer">
+                            <option value="" disabled selected>Select Class / Course</option>
+                            <optgroup label="School Classes">
+                                <option value="1">1</option>
+                                <option value="2">2</option>
+                                <option value="3">3</option>
+                                <option value="4">4</option>
+                                <option value="5">5</option>
+                                <option value="6">6</option>
+                                <option value="7">7</option>
+                                <option value="8">8</option>
+                                <option value="9">9</option>
+                                <option value="10">10</option>
+                                <option value="11">11</option>
+                                <option value="12">12</option>
+                            </optgroup>
+                            <optgroup label="Undergraduate Degrees">
+                                <option value="B.Tech">B.Tech</option>
+                                <option value="B.E.">B.E.</option>
+                                <option value="B.Sc">B.Sc</option>
+                                <option value="B.Com">B.Com</option>
+                                <option value="B.B.A.">B.B.A.</option>
+                                <option value="B.C.A.">B.C.A.</option>
+                                <option value="B.A.">B.A.</option>
+                            </optgroup>
+                            <optgroup label="Postgraduate &amp; Professional">
+                                <option value="M.Tech">M.Tech</option>
+                                <option value="M.Sc">M.Sc</option>
+                                <option value="M.Com">M.Com</option>
+                                <option value="M.B.A.">M.B.A.</option>
+                                <option value="M.C.A.">M.C.A.</option>
+                                <option value="Diploma">Diploma</option>
+                                <option value="Competitive Exam">Competitive Exam</option>
+                            </optgroup>
+                        </select>
+                    </div>
                 </div>
                 <div>
                     <label class="block text-xs font-semibold text-slate-700 mb-1.5">Email Address</label>
