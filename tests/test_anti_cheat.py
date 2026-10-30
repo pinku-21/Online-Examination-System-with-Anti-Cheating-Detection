@@ -74,4 +74,12 @@ def test_public_certificate_verify_route():
     resp = client.get("/verify-certificate/nonexistent_fake_hash_123")
     assert resp.status_code == 404
 
+def test_extension_tamper_security_event_classification():
+    """ECC Test: Verifies SIEM event classification for browser extension / DOM injection tamper."""
+    meta = classify_security_event("extension_tamper")
+    assert meta["code"] == "SEC-015"
+    assert meta["severity"] == "CRITICAL"
+    assert "Browser Extension" in meta["desc"]
+
+
 
