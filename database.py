@@ -257,6 +257,8 @@ def init_db():
             # AI Distractor Analysis & Bloom's Taxonomy
             "ALTER TABLE questions ADD COLUMN IF NOT EXISTS blooms_taxonomy TEXT DEFAULT 'Understand'",
             "ALTER TABLE questions ADD COLUMN IF NOT EXISTS distractor_analysis_json TEXT DEFAULT '{}'",
+            # IP Geolocation & Hazard Intelligence
+            "ALTER TABLE submissions ADD COLUMN IF NOT EXISTS geo_location_json TEXT DEFAULT ''",
         ]
         cursor.execute("""CREATE TABLE IF NOT EXISTS question_bank (
             id SERIAL PRIMARY KEY,
@@ -431,6 +433,8 @@ def init_db():
             # AI Distractor Analysis & Bloom's Taxonomy
             ("questions", "blooms_taxonomy", "TEXT DEFAULT 'Understand'"),
             ("questions", "distractor_analysis_json", "TEXT DEFAULT '{}'"),
+            # IP Geolocation & Hazard Intelligence
+            ("submissions", "geo_location_json", "TEXT DEFAULT ''"),
         ]:
             columns = {row["name"] for row in cursor.execute(f"PRAGMA table_info({table})").fetchall()}
             if column not in columns:
