@@ -1,6 +1,9 @@
 import os
 import pytest
-from app import app, generate_submission_integrity_hash, classify_security_event
+from app import (
+    app, generate_submission_integrity_hash, generate_legacy_submission_integrity_hash,
+    validate_password_strength, classify_security_event
+)
 
 def test_security_event_classification():
     """ECC Test: Verifies SIEM event metadata for proctoring violations."""
@@ -83,3 +86,37 @@ def test_extension_tamper_security_event_classification():
 
 
 
+
+
+
+def test_password_policy_accepts_strong_password():
+    assert validate_password_strength("SecureExam2026") is None
+
+
+@pytest.mark.parametrize("password", [
+    "", "short", "alllowercasepassword", "ALLUPPERCASE123", "NoDigitsPassword"
+])
+def test_password_policy_rejects_weak_passwords(password):
+    assert validate_password_strength(password)
+
+
+def test_v2_integrity_hash_binds_submitted_answers():
+    answers_a = {"1": "A", "2": {"text": "worked answer"}}
+    answers_b = {"1": "B", "2": {"text": "worked answer"}}
+    hash_a = generate_submission_integrity_hash(10, "CS-001", 45, 50, 0, "submitted", answers_a)
+    hash_b = generate_submission_integrity_hash(10, "CS-001", 45, 50, 0, "submitted", answers_b)
+    assert hash_a != hash_b
+
+
+def test_v2_integrity_hash_is_independent_of_json_key_order():
+    answers_a = {"1": "A", "2": {"x": 1, "y": 2}}
+    answers_b = {"2": {"y": 2, "x": 1}, "1": "A"}
+    hash_a = generate_submission_integrity_hash(10, "CS-001", 45, 50, 0, "submitted", answers_a)
+    hash_b = generate_submission_integrity_hash(10, "CS-001", 45, 50, 0, "submitted", answers_b)
+    assert hash_a == hash_b
+
+
+def test_legacy_integrity_hash_remains_verifiable():
+    legacy = generate_legacy_submission_integrity_hash(10, "CS-001", 45, 50, 0, "submitted")
+    assert len(legacy) == 64
+    assert legacy == generate_legacy_submission_integrity_hash(10, "CS-001", 45, 50, 0, "submitted")
