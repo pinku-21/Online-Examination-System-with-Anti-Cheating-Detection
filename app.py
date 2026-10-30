@@ -62,15 +62,33 @@ def get_current_time():
 app = Flask(__name__, static_url_path=None)
 # Ensure strong secret key in production (prevent default key session hijacking)
 DEFAULT_DEV_SECRET = "examguard-super-secret-key-2026"
-configured_secret = os.environ.get("SECRET_KEY")
-if not configured_secret:
-    if os.environ.get("FLASK_ENV") == "production" or bool(os.environ.get("RENDER")):
-        # In production without an explicit SECRET_KEY, generate an ephemeral cryptographically strong key
-        app.secret_key = secrets.token_hex(32)
-    else:
-        app.secret_key = DEFAULT_DEV_SECRET
-else:
-    app.secret_key = configured_secret
+def resolve_secret_key(environ=None):
+    """Resolves and validates the application SECRET_KEY.
+
+    In production environments (FLASK_ENV='production' or RENDER detected),
+    a non-empty SECRET_KEY must be explicitly configured via environment variables.
+    Fails fast with a RuntimeError if missing, preventing ephemeral key generation
+    that would invalidate active student sessions and past certificate HMAC signatures.
+    """
+    env = environ if environ is not None else os.environ
+    configured = env.get("SECRET_KEY") or ""
+    is_prod = env.get("FLASK_ENV") == "production" or bool(env.get("RENDER"))
+
+    if is_prod:
+        if not configured.strip():
+            raise RuntimeError(
+                "CRITICAL SECURITY CONFIGURATION ERROR: SECRET_KEY is not set or is empty. "
+                "In production (FLASK_ENV='production' or Render deployment), an explicit, persistent "
+                "SECRET_KEY environment variable is mandatory to preserve active examination sessions "
+                "and cryptographic certificate HMAC integrity across worker restarts. "
+                "Generate a strong 64-character hex key via `secrets.token_hex(32)` and set it in your environment."
+            )
+        return configured
+
+    return configured or DEFAULT_DEV_SECRET
+
+
+app.secret_key = resolve_secret_key()
 
 # Cookie & Session Security Hardening
 app.config.update(

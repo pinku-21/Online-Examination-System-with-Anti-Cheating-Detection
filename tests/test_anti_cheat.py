@@ -2,7 +2,7 @@ import os
 import pytest
 from app import (
     app, generate_submission_integrity_hash, generate_legacy_submission_integrity_hash,
-    validate_password_strength, classify_security_event
+    validate_password_strength, classify_security_event, resolve_secret_key, DEFAULT_DEV_SECRET
 )
 
 def test_security_event_classification():
@@ -137,3 +137,53 @@ def test_state_changing_request_accepts_session_csrf_token():
         token = sess["csrf_token"]
     response = client.post("/login", json={}, headers={"X-CSRF-Token": token})
     assert response.status_code == 200
+
+
+# --- Production SECRET_KEY Configuration & Validation Tests ---
+
+def test_production_with_secret_key_configured():
+    """Production with a non-empty SECRET_KEY resolves cleanly to that configured value."""
+    env = {"FLASK_ENV": "production", "SECRET_KEY": "my-explicit-prod-secret-key-12345"}
+    resolved = resolve_secret_key(env)
+    assert resolved == "my-explicit-prod-secret-key-12345"
+
+
+def test_production_with_secret_key_missing_raises_runtime_error():
+    """Production without SECRET_KEY fails fast with a clear RuntimeError (never generates random)."""
+    env = {"FLASK_ENV": "production"}
+    with pytest.raises(RuntimeError) as exc_info:
+        resolve_secret_key(env)
+    assert "CRITICAL SECURITY CONFIGURATION ERROR" in str(exc_info.value)
+    assert "SECRET_KEY is not set or is empty" in str(exc_info.value)
+
+
+def test_production_with_empty_secret_key_raises_runtime_error():
+    """Production with an empty or whitespace-only SECRET_KEY also fails fast with RuntimeError."""
+    for empty_val in ["", "   ", "\t\n"]:
+        env = {"FLASK_ENV": "production", "SECRET_KEY": empty_val}
+        with pytest.raises(RuntimeError) as exc_info:
+            resolve_secret_key(env)
+        assert "SECRET_KEY is not set or is empty" in str(exc_info.value)
+
+
+def test_development_without_secret_key_uses_default():
+    """Development without SECRET_KEY preserves default development secret key."""
+    env = {"FLASK_ENV": "development"}
+    resolved = resolve_secret_key(env)
+    assert resolved == DEFAULT_DEV_SECRET
+
+    env_empty = {}
+    resolved_empty = resolve_secret_key(env_empty)
+    assert resolved_empty == DEFAULT_DEV_SECRET
+
+
+def test_render_environment_detection_enforces_secret_key():
+    """Render platform detection (RENDER=true) enforces non-empty SECRET_KEY even if FLASK_ENV is unset."""
+    env_render_missing = {"RENDER": "true"}
+    with pytest.raises(RuntimeError) as exc_info:
+        resolve_secret_key(env_render_missing)
+    assert "CRITICAL SECURITY CONFIGURATION ERROR" in str(exc_info.value)
+
+    env_render_configured = {"RENDER": "true", "SECRET_KEY": "render-persistent-secret-key-67890"}
+    resolved = resolve_secret_key(env_render_configured)
+    assert resolved == "render-persistent-secret-key-67890"
