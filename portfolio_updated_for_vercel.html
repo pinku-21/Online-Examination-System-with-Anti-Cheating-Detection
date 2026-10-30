@@ -1,0 +1,591 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ExamGuard AI | Applied AI & Cybersecurity Engineering Portfolio</title>
+    <meta name="description" content="Engineering portfolio & architecture case study for ExamGuard AI - Smart Online Examination System with Multi-Sensor Anti-Cheating & AI Question Generation by Prashanta Kumar Das.">
+    <!-- Tailwind CSS CDN -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    colors: {
+                        brand: {
+                            50: '#f0f7ff',
+                            100: '#e0effe',
+                            500: '#0284c7',
+                            600: '#0369a1',
+                            700: '#075985',
+                            900: '#0c4a6e',
+                        }
+                    }
+                }
+            }
+        }
+    </script>
+    <!-- Lucide Icons -->
+    <script src="https://unpkg.com/lucide@latest"></script>
+    <!-- KaTeX for math notation -->
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/katex.min.css">
+    <script defer src="https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/katex.min.js"></script>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&family=JetBrains+Mono:wght@400;500;600;700&display=swap');
+        body { font-family: 'Inter', sans-serif; }
+        code, pre, .font-mono { font-family: 'JetBrains Mono', monospace; }
+    </style>
+</head>
+<body class="bg-slate-950 text-slate-100 min-h-screen selection:bg-indigo-500 selection:text-white flex flex-col">
+
+    <!-- Top Floating Navbar -->
+    <header class="sticky top-0 z-50 bg-slate-950/80 backdrop-blur-md border-b border-slate-800/80">
+        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-16 flex items-center justify-between">
+            <a href="#" class="flex items-center space-x-3">
+                <div class="w-10 h-10 rounded-xl bg-gradient-to-tr from-sky-600 via-indigo-600 to-violet-600 flex items-center justify-center text-white shadow-md shadow-indigo-500/20">
+                    <i data-lucide="shield-check" class="w-6 h-6"></i>
+                </div>
+                <div>
+                    <span class="font-bold text-xl tracking-tight text-white">ExamGuard<span class="text-sky-400">AI</span></span>
+                    <span class="hidden sm:inline-block ml-2 text-[11px] font-semibold px-2 py-0.5 bg-indigo-500/10 text-indigo-300 border border-indigo-500/30 rounded-full">Portfolio </span>
+                </div>
+            </a>
+            
+            <nav class="flex items-center space-x-2 sm:space-x-4 text-xs font-semibold">
+                <a href="#capabilities" class="text-slate-300 hover:text-white transition px-2.5 py-1.5 rounded-lg hover:bg-slate-900">Capabilities</a>
+                <a href="#architecture" class="text-slate-300 hover:text-white transition px-2.5 py-1.5 rounded-lg hover:bg-slate-900">Architecture</a>
+                <a href="#case-study" class="text-slate-300 hover:text-white transition px-2.5 py-1.5 rounded-lg hover:bg-slate-900">Challenges</a>
+                <a href="https://online-examination-system-with-anti.onrender.com/" target="_blank" rel="noopener noreferrer" class="px-3.5 py-2 rounded-xl bg-sky-600 hover:bg-sky-500 text-white shadow-sm transition flex items-center gap-1.5">
+                    <span>Live App</span>
+                    <i data-lucide="external-link" class="w-3.5 h-3.5"></i>
+                </a>
+            </nav>
+        </div>
+    </header>
+
+    <!-- Ambient Glow / Mesh Background -->
+    <div class="relative overflow-hidden flex-1">
+        <div class="absolute -top-40 -left-40 w-96 h-96 bg-indigo-600/20 rounded-full blur-3xl pointer-events-none"></div>
+        <div class="absolute top-20 right-0 w-96 h-96 bg-sky-500/15 rounded-full blur-3xl pointer-events-none"></div>
+        <div class="absolute top-1/2 left-1/3 w-[30rem] h-[30rem] bg-violet-600/10 rounded-full blur-3xl pointer-events-none"></div>
+
+        <!-- HERO SECTION -->
+        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pt-16 pb-20 relative z-10">
+            <!-- Badge pill -->
+            <div class="flex items-center justify-center">
+                <span class="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-full bg-indigo-500/10 border border-indigo-500/30 text-indigo-300 text-xs font-semibold tracking-wide uppercase">
+                    <span class="w-2 h-2 rounded-full bg-emerald-400 animate-pulse"></span>
+                   
+                </span>
+            </div>
+
+            <!-- Title & Pitch -->
+            <div class="text-center max-w-4xl mx-auto mt-6">
+                <h1 class="text-4xl sm:text-6xl font-extrabold tracking-tight leading-tight text-white">
+                    ExamGuard <span class="text-transparent bg-clip-text bg-gradient-to-r from-sky-400 via-indigo-300 to-violet-400">AI</span>
+                </h1>
+                <p class="mt-4 text-xl sm:text-2xl font-medium text-slate-300">
+                    Dual-Engine AI Question Generator & Edge-Assisted Anti-Cheating Proctoring Platform
+                </p>
+                <p class="mt-4 text-base sm:text-lg text-slate-400 leading-relaxed max-w-3xl mx-auto">
+                    A comprehensive proctored examination suite built to solve remote testing fraud. Powered by client-side browser ML (TensorFlow.js face & gaze tracking), server-side biometric verification (Gemini Vision), cryptographic submission certificates (HMAC-SHA256), and automated multimodal question generation (Gemini + Groq Llama 3.3).
+                </p>
+            </div>
+
+            <!-- Author & Tech Badges -->
+            <div class="mt-8 flex flex-wrap items-center justify-center gap-2 text-xs font-medium">
+                <span class="px-3 py-1 rounded-lg bg-slate-900 border border-slate-800 text-slate-300 flex items-center gap-1.5">
+                    <i data-lucide="user-check" class="w-3.5 h-3.5 text-indigo-400"></i> Lead Developer: <strong class="text-white">Prashanta Kumar Das</strong>
+                </span>
+                <span class="px-3 py-1 rounded-lg bg-slate-900 border border-slate-800 text-slate-300">Python 3.12 / Flask</span>
+                <span class="px-3 py-1 rounded-lg bg-slate-900 border border-slate-800 text-slate-300">Google Gemini 2.5 Flash</span>
+                <span class="px-3 py-1 rounded-lg bg-slate-900 border border-slate-800 text-slate-300">Groq Llama-3.3 70B</span>
+                <span class="px-3 py-1 rounded-lg bg-slate-900 border border-slate-800 text-slate-300">TensorFlow.js Blazeface</span>
+                <span class="px-3 py-1 rounded-lg bg-slate-900 border border-slate-800 text-slate-300">HMAC-SHA256 Cryptography</span>
+                <span class="px-3 py-1 rounded-lg bg-slate-900 border border-slate-800 text-slate-300">PostgreSQL / Render</span>
+            </div>
+
+            <!-- CTAs -->
+            <div class="mt-10 flex flex-wrap items-center justify-center gap-4">
+                <a href="https://online-examination-system-with-anti.onrender.com/" target="_blank" rel="noopener noreferrer" class="px-6 py-3.5 rounded-xl bg-gradient-to-r from-sky-500 to-indigo-600 hover:from-sky-400 hover:to-indigo-500 text-white font-semibold shadow-lg shadow-indigo-500/25 transition-all flex items-center gap-2">
+                    <i data-lucide="play-circle" class="w-5 h-5"></i>
+                    <span>Explore Live System</span>
+                </a>
+                <a href="#architecture" class="px-6 py-3.5 rounded-xl bg-slate-900/90 hover:bg-slate-800 text-slate-200 border border-slate-700/80 font-semibold transition flex items-center gap-2">
+                    <i data-lucide="cpu" class="w-5 h-5"></i>
+                    <span>System Architecture</span>
+                </a>
+                <a href="#case-study" class="px-6 py-3.5 rounded-xl bg-slate-900/90 hover:bg-slate-800 text-slate-200 border border-slate-700/80 font-semibold transition flex items-center gap-2">
+                    <i data-lucide="file-text" class="w-5 h-5"></i>
+                    <span>Read Engineering Case Study</span>
+                </a>
+            </div>
+
+            <!-- Metric Cards -->
+            <div class="mt-16 grid grid-cols-2 md:grid-cols-4 gap-4 max-w-5xl mx-auto">
+                <div class="p-5 rounded-2xl bg-slate-900/60 border border-slate-800/80 backdrop-blur-sm text-center hover:border-slate-700 transition">
+                    <div class="text-3xl font-extrabold text-transparent bg-clip-text bg-gradient-to-r from-emerald-400 to-teal-300">&lt; 1.5s</div>
+                    <div class="text-xs text-slate-400 mt-1 uppercase tracking-wider font-semibold">Face Verification Latency</div>
+                </div>
+                <div class="p-5 rounded-2xl bg-slate-900/60 border border-slate-800/80 backdrop-blur-sm text-center hover:border-slate-700 transition">
+                    <div class="text-3xl font-extrabold text-transparent bg-clip-text bg-gradient-to-r from-cyan-400 to-sky-300">HMAC-SHA256</div>
+                    <div class="text-xs text-slate-400 mt-1 uppercase tracking-wider font-semibold">Cryptographic Tamper-Proofing</div>
+                </div>
+                <div class="p-5 rounded-2xl bg-slate-900/60 border border-slate-800/80 backdrop-blur-sm text-center hover:border-slate-700 transition">
+                    <div class="text-3xl font-extrabold text-transparent bg-clip-text bg-gradient-to-r from-indigo-400 to-violet-300">Dual-AI</div>
+                    <div class="text-xs text-slate-400 mt-1 uppercase tracking-wider font-semibold">Multimodal Question Generator</div>
+                </div>
+                <div class="p-5 rounded-2xl bg-slate-900/60 border border-slate-800/80 backdrop-blur-sm text-center hover:border-slate-700 transition">
+                    <div class="text-3xl font-extrabold text-transparent bg-clip-text bg-gradient-to-r from-pink-400 to-rose-300">Zero False Positives</div>
+                    <div class="text-xs text-slate-400 mt-1 uppercase tracking-wider font-semibold">Handwritten Upload Tolerance</div>
+                </div>
+            </div>
+        </div>
+
+        <!-- PILLARS / KEY MODULES (Interactive Showcase) -->
+        <div id="capabilities" class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-16 border-t border-slate-800/80">
+            <div class="text-center max-w-3xl mx-auto mb-14">
+                <h2 class="text-xs font-semibold text-sky-400 tracking-widest uppercase">Engineered for Scale & Precision</h2>
+                <h3 class="text-3xl font-bold text-white mt-2">Core System Capabilities</h3>
+                <p class="text-slate-400 mt-2">Explore the underlying algorithms, real-world edge cases addressed, and implementation stack.</p>
+            </div>
+
+            <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                <!-- Card: Custom YOLO11 Deep Learning Model -->
+                <div class="p-6 rounded-2xl bg-gradient-to-b from-slate-900 to-indigo-950/40 border border-indigo-500/40 hover:border-indigo-400 transition-all group shadow-lg shadow-indigo-950/30">
+                    <div class="flex items-center justify-between mb-4">
+                        <div class="w-12 h-12 rounded-xl bg-indigo-500/20 border border-indigo-500/40 flex items-center justify-center text-indigo-400 group-hover:scale-110 transition-transform">
+                            <i data-lucide="cpu" class="w-6 h-6"></i>
+                        </div>
+                        <span class="px-2.5 py-0.5 rounded text-[10px] font-black bg-indigo-500/20 text-indigo-300 border border-indigo-500/40 uppercase tracking-wider">Custom ML Pipeline</span>
+                    </div>
+                    <h4 class="text-lg font-bold text-white">Custom YOLOv11 & MediaPipe Vision</h4>
+                    <p class="text-sm text-slate-300 mt-2 leading-relaxed">
+                        Fine-tuned custom <strong>YOLOv11n</strong> deep learning vision model trained on Google Colab T4 GPU over 50 epochs using PyTorch. Quantized and exported to <strong>TensorFlow.js</strong> for zero-latency client-side hardware inference detecting mobile devices, cheat notes, and secondary gadgets at 30 FPS.
+                    </p>
+                    <div class="mt-4 pt-4 border-t border-slate-800/80 flex flex-wrap gap-1.5 text-xs">
+                        <span class="px-2 py-0.5 rounded bg-indigo-950/80 text-indigo-200 border border-indigo-800/50 font-mono">Ultralytics YOLO11n</span>
+                        <span class="px-2 py-0.5 rounded bg-indigo-950/80 text-indigo-200 border border-indigo-800/50 font-mono">TF.js WebGraph</span>
+                        <span class="px-2 py-0.5 rounded bg-indigo-950/80 text-indigo-200 border border-indigo-800/50 font-mono">MediaPipe 468 Landmarks</span>
+                    </div>
+                </div>
+
+                <!-- Card: Persistent Cloud Infrastructure (Cloudinary, Resend, Sentry, BigDataCloud) -->
+                <div class="p-6 rounded-2xl bg-gradient-to-b from-slate-900 to-sky-950/40 border border-sky-500/40 hover:border-sky-400 transition-all group shadow-lg shadow-sky-950/30">
+                    <div class="flex items-center justify-between mb-4">
+                        <div class="w-12 h-12 rounded-xl bg-sky-500/20 border border-sky-500/40 flex items-center justify-center text-sky-400 group-hover:scale-110 transition-transform">
+                            <i data-lucide="cloud" class="w-6 h-6"></i>
+                        </div>
+                        <span class="px-2.5 py-0.5 rounded text-[10px] font-black bg-sky-500/20 text-sky-300 border border-sky-500/40 uppercase tracking-wider">Cloud Backbone</span>
+                    </div>
+                    <h4 class="text-lg font-bold text-white">Hybrid Cloud Telemetry & CDN</h4>
+                    <p class="text-sm text-slate-300 mt-2 leading-relaxed">
+                        Integrated <strong>Cloudinary CDN</strong> for persistent storage of handwritten solutions & forensic snapshots, <strong>Resend</strong> for transactional HTML scorecard delivery, <strong>Sentry</strong> for 24/7 crash monitoring, and <strong>BigDataCloud Hazard API</strong> for VPN/Tor/Proxy detection.
+                    </p>
+                    <div class="mt-4 pt-4 border-t border-slate-800/80 flex flex-wrap gap-1.5 text-xs">
+                        <span class="px-2 py-0.5 rounded bg-sky-950/80 text-sky-200 border border-sky-800/50 font-mono">Cloudinary 25GB</span>
+                        <span class="px-2 py-0.5 rounded bg-sky-950/80 text-sky-200 border border-sky-800/50 font-mono">Resend API</span>
+                        <span class="px-2 py-0.5 rounded bg-sky-950/80 text-sky-200 border border-sky-800/50 font-mono">Sentry SDK</span>
+                        <span class="px-2 py-0.5 rounded bg-sky-950/80 text-sky-200 border border-sky-800/50 font-mono">BigDataCloud ASN</span>
+                    </div>
+                </div>
+
+                <!-- Card 1 -->
+                <div class="p-6 rounded-2xl bg-slate-900/80 border border-slate-800 hover:border-sky-500/50 transition-all group">
+                    <div class="w-12 h-12 rounded-xl bg-sky-500/10 border border-sky-500/20 flex items-center justify-center text-sky-400 mb-4 group-hover:scale-110 transition-transform">
+                        <i data-lucide="sparkles" class="w-6 h-6"></i>
+                    </div>
+                    <h4 class="text-lg font-bold text-white">Multimodal Question Studio</h4>
+                    <p class="text-sm text-slate-400 mt-2 leading-relaxed">
+                        Tutors upload messy textbook photos, handwritten lecture notes, or PDF chapters. System runs PyMuPDF extraction, passes content to Gemini Vision / Groq Llama-3.3, and outputs structured MCQs with automated LaTeX math formatting.
+                    </p>
+                    <div class="mt-4 pt-4 border-t border-slate-800/80 flex flex-wrap gap-1.5 text-xs">
+                        <span class="px-2 py-0.5 rounded bg-slate-800 text-slate-300">PyMuPDF</span>
+                        <span class="px-2 py-0.5 rounded bg-slate-800 text-slate-300">KaTeX rendering</span>
+                        <span class="px-2 py-0.5 rounded bg-slate-800 text-slate-300">Dual-Model Failover</span>
+                    </div>
+                </div>
+
+                <!-- Card 2 -->
+                <div class="p-6 rounded-2xl bg-slate-900/80 border border-slate-800 hover:border-indigo-500/50 transition-all group">
+                    <div class="w-12 h-12 rounded-xl bg-indigo-500/10 border border-indigo-500/20 flex items-center justify-center text-indigo-400 mb-4 group-hover:scale-110 transition-transform">
+                        <i data-lucide="eye" class="w-6 h-6"></i>
+                    </div>
+                    <h4 class="text-lg font-bold text-white">Browser-Edge AI Proctoring</h4>
+                    <p class="text-sm text-slate-400 mt-2 leading-relaxed">
+                        Zero-lag continuous video proctoring directly in the client browser using TensorFlow.js BlazeFace. Detects multiple faces in frame, candidate absence, face covered/turned away, and head rotation without streaming heavy video feeds to the server.
+                    </p>
+                    <div class="mt-4 pt-4 border-t border-slate-800/80 flex flex-wrap gap-1.5 text-xs">
+                        <span class="px-2 py-0.5 rounded bg-slate-800 text-slate-300">TensorFlow.js</span>
+                        <span class="px-2 py-0.5 rounded bg-slate-800 text-slate-300">Zero Server GPU Load</span>
+                        <span class="px-2 py-0.5 rounded bg-slate-800 text-slate-300">Realtime Bounding Boxes</span>
+                    </div>
+                </div>
+
+                <!-- Card 3 -->
+                <div class="p-6 rounded-2xl bg-slate-900/80 border border-slate-800 hover:border-violet-500/50 transition-all group">
+                    <div class="w-12 h-12 rounded-xl bg-violet-500/10 border border-violet-500/20 flex items-center justify-center text-violet-400 mb-4 group-hover:scale-110 transition-transform">
+                        <i data-lucide="fingerprint" class="w-6 h-6"></i>
+                    </div>
+                    <h4 class="text-lg font-bold text-white">Biometric Verification Gate</h4>
+                    <p class="text-sm text-slate-400 mt-2 leading-relaxed">
+                        Prevents student impersonation before an exam begins. Compares a real-time high-resolution webcam capture against the registered student profile photo using multimodal facial geometry analysis with fallback to facial bounding landmark ratio checks.
+                    </p>
+                    <div class="mt-4 pt-4 border-t border-slate-800/80 flex flex-wrap gap-1.5 text-xs">
+                        <span class="px-2 py-0.5 rounded bg-slate-800 text-slate-300">Gemini Vision Face API</span>
+                        <span class="px-2 py-0.5 rounded bg-slate-800 text-slate-300">Confidence Scoring</span>
+                        <span class="px-2 py-0.5 rounded bg-slate-800 text-slate-300">Impersonation Shield</span>
+                    </div>
+                </div>
+
+                <!-- Card 4 -->
+                <div class="p-6 rounded-2xl bg-slate-900/80 border border-slate-800 hover:border-rose-500/50 transition-all group">
+                    <div class="w-12 h-12 rounded-xl bg-rose-500/10 border border-rose-500/20 flex items-center justify-center text-rose-400 mb-4 group-hover:scale-110 transition-transform">
+                        <i data-lucide="shield-alert" class="w-6 h-6"></i>
+                    </div>
+                    <h4 class="text-lg font-bold text-white">10-Strike Deterministic Lockdown</h4>
+                    <p class="text-sm text-slate-400 mt-2 leading-relaxed">
+                        Tracks tab switches, window minimization, dev tools, and unauthorized secondary monitors. If a candidate leaves the exam window and ignores modal warnings for >10 seconds, cumulative strikes trigger automatic server-side exam auto-termination.
+                    </p>
+                    <div class="mt-4 pt-4 border-t border-slate-800/80 flex flex-wrap gap-1.5 text-xs">
+                        <span class="px-2 py-0.5 rounded bg-slate-800 text-slate-300">Fullscreen API</span>
+                        <span class="px-2 py-0.5 rounded bg-slate-800 text-slate-300">10s Re-strike Timer</span>
+                        <span class="px-2 py-0.5 rounded bg-slate-800 text-slate-300">Auto-Submit Payload</span>
+                    </div>
+                </div>
+
+                <!-- Card 5 -->
+                <div class="p-6 rounded-2xl bg-slate-900/80 border border-slate-800 hover:border-amber-500/50 transition-all group">
+                    <div class="w-12 h-12 rounded-xl bg-amber-500/10 border border-amber-500/20 flex items-center justify-center text-amber-400 mb-4 group-hover:scale-110 transition-transform">
+                        <i data-lucide="file-image" class="w-6 h-6"></i>
+                    </div>
+                    <h4 class="text-lg font-bold text-white">Handwritten Answer Submissions</h4>
+                    <p class="text-sm text-slate-400 mt-2 leading-relaxed">
+                        Supports STEM / subjective questions where students write working on paper and upload a photo via webcam or file. Built-in suppression filters prevent false proctoring penalties while looking down to write or holding up work to the camera.
+                    </p>
+                    <div class="mt-4 pt-4 border-t border-slate-800/80 flex flex-wrap gap-1.5 text-xs">
+                        <span class="px-2 py-0.5 rounded bg-slate-800 text-slate-300">Penalty Muting Window</span>
+                        <span class="px-2 py-0.5 rounded bg-slate-800 text-slate-300">OCR Extraction</span>
+                        <span class="px-2 py-0.5 rounded bg-slate-800 text-slate-300">Hybrid AI Grading</span>
+                    </div>
+                </div>
+
+                <!-- Card 6 -->
+                <div class="p-6 rounded-2xl bg-slate-900/80 border border-slate-800 hover:border-emerald-500/50 transition-all group">
+                    <div class="w-12 h-12 rounded-xl bg-emerald-500/10 border border-emerald-500/20 flex items-center justify-center text-emerald-400 mb-4 group-hover:scale-110 transition-transform">
+                        <i data-lucide="clock" class="w-6 h-6"></i>
+                    </div>
+                    <h4 class="text-lg font-bold text-white">Forensic Audit & IST Incident Log</h4>
+                    <p class="text-sm text-slate-400 mt-2 leading-relaxed">
+                        Provides tutors with an undeniable forensic incident timeline. Every violation captures an authenticated webcam snapshot, violation type, IST 12-hour timestamp, and exact exam question index for post-exam review or dispute resolution.
+                    </p>
+                    <div class="mt-4 pt-4 border-t border-slate-800/80 flex flex-wrap gap-1.5 text-xs">
+                        <span class="px-2 py-0.5 rounded bg-slate-800 text-slate-300">Snapshots on Strike</span>
+                        <span class="px-2 py-0.5 rounded bg-slate-800 text-slate-300">IST Timezone Sync</span>
+                        <span class="px-2 py-0.5 rounded bg-slate-800 text-slate-300">Exportable Reports</span>
+                    </div>
+                </div>
+
+                <!-- Card 7 (Cybersecurity & Anti-Tampering Engine) -->
+                <div class="p-6 rounded-2xl bg-slate-900/80 border border-slate-800 hover:border-cyan-500/50 transition-all group md:col-span-2 lg:col-span-3">
+                    <div class="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 mb-4">
+                        <div class="flex items-center space-x-3">
+                            <div class="w-12 h-12 rounded-xl bg-cyan-500/10 border border-cyan-500/20 flex items-center justify-center text-cyan-400 group-hover:scale-110 transition-transform">
+                                <i data-lucide="binary" class="w-6 h-6"></i>
+                            </div>
+                            <div>
+                                <span class="px-2 py-0.5 rounded text-[10px] font-extrabold bg-cyan-500/20 text-cyan-300 border border-cyan-500/30 uppercase tracking-widest">Cybersecurity & SIEM Telemetry</span>
+                                <h4 class="text-xl font-bold text-white mt-1">Cryptographic Integrity (HMAC-SHA256) & Anti-Spoofing Defense</h4>
+                            </div>
+                        </div>
+                        <span class="px-3 py-1 rounded-full text-xs font-mono font-bold bg-slate-800 text-cyan-300 border border-cyan-500/20">
+                            CIA Triad: Integrity & Non-Repudiation
+                        </span>
+                    </div>
+                    <p class="text-sm text-slate-300 leading-relaxed">
+                        Engineered to defeat tech-savvy student bypasses through defense-in-depth:
+                    </p>
+                    <div class="grid grid-cols-1 md:grid-cols-3 gap-4 mt-4 text-xs">
+                        <div class="p-3.5 rounded-xl bg-slate-950/80 border border-slate-800">
+                            <strong class="text-cyan-400 block font-semibold mb-1">🔏 SHA-256 Digital Certificates</strong>
+                            Every submission is cryptographically signed with keyed HMAC-SHA256 tokens over scores, student roll numbers, and violation counts. Direct database modification breaks the integrity hash.
+                        </div>
+                        <div class="p-3.5 rounded-xl bg-slate-950/80 border border-slate-800">
+                            <strong class="text-cyan-400 block font-semibold mb-1">📹 Virtual Camera Anti-Spoofing</strong>
+                            Inspects hardware video drivers via WebRTC <code class="text-[10px] bg-slate-800 px-1 py-0.5 rounded">enumerateDevices()</code>, blocking OBS Virtual Cam, ManyCam, and pre-recorded looping video injection.
+                        </div>
+                        <div class="p-3.5 rounded-xl bg-slate-950/80 border border-slate-800">
+                            <strong class="text-cyan-400 block font-semibold mb-1">🛡️ DevTools & Bot Traps</strong>
+                            Client-side debugger latency timing loops, console inspection traps, and <code class="text-[10px] bg-slate-800 px-1 py-0.5 rounded">e.isTrusted</code> synthetic click detection stop console tampering and bots.
+                        </div>
+                    </div>
+                    <div class="mt-4 pt-4 border-t border-slate-800/80 flex flex-wrap gap-1.5 text-xs">
+                        <span class="px-2 py-0.5 rounded bg-slate-800 text-cyan-300">HMAC-SHA256 Tokens</span>
+                        <span class="px-2 py-0.5 rounded bg-slate-800 text-slate-300">Virtual Cam Driver Filter</span>
+                        <span class="px-2 py-0.5 rounded bg-slate-800 text-slate-300">Client Debugger Trap</span>
+                        <span class="px-2 py-0.5 rounded bg-slate-800 text-slate-300">SIEM SEC-001...013 Codes</span>
+                        <span class="px-2 py-0.5 rounded bg-slate-800 text-slate-300">Client IP Origin Tracking</span>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- ARCHITECTURE DIAGRAM SECTION -->
+        <div id="architecture" class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-16 border-t border-slate-800/80">
+            <div class="text-center max-w-3xl mx-auto mb-12">
+                <h2 class="text-xs font-semibold text-indigo-400 tracking-widest uppercase">System Design</h2>
+                <h3 class="text-3xl font-bold text-white mt-2">End-to-End Hybrid Architecture</h3>
+                <p class="text-slate-400 mt-2">Distributing heavy computer vision inference to client browsers while preserving backend integrity, audit logging, and LLM orchestration.</p>
+            </div>
+
+            <div class="p-8 rounded-2xl bg-slate-900/90 border border-slate-800 shadow-2xl overflow-x-auto">
+                <div class="min-w-[700px] flex flex-col gap-6">
+                    <!-- Row 1: Client Layers -->
+                    <div class="grid grid-cols-3 gap-4">
+                        <div class="p-4 rounded-xl bg-slate-800/60 border border-slate-700">
+                            <div class="flex items-center gap-2 text-sky-400 font-semibold text-sm">
+                                <i data-lucide="monitor" class="w-4 h-4"></i> Student Exam Client
+                            </div>
+                            <ul class="text-xs text-slate-300 mt-2 space-y-1 list-disc list-inside">
+                                <li>TensorFlow.js BlazeFace (Local ML)</li>
+                                <li>Virtual Cam & DevTools Traps</li>
+                                <li>Page Visibility & Fullscreen APIs</li>
+                                <li>KaTeX LaTeX Mathematical Render</li>
+                            </ul>
+                        </div>
+
+                        <div class="p-4 rounded-xl bg-slate-800/60 border border-slate-700">
+                            <div class="flex items-center gap-2 text-indigo-400 font-semibold text-sm">
+                                <i data-lucide="shield" class="w-4 h-4"></i> Tutor / Admin Studio
+                            </div>
+                            <ul class="text-xs text-slate-300 mt-2 space-y-1 list-disc list-inside">
+                                <li>Multimodal PDF & Image Uploader</li>
+                                <li>AI Generation Job Polling (Async)</li>
+                                <li>SIEM SOC Telemetry & Audit Logs</li>
+                                <li>Dual Admin Account Provisioning</li>
+                            </ul>
+                        </div>
+
+                        <div class="p-4 rounded-xl bg-slate-800/60 border border-slate-700">
+                            <div class="flex items-center gap-2 text-emerald-400 font-semibold text-sm">
+                                <i data-lucide="camera" class="w-4 h-4"></i> Biometric Verification
+                            </div>
+                            <ul class="text-xs text-slate-300 mt-2 space-y-1 list-disc list-inside">
+                                <li>Webcam High-Res Snapshot</li>
+                                <li>Comparison with Registration Photo</li>
+                                <li>Similarity Confidence Score (&ge;70%)</li>
+                                <li>Impersonation Guard</li>
+                            </ul>
+                        </div>
+                    </div>
+
+                    <!-- Arrow down -->
+                    <div class="flex items-center justify-center text-slate-500 font-mono text-xs gap-2">
+                        <span>&darr; HTTPS REST Endpoints &bull; JSON Payloads &bull; Base64 Incident Evidence &darr;</span>
+                    </div>
+
+                    <!-- Row 2: Backend Layer -->
+                    <div class="p-5 rounded-xl bg-gradient-to-r from-slate-900 via-indigo-950/40 to-slate-900 border border-indigo-500/30">
+                        <div class="flex items-center justify-between mb-3">
+                            <div class="flex items-center gap-2 text-white font-bold text-sm">
+                                <i data-lucide="server" class="w-4 h-4 text-indigo-400"></i> Python 3.12 / Flask Application Core (Hosted on Render)
+                            </div>
+                            <span class="text-xs font-mono text-indigo-300 bg-indigo-500/10 px-2 py-0.5 rounded border border-indigo-500/20">Gunicorn + Thread-Safe Store</span>
+                        </div>
+                        <div class="grid grid-cols-1 sm:grid-cols-5 gap-3 text-xs text-slate-300">
+                            <div class="p-3 rounded-lg bg-slate-900/80 border border-slate-800">
+                                <strong class="text-white block mb-1">Auth & RBAC</strong>
+                                Multi-admin & student role gates, secure Werkzeug salted hash verification.
+                            </div>
+                            <div class="p-3 rounded-lg bg-slate-900/80 border border-slate-800">
+                                <strong class="text-white block mb-1">Job Engine</strong>
+                                Background async generation threads with persistent SQLite/PostgreSQL checkpoints.
+                            </div>
+                            <div class="p-3 rounded-lg bg-slate-900/80 border border-slate-800">
+                                <strong class="text-white block mb-1">Audit Logger</strong>
+                                IST 12-hour timestamp formatting, violation strikes counter, auto-termination.
+                            </div>
+                            <div class="p-3 rounded-lg bg-slate-900/80 border border-slate-800">
+                                <strong class="text-white block mb-1">AI Router</strong>
+                                Model failover (Gemini 2.5 &harr; Groq Qwen/Llama) with sanitization.
+                            </div>
+                            <div class="p-3 rounded-lg bg-slate-900/80 border border-cyan-500/30">
+                                <strong class="text-cyan-400 block mb-1">Cyber & SIEM</strong>
+                                HMAC-SHA256 non-repudiation, SEC-001..013 taxonomy, client IP tracking.
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Arrow down -->
+                    <div class="flex items-center justify-center text-slate-500 font-mono text-xs gap-2">
+                        <span>&darr; Cloud AI API Calls & Database Storage &darr;</span>
+                    </div>
+
+                    <!-- Row 3: External Services & DB -->
+                    <div class="grid grid-cols-3 gap-4">
+                        <div class="p-4 rounded-xl bg-slate-800/40 border border-slate-700/60 text-center">
+                            <div class="text-sm font-semibold text-sky-400">Google Gemini 2.5 Flash</div>
+                            <div class="text-xs text-slate-400 mt-1">Vision analysis, OCR math synthesis, facial biometric embedding</div>
+                        </div>
+                        <div class="p-4 rounded-xl bg-slate-800/40 border border-slate-700/60 text-center">
+                            <div class="text-sm font-semibold text-violet-400">Groq Llama-3.3 70B Versatile</div>
+                            <div class="text-xs text-slate-400 mt-1">Ultra-low latency text question generation & instant rubric evaluation</div>
+                        </div>
+                        <div class="p-4 rounded-xl bg-slate-800/40 border border-slate-700/60 text-center">
+                            <div class="text-sm font-semibold text-emerald-400">PostgreSQL / SQLite Engine</div>
+                            <div class="text-xs text-slate-400 mt-1">Transactional exam records, submission snapshots & audit trail</div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- ENGINEERING CASE STUDY (Technical deep dive) -->
+        <div id="case-study" class="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8 py-16 border-t border-slate-800/80">
+            <div class="text-center max-w-3xl mx-auto mb-12">
+                <h2 class="text-xs font-semibold text-sky-400 tracking-widest uppercase">Deep Dive</h2>
+                <h3 class="text-3xl font-bold text-white mt-2">Engineering Challenges & Solutions</h3>
+                <p class="text-slate-400 mt-2">Key technical hurdles encountered during development and how they were systematically engineered.</p>
+            </div>
+
+            <div class="space-y-6">
+                <!-- Item 0: Custom Trained YOLO11 & MediaPipe Landmark Vector Cosine Similarity -->
+                <div class="p-6 rounded-2xl bg-slate-900/80 border border-indigo-500/40 shadow-lg shadow-indigo-950/20">
+                    <div class="flex items-start gap-4">
+                        <div class="w-8 h-8 rounded-lg bg-indigo-500/20 text-indigo-400 flex items-center justify-center shrink-0 font-bold">1</div>
+                        <div class="w-full">
+                            <div class="flex items-center justify-between flex-wrap gap-2">
+                                <h4 class="text-lg font-bold text-white">Custom YOLOv11 Computer Vision & Continuous 468-Landmark Biometric Embeddings</h4>
+                                <span class="px-2.5 py-0.5 rounded text-[10px] font-bold bg-indigo-500/20 text-indigo-300 border border-indigo-500/30">Custom Deep Learning</span>
+                            </div>
+                            <p class="text-sm text-slate-300 mt-2 leading-relaxed">
+                                <strong class="text-indigo-300">Challenge:</strong> Generic public models (like standard COCO) are trained on arbitrary general objects (chairs, cups, dogs) and produce false alarms or miss concealed smartphones, ear pieces, and cheat papers under erratic student room lighting. Furthermore, single check-in facial checks leave exams vulnerable to mid-test proxy student substitution.<br>
+                                <strong class="text-emerald-400">Solution & Architecture:</strong>
+                            </p>
+                            <ul class="text-xs text-slate-300 space-y-1.5 mt-2 list-disc list-inside">
+                                <li><strong>Transfer Learning on YOLO11n:</strong> Fine-tuned Ultralytics YOLOv11 Nano on curated, annotated proctoring datasets over 50 epochs on Google Colab T4 GPU with photometric and geometric augmentations (random rotation, brightness shift, Gaussian blur).</li>
+                                <li><strong>WebGL Edge Quantization:</strong> Exported PyTorch weights (<code>best.pt</code>) to sharded TensorFlow.js graph model (<code>model.json</code>) executed on student GPUs via WebGL at zero server compute cost.</li>
+                                <li><strong>Continuous Biometric Embedding Similarity:</strong> Combined Google MediaPipe FaceMesh to extract 468 3D facial vectors ($E_{	ext{live}}$) and computed ongoing cosine similarity against registered enrollment vectors ($E_{	ext{ref}}$):
+                                    <div class="my-2 p-2 rounded bg-slate-950 text-indigo-300 font-mono text-[11px] text-center border border-slate-800">
+                                        Sim(E_ref, E_live) = (E_ref · E_live) / (||E_ref|| ||E_live||)
+                                    </div>
+                                    If similarity drops below the calibrated 0.72 threshold, a biometric impostor violation (<code>SEC-002</code>) is immediately logged and locks the session.
+                                </li>
+                            </ul>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Item: Cloud Infrastructure & ASN Network Threat Audit -->
+                <div class="p-6 rounded-2xl bg-slate-900/80 border border-sky-500/40 shadow-lg shadow-sky-950/20">
+                    <div class="flex items-start gap-4">
+                        <div class="w-8 h-8 rounded-lg bg-sky-500/20 text-sky-400 flex items-center justify-center shrink-0 font-bold">2</div>
+                        <div class="w-full">
+                            <div class="flex items-center justify-between flex-wrap gap-2">
+                                <h4 class="text-lg font-bold text-white">Hybrid Cloud Storage & Network-Level VPN / Proxy Hazard Auditing</h4>
+                                <span class="px-2.5 py-0.5 rounded text-[10px] font-bold bg-sky-500/20 text-sky-300 border border-sky-500/30">Infrastructure & Threat Intel</span>
+                            </div>
+                            <p class="text-sm text-slate-300 mt-2 leading-relaxed">
+                                <strong class="text-sky-300">Challenge:</strong> Ephemeral server container reboots on cloud platforms (e.g., Render) cause uploaded student answer photos and forensic webcam violation captures to vanish. Additionally, remote test-takers use Tor and datacenter proxies to disguise geographic location or hire proxy exam proxies.<br>
+                                <strong class="text-emerald-400">Solution:</strong> Architected persistent media streaming via <strong>Cloudinary CDN</strong> so multi-page handwritten math proofs and webcam forensic snaps survive server restarts and feed into Gemini Vision AI. Integrated <strong>BigDataCloud Hazard API</strong> and <strong>ipapi.co</strong> to cross-examine incoming Autonomous System Numbers (ASNs) against datacenter registries, flagging Tor exit nodes, proxies, and VPNs on the tutor audit dashboard.
+                            </p>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Item 1 -->
+                <div class="p-6 rounded-2xl bg-slate-900/70 border border-slate-800">
+                    <div class="flex items-start gap-4">
+                        <div class="w-8 h-8 rounded-lg bg-indigo-500/20 text-indigo-400 flex items-center justify-center shrink-0 font-bold">1</div>
+                        <div>
+                            <h4 class="text-lg font-bold text-white">Mathematical Notation & KaTeX Equation Rendering</h4>
+                            <p class="text-sm text-slate-300 mt-2 leading-relaxed">
+                                <strong class="text-indigo-300">Challenge:</strong> AI question generation often outputs plain strings like <code class="text-xs bg-slate-800 px-1 py-0.5 rounded text-amber-300">sqrt(16)</code> or <code class="text-xs bg-slate-800 px-1 py-0.5 rounded text-amber-300">pi = 3.14</code>, which confused students and led to option parsing issues when options contained alphanumeric labels.<br>
+                                <strong class="text-emerald-400">Solution:</strong> Implemented automated prompt instructions forcing standard LaTeX delimiters (<code class="text-xs bg-slate-800 px-1 py-0.5 rounded">$$...$$</code>, <code class="text-xs bg-slate-800 px-1 py-0.5 rounded">\(...\)</code>) paired with client-side KaTeX auto-render engines on all question and option nodes, ensuring clean typesetting across desktop and mobile.
+                            </p>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Item 2 -->
+                <div class="p-6 rounded-2xl bg-slate-900/70 border border-slate-800">
+                    <div class="flex items-start gap-4">
+                        <div class="w-8 h-8 rounded-lg bg-indigo-500/20 text-indigo-400 flex items-center justify-center shrink-0 font-bold">2</div>
+                        <div>
+                            <h4 class="text-lg font-bold text-white">Eliminating False-Positive Penalties During Handwritten Uploads</h4>
+                            <p class="text-sm text-slate-300 mt-2 leading-relaxed">
+                                <strong class="text-indigo-300">Challenge:</strong> When students looked down at desk paper to write equations or held papers up to the camera, the TensorFlow.js model flagged candidate absence or face-hidden, penalizing honest test takers.<br>
+                                <strong class="text-emerald-400">Solution:</strong> Designed a context-aware <em>Upload Mode Penalty Shield</em>. When the file upload dialog or webcam photo capture modal is actively engaged for subjective questions, proctoring penalties are gracefully suppressed while maintaining audit snapshot logging.
+                            </p>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Item 3 -->
+                <div class="p-6 rounded-2xl bg-slate-900/70 border border-slate-800">
+                    <div class="flex items-start gap-4">
+                        <div class="w-8 h-8 rounded-lg bg-indigo-500/20 text-indigo-400 flex items-center justify-center shrink-0 font-bold">3</div>
+                        <div>
+                            <h4 class="text-lg font-bold text-white">10-Second Inactivity / Cheating Standoff Auto-Submission</h4>
+                            <p class="text-sm text-slate-300 mt-2 leading-relaxed">
+                                <strong class="text-indigo-300">Challenge:</strong> If a student tabbed away or minimized the window, a strike was triggered. However, savvy students could leave the warning overlay active indefinitely while continuing to cheat on a secondary phone or split screen.<br>
+                                <strong class="text-emerald-400">Solution:</strong> Introduced a recurrent countdown watchdog. If the student does not actively click "Return to Exam" within 10 seconds of a strike, subsequent strikes are automatically incremented every 10 seconds until Strike 10 triggers forced auto-submission.
+                            </p>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Item 4 -->
+                <div class="p-6 rounded-2xl bg-slate-900/70 border border-slate-800">
+                    <div class="flex items-start gap-4">
+                        <div class="w-8 h-8 rounded-lg bg-indigo-500/20 text-indigo-400 flex items-center justify-center shrink-0 font-bold">4</div>
+                        <div>
+                            <h4 class="text-lg font-bold text-white">Dual Multimodal AI Architecture with Failover</h4>
+                            <p class="text-sm text-slate-300 mt-2 leading-relaxed">
+                                <strong class="text-indigo-300">Challenge:</strong> Cloud AI rate limits (e.g. Gemini quota exhaustion during large classroom batches) could stall exam creation.<br>
+                                <strong class="text-emerald-400">Solution:</strong> Built a unified routing layer that attempts Gemini 2.5 Flash first for multimodal vision & PDF extraction, and seamlessly falls back to Groq Llama-3.3 70B Versatile for high-speed question generation, with mock fallback as ultimate safeguard.
+                            </p>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Item 5 (Cybersecurity & Anti-Tampering Engineering) -->
+                <div class="p-6 rounded-2xl bg-slate-900/70 border border-cyan-500/30">
+                    <div class="flex items-start gap-4">
+                        <div class="w-8 h-8 rounded-lg bg-cyan-500/20 text-cyan-400 flex items-center justify-center shrink-0 font-bold">5</div>
+                        <div>
+                            <h4 class="text-lg font-bold text-white">Cryptographic Non-Repudiation & Hardware Stream Anti-Spoofing</h4>
+                            <p class="text-sm text-slate-300 mt-2 leading-relaxed">
+                                <strong class="text-cyan-300">Challenge:</strong> Advanced students bypass webcam proctoring by feeding pre-recorded looping video via virtual camera drivers (OBS Virtual Cam, ManyCam), while attackers might try to intercept API traffic or edit local storage variables to reduce strike counts.<br>
+                                <strong class="text-emerald-400">Solution:</strong> Implemented hardware driver inspection via <code class="text-xs bg-slate-800 px-1 py-0.5 rounded text-cyan-300">navigator.mediaDevices.enumerateDevices()</code> filtering out virtual device drivers, active client-side DevTools debugger latency traps, and server-side HMAC-SHA256 digital certificates guaranteeing database immutability and submission non-repudiation.
+                            </p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- FOOTER / GITHUB LINK -->
+        <footer class="border-t border-slate-800/80 py-12 text-center text-slate-400 text-sm">
+            <div class="max-w-7xl mx-auto px-4 flex flex-col sm:flex-row items-center justify-between gap-4">
+                <div class="flex items-center gap-2">
+                    <div class="w-7 h-7 rounded-lg bg-indigo-600 flex items-center justify-center text-white font-bold text-xs">EG</div>
+                    <span class="text-white font-semibold">ExamGuard AI</span>
+                    <span>&bull; </span>
+                </div>
+                <div>
+                    Created & Maintained by <span class="text-slate-200 font-semibold">Prashanta Kumar Das</span>
+                </div>
+                <div class="flex items-center gap-4 text-xs">
+                    <a href="https://online-examination-system-with-anti.onrender.com/" target="_blank" rel="noopener noreferrer" class="hover:text-white transition">Live Application</a>
+                    <a href="https://github.com/pinku-21/Online-Examination-System-with-Anti-Cheating-Detection" target="_blank" rel="noopener noreferrer" class="text-indigo-400 hover:text-indigo-300 transition">GitHub Repo</a>
+                </div>
+            </div>
+        </footer>
+    </div>
+
+    <script>
+        lucide.createIcons();
+    </script>
+</body>
+</html>
