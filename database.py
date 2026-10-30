@@ -112,6 +112,29 @@ def get_connection():
     return conn
 
 
+def run_pg_migrations(cursor, conn, migrations):
+    """Executes a sequence of PostgreSQL migration statements.
+    
+    Each migration runs in its own transaction commit/rollback boundary.
+    Distinguishes benign idempotency conditions (already exists, duplicate column)
+    from unexpected failures. Returns a list of (statement, error_message) for unexpected failures.
+    """
+    migration_errors = []
+    for statement in migrations:
+        try:
+            cursor.execute(statement)
+            conn.commit()
+        except Exception as e:
+            conn.rollback()
+            err_msg = str(e).lower()
+            # Benign/expected conditions: column already exists or relation already exists
+            if "already exists" in err_msg or "duplicate column" in err_msg:
+                continue
+            migration_errors.append((statement, str(e)))
+            print(f"Migration error on '{statement}': {e}")
+    return migration_errors
+
+
 def init_db():
     conn = get_connection()
     cursor = conn.cursor()
@@ -291,13 +314,9 @@ def init_db():
             # IP Geolocation & Hazard Intelligence
             "ALTER TABLE submissions ADD COLUMN IF NOT EXISTS geo_location_json TEXT DEFAULT ''",
         ]
-        for statement in migrations:
-            try:
-                cursor.execute(statement)
-                conn.commit()
-            except Exception as e:
-                conn.rollback()
-                print(f"Migration warning: {e}")
+        migration_errors = run_pg_migrations(cursor, conn, migrations)
+        if migration_errors:
+            print(f"Database initialization encountered {len(migration_errors)} unexpected migration failure(s): {migration_errors}")
     else:
         # Create all application tables first before running any additive migrations.
         for table_sql in [

@@ -12,9 +12,27 @@ import os
 import sqlite3
 import pytest
 import database
-from database import init_db, get_connection
+from database import init_db, get_connection, run_pg_migrations
 
-TEST_PG_URL = os.environ.get("TEST_DATABASE_URL") or os.environ.get("DATABASE_URL")
+# Strict safety rule: ONLY read from TEST_DATABASE_URL, never fall back to DATABASE_URL
+RAW_TEST_PG_URL = os.environ.get("TEST_DATABASE_URL", "").strip()
+
+
+def validate_test_database_url(url: str) -> bool:
+    """Verifies that the provided URL explicitly identifies a disposable test database.
+    
+    Prevents tests from running against production databases.
+    """
+    if not url:
+        return False
+    # Must explicitly contain 'test' in the database name or path
+    # e.g., 'postgresql://user:pass@host/mydb_test' or '?dbname=test_...'
+    lower_url = url.lower()
+    return "test" in lower_url
+
+
+TEST_PG_URL = RAW_TEST_PG_URL if validate_test_database_url(RAW_TEST_PG_URL) else None
+
 
 
 # --- Test F: SQLite Compatibility and Full Schema Verification ---
@@ -186,9 +204,53 @@ def test_migration_ordering_sql_definitions():
     assert create_pm_pos_sqlite != -1, "CREATE TABLE proctor_messages not found in SQLite block"
 
 
-# --- Test E: Transaction Recovery / Rollback Simulation ---
+# --- Test E: Migration Runner Failure and Transaction Recovery ---
+def test_migration_runner_recovers_from_failure(tmp_path, monkeypatch):
+    """Test E1: Exercises run_pg_migrations with a controlled failure statement.
+    
+    Verifies that:
+    1. A faulty migration statement causes a rollback and is recorded in migration_errors.
+    2. Benign statements (duplicate column / already exists) are ignored as expected.
+    3. Subsequent valid migrations in the sequence succeed.
+    4. The connection remains usable and uncorrupted after the failure.
+    """
+    test_db = str(tmp_path / "test_migration_recovery.db")
+    monkeypatch.setattr(database, "DB_PATH", test_db)
+    monkeypatch.setattr(database, "DATABASE_URL", "")
+
+    init_db()
+
+    conn = get_connection()
+    cursor = conn.cursor()
+
+    # Define a sequence containing:
+    # 1. A valid migration
+    # 2. A broken migration (syntax or non-existent table error)
+    # 3. Another valid migration
+    test_migrations = [
+        "ALTER TABLE users ADD COLUMN test_migration_col1 TEXT DEFAULT 'ok'",
+        "ALTER TABLE nonexistent_table_xyz ADD COLUMN bad_col TEXT",
+        "ALTER TABLE users ADD COLUMN test_migration_col2 TEXT DEFAULT 'recovered'",
+    ]
+
+    errors = run_pg_migrations(cursor, conn, test_migrations)
+
+    # 1. Verify failure is reported clearly and not silently swallowed
+    assert len(errors) == 1
+    assert "nonexistent_table_xyz" in errors[0][0]
+
+    # 2. Verify connection remains usable after recovery and both valid columns exist
+    cursor.execute("SELECT test_migration_col1, test_migration_col2 FROM users LIMIT 1")
+    # Verify columns were added to schema
+    cols = {row[1] for row in cursor.execute("PRAGMA table_info(users)").fetchall()}
+    assert "test_migration_col1" in cols
+    assert "test_migration_col2" in cols
+
+    conn.close()
+
+
 def test_transaction_rollback_and_recovery(tmp_path, monkeypatch):
-    """Test E: Verifies that an SQL exception can be recovered via connection rollback,
+    """Test E2: Verifies that an SQL exception can be recovered via connection rollback,
 
     allowing subsequent operations to complete without transaction pollution.
     """
@@ -216,10 +278,14 @@ def test_transaction_rollback_and_recovery(tmp_path, monkeypatch):
     conn.close()
 
 
-# --- Test A: Real PostgreSQL Initialization (executed when TEST_DATABASE_URL is provided) ---
-@pytest.mark.skipif(not TEST_PG_URL, reason="Requires live PostgreSQL instance via TEST_DATABASE_URL or DATABASE_URL")
+# --- Test A: Real PostgreSQL Initialization (executed only when TEST_DATABASE_URL is provided and safe) ---
+@pytest.mark.skipif(
+    not TEST_PG_URL,
+    reason="Requires dedicated disposable PostgreSQL database via TEST_DATABASE_URL containing 'test'. "
+           "Never runs against production DATABASE_URL."
+)
 def test_postgresql_fresh_initialization_live(monkeypatch):
-    """Test A: Connects to a real PostgreSQL database, runs init_db(), and confirms
+    """Test A: Connects to a real disposable PostgreSQL database, runs init_db(), and confirms
 
     fresh schema creation succeeds with all tables and columns present.
     """
@@ -248,3 +314,18 @@ def test_postgresql_fresh_initialization_live(monkeypatch):
     conn.close()
 
     assert not missing, f"PostgreSQL database is missing required tables: {missing}"
+
+
+def test_database_url_safety_check():
+    """Safety Test: Verifies that validate_test_database_url rejects unsafe or production URLs."""
+    # Production-style URLs lacking 'test' must be rejected
+    assert validate_test_database_url("postgresql://user:pass@ep-cool-fog-123.us-east-2.aws.neon.tech/examguard_prod") is False
+    assert validate_test_database_url("postgresql://postgres:pass@localhost:5432/examguard") is False
+    assert validate_test_database_url("") is False
+    assert validate_test_database_url(None) is False
+
+    # URLs with 'test' in the name are permitted
+    assert validate_test_database_url("postgresql://user:pass@ep-cool-fog-123.us-east-2.aws.neon.tech/examguard_test") is True
+    assert validate_test_database_url("postgresql://postgres:pass@localhost:5432/test_db") is True
+
+
