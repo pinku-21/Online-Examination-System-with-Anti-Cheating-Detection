@@ -17,7 +17,7 @@ Remote examination systems frequently struggle with severe operational and integ
 2. **Custom-Trained YOLO11 Computer Vision Pipeline**: Fine-tuned custom object detection model (YOLOv11n) trained via PyTorch/Google Colab GPU on annotated proctoring datasets and exported to TensorFlow.js for sub-second, on-device mobile phone, cheat sheet, and secondary electronic device detection.
 3. **Continuous Biometric Impostor Detection Engine**: Browser-based facial embedding analysis combining Google MediaPipe FaceMesh (468 3D facial landmarks) and ArcFace cosine similarity against registered reference embeddings, preventing mid-exam student impersonation.
 4. **Client-Side AI Multi-Sensor Proctoring**: Runs edge machine learning in real time inside the student's browser (BlazeFace presence tracking, Web Audio API acoustic energy bandpass analysis) without streaming raw video back to a central server.
-4. **Cloud Media & Telemetry Backbone**: Employs **Cloudinary** for persistent CDN storage of handwritten answers and forensic snapshots, **Resend** for automated scorecard email publication, **Sentry** for real-time 24/7 crash monitoring, and **BigDataCloud** for IP Geolocation and VPN/Proxy hazard detection.
+4. **Cloud Media & Telemetry Backbone**: Employs **Cloudinary** for persistent CDN storage of handwritten answers and forensic snapshots, **Resend** for automated scorecard email publication, and **BigDataCloud** for IP Geolocation and VPN/Proxy hazard detection.
 5. **Resilient Exam Lifecycle Engine**: Features auto-saving every 30 seconds, multi-page handwritten proof uploads with intelligent blur suppression, scheduled exam windows, tutor-approved pause/resume states, and a graduated strike termination policy with HMAC-SHA256 non-repudiation.
 
 ---
@@ -52,8 +52,7 @@ graph TD
     
     F -->|Instant Evaluation & Scorecards| R[Tutor Audit Dashboard]
     R -->|Published Results| S[Resend Transactional Email Gateway]
-    B -->|Live Exception Monitoring| T[Sentry 24/7 Crash Telemetry]
-```
+    ```
 
 ---
 
@@ -73,7 +72,6 @@ graph TD
 | **IP Geolocation & Threat Detection** | BigDataCloud Hazard API, ipapi.co | Detects candidate physical location (City, State, Country, ISP) and flags Tor exit nodes, VPNs, or datacenter proxy IPs. |
 | **Persistent Media Storage** | Cloudinary CDN | Preserves forensic webcam violation snaps and multi-page handwritten student papers across server restarts. |
 | **Transactional Email Dispatch** | Resend API | Automatically emails candidate formatted HTML scorecards with mistake breakdowns upon tutor result publication. |
-| **24/7 Error & Crash Telemetry** | Sentry SDK | Monitors runtime health and captures exceptions with complete stack traces and environment metadata. |
 | **Cryptographic Integrity (HMAC-SHA256)**| Python `hashlib` & `hmac`, Non-repudiation | Generates immutable verification tokens over score and submissions, preventing backend and transit data tampering. |
 | **Virtual Camera Anti-Spoofing** | WebRTC `enumerateDevices()` driver heuristics | Stops OBS Virtual Cam, ManyCam, and pre-recorded looping video bypasses of webcam proctoring. |
 | **SIEM Security Operations Center (SOC)**| Standardized `SEC-001..016` taxonomy & Client IP | Categorizes anti-cheat violations into high/critical cyber incident alerts with origin telemetry. |
@@ -127,7 +125,7 @@ graph TD
 
 - **Languages & Frameworks:** Python 3.13, Flask 3.x, JavaScript (ES6+), HTML5, Tailwind CSS
 - **Custom Deep Learning & Computer Vision:** PyTorch, Ultralytics YOLO11, Transfer Learning, Model Quantization & TF.js Export, MediaPipe FaceMesh (468 landmarks), Cosine Embedding Similarity, OpenCV
-- **Cloud & Microservices:** Cloudinary CDN, Resend Email API, Sentry Monitoring, BigDataCloud API, Render Cloud, Neon PostgreSQL
+- **Cloud & Microservices:** Cloudinary CDN, Resend Email API, BigDataCloud API, Render Cloud, Neon PostgreSQL
 - **Machine Learning & Applied AI:** Google Gemini Multimodal Vision API, Groq Cloud API, TensorFlow.js, BlazeFace, Edge AI
 - **Database & Architecture:** PostgreSQL, SQLite3, Connection Pooling, Automatic Schema Migrations
 - **Cybersecurity & Compliance:** Fullscreen Lockdown, Web Audio Energy Detection, HMAC-SHA256 Signatures, Threat Hazard Classification, Aikido SCA

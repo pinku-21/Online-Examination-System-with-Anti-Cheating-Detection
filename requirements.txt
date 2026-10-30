@@ -12,4 +12,3 @@ pyrage>=1.4.0
 httpx[http2]>=0.28.0
 cloudinary
 resend
-sentry-sdk

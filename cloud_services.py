@@ -3,7 +3,6 @@ Cloud Services & Free-Tier Integrations Manager for ExamGuard AI
 Provides resilient, fallback-ready wrappers for services featured in free-for-dev:
 1. Cloudinary: Persistent storage for candidate biometric photos & cheating snapshots
 2. Resend: 3,000 free transactional emails/month for scorecard publication & invitations
-3. Sentry: Real-time application error & crash monitoring
 """
 
 import os
@@ -12,13 +11,7 @@ import time
 import base64
 from database import get_setting
 
-# ── 1. SENTRY ERROR & CRASH MONITORING (DISABLED) ───────────────────────────
-def init_sentry(app=None):
-    """Sentry error monitoring has been disabled per user request."""
-    return False
-
-
-# ── 2. CLOUDINARY PERSISTENT MEDIA STORAGE ──────────────────────────────────
+# ── 1. CLOUDINARY PERSISTENT MEDIA STORAGE ──────────────────────────────────
 def upload_image_to_cloud(file_bytes_or_path, folder="examguard", public_id=None):
     """
     Uploads an image (raw bytes or local file path) to Cloudinary free media cloud.

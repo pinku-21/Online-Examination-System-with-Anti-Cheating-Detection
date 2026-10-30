@@ -13,7 +13,7 @@ Remote testing platforms often face recurring challenges: authoring quality ques
 **ExamGuard AI** solves these challenges end-to-end:
 - **Instructor Tooling**: Ingests lecture PDFs, textbook images, or topical syllabi to generate structured exam papers (MCQ, short conceptual, and long essay formats) complete with dynamic vector diagrams, KaTeX-formatted formulas, and rubric keys.
 - **Client-Side Edge Proctoring**: Uses browser-level computer vision (TensorFlow.js) and audio analysis (Web Audio API) directly on the student machine to flag unauthorized phones, candidate absence, secondary individuals, and spoken communication without streaming raw video back to a central server.
-- **Persistent Cloud Architecture**: Integrates Cloudinary for CDN-backed handwritten proofs and forensic snapshots, Resend for automated transactional scorecard emails, and Sentry for real-time 24/7 crash monitoring.
+- **Persistent Cloud Architecture**: Integrates Cloudinary for CDN-backed handwritten proofs and forensic snapshots, Resend for automated transactional scorecard emails.
 - **Anti-Cheat Geolocation & VPN Hazard Detection**: Analyzes incoming client network signatures via BigDataCloud & ipapi to uncover Tor exit nodes, datacenter IP proxies, and VPNs before tests start.
 - **Cryptographic Non-Repudiation**: Signs finalized student submissions with keyed HMAC-SHA256 digests so grades, timestamps, and infraction logs cannot be altered in transit or in the database.
 
@@ -59,8 +59,7 @@ Remote testing platforms often face recurring challenges: authoring quality ques
                              Candidate presence & count       Student answers & snapshots
                            - Web Audio API: Voice bandpass  - Resend Email Service:
                            - Window & tab blur tracking       Instant HTML scorecards
-                                     |                      - Sentry SDK:
-                                     v                        24/7 Crash telemetry
+                                     |                                                           v                        24/7 Crash telemetry
                         [ Security Event Dispatcher ]
                          - Incident classification (SEC-001..016)
                          - Graduated strike warning engine
@@ -110,7 +109,6 @@ Remote testing platforms often face recurring challenges: authoring quality ques
 | **Database** | SQLite (local development), PostgreSQL via Neon (production) |
 | **Cloud Storage** | Cloudinary (Persistent CDN for student handwriting & webcam audit snaps) |
 | **Email Delivery** | Resend API (Automated transactional scorecards & report publication) |
-| **Error Monitoring** | Sentry SDK (Real-time application crash & exception monitoring) |
 | **IP & Threat Intel** | BigDataCloud Hazard API, ipapi.co (VPN, Tor, Proxy, and ISP detection) |
 | **Edge Vision & Audio**| TensorFlow.js, COCO-SSD, BlazeFace, Web Audio API |
 | **AI Providers** | Google Gemini API (Flash-Lite / Vision), Groq Cloud API, OpenRouter |
@@ -165,7 +163,6 @@ CLOUDINARY_CLOUD_NAME=your_cloud_name
 CLOUDINARY_API_KEY=your_cloudinary_api_key
 CLOUDINARY_API_SECRET=your_cloudinary_api_secret
 RESEND_API_KEY=your_resend_api_key
-SENTRY_DSN=your_sentry_dsn
 BIGDATACLOUD_API_KEY=your_bigdatacloud_key
 
 # Database (optional; defaults to local SQLite if left empty)

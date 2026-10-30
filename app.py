@@ -36,7 +36,6 @@ from database import (
     get_persistent_asset
 )
 from cloud_services import (
-    init_sentry,
     upload_image_to_cloud,
     send_transactional_email
 )
@@ -879,13 +878,11 @@ def tutor_save_settings():
     cloudinary_key = request.form.get("cloudinary_api_key", "").strip()
     cloudinary_secret = request.form.get("cloudinary_api_secret", "").strip()
     resend_key = request.form.get("resend_api_key", "").strip()
-    sentry_dsn = request.form.get("sentry_dsn", "").strip()
 
     if cloudinary_cloud: set_setting("cloudinary_cloud_name", cloudinary_cloud)
     if cloudinary_key: set_setting("cloudinary_api_key", cloudinary_key)
     if cloudinary_secret: set_setting("cloudinary_api_secret", cloudinary_secret)
     if resend_key: set_setting("resend_api_key", resend_key)
-    if sentry_dsn: set_setting("sentry_dsn", sentry_dsn)
         
     flash("Settings updated successfully!", "success")
     return redirect(url_for("tutor_dashboard"))
