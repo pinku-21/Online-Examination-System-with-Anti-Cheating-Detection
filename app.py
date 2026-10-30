@@ -2882,7 +2882,8 @@ def api_download_submission_certificate(submission_id):
             score,
             total_points,
             sub["warnings_count"] or 0,
-            sub["status"] or "submitted"
+            sub["status"] or "submitted",
+            sub["answers_json"]
         )
         try:
             conn_u = get_connection()
