@@ -299,96 +299,131 @@ def init_db():
                 conn.rollback()
                 print(f"Migration warning: {e}")
     else:
-        cursor.execute("""CREATE TABLE IF NOT EXISTS users (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            username TEXT UNIQUE NOT NULL,
-            email TEXT UNIQUE,
-            password_hash TEXT NOT NULL,
-            full_name TEXT NOT NULL,
-            role TEXT NOT NULL DEFAULT 'student',
-            roll_number TEXT,
-            class_name TEXT DEFAULT '',
-            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-        )""")
-        cursor.execute("""CREATE TABLE IF NOT EXISTS exams (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            exam_code TEXT UNIQUE NOT NULL,
-            title TEXT NOT NULL,
-            description TEXT,
-            duration_minutes INTEGER NOT NULL DEFAULT 30,
-            max_warnings INTEGER NOT NULL DEFAULT 3,
-            passing_percentage REAL NOT NULL DEFAULT 40.0,
-            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-            is_active INTEGER DEFAULT 1,
-            enable_video_detection INTEGER DEFAULT 1,
-            enable_audio_detection INTEGER DEFAULT 1,
-            access_type TEXT DEFAULT 'all',
-            assigned_class TEXT DEFAULT '',
-            schedule_type TEXT DEFAULT 'anytime',
-            start_time TEXT,
-            end_time TEXT
-        )""")
-        cursor.execute("""CREATE TABLE IF NOT EXISTS questions (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            exam_id INTEGER NOT NULL,
-            question_text TEXT NOT NULL,
-            question_type TEXT NOT NULL DEFAULT 'mcq',
-            options_json TEXT,
-            correct_answer TEXT NOT NULL,
-            explanation TEXT,
-            points REAL NOT NULL DEFAULT 1.0,
-            figure_svg TEXT,
-            figure_url TEXT,
-            FOREIGN KEY (exam_id) REFERENCES exams(id) ON DELETE CASCADE
-        )""")
-        cursor.execute("""CREATE TABLE IF NOT EXISTS exam_assignments (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            exam_id INTEGER NOT NULL,
-            user_id INTEGER NOT NULL,
-            assigned_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-            FOREIGN KEY (exam_id) REFERENCES exams(id) ON DELETE CASCADE,
-            FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
-            UNIQUE (exam_id, user_id)
-        )""")
-        cursor.execute("""CREATE TABLE IF NOT EXISTS submissions (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            exam_id INTEGER NOT NULL,
-            student_name TEXT NOT NULL,
-            roll_number TEXT NOT NULL,
-            answers_json TEXT,
-            score REAL DEFAULT 0.0,
-            total_points REAL DEFAULT 0.0,
-            percentage REAL DEFAULT 0.0,
-            warnings_count INTEGER DEFAULT 0,
-            status TEXT NOT NULL DEFAULT 'in_progress',
-            termination_reason TEXT,
-            started_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-            submitted_at TIMESTAMP,
-            user_id INTEGER,
-            FOREIGN KEY (exam_id) REFERENCES exams(id) ON DELETE CASCADE
-        )""")
-        cursor.execute("""CREATE TABLE IF NOT EXISTS violations (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            submission_id INTEGER NOT NULL,
-            violation_type TEXT NOT NULL,
-            details TEXT,
-            timestamp TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-            FOREIGN KEY (submission_id) REFERENCES submissions(id) ON DELETE CASCADE
-        )""")
-        cursor.execute("""CREATE TABLE IF NOT EXISTS settings (key TEXT PRIMARY KEY, value TEXT)""")
-        cursor.execute("""CREATE TABLE IF NOT EXISTS ai_generation_jobs (
-            job_id TEXT PRIMARY KEY,
-            status TEXT NOT NULL DEFAULT 'running',
-            result_json TEXT,
-            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-        )""")
-        cursor.execute("""CREATE TABLE IF NOT EXISTS persistent_assets (
-            asset_key TEXT PRIMARY KEY,
-            mime_type TEXT NOT NULL,
-            data_base64 TEXT NOT NULL,
-            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-        )""")
-        # Repair older SQLite databases using the same idempotent migration style.
+        # Create all application tables first before running any additive migrations.
+        for table_sql in [
+            """CREATE TABLE IF NOT EXISTS users (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                username TEXT UNIQUE NOT NULL,
+                email TEXT UNIQUE,
+                password_hash TEXT NOT NULL,
+                full_name TEXT NOT NULL,
+                role TEXT NOT NULL DEFAULT 'student',
+                roll_number TEXT,
+                class_name TEXT DEFAULT '',
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            )""",
+            """CREATE TABLE IF NOT EXISTS exams (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                exam_code TEXT UNIQUE NOT NULL,
+                title TEXT NOT NULL,
+                description TEXT,
+                duration_minutes INTEGER NOT NULL DEFAULT 30,
+                max_warnings INTEGER NOT NULL DEFAULT 3,
+                passing_percentage REAL NOT NULL DEFAULT 40.0,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                is_active INTEGER DEFAULT 1,
+                enable_video_detection INTEGER DEFAULT 1,
+                enable_audio_detection INTEGER DEFAULT 1,
+                access_type TEXT DEFAULT 'all',
+                assigned_class TEXT DEFAULT '',
+                schedule_type TEXT DEFAULT 'anytime',
+                start_time TEXT,
+                end_time TEXT
+            )""",
+            """CREATE TABLE IF NOT EXISTS questions (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                exam_id INTEGER NOT NULL,
+                question_text TEXT NOT NULL,
+                question_type TEXT NOT NULL DEFAULT 'mcq',
+                options_json TEXT,
+                correct_answer TEXT NOT NULL,
+                explanation TEXT,
+                points REAL NOT NULL DEFAULT 1.0,
+                figure_svg TEXT,
+                figure_url TEXT,
+                FOREIGN KEY (exam_id) REFERENCES exams(id) ON DELETE CASCADE
+            )""",
+            """CREATE TABLE IF NOT EXISTS exam_assignments (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                exam_id INTEGER NOT NULL,
+                user_id INTEGER NOT NULL,
+                assigned_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                FOREIGN KEY (exam_id) REFERENCES exams(id) ON DELETE CASCADE,
+                FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
+                UNIQUE (exam_id, user_id)
+            )""",
+            """CREATE TABLE IF NOT EXISTS submissions (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                exam_id INTEGER NOT NULL,
+                student_name TEXT NOT NULL,
+                roll_number TEXT NOT NULL,
+                answers_json TEXT,
+                score REAL DEFAULT 0.0,
+                total_points REAL DEFAULT 0.0,
+                percentage REAL DEFAULT 0.0,
+                warnings_count INTEGER DEFAULT 0,
+                status TEXT NOT NULL DEFAULT 'in_progress',
+                termination_reason TEXT,
+                started_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                submitted_at TIMESTAMP,
+                user_id INTEGER,
+                FOREIGN KEY (exam_id) REFERENCES exams(id) ON DELETE CASCADE
+            )""",
+            """CREATE TABLE IF NOT EXISTS violations (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                submission_id INTEGER NOT NULL,
+                violation_type TEXT NOT NULL,
+                details TEXT,
+                timestamp TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                FOREIGN KEY (submission_id) REFERENCES submissions(id) ON DELETE CASCADE
+            )""",
+            """CREATE TABLE IF NOT EXISTS settings (key TEXT PRIMARY KEY, value TEXT)""",
+            """CREATE TABLE IF NOT EXISTS ai_generation_jobs (
+                job_id TEXT PRIMARY KEY,
+                status TEXT NOT NULL DEFAULT 'running',
+                result_json TEXT,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            )""",
+            """CREATE TABLE IF NOT EXISTS persistent_assets (
+                asset_key TEXT PRIMARY KEY,
+                mime_type TEXT NOT NULL,
+                data_base64 TEXT NOT NULL,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            )""",
+            """CREATE TABLE IF NOT EXISTS question_bank (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                tutor_id INTEGER,
+                category TEXT NOT NULL DEFAULT 'General',
+                chapter TEXT DEFAULT '',
+                question_text TEXT NOT NULL,
+                question_type TEXT NOT NULL DEFAULT 'mcq',
+                options_json TEXT,
+                correct_answer TEXT NOT NULL,
+                explanation TEXT,
+                points REAL NOT NULL DEFAULT 1.0,
+                difficulty_tier TEXT DEFAULT 'Medium',
+                blooms_taxonomy TEXT DEFAULT 'Understand',
+                distractor_analysis_json TEXT DEFAULT '{}',
+                figure_svg TEXT,
+                figure_url TEXT,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                FOREIGN KEY (tutor_id) REFERENCES users(id) ON DELETE CASCADE
+            )""",
+            """CREATE TABLE IF NOT EXISTS proctor_messages (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                submission_id INTEGER NOT NULL,
+                sender_id INTEGER NOT NULL,
+                message_text TEXT NOT NULL,
+                severity TEXT DEFAULT 'warning',
+                is_read INTEGER DEFAULT 0,
+                audio_payload TEXT DEFAULT '',
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                FOREIGN KEY (submission_id) REFERENCES submissions(id) ON DELETE CASCADE
+            )"""
+        ]:
+            cursor.execute(table_sql)
+
+        # Repair older SQLite databases using idempotent migration style.
         for table, column, definition in [
             ("users", "class_name", "TEXT DEFAULT ''"),
             ("exams", "enable_video_detection", "INTEGER DEFAULT 1"),
@@ -444,37 +479,6 @@ def init_db():
             columns = {row["name"] for row in cursor.execute(f"PRAGMA table_info({table})").fetchall()}
             if column not in columns:
                 cursor.execute(f"ALTER TABLE {table} ADD COLUMN {column} {definition}")
-
-        cursor.execute("""CREATE TABLE IF NOT EXISTS question_bank (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            tutor_id INTEGER,
-            category TEXT NOT NULL DEFAULT 'General',
-            chapter TEXT DEFAULT '',
-            question_text TEXT NOT NULL,
-            question_type TEXT NOT NULL DEFAULT 'mcq',
-            options_json TEXT,
-            correct_answer TEXT NOT NULL,
-            explanation TEXT,
-            points REAL NOT NULL DEFAULT 1.0,
-            difficulty_tier TEXT DEFAULT 'Medium',
-            blooms_taxonomy TEXT DEFAULT 'Understand',
-            distractor_analysis_json TEXT DEFAULT '{}',
-            figure_svg TEXT,
-            figure_url TEXT,
-            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-            FOREIGN KEY (tutor_id) REFERENCES users(id) ON DELETE CASCADE
-        )""")
-        cursor.execute("""CREATE TABLE IF NOT EXISTS proctor_messages (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            submission_id INTEGER NOT NULL,
-            sender_id INTEGER NOT NULL,
-            message_text TEXT NOT NULL,
-            severity TEXT DEFAULT 'warning',
-            is_read INTEGER DEFAULT 0,
-            audio_payload TEXT DEFAULT '',
-            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-            FOREIGN KEY (submission_id) REFERENCES submissions(id) ON DELETE CASCADE
-        )""")
 
     # Seed initial admin(s) if provided via environment variables.
     from werkzeug.security import generate_password_hash
