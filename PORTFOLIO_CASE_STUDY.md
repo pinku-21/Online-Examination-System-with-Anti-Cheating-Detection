@@ -14,8 +14,9 @@ Remote examination systems frequently struggle with severe operational and integ
 
 **ExamGuard AI** is a production-grade, full-stack proctored examination platform designed to solve these challenges end-to-end:
 1. **Generative AI Question Studio**: Converts raw syllabus PDFs, textbook images, and prompts into rigorous questions (MCQs, True/False, and Subjective) complete with SVG geometric vector diagrams, rubric grading keys, and KaTeX math notation.
-2. **Client-Side AI Multi-Sensor Proctoring**: Runs on-device machine learning in real time inside the student's browser via TensorFlow.js (COCO-SSD device detection and BlazeFace facial tracking) paired with Web Audio API acoustic analysis.
-3. **High-Precision Biometric Identity Gate**: Authenticates candidate face biometrics with Gemini Vision AI against registered reference photos with strict impersonation rejection.
+2. **Custom-Trained YOLO11 Computer Vision Pipeline**: Fine-tuned custom object detection model (YOLOv11n) trained via PyTorch/Google Colab GPU on annotated proctoring datasets and exported to TensorFlow.js for sub-second, on-device mobile phone, cheat sheet, and secondary electronic device detection.
+3. **Continuous Biometric Impostor Detection Engine**: Browser-based facial embedding analysis combining Google MediaPipe FaceMesh (468 3D facial landmarks) and ArcFace cosine similarity against registered reference embeddings, preventing mid-exam student impersonation.
+4. **Client-Side AI Multi-Sensor Proctoring**: Runs edge machine learning in real time inside the student's browser (BlazeFace presence tracking, Web Audio API acoustic energy bandpass analysis) without streaming raw video back to a central server.
 4. **Cloud Media & Telemetry Backbone**: Employs **Cloudinary** for persistent CDN storage of handwritten answers and forensic snapshots, **Resend** for automated scorecard email publication, **Sentry** for real-time 24/7 crash monitoring, and **BigDataCloud** for IP Geolocation and VPN/Proxy hazard detection.
 5. **Resilient Exam Lifecycle Engine**: Features auto-saving every 30 seconds, multi-page handwritten proof uploads with intelligent blur suppression, scheduled exam windows, tutor-approved pause/resume states, and a graduated strike termination policy with HMAC-SHA256 non-repudiation.
 
@@ -60,6 +61,8 @@ graph TD
 
 | Feature Module | Technology Stack | Practical Real-World Impact |
 | :--- | :--- | :--- |
+| **Custom YOLOv11 Proctoring Model** | Ultralytics YOLO11n, PyTorch, TF.js GraphModel | Custom-trained deep learning vision model for detecting prohibited exam items (smartphones, earbuds, notes) at 30 FPS on client edge hardware. |
+| **Continuous Biometric Facial Embeddings** | MediaPipe FaceMesh (468 landmarks), ArcFace cosine similarity | Extracts 512D facial landmark baseline during onboarding and continuously evaluates candidate authenticity to reject proxy exam takers. |
 | **Multimodal Exam Studio** | Google Gemini Vision, Groq API, PyPDF, SVG | Generates complete 80-mark, 50-mark, or custom exam papers in seconds, auto-rendering mathematical symbols (KaTeX) and vector diagrams. |
 | **Automated Handwritten Evaluation** | Google Gemini Vision, Cloudinary API | AI evaluates student handwritten mathematical derivations and step proofs directly from mobile phone camera photos. |
 | **Biometric Face Verification** | Gemini Vision AI & Fallback Structural Analyzer | Prevents proxy attendance and student impersonation before admitting students to the exam room. |
@@ -77,7 +80,17 @@ graph TD
 
 ---
 
-## Technical Challenges & Solutions
+## Technical Challenges & Custom ML Model Pipeline
+
+### 0. Custom YOLOv11 Computer Vision Model & TF.js Edge Inference
+* **Challenge:** Generic pre-trained models (like standard COCO) are trained on general categories (dogs, cars, dining tables) and frequently produce false positives or miss concealed smartphones and subtle cheat notes under real-world exam lighting.
+* **Solution & Training Pipeline:**
+  1. **Dataset Curation & Augmentation**: Prepared an annotated exam cheating dataset comprising thousands of images featuring smartphones, notes, multiple persons, and hands concealing objects. Applied random lighting, rotation, and blur augmentations to simulate poor webcam conditions.
+  2. **Model Architecture**: Fine-tuned the lightweight **YOLOv11 Nano (YOLO11n)** architecture using PyTorch and CUDA acceleration on Google Colab GPU over 50 epochs with transfer learning.
+  3. **Edge Optimization & TF.js Quantization**: Exported the trained PyTorch weights (`best.pt`) directly to **TensorFlow.js web graph format** (`model.json` + sharded binary weight chunks), enabling zero-latency client-side hardware inference directly within WebGL without sending student video streams to an external server.
+  4. **Continuous Embedding Similarity**: Paired with MediaPipe FaceMesh 468 landmark vectors to calculate real-time cosine similarity against registered enrollment embeddings:
+     $$\text{Sim}(\mathbf{E}_{\text{ref}}, \mathbf{E}_{\text{live}}) = \frac{\mathbf{E}_{\text{ref}} \cdot \mathbf{E}_{\text{live}}}{\|\mathbf{E}_{\text{ref}}\| \|\mathbf{E}_{\text{live}}\|}$$
+     If similarity drops below the calibrated threshold ($< 0.72$), the exam triggers a strike and locks out unauthorized proxies.
 
 ### 1. Eliminating Ephemeral Storage Loss for Handwritten Exams
 * **Challenge:** On modern cloud platforms like Render, the container filesystem is ephemeral. Student photos and forensic webcam captures were previously vulnerable to data loss when containers restarted or scaled down.
@@ -113,7 +126,8 @@ graph TD
 ## Skills & Competencies Demonstrated
 
 - **Languages & Frameworks:** Python 3.13, Flask 3.x, JavaScript (ES6+), HTML5, Tailwind CSS
+- **Custom Deep Learning & Computer Vision:** PyTorch, Ultralytics YOLO11, Transfer Learning, Model Quantization & TF.js Export, MediaPipe FaceMesh (468 landmarks), Cosine Embedding Similarity, OpenCV
 - **Cloud & Microservices:** Cloudinary CDN, Resend Email API, Sentry Monitoring, BigDataCloud API, Render Cloud, Neon PostgreSQL
-- **Machine Learning & AI:** Google Gemini Multimodal Vision API, Groq Cloud API, TensorFlow.js, COCO-SSD, BlazeFace, Edge AI
+- **Machine Learning & Applied AI:** Google Gemini Multimodal Vision API, Groq Cloud API, TensorFlow.js, BlazeFace, Edge AI
 - **Database & Architecture:** PostgreSQL, SQLite3, Connection Pooling, Automatic Schema Migrations
 - **Cybersecurity & Compliance:** Fullscreen Lockdown, Web Audio Energy Detection, HMAC-SHA256 Signatures, Threat Hazard Classification, Aikido SCA
