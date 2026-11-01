@@ -4130,6 +4130,35 @@ def api_save_progress(submission_id):
 # ---------------------------------------------------------------------------
 # Student Pause Request
 # ---------------------------------------------------------------------------
+# ---------------------------------------------------------------------------
+# Verify Paper / Desk Workspace Setup
+# ---------------------------------------------------------------------------
+@app.route("/api/submission/<int:submission_id>/verify-desk-setup", methods=["POST"])
+@login_required
+def api_verify_desk_setup(submission_id):
+    """Persists that the student has completed Paper / Desk Workspace Setup for this exam attempt."""
+    conn = get_connection()
+    cursor = conn.cursor()
+    cursor.execute("SELECT id, status, user_id FROM submissions WHERE id = ?", (submission_id,))
+    sub = cursor.fetchone()
+
+    if not sub or sub["status"] not in ("in_progress",):
+        conn.close()
+        return jsonify({"success": False, "error": "Submission not active."}), 400
+
+    if session.get("user_role") == "student" and sub["user_id"] != session.get("user_id"):
+        conn.close()
+        return jsonify({"success": False, "error": "Access denied."}), 403
+
+    cursor.execute("""
+        UPDATE submissions
+        SET is_desk_setup_verified = 1
+        WHERE id = ?
+    """, (submission_id,))
+    conn.commit()
+    conn.close()
+    return jsonify({"success": True, "is_desk_setup_verified": 1})
+
 @app.route("/api/submission/<int:submission_id>/request-pause", methods=["POST"])
 @login_required
 def api_request_pause(submission_id):

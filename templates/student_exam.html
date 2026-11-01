@@ -1153,6 +1153,7 @@
         data-enable-audio="{{ 1 if submission.enable_audio_detection in [1, True, '1'] else 0 }}"
         data-schedule-type="{{ submission.schedule_type or 'anytime' }}" data-end-time="{{ submission.end_time or '' }}"
         data-is-face-verified="{{ 1 if submission.is_face_verified in [1, True, '1'] else 0 }}"
+        data-is-desk-setup-verified="{{ 1 if submission.is_desk_setup_verified in [1, True, '1'] else 0 }}"
         data-face-confidence="{{ submission.face_match_confidence | default(0.0) }}"
         data-saved-progress='{{ saved_progress or "{}" }}'
         data-saved-time-remaining="{{ saved_time_remaining or '' }}"
@@ -1365,7 +1366,17 @@
         let lookingAwayConsecutiveCount = 0;
         let lookingDownConsecutiveCount = 0;
         let lookingUpConsecutiveCount = 0;
-        let deskViewPromptDismissed = {};
+        // Paper / Desk Workspace Setup Verification State (Persisted across attempt)
+        let isDeskSetupVerified = Number(metaEl.dataset.isDeskSetupVerified || 0) === 1;
+        let isDeskModalActive = false;
+        const examRequiresHandwrittenWork = Array.isArray(QUESTIONS) && QUESTIONS.some(q => {
+            if (!q) return false;
+            const qType = (q.question_type || '').toLowerCase();
+            const isMap = qType === 'map_hotspot' || qType === 'map' || 
+                (q.figure_url && (q.figure_url.includes('/maps/') || q.figure_url.includes('map'))) ||
+                (q.question_text && (q.question_text.toLowerCase().includes('map') || q.question_text.toLowerCase().includes('locate on the map') || q.question_text.toLowerCase().includes('mark on the map')));
+            return !isMap && (!q.options || q.options.length === 0 || qType === 'descriptive' || q.has_photo_upload);
+        });
         let loudAudioConsecutiveCount = 0;
         let phoneConsecutiveCount = 0;
         let earphoneConsecutiveCount = 0;
@@ -2040,6 +2051,15 @@
             // Render correct starting question & Palette
             renderQuestion(currentQuestionIndex);
             renderPalette();
+
+            // Prompt Paper / Desk Workspace Setup ONCE per exam attempt if the exam contains written/photo-upload questions
+            if (examRequiresHandwrittenWork && !isDeskSetupVerified && !isDeskModalActive) {
+                setTimeout(() => {
+                    if (isExamActive && !isTerminated && !isDeskSetupVerified) {
+                        showDeskCalibrationModal();
+                    }
+                }, 500);
+            }
         }
 
         // ── Offline Resilience & Auto-Sync Vault ─────────────────────────────
@@ -4040,14 +4060,7 @@
             renderPalette();
             if (window.lucide && typeof lucide.createIcons === "function") { try { lucide.createIcons(); } catch(e){} }
 
-            // Prompt Desk Workspace Calibration once when entering a written/handwritten question
-            const isHandwrittenQ = !isMapQ && (!q.options || q.options.length === 0 || q.question_type === 'descriptive' || q.has_photo_upload);
-            if (isHandwrittenQ && !deskViewPromptDismissed[index]) {
-                deskViewPromptDismissed[index] = true;
-                setTimeout(() => {
-                    if (isExamActive && !isTerminated) showDeskCalibrationModal();
-                }, 400);
-            }
+            // Desk Workspace Calibration is handled once at exam attempt start if written/photo questions exist.
 
             // Auto-render any mathematical formulas (\sqrt, \frac, powers, symbols) cleanly with KaTeX
             if (typeof renderMathInElement === 'function') {
@@ -4087,12 +4100,15 @@
         }
 
         function showDeskCalibrationModal() {
+            if (isDeskSetupVerified || isDeskModalActive) return;
+            isDeskModalActive = true;
+
             Swal.fire({
                 icon: 'info',
                 title: '📐 Paper / Desk Workspace Setup',
                 html: `
                     <div class="text-left text-xs text-slate-700 space-y-2.5 leading-relaxed">
-                        <p class="font-medium text-slate-800">This question requires handwritten work or paper rough work:</p>
+                        <p class="font-medium text-slate-800">This exam contains questions requiring handwritten work, rough sheets, or photo uploads:</p>
                         <div class="p-3 bg-sky-50 border border-sky-200 rounded-xl space-y-1.5">
                             <div class="flex items-center space-x-2 font-bold text-sky-900">
                                 <i data-lucide="check-circle-2" class="w-4 h-4 text-sky-600 flex-shrink-0"></i>
@@ -4109,9 +4125,23 @@
                 `,
                 confirmButtonText: 'I Have Set Up My Desk View ✓',
                 confirmButtonColor: '#0284c7',
-                allowOutsideClick: true
-            }).then(() => {
-                if (window.lucide) if (window.lucide && typeof lucide.createIcons === "function") { try { lucide.createIcons(); } catch(e){} }
+                allowOutsideClick: false,
+                allowEscapeKey: false
+            }).then(async (result) => {
+                isDeskModalActive = false;
+                if (result.isConfirmed) {
+                    isDeskSetupVerified = true;
+                    // Persist desk setup verification state to server session for this submission
+                    try {
+                        await fetch(`/api/submission/${SUBMISSION_ID}/verify-desk-setup`, {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json' }
+                        });
+                    } catch(e) {
+                        console.warn("Failed to persist desk setup verification state to server:", e);
+                    }
+                }
+                if (window.lucide && typeof lucide.createIcons === "function") { try { lucide.createIcons(); } catch(e){} }
             });
         }
 

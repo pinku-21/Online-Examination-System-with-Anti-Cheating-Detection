@@ -315,6 +315,8 @@ def init_db():
                 "ALTER TABLE questions ADD COLUMN IF NOT EXISTS distractor_analysis_json TEXT DEFAULT '{}'",
                 # IP Geolocation & Hazard Intelligence
                 "ALTER TABLE submissions ADD COLUMN IF NOT EXISTS geo_location_json TEXT DEFAULT ''",
+                # Paper / Desk Workspace Setup Verification
+                "ALTER TABLE submissions ADD COLUMN IF NOT EXISTS is_desk_setup_verified INTEGER DEFAULT 0",
             ]
             migration_errors = run_pg_migrations(cursor, conn, migrations)
         else:
@@ -494,6 +496,8 @@ def init_db():
                 ("questions", "distractor_analysis_json", "TEXT DEFAULT '{}'"),
                 # IP Geolocation & Hazard Intelligence
                 ("submissions", "geo_location_json", "TEXT DEFAULT ''"),
+                # Paper / Desk Workspace Setup Verification
+                ("submissions", "is_desk_setup_verified", "INTEGER DEFAULT 0"),
             ]:
                 columns = {row["name"] for row in cursor.execute(f"PRAGMA table_info({table})").fetchall()}
                 if column not in columns:
