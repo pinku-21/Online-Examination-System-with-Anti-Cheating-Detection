@@ -664,39 +664,50 @@
 
     <!-- Fullscreen Exit Warning & Action Resolution Modal (Anti-Cheat Enforcement) -->
     <div id="fullscreen-exit-modal" class="hidden fixed inset-0 z-[100] bg-slate-950/85 backdrop-blur-xl flex items-center justify-center p-4 select-none">
-        <div class="bg-white dark:bg-slate-900 border-2 border-rose-400 dark:border-rose-600 rounded-3xl max-w-lg w-full p-6 sm:p-8 shadow-2xl text-center animate-in fade-in zoom-in duration-200">
-            <div class="w-16 h-16 rounded-2xl bg-rose-100 dark:bg-rose-950 text-rose-600 dark:text-rose-400 flex items-center justify-center mx-auto mb-4 border border-rose-300 dark:border-rose-800 shadow-inner">
-                <i data-lucide="maximize" class="w-8 h-8 animate-pulse"></i>
+        <div class="bg-slate-900 border-2 border-rose-600 rounded-3xl max-w-lg w-full p-6 sm:p-8 shadow-2xl text-center animate-in fade-in zoom-in duration-200">
+            <!-- Prominent Red Shield Warning Icon -->
+            <div class="w-20 h-20 rounded-3xl bg-rose-500/20 text-rose-500 border border-rose-500/30 flex items-center justify-center mx-auto mb-4 shadow-lg shadow-rose-950/50">
+                <i data-lucide="shield-alert" class="w-10 h-10 animate-bounce"></i>
             </div>
             
-            <div class="inline-flex items-center space-x-1.5 px-3 py-1 rounded-full text-xs font-bold bg-rose-50 text-rose-700 dark:bg-rose-950/60 dark:text-rose-300 border border-rose-200 dark:border-rose-800 mb-3">
-                <i data-lucide="alert-triangle" class="w-3.5 h-3.5 text-rose-600"></i>
-                <span>Fullscreen Mode Exited &bull; Exam Paused</span>
+            <!-- Strike Count Badge -->
+            <div class="inline-flex items-center space-x-2 px-4 py-1.5 rounded-full text-xs font-black uppercase tracking-wider bg-rose-500/30 text-rose-200 border border-rose-400/40 mb-3 shadow-inner">
+                <i data-lucide="alert-triangle" class="w-4 h-4 text-rose-400"></i>
+                <span id="fs-modal-strike-pill">STRIKE DETECTED</span>
             </div>
 
-            <h2 class="text-xl sm:text-2xl font-black text-slate-900 dark:text-slate-100 tracking-tight">Fullscreen Required</h2>
-            <p class="text-xs sm:text-sm text-slate-600 dark:text-slate-400 mt-2 mb-6 leading-relaxed">
-                Anti-cheat security prohibits navigating away from fullscreen. Your exam screen is currently frozen to protect assessment integrity.
+            <!-- Heading -->
+            <h2 class="text-2xl sm:text-3xl font-black text-white tracking-tight uppercase">FULLSCREEN EXIT DETECTED</h2>
+            
+            <!-- Message -->
+            <p class="text-sm sm:text-base text-slate-300 font-medium max-w-md mx-auto mt-2 leading-relaxed">
+                You exited fullscreen mode. Return to fullscreen to continue your examination.
             </p>
 
+            <!-- Prominent Countdown Box -->
+            <div class="mt-4 mb-6 p-3.5 rounded-2xl bg-slate-950/80 border border-rose-900/50 flex items-center justify-center space-x-2.5 text-xs sm:text-sm text-amber-300 shadow-inner">
+                <i data-lucide="clock" class="w-4 h-4 text-amber-400"></i>
+                <span>Acknowledge within <strong id="fs-modal-countdown" class="font-mono text-base font-black text-white px-1">10</strong>s to avoid additional penalty</span>
+            </div>
+
             <div class="space-y-3">
-                <!-- Action 1: Re-enter Fullscreen (with strike warning) -->
+                <!-- Action 1: Return to Exam (Primary, High-Contrast Button) -->
                 <button type="button" onclick="resumeFullscreenFromModal()" 
-                        class="w-full py-3.5 px-4 bg-sky-600 hover:bg-sky-500 text-white font-extrabold text-sm rounded-2xl shadow-lg shadow-sky-600/30 transition flex items-center justify-center space-x-2 cursor-pointer">
-                    <i data-lucide="maximize-2" class="w-4 h-4"></i>
-                    <span>Re-Enter Fullscreen &amp; Continue Exam</span>
+                        class="w-full py-4 px-6 bg-rose-600 hover:bg-rose-500 active:scale-[0.98] text-white font-black text-base sm:text-lg rounded-2xl shadow-xl shadow-rose-600/40 transition flex items-center justify-center space-x-3 cursor-pointer">
+                    <i data-lucide="maximize" class="w-5 h-5"></i>
+                    <span>RETURN TO EXAM</span>
                 </button>
 
                 <!-- Action 2: Request Exam Pause (Requires Tutor Approval) -->
                 <button type="button" onclick="handleModalPauseRequest()" 
-                        class="w-full py-3 px-4 bg-indigo-50 hover:bg-indigo-100 dark:bg-indigo-950/60 dark:hover:bg-indigo-900 text-indigo-700 dark:text-indigo-300 font-bold text-xs sm:text-sm rounded-2xl border border-indigo-200 dark:border-indigo-800 transition flex items-center justify-center space-x-2 cursor-pointer">
-                    <i data-lucide="pause-circle" class="w-4 h-4 text-indigo-600 dark:text-indigo-400"></i>
+                        class="w-full py-2.5 px-4 bg-slate-800/80 hover:bg-slate-800 text-slate-300 hover:text-white font-semibold text-xs sm:text-sm rounded-xl border border-slate-700/80 transition flex items-center justify-center space-x-2 cursor-pointer">
+                    <i data-lucide="pause-circle" class="w-4 h-4 text-indigo-400"></i>
                     <span>Request Pause (Tutor Must Approve)</span>
                 </button>
 
                 <!-- Action 3: Finalize & Submit Exam Now -->
                 <button type="button" onclick="handleModalSubmitExam()" 
-                        class="w-full py-2.5 px-4 bg-slate-100 hover:bg-rose-50 text-slate-700 hover:text-rose-700 dark:bg-slate-800 dark:hover:bg-rose-950/40 dark:text-slate-300 dark:hover:text-rose-300 font-semibold text-xs rounded-xl border border-slate-200 dark:border-slate-700 transition flex items-center justify-center space-x-1.5 cursor-pointer">
+                        class="w-full py-2 px-4 bg-transparent hover:bg-rose-950/30 text-slate-400 hover:text-rose-300 font-medium text-xs rounded-lg transition flex items-center justify-center space-x-1.5 cursor-pointer">
                     <i data-lucide="send" class="w-3.5 h-3.5"></i>
                     <span>Finalize &amp; Submit Exam Now</span>
                 </button>
@@ -2147,12 +2158,32 @@
             isFullscreenModalActive = true;
             const modal = document.getElementById('fullscreen-exit-modal');
             if (modal) {
+                // Synchronize live strike counter and initial countdown
+                const pill = document.getElementById('fs-modal-strike-pill');
+                if (pill) {
+                    pill.innerText = `STRIKE ${warningsCount}/${MAX_WARNINGS}`;
+                }
+                const cdEl = document.getElementById('fs-modal-countdown');
+                if (cdEl) {
+                    cdEl.innerText = strikeToastSeconds || 10;
+                }
+
                 modal.classList.remove('hidden');
                 if (window.lucide && typeof lucide.createIcons === 'function') { try { lucide.createIcons(); } catch(e){} }
             }
         }
 
         async function resumeFullscreenFromModal() {
+            // Dismiss pending strike toast and timer if active
+            if (typeof acknowledgeShadcnWarning === 'function') {
+                acknowledgeShadcnWarning();
+            } else if (strikeToastTimer) {
+                clearInterval(strikeToastTimer);
+                strikeToastTimer = null;
+                const alertEl = document.getElementById('shadcn-strike-alert');
+                if (alertEl) alertEl.classList.remove('active');
+            }
+
             try {
                 const docEl = document.documentElement;
                 if (docEl.requestFullscreen) {
@@ -3525,17 +3556,21 @@
                 return;
             }
 
-            // Populate subtle shadcn top toast alert
+            // Populate subtle shadcn top toast alert & fullscreen exit modal
             const alertEl = document.getElementById('shadcn-strike-alert');
             const pillEl = document.getElementById('toast-strike-pill');
             const reasonEl = document.getElementById('toast-strike-reason');
             const countdownEl = document.getElementById('toast-countdown');
+            const fsPillEl = document.getElementById('fs-modal-strike-pill');
+            const fsCountdownEl = document.getElementById('fs-modal-countdown');
 
             if (pillEl) pillEl.innerText = `Strike ${warningsCount}/${MAX_WARNINGS}`;
+            if (fsPillEl) fsPillEl.innerText = `STRIKE ${warningsCount}/${MAX_WARNINGS}`;
             if (reasonEl) reasonEl.innerText = `${type.replace(/_/g, ' ').toUpperCase()}: ${details}`;
 
             strikeToastSeconds = 10;
             if (countdownEl) countdownEl.innerText = strikeToastSeconds;
+            if (fsCountdownEl) fsCountdownEl.innerText = strikeToastSeconds;
 
             if (alertEl) {
                 alertEl.classList.add('active');
@@ -3544,6 +3579,7 @@
             strikeToastTimer = setInterval(() => {
                 strikeToastSeconds--;
                 if (countdownEl) countdownEl.innerText = strikeToastSeconds;
+                if (fsCountdownEl) fsCountdownEl.innerText = strikeToastSeconds;
                 if (strikeToastSeconds <= 0) {
                     clearInterval(strikeToastTimer);
                     strikeToastTimer = null;
