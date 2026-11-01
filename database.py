@@ -260,6 +260,22 @@ def init_db():
                 audio_payload TEXT DEFAULT '',
                 created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
             )""")
+            cursor.execute("""CREATE TABLE IF NOT EXISTS device_switch_requests (
+                id SERIAL PRIMARY KEY,
+                student_id INTEGER NOT NULL,
+                exam_id INTEGER,
+                submission_id INTEGER,
+                request_type TEXT NOT NULL DEFAULT 'device_switch',
+                reason TEXT DEFAULT '',
+                old_session_token TEXT DEFAULT '',
+                status TEXT NOT NULL DEFAULT 'pending',
+                rejection_reason TEXT DEFAULT '',
+                client_ip TEXT DEFAULT '',
+                user_agent TEXT DEFAULT '',
+                resolved_by INTEGER,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                resolved_at TIMESTAMP
+            )""")
             # Commit base table creation first so all required tables exist before running migrations
             conn.commit()
 
@@ -317,6 +333,9 @@ def init_db():
                 "ALTER TABLE submissions ADD COLUMN IF NOT EXISTS geo_location_json TEXT DEFAULT ''",
                 # Paper / Desk Workspace Setup Verification
                 "ALTER TABLE submissions ADD COLUMN IF NOT EXISTS is_desk_setup_verified INTEGER DEFAULT 0",
+                # Student Requests Enhancement
+                "ALTER TABLE device_switch_requests ADD COLUMN IF NOT EXISTS request_type TEXT DEFAULT 'device_switch'",
+                "ALTER TABLE device_switch_requests ADD COLUMN IF NOT EXISTS reason TEXT DEFAULT ''",
             ]
             migration_errors = run_pg_migrations(cursor, conn, migrations)
         else:
@@ -440,6 +459,25 @@ def init_db():
                     audio_payload TEXT DEFAULT '',
                     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
                     FOREIGN KEY (submission_id) REFERENCES submissions(id) ON DELETE CASCADE
+                )""",
+                """CREATE TABLE IF NOT EXISTS device_switch_requests (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    student_id INTEGER NOT NULL,
+                    exam_id INTEGER,
+                    submission_id INTEGER,
+                    request_type TEXT NOT NULL DEFAULT 'device_switch',
+                    reason TEXT DEFAULT '',
+                    old_session_token TEXT DEFAULT '',
+                    status TEXT NOT NULL DEFAULT 'pending',
+                    rejection_reason TEXT DEFAULT '',
+                    client_ip TEXT DEFAULT '',
+                    user_agent TEXT DEFAULT '',
+                    resolved_by INTEGER,
+                    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                    resolved_at TIMESTAMP,
+                    FOREIGN KEY (student_id) REFERENCES users(id) ON DELETE CASCADE,
+                    FOREIGN KEY (exam_id) REFERENCES exams(id) ON DELETE CASCADE,
+                    FOREIGN KEY (submission_id) REFERENCES submissions(id) ON DELETE CASCADE
                 )"""
             ]:
                 cursor.execute(table_sql)
@@ -498,6 +536,9 @@ def init_db():
                 ("submissions", "geo_location_json", "TEXT DEFAULT ''"),
                 # Paper / Desk Workspace Setup Verification
                 ("submissions", "is_desk_setup_verified", "INTEGER DEFAULT 0"),
+                # Student Requests Enhancement
+                ("device_switch_requests", "request_type", "TEXT DEFAULT 'device_switch'"),
+                ("device_switch_requests", "reason", "TEXT DEFAULT ''"),
             ]:
                 columns = {row["name"] for row in cursor.execute(f"PRAGMA table_info({table})").fetchall()}
                 if column not in columns:

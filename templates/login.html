@@ -46,6 +46,50 @@
             {% endif %}
         {% endwith %}
 
+        {% if device_switch_blocked %}
+        <!-- Device Switch Request Panel -->
+        <div class="mb-6 p-4 rounded-2xl bg-amber-500/10 border-2 border-amber-500/40 text-amber-900 dark:text-amber-200">
+            <div class="flex items-start space-x-3">
+                <div class="w-8 h-8 rounded-lg bg-amber-500 text-white flex items-center justify-center flex-shrink-0 shadow-sm mt-0.5">
+                    <i data-lucide="smartphone" class="w-4 h-4"></i>
+                </div>
+                <div class="flex-1">
+                    <h4 class="text-xs font-black uppercase tracking-wider text-amber-700 dark:text-amber-400">Device Switch Available</h4>
+                    <p class="text-xs text-slate-600 dark:text-slate-300 mt-1 leading-relaxed">
+                        You have an active attempt for <strong>{{ active_exam_title or 'your examination' }}</strong>. Need to transfer to this device?
+                    </p>
+                    <button type="button" id="btn-request-device-switch" onclick="initiateDeviceSwitchRequest()"
+                            class="mt-3 w-full py-2.5 px-4 bg-amber-600 hover:bg-amber-500 active:scale-[0.98] text-white font-bold text-xs rounded-xl shadow-md transition flex items-center justify-center space-x-2 cursor-pointer">
+                        <i data-lucide="refresh-cw" class="w-4 h-4"></i>
+                        <span>REQUEST DEVICE SWITCH</span>
+                    </button>
+                </div>
+            </div>
+        </div>
+
+        <!-- Pending Status Modal Overlay -->
+        <div id="device-switch-modal" class="hidden fixed inset-0 z-50 bg-slate-950/80 backdrop-blur-md flex items-center justify-center p-4">
+            <div class="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-3xl max-w-md w-full p-6 text-center shadow-2xl animate-in fade-in zoom-in duration-200">
+                <div id="modal-spinner" class="w-16 h-16 rounded-2xl bg-sky-50 dark:bg-sky-950/50 text-sky-600 mx-auto mb-4 flex items-center justify-center border border-sky-200 dark:border-sky-800">
+                    <i data-lucide="loader-2" class="w-8 h-8 animate-spin"></i>
+                </div>
+                <h3 id="modal-title" class="text-lg font-bold text-slate-900 dark:text-white">Device Switch Pending</h3>
+                <p id="modal-desc" class="text-xs text-slate-500 dark:text-slate-400 mt-2 leading-relaxed">
+                    Request sent to your proctor/tutor. Please wait while they review and approve authorization for this new device.
+                </p>
+                <div id="modal-status-badge" class="mt-4 inline-flex items-center space-x-2 px-3 py-1.5 rounded-full text-xs font-semibold bg-amber-100 text-amber-800 dark:bg-amber-950/60 dark:text-amber-300">
+                    <span class="w-2 h-2 rounded-full bg-amber-500 animate-pulse"></span>
+                    <span id="modal-status-text">Awaiting Tutor Approval...</span>
+                </div>
+                <div class="mt-6 flex space-x-2">
+                    <button type="button" onclick="cancelDeviceSwitchPolling()" class="w-full py-2.5 px-4 bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 text-slate-700 dark:text-slate-300 font-semibold text-xs rounded-xl transition">
+                        Cancel
+                    </button>
+                </div>
+            </div>
+        </div>
+        {% endif %}
+
         <form action="/login" method="POST" class="space-y-4">
             <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
             <input type="hidden" name="role" id="login-role-input" value="{{ role or 'student' }}">
@@ -126,6 +170,114 @@
             submitBtnText.innerText = 'Sign in as Student';
         }
         lucide.createIcons();
+    }
+
+    let deviceSwitchPollInterval = null;
+    let activeRequestId = null;
+
+    async function initiateDeviceSwitchRequest() {
+        const identifier = document.querySelector('input[name="identifier"]')?.value?.trim();
+        const password = document.querySelector('input[name="password"]')?.value?.trim();
+        const csrfToken = document.querySelector('input[name="csrf_token"]')?.value;
+        const examId = "{{ active_exam_id or '' }}";
+        const subId = "{{ active_submission_id or '' }}";
+
+        if (!password) {
+            Swal.fire({
+                icon: 'warning',
+                title: 'Password Required',
+                text: 'Please enter your password in the form above so we can verify your identity before requesting a device switch.'
+            });
+            return;
+        }
+
+        const modal = document.getElementById('device-switch-modal');
+        if (modal) modal.classList.remove('hidden');
+
+        try {
+            const resp = await fetch('/api/student/request-device-switch', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'X-CSRF-Token': csrfToken
+                },
+                body: JSON.stringify({
+                    identifier: identifier,
+                    password: password,
+                    exam_id: examId,
+                    submission_id: subId
+                })
+            });
+
+            const data = await resp.json();
+            if (data.success) {
+                activeRequestId = data.request_id;
+                startDeviceSwitchPolling(data.request_id);
+            } else {
+                if (modal) modal.classList.add('hidden');
+                Swal.fire({ icon: 'error', title: 'Request Failed', text: data.error || 'Unable to submit device switch request.' });
+            }
+        } catch (e) {
+            if (modal) modal.classList.add('hidden');
+            Swal.fire({ icon: 'error', title: 'Network Error', text: 'Failed to communicate with server.' });
+        }
+    }
+
+    function startDeviceSwitchPolling(requestId) {
+        if (deviceSwitchPollInterval) clearInterval(deviceSwitchPollInterval);
+
+        deviceSwitchPollInterval = setInterval(async () => {
+            try {
+                const resp = await fetch(`/api/student/device-switch-status/${requestId}`);
+                const data = await resp.json();
+
+                if (data.success) {
+                    if (data.status === 'approved') {
+                        clearInterval(deviceSwitchPollInterval);
+                        const titleEl = document.getElementById('modal-title');
+                        const descEl = document.getElementById('modal-desc');
+                        const badgeEl = document.getElementById('modal-status-badge');
+                        const spinner = document.getElementById('modal-spinner');
+
+                        if (spinner) {
+                            spinner.className = "w-16 h-16 rounded-2xl bg-emerald-50 text-emerald-600 mx-auto mb-4 flex items-center justify-center border border-emerald-200";
+                            spinner.innerHTML = '<i data-lucide="check-circle" class="w-8 h-8"></i>';
+                        }
+                        if (titleEl) titleEl.innerText = "Device Switch Approved!";
+                        if (descEl) descEl.innerText = "Your tutor approved your device switch. Signing you into your examination now...";
+                        if (badgeEl) {
+                            badgeEl.className = "mt-4 inline-flex items-center space-x-2 px-3 py-1.5 rounded-full text-xs font-semibold bg-emerald-100 text-emerald-800";
+                            badgeEl.innerHTML = '<span class="w-2 h-2 rounded-full bg-emerald-500"></span><span>Authorized</span>';
+                        }
+                        lucide.createIcons();
+
+                        // Automatically submit the login form to enter the exam seamlessly!
+                        setTimeout(() => {
+                            const form = document.querySelector('form[action="/login"]');
+                            if (form) form.submit();
+                        }, 1200);
+                    } else if (data.status === 'rejected') {
+                        clearInterval(deviceSwitchPollInterval);
+                        const modal = document.getElementById('device-switch-modal');
+                        if (modal) modal.classList.add('hidden');
+
+                        Swal.fire({
+                            icon: 'error',
+                            title: 'Device Switch Rejected',
+                            text: data.rejection_reason || 'Your tutor declined the device switch request. Simultaneous logins remain prohibited.'
+                        });
+                    }
+                }
+            } catch (err) {
+                console.error("Polling error:", err);
+            }
+        }, 3000);
+    }
+
+    function cancelDeviceSwitchPolling() {
+        if (deviceSwitchPollInterval) clearInterval(deviceSwitchPollInterval);
+        const modal = document.getElementById('device-switch-modal');
+        if (modal) modal.classList.add('hidden');
     }
 </script>
 {% endblock %}

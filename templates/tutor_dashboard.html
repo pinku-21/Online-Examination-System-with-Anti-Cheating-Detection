@@ -108,6 +108,13 @@
                     <span class="px-1.5 py-0.2 rounded-full text-[10px] font-black bg-rose-100 text-rose-700 border border-rose-200 ml-1">{{ sec_critical_count }}</span>
                 {% endif %}
             </button>
+            <button type="button" id="tab-btn-requests" onclick="switchDashboardView('requests')" class="px-5 py-2.5 rounded-xl text-xs sm:text-sm font-semibold flex items-center space-x-2 transition-all text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white cursor-pointer">
+                <i data-lucide="inbox" class="w-4 h-4 text-amber-500"></i>
+                <span>Student Requests</span>
+                <span id="requests-nav-badge" class="{% if pending_requests_count == 0 %}hidden{% endif %} px-2 py-0.5 rounded-full text-[10px] font-black bg-amber-500 text-white ml-1 shadow-sm">
+                    {{ pending_requests_count }}
+                </span>
+            </button>
         </div>
 
         <div class="flex items-center space-x-2 text-xs font-semibold text-slate-500 dark:text-slate-400">
@@ -220,6 +227,146 @@
                 </a>
             </div>
         {% endif %}
+    </div>
+
+    <!-- Student Requests Central Management Section -->
+    <div id="section-view-requests" class="hidden bg-white rounded-2xl border border-slate-200/80 shadow-sm overflow-hidden mb-8">
+        <div class="p-6 border-b border-slate-200 flex flex-col sm:flex-row sm:items-center justify-between gap-3 bg-gradient-to-r from-slate-900 via-amber-950/40 to-slate-900 text-white">
+            <div class="flex items-center space-x-3">
+                <div class="w-10 h-10 rounded-xl bg-amber-500/20 text-amber-400 flex items-center justify-center border border-amber-500/30">
+                    <i data-lucide="inbox" class="w-5 h-5"></i>
+                </div>
+                <div>
+                    <div class="flex items-center gap-2">
+                        <h2 class="text-base sm:text-lg font-bold">Central Student Requests</h2>
+                        <span id="requests-header-badge" class="px-2 py-0.5 rounded text-[10px] font-extrabold bg-amber-500/30 text-amber-200 border border-amber-400/30 uppercase tracking-wider">
+                            {{ pending_requests_count }} Pending Action
+                        </span>
+                    </div>
+                    <p class="text-xs text-slate-300">Live request triage for device switches, exam assistance, and special accommodations</p>
+                </div>
+            </div>
+            <div class="flex items-center gap-2">
+                <button type="button" onclick="refreshStudentRequests(true)" class="px-3 py-1.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 text-xs font-semibold flex items-center gap-1.5 transition cursor-pointer">
+                    <i data-lucide="refresh-cw" class="w-3.5 h-3.5"></i>
+                    <span>Refresh</span>
+                </button>
+            </div>
+        </div>
+
+        <div id="requests-table-container">
+            {% if student_requests %}
+            <div class="overflow-x-auto">
+                <table class="w-full text-xs">
+                    <thead>
+                        <tr class="bg-slate-50 text-[11px] font-bold text-slate-500 uppercase tracking-wider border-b border-slate-200">
+                            <th class="px-5 py-3 text-left">Request ID</th>
+                            <th class="px-5 py-3 text-left">Student</th>
+                            <th class="px-5 py-3 text-left">Type</th>
+                            <th class="px-5 py-3 text-left">Exam / Attempt</th>
+                            <th class="px-5 py-3 text-left">Reason / Context</th>
+                            <th class="px-5 py-3 text-left">Status</th>
+                            <th class="px-5 py-3 text-left">Submitted</th>
+                            <th class="px-5 py-3 text-right">Actions</th>
+                        </tr>
+                    </thead>
+                    <tbody id="student-requests-tbody" class="divide-y divide-slate-100 font-sans">
+                        {% for req in student_requests %}
+                        <tr id="req-row-{{ req.id }}" class="hover:bg-slate-50/80 transition">
+                            <td class="px-5 py-3 font-mono font-bold text-slate-600">
+                                #REQ-{{ req.id }}
+                            </td>
+                            <td class="px-5 py-3">
+                                <strong class="text-slate-900 block">{{ req.student_name }}</strong>
+                                <span class="font-mono text-[10px] text-slate-500">@{{ req.username }} &middot; {{ req.roll_number or 'N/A' }}</span>
+                            </td>
+                            <td class="px-5 py-3">
+                                {% if req.request_type == 'device_switch' %}
+                                    <span class="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-extrabold bg-indigo-50 text-indigo-700 border border-indigo-200">
+                                        <i data-lucide="smartphone" class="w-3 h-3"></i> Device Switch
+                                    </span>
+                                {% elif req.request_type == 'exam_assistance' %}
+                                    <span class="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-extrabold bg-sky-50 text-sky-700 border border-sky-200">
+                                        <i data-lucide="help-circle" class="w-3 h-3"></i> Assistance
+                                    </span>
+                                {% elif req.request_type == 'special_permission' %}
+                                    <span class="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-extrabold bg-purple-50 text-purple-700 border border-purple-200">
+                                        <i data-lucide="shield" class="w-3 h-3"></i> Special Permission
+                                    </span>
+                                {% else %}
+                                    <span class="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-extrabold bg-slate-100 text-slate-700 border border-slate-200">
+                                        <i data-lucide="tag" class="w-3 h-3"></i> Other
+                                    </span>
+                                {% endif %}
+                            </td>
+                            <td class="px-5 py-3 text-slate-700">
+                                {% if req.exam_title %}
+                                    <span class="font-semibold block max-w-xs truncate">{{ req.exam_title }}</span>
+                                    <span class="font-mono text-[10px] text-slate-400">Attempt #{{ req.submission_id or 'N/A' }}</span>
+                                {% else %}
+                                    <span class="text-slate-400 italic">General / Portal</span>
+                                {% endif %}
+                            </td>
+                            <td class="px-5 py-3 text-slate-600 max-w-xs">
+                                <span class="block truncate" title="{{ req.reason or 'Device switch authorization requested during active examination.' }}">
+                                    {{ req.reason or 'Device switch authorization requested during active examination.' }}
+                                </span>
+                                {% if req.client_ip %}
+                                    <span class="font-mono text-[10px] text-slate-400 block mt-0.5">IP: {{ req.client_ip }}</span>
+                                {% endif %}
+                            </td>
+                            <td class="px-5 py-3">
+                                {% if req.status == 'pending' %}
+                                    <span class="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold bg-amber-100 text-amber-800 border border-amber-200">
+                                        <span class="w-1.5 h-1.5 rounded-full bg-amber-500 animate-pulse"></span> Pending
+                                    </span>
+                                {% elif req.status == 'approved' %}
+                                    <span class="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-100 text-emerald-800 border border-emerald-200">
+                                        <i data-lucide="check" class="w-3 h-3"></i> Approved
+                                    </span>
+                                {% else %}
+                                    <span class="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold bg-rose-100 text-rose-800 border border-rose-200" title="{{ req.rejection_reason }}">
+                                        <i data-lucide="x" class="w-3 h-3"></i> Rejected
+                                    </span>
+                                {% endif %}
+                            </td>
+                            <td class="px-5 py-3 text-slate-400 font-mono text-[10px]">
+                                {{ req.created_at | format_datetime_12h }}
+                            </td>
+                            <td class="px-5 py-3 text-right">
+                                <div class="inline-flex items-center space-x-1">
+                                    <button type="button" data-request-id="{{ req.id }}" onclick="openRequestDetailsById(this.dataset.requestId)"
+                                            class="p-1.5 rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-700 transition" title="View Full Details">
+                                        <i data-lucide="eye" class="w-3.5 h-3.5"></i>
+                                    </button>
+                                    {% if req.status == 'pending' %}
+                                        <button type="button" data-request-id="{{ req.id }}" data-student-name="{{ req.student_name | escape }}" onclick="resolveStudentRequest(this.dataset.requestId, 'approve', this.dataset.studentName)"
+                                                class="px-2.5 py-1 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-[11px] transition shadow-xs">
+                                            Approve
+                                        </button>
+                                        <button type="button" data-request-id="{{ req.id }}" data-student-name="{{ req.student_name | escape }}" onclick="resolveStudentRequest(this.dataset.requestId, 'reject', this.dataset.studentName)"
+                                                class="px-2.5 py-1 rounded-lg bg-rose-600 hover:bg-rose-700 text-white font-bold text-[11px] transition shadow-xs">
+                                            Reject
+                                        </button>
+                                    {% endif %}
+                                </div>
+                            </td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+            {% else %}
+            <div class="p-8 text-center text-slate-500">
+                <i data-lucide="inbox" class="w-8 h-8 text-slate-400 mx-auto mb-2"></i>
+                <p class="font-semibold text-slate-700 text-sm">No Student Requests</p>
+                <p class="text-xs text-slate-400 mt-0.5">When students submit device switch, assistance, or permission requests, they will appear here.</p>
+            </div>
+            {% endif %}
+            <script id="student-requests-data" type="application/json">
+                {{ student_requests | tojson }}
+            </script>
+        </div>
     </div>
 
     <!-- ===== STUDENT MANAGEMENT SECTION ===== -->
@@ -963,6 +1110,9 @@
             const resp = await fetch(`/api/tutor/exam/${examId}/access-schedule`);
             const data = await resp.json();
             if (data.success) {
+                if (data.requests) {
+                    window.allStudentRequests = data.requests;
+                }
                 const ex = data.exam || data;
                 maSwitchAccess(ex.access_type || data.access_type || 'all');
                 const targetClassEl = document.getElementById('ma-target-class');
@@ -1220,16 +1370,19 @@
         const examsSec = document.getElementById('section-view-exams');
         const studentsSec = document.getElementById('section-view-students');
         const socSec = document.getElementById('section-view-soc');
+        const requestsSec = document.getElementById('section-view-requests');
         const btnExams = document.getElementById('tab-btn-exams');
         const btnStudents = document.getElementById('tab-btn-students');
         const btnSoc = document.getElementById('tab-btn-soc');
+        const btnRequests = document.getElementById('tab-btn-requests');
 
-        if (!examsSec || !studentsSec || !socSec) return;
+        if (!examsSec || !studentsSec || !socSec || !requestsSec) return;
 
         // Reset all sections to hidden
         examsSec.classList.add('hidden');
         studentsSec.classList.add('hidden');
         socSec.classList.add('hidden');
+        requestsSec.classList.add('hidden');
 
         // Common inactive button style
         const inactiveClass = 'px-5 py-2.5 rounded-xl text-xs sm:text-sm font-semibold flex items-center space-x-2 transition-all text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white cursor-pointer';
@@ -1239,6 +1392,7 @@
         btnExams.className = inactiveClass;
         btnStudents.className = inactiveClass;
         if (btnSoc) btnSoc.className = inactiveClass;
+        if (btnRequests) btnRequests.className = inactiveClass;
 
         if (viewMode === 'students') {
             studentsSec.classList.remove('hidden');
@@ -1249,6 +1403,10 @@
             socSec.classList.remove('hidden');
             if (btnSoc) btnSoc.className = activeClass;
             localStorage.setItem('examguard_tutor_tab', 'soc');
+        } else if (viewMode === 'requests') {
+            requestsSec.classList.remove('hidden');
+            if (btnRequests) btnRequests.className = activeClass;
+            localStorage.setItem('examguard_tutor_tab', 'requests');
         } else {
             examsSec.classList.remove('hidden');
             btnExams.className = activeClass;
@@ -1257,15 +1415,155 @@
         if (window.lucide) lucide.createIcons();
     }
 
+    // Live Polling & Action handlers for Student Requests
+    let studentRequestsPollTimer = null;
+
+    async function refreshStudentRequests(showFeedback = false) {
+        try {
+            const resp = await fetch('/api/tutor/student-requests');
+            const data = await resp.json();
+            if (data.success) {
+                // Update badge in nav tab
+                const navBadge = document.getElementById('requests-nav-badge');
+                if (navBadge) {
+                    navBadge.innerText = data.pending_count;
+                    if (data.pending_count > 0) {
+                        navBadge.classList.remove('hidden');
+                    } else {
+                        navBadge.classList.add('hidden');
+                    }
+                }
+                const headerBadge = document.getElementById('requests-header-badge');
+                if (headerBadge) {
+                    headerBadge.innerText = `${data.pending_count} Pending Action`;
+                }
+
+                if (showFeedback) {
+                    Swal.fire({ icon: 'success', title: 'Refreshed', text: 'Student requests updated.', timer: 1200, showConfirmButton: false });
+                }
+            }
+        } catch (e) {
+            console.error('Failed to poll student requests:', e);
+        }
+    }
+
+    async function resolveStudentRequest(requestId, action, studentName) {
+        let reason = '';
+        if (action === 'reject') {
+            const promptResult = await Swal.fire({
+                title: 'Reject Request',
+                input: 'text',
+                inputLabel: 'Reason for rejection (shown to student):',
+                inputPlaceholder: 'e.g. Device change not authorized at this time.',
+                showCancelButton: true,
+                confirmButtonColor: '#e11d48',
+                confirmButtonText: 'Confirm Rejection',
+                inputValidator: (val) => {
+                    if (!val || !val.trim()) return 'Please enter a rejection reason.';
+                }
+            });
+            if (!promptResult.isConfirmed) return;
+            reason = promptResult.value.trim();
+        } else {
+            const confirmResult = await Swal.fire({
+                title: 'Approve Request?',
+                text: `Grant approval for ${studentName}'s request?`,
+                icon: 'question',
+                showCancelButton: true,
+                confirmButtonColor: '#059669',
+                confirmButtonText: 'Yes, Approve'
+            });
+            if (!confirmResult.isConfirmed) return;
+        }
+
+        try {
+            const csrfToken = document.querySelector('input[name="csrf_token"]')?.value || '';
+            const resp = await fetch(`/api/tutor/device-switch/${requestId}/resolve`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'X-CSRF-Token': csrfToken
+                },
+                body: JSON.stringify({ action: action, reason: reason })
+            });
+            const data = await resp.json();
+            if (data.success) {
+                await Swal.fire({ icon: 'success', title: action === 'approve' ? 'Approved!' : 'Rejected', text: data.message, timer: 1500, showConfirmButton: false });
+                window.location.reload();
+            } else {
+                Swal.fire({ icon: 'error', title: 'Action Failed', text: data.error || 'Unable to update request.' });
+            }
+        } catch (err) {
+            Swal.fire({ icon: 'error', title: 'Network Error', text: 'Failed to communicate with server.' });
+        }
+    }
+
+    
+    // Cache requests for details view
+    // Initialize cached requests from data script block without inline template expressions
+    try {
+        const rawReqData = document.getElementById('student-requests-data');
+        window.allStudentRequests = rawReqData ? JSON.parse(rawReqData.textContent || '[]') : [];
+    } catch(e) {
+        window.allStudentRequests = [];
+    }
+
+    function openRequestDetailsById(requestId) {
+        const idNum = parseInt(requestId, 10);
+        const req = (window.allStudentRequests || []).find(r => r.id === idNum);
+        if (req) {
+            viewRequestDetails(req);
+        } else {
+            Swal.fire({ icon: 'info', title: 'Request Details', text: 'Details for request #' + requestId + ' are not available.' });
+        }
+    }
+
+    function viewRequestDetails(req) {
+        Swal.fire({
+            title: `Request #REQ-${req.id}`,
+            html: `
+                <div class="text-left text-xs space-y-2.5 p-2 font-sans">
+                    <p><strong>Student:</strong> ${req.student_name} (@${req.username})</p>
+                    <p><strong>Roll Number:</strong> ${req.roll_number || 'N/A'}</p>
+                    <p><strong>Request Type:</strong> <span class="uppercase font-bold">${req.request_type || 'device_switch'}</span></p>
+                    <p><strong>Exam:</strong> ${req.exam_title || 'General'}</p>
+                    <p><strong>Attempt ID:</strong> ${req.submission_id ? '#' + req.submission_id : 'None'}</p>
+                    <p><strong>Current Status:</strong> <span class="uppercase font-bold">${req.status}</span></p>
+                    <p><strong>Client IP:</strong> <code>${req.client_ip || 'N/A'}</code></p>
+                    <p><strong>Submitted At:</strong> ${req.created_at}</p>
+                    <div class="p-2.5 bg-slate-100 rounded-lg border border-slate-200">
+                        <strong>Reason / Context:</strong>
+                        <p class="mt-1 text-slate-700">${req.reason || 'Device switch authorization requested during active examination.'}</p>
+                    </div>
+                    ${req.rejection_reason ? `
+                    <div class="p-2.5 bg-rose-50 rounded-lg border border-rose-200 text-rose-800">
+                        <strong>Rejection Reason:</strong>
+                        <p class="mt-1">${req.rejection_reason}</p>
+                    </div>` : ''}
+                    ${req.resolved_by_name ? `
+                    <p class="text-slate-500"><strong>Resolved by:</strong> ${req.resolved_by_name} at ${req.resolved_at}</p>
+                    ` : ''}
+                </div>
+            `,
+            showCloseButton: true,
+            confirmButtonText: 'Close'
+        });
+    }
+
     document.addEventListener('DOMContentLoaded', () => {
         const savedTab = localStorage.getItem('examguard_tutor_tab');
         if (savedTab === 'students') {
             switchDashboardView('students');
         } else if (savedTab === 'soc') {
             switchDashboardView('soc');
+        } else if (savedTab === 'requests') {
+            switchDashboardView('requests');
         } else {
             switchDashboardView('exams');
         }
+
+        // Live polling every 5 seconds for new student requests
+        studentRequestsPollTimer = setInterval(refreshStudentRequests, 5000);
     });
 </script>
 {% endblock %}

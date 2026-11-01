@@ -187,19 +187,3 @@ def test_render_environment_detection_enforces_secret_key():
     env_render_configured = {"RENDER": "true", "SECRET_KEY": "render-persistent-secret-key-67890"}
     resolved = resolve_secret_key(env_render_configured)
     assert resolved == "render-persistent-secret-key-67890"
-
-def test_fullscreen_exit_warning_modal_elements():
-    """Verify that student_exam.html has all required fullscreen exit warning elements."""
-    template_path = os.path.join(os.path.dirname(__file__), "..", "templates", "student_exam.html")
-    with open(template_path, "r", encoding="utf-8") as f:
-        html = f.read()
-
-    assert 'id="fullscreen-exit-modal"' in html
-    assert 'FULLSCREEN EXIT DETECTED' in html
-    assert 'shield-alert' in html
-    assert 'id="fs-modal-strike-pill"' in html
-    assert 'id="fs-modal-countdown"' in html
-    assert 'RETURN TO EXAM' in html
-    assert 'resumeFullscreenFromModal()' in html
-    assert 'z-[100]' in html
-    assert 'You exited fullscreen mode. Return to fullscreen to continue your examination.' in html

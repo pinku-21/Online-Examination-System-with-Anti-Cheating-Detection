@@ -552,8 +552,18 @@ def login():
                 # If student is already attempting an exam and attempts to login from a new session without permission
                 if active_exam and existing_token and not active_exam["device_switch_approved"]:
                     conn.close()
-                    flash(f"⚠️ Exam In Progress: You are already taking '{active_exam['exam_title']}' on another device! Simultaneous logins are blocked. To switch devices during an exam, please contact your tutor to approve a Device Switch.", "danger")
-                    return render_template("login.html", role=role, prefill=identifier, next_url=next_url)
+                    flash(f"⚠️ Exam In Progress: You are already taking '{active_exam['exam_title']}' on another device! Simultaneous logins are blocked. To switch devices during an exam, you can request your tutor to approve a Device Switch.", "danger")
+                    return render_template(
+                        "login.html",
+                        role=role,
+                        prefill=identifier,
+                        next_url=next_url,
+                        device_switch_blocked=True,
+                        student_identifier=identifier,
+                        active_exam_id=active_exam["exam_id"],
+                        active_submission_id=active_exam["id"],
+                        active_exam_title=active_exam["exam_title"]
+                    )
 
                 # Reset device_switch_approved flag once student uses it to log in
                 if active_exam and active_exam["device_switch_approved"]:
@@ -935,6 +945,25 @@ def tutor_dashboard():
     sec_critical_count = sum(1 for inc in security_incidents if (inc.get('severity') or '').upper() == 'CRITICAL')
     sec_high_count = sum(1 for inc in security_incidents if (inc.get('severity') or '').upper() == 'HIGH')
 
+    # Query student requests (device switch, exam assistance, special permission, etc.)
+    conn_req = get_connection()
+    c_req = conn_req.cursor()
+    c_req.execute("""
+        SELECT r.*, 
+               u.full_name as student_name, u.username, u.roll_number,
+               e.title as exam_title,
+               res_u.full_name as resolved_by_name
+        FROM device_switch_requests r
+        JOIN users u ON r.student_id = u.id
+        LEFT JOIN exams e ON r.exam_id = e.id
+        LEFT JOIN users res_u ON r.resolved_by = res_u.id
+        ORDER BY r.created_at DESC
+        LIMIT 100
+    """)
+    student_requests = [dict(r) for r in c_req.fetchall()]
+    pending_requests_count = sum(1 for req in student_requests if req.get('status') == 'pending')
+    conn_req.close()
+
     return render_template(
         "tutor_dashboard.html", 
         exams=exams,
@@ -950,7 +979,9 @@ def tutor_dashboard():
         public_url=public_url,
         security_incidents=security_incidents,
         sec_critical_count=sec_critical_count,
-        sec_high_count=sec_high_count
+        sec_high_count=sec_high_count,
+        student_requests=student_requests,
+        pending_requests_count=pending_requests_count
     )
 
 @app.route("/tutor/settings", methods=["GET", "POST"])
@@ -4308,19 +4339,358 @@ def api_manage_pause(submission_id):
     return jsonify({"success": True, "message": msg})
 
 
+@app.route("/api/student/submit-request", methods=["POST"])
+@login_required
+def api_student_submit_request():
+    """Student submits a general assistance, special permission, or other request."""
+    user_id = session.get("user_id")
+    if session.get("user_role") != "student":
+        return jsonify({"success": False, "error": "Only students can submit requests."}), 403
+
+    data = request.get_json(silent=True) or request.form
+    request_type = (data.get("request_type") or "other").strip()
+    reason = (data.get("reason") or "").strip()
+    exam_id = data.get("exam_id")
+    submission_id = data.get("submission_id")
+
+    if not reason:
+        return jsonify({"success": False, "error": "Please provide a reason or description for your request."}), 400
+
+    if request_type not in ("device_switch", "exam_assistance", "special_permission", "other"):
+        request_type = "other"
+
+    conn = get_connection()
+    cursor = conn.cursor()
+
+    # Prevent duplicate pending request with same type for this student
+    cursor.execute("""
+        SELECT id FROM device_switch_requests
+        WHERE student_id = ? AND request_type = ? AND status = 'pending'
+    """, (user_id, request_type))
+    existing = cursor.fetchone()
+    if existing:
+        conn.close()
+        return jsonify({
+            "success": True,
+            "request_id": existing["id"],
+            "status": "pending",
+            "message": "You already have a pending request of this type under review."
+        })
+
+    client_ip = request.headers.get("X-Forwarded-For", request.remote_addr or "127.0.0.1").split(",")[0].strip()
+    user_agent = request.headers.get("User-Agent", "")[:250]
+
+    cursor.execute("""
+        INSERT INTO device_switch_requests (student_id, exam_id, submission_id, request_type, reason, status, client_ip, user_agent)
+        VALUES (?, ?, ?, ?, ?, 'pending', ?, ?)
+    """, (user_id, exam_id or None, submission_id or None, request_type, reason, client_ip, user_agent))
+    req_id = cursor.lastrowid
+
+    # If linked to a submission, create alert in proctor_messages
+    if submission_id:
+        try:
+            cursor.execute("""
+                INSERT INTO proctor_messages (submission_id, sender_id, message_text, severity, is_read)
+                VALUES (?, ?, ?, 'warning', 0)
+            """, (submission_id, user_id, f"Student request ({request_type}): {reason[:120]}"))
+        except Exception:
+            pass
+
+    conn.commit()
+    conn.close()
+    return jsonify({
+        "success": True,
+        "request_id": req_id,
+        "status": "pending",
+        "message": "Your request has been submitted to your instructors."
+    })
+
+
+@app.route("/api/tutor/student-requests", methods=["GET"])
+@admin_required
+def api_tutor_get_student_requests():
+    """Real-time polling endpoint returning all student requests and pending count for admin dashboard."""
+    conn = get_connection()
+    cursor = conn.cursor()
+    cursor.execute("""
+        SELECT r.*, 
+               u.full_name as student_name, u.username, u.roll_number,
+               e.title as exam_title,
+               res_u.full_name as resolved_by_name
+        FROM device_switch_requests r
+        JOIN users u ON r.student_id = u.id
+        LEFT JOIN exams e ON r.exam_id = e.id
+        LEFT JOIN users res_u ON r.resolved_by = res_u.id
+        ORDER BY r.created_at DESC
+        LIMIT 100
+    """)
+    requests_list = [dict(r) for r in cursor.fetchall()]
+    pending_count = sum(1 for req in requests_list if req.get('status') == 'pending')
+    conn.close()
+
+    return jsonify({
+        "success": True,
+        "pending_count": pending_count,
+        "requests": requests_list
+    })
+
+
+@app.route("/api/student/request-device-switch", methods=["POST"])
+def api_student_request_device_switch():
+    """Candidate creates a backend request to switch devices during an active exam attempt."""
+    data = request.get_json(silent=True) or request.form
+    identifier = (data.get("identifier") or "").strip()
+    password = (data.get("password") or "").strip()
+    exam_id = data.get("exam_id")
+    submission_id = data.get("submission_id")
+
+    if not identifier or not password or not exam_id or not submission_id:
+        return jsonify({"success": False, "error": "Missing required authentication and exam details."}), 400
+
+    user = authenticate_user(identifier, password)
+    if not user or user.get("role") != "student":
+        return jsonify({"success": False, "error": "Invalid student credentials."}), 401
+
+    conn = get_connection()
+    cursor = conn.cursor()
+
+    # Verify submission belongs to this student and is active
+    cursor.execute("""
+        SELECT s.id, s.exam_id, s.user_id, s.status, s.student_name, e.title as exam_title
+        FROM submissions s
+        JOIN exams e ON s.exam_id = e.id
+        WHERE s.id = ? AND (s.user_id = ? OR (s.user_id IS NULL AND s.roll_number = ?))
+          AND s.status IN ('in_progress', 'paused', 'pause_requested')
+    """, (submission_id, user["id"], user.get("roll_number") or ""))
+    sub = cursor.fetchone()
+
+    if not sub:
+        conn.close()
+        return jsonify({"success": False, "error": "No active exam attempt found for these credentials."}), 404
+
+    # Check for existing pending request to prevent duplicates
+    cursor.execute("""
+        SELECT id, status FROM device_switch_requests
+        WHERE student_id = ? AND submission_id = ? AND status = 'pending'
+        ORDER BY created_at DESC LIMIT 1
+    """, (user["id"], submission_id))
+    existing_req = cursor.fetchone()
+    if existing_req:
+        conn.close()
+        return jsonify({
+            "success": True,
+            "request_id": existing_req["id"],
+            "status": "pending",
+            "message": "A device switch request is already pending tutor review."
+        })
+
+    client_ip = request.headers.get("X-Forwarded-For", request.remote_addr or "127.0.0.1").split(",")[0].strip()
+    user_agent = request.headers.get("User-Agent", "")[:250]
+    old_session_token = user.get("active_session_token") or ""
+
+    cursor.execute("""
+        INSERT INTO device_switch_requests (student_id, exam_id, submission_id, request_type, reason, old_session_token, status, client_ip, user_agent)
+        VALUES (?, ?, ?, 'device_switch', 'Device switch authorization requested during active examination.', ?, 'pending', ?, ?)
+    """, (user["id"], sub["exam_id"], sub["id"], old_session_token, client_ip, user_agent))
+    req_id = cursor.lastrowid
+
+    # Create proctor alert message for tutors
+    try:
+        cursor.execute("""
+            INSERT INTO proctor_messages (submission_id, sender_id, message_text, severity, is_read)
+            VALUES (?, ?, ?, 'warning', 0)
+        """, (sub["id"], user["id"], f"Student {sub['student_name']} requested Device Switch authorization from IP {client_ip}."))
+    except Exception:
+        pass
+
+    conn.commit()
+    conn.close()
+
+    return jsonify({
+        "success": True,
+        "request_id": req_id,
+        "status": "pending",
+        "message": "Device switch request submitted. Waiting for tutor approval."
+    })
+
+
+@app.route("/api/student/device-switch-status/<int:request_id>", methods=["GET"])
+def api_student_device_switch_status(request_id):
+    """Poll status of a pending device switch request."""
+    conn = get_connection()
+    cursor = conn.cursor()
+    cursor.execute("""
+        SELECT r.id, r.status, r.rejection_reason, r.exam_id, r.submission_id, s.device_switch_approved
+        FROM device_switch_requests r
+        JOIN submissions s ON r.submission_id = s.id
+        WHERE r.id = ?
+    """, (request_id,))
+    req = cursor.fetchone()
+    conn.close()
+
+    if not req:
+        return jsonify({"success": False, "error": "Request not found."}), 404
+
+    return jsonify({
+        "success": True,
+        "status": req["status"],
+        "rejection_reason": req["rejection_reason"] or "",
+        "device_switch_approved": bool(req["device_switch_approved"])
+    })
+
+
+@app.route("/api/tutor/device-switch/<int:request_id>/resolve", methods=["POST"])
+@admin_required
+def api_resolve_device_switch_request(request_id):
+    """Tutor approves or rejects a student's device switch request."""
+    data = request.get_json(silent=True) or request.form
+    action = (data.get("action") or "").strip().lower()
+    reason = (data.get("reason") or "").strip()
+    tutor_id = session.get("user_id")
+
+    if action not in ("approve", "reject"):
+        return jsonify({"success": False, "error": "Invalid action. Must be 'approve' or 'reject'."}), 400
+
+    conn = get_connection()
+    cursor = conn.cursor()
+    cursor.execute("""
+        SELECT r.id, r.student_id, r.exam_id, r.submission_id, r.request_type, r.status, 
+               COALESCE(s.student_name, u.full_name) as student_name, u.username
+        FROM device_switch_requests r
+        JOIN users u ON r.student_id = u.id
+        LEFT JOIN submissions s ON r.submission_id = s.id
+        WHERE r.id = ?
+    """, (request_id,))
+    req = cursor.fetchone()
+
+    if not req:
+        conn.close()
+        return jsonify({"success": False, "error": "Device switch request not found."}), 404
+
+    if req["status"] != "pending":
+        conn.close()
+        return jsonify({"success": False, "error": f"Request has already been {req['status']}."}), 400
+
+    from datetime import datetime, timezone
+    now_str = datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M:%S")
+
+    if action == "approve":
+        # 1. Update request status to approved
+        cursor.execute("""
+            UPDATE device_switch_requests
+            SET status = 'approved', resolved_by = ?, resolved_at = ?
+            WHERE id = ?
+        """, (tutor_id, now_str, request_id))
+
+        # 2. If submission exists, grant device switch authorization if applicable
+        if req["submission_id"]:
+            cursor.execute("""
+                UPDATE submissions SET device_switch_approved = 1 WHERE id = ?
+            """, (req["submission_id"],))
+
+            # 3. Securely revoke previous device active token
+            cursor.execute("""
+                UPDATE users SET active_session_token = '' WHERE id = ?
+            """, (req["student_id"],))
+
+            # 4. Audit trail entry in violations table
+            v_type = 'device_switch_approved' if req['request_type'] == 'device_switch' else 'student_request_approved'
+            v_code = 'SEC-DEV-OK' if req['request_type'] == 'device_switch' else 'SEC-REQ-OK'
+            cursor.execute("""
+                INSERT INTO violations (submission_id, violation_type, details, severity, event_code)
+                VALUES (?, ?, ?, 'INFO', ?)
+            """, (req["submission_id"], v_type, f"Request approved by tutor #{tutor_id} for student {req['student_name']}.", v_code))
+
+            # 5. Notify student in active exam via proctor_messages
+            try:
+                cursor.execute("""
+                    INSERT INTO proctor_messages (submission_id, sender_id, message_text, severity, is_read)
+                    VALUES (?, ?, ?, 'info', 0)
+                """, (req["submission_id"], tutor_id, f"Your request has been APPROVED by your instructor."))
+            except Exception:
+                pass
+
+        conn.commit()
+        conn.close()
+        return jsonify({
+            "success": True,
+            "status": "approved",
+            "message": f"Device switch approved for {req['student_name']}. Old device revoked; new device can now log in."
+        })
+
+    else: # reject
+        rejection_note = reason or "Device switch request rejected by tutor."
+        cursor.execute("""
+            UPDATE device_switch_requests
+            SET status = 'rejected', rejection_reason = ?, resolved_by = ?, resolved_at = ?
+            WHERE id = ?
+        """, (rejection_note, tutor_id, now_str, request_id))
+
+        if req["submission_id"]:
+            v_rej_type = 'device_switch_rejected' if req['request_type'] == 'device_switch' else 'student_request_rejected'
+            v_rej_code = 'SEC-DEV-DENY' if req['request_type'] == 'device_switch' else 'SEC-REQ-DENY'
+            cursor.execute("""
+                INSERT INTO violations (submission_id, violation_type, details, severity, event_code)
+                VALUES (?, ?, ?, 'WARNING', ?)
+            """, (req["submission_id"], v_rej_type, f"Request rejected by tutor #{tutor_id}: {rejection_note}", v_rej_code))
+
+            # Notify student in active exam via proctor_messages
+            try:
+                cursor.execute("""
+                    INSERT INTO proctor_messages (submission_id, sender_id, message_text, severity, is_read)
+                    VALUES (?, ?, ?, 'warning', 0)
+                """, (req["submission_id"], tutor_id, f"Your request was REJECTED: {rejection_note}"))
+            except Exception:
+                pass
+
+        conn.commit()
+        conn.close()
+        return jsonify({
+            "success": True,
+            "status": "rejected",
+            "message": f"Device switch rejected for {req['student_name']}."
+        })
+
+
 @app.route("/api/tutor/submission/<int:submission_id>/approve-device-switch", methods=["POST"])
 @admin_required
 def api_approve_device_switch(submission_id):
     """Admin grants permission for a student to switch devices while their exam is in progress."""
     conn = get_connection()
     cursor = conn.cursor()
-    cursor.execute("SELECT id, student_name FROM submissions WHERE id = ?", (submission_id,))
+    cursor.execute("""
+        SELECT s.id, s.student_name, s.user_id, s.exam_id
+        FROM submissions s WHERE s.id = ?
+    """, (submission_id,))
     sub = cursor.fetchone()
     if not sub:
         conn.close()
         return jsonify({"success": False, "error": "Submission not found."}), 404
 
+    tutor_id = session.get("user_id")
+    from datetime import datetime, timezone
+    now_str = datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M:%S")
+
+    # Authorize device switch for the submission
     cursor.execute("UPDATE submissions SET device_switch_approved = 1 WHERE id = ?", (submission_id,))
+
+    # Invalidate old active session token for the user so simultaneous logins are prevented
+    if sub.get("user_id"):
+        cursor.execute("UPDATE users SET active_session_token = '' WHERE id = ?", (sub["user_id"],))
+
+    # If there was a pending request in device_switch_requests, mark it approved
+    cursor.execute("""
+        UPDATE device_switch_requests
+        SET status = 'approved', resolved_by = ?, resolved_at = ?
+        WHERE submission_id = ? AND status = 'pending'
+    """, (tutor_id, now_str, submission_id))
+
+    # Audit log entry in violations
+    cursor.execute("""
+        INSERT INTO violations (submission_id, violation_type, details, severity, event_code)
+        VALUES (?, 'device_switch_approved', ?, 'INFO', 'SEC-DEV-OK')
+    """, (submission_id, f"Device switch approved by tutor #{tutor_id} for student {sub['student_name']}."))
+
     conn.commit()
     conn.close()
     return jsonify({

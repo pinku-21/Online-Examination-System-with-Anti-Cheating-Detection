@@ -632,16 +632,19 @@
             display: none;
         }
 
-        /* Subtle shadcn Top Warning Toast Notification */
+        /* Solid High-Contrast Floating Cheating Strike Warning Panel */
         #shadcn-strike-alert {
             position: fixed;
-            top: 20px;
+            top: 28px;
             left: 50%;
-            transform: translateX(-50%) translateY(-120%);
-            z-index: 60;
-            width: 90%;
-            max-width: 520px;
-            transition: transform 0.4s cubic-bezier(0.16, 1, 0.3, 1), opacity 0.3s ease;
+            transform: translateX(-50%) translateY(-140%);
+            z-index: 9999;
+            width: 92%;
+            max-width: 52vw;
+            min-width: 520px;
+            background-color: #0b1120 !important; /* Fully opaque deep navy */
+            box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.85), 0 0 0 1px rgba(244, 63, 94, 0.4), 0 10px 30px rgba(225, 29, 72, 0.25);
+            transition: transform 0.35s cubic-bezier(0.16, 1, 0.3, 1), opacity 0.25s ease;
             opacity: 0;
             pointer-events: none;
         }
@@ -650,6 +653,15 @@
             transform: translateX(-50%) translateY(0);
             opacity: 1;
             pointer-events: auto;
+        }
+
+        @media (max-width: 868px) {
+            #shadcn-strike-alert {
+                width: 95%;
+                max-width: 95vw;
+                min-width: 0;
+                top: 16px;
+            }
         }
     </style>
 </head>
@@ -660,63 +672,6 @@
     <div id="network-offline-banner" class="hidden fixed top-0 inset-x-0 z-50 bg-amber-500 text-white px-4 py-2 text-xs font-bold text-center flex items-center justify-center space-x-2 shadow-lg animate-pulse">
         <i data-lucide="wifi-off" class="w-4 h-4"></i>
         <span>⚠️ Internet Connection Lost — Storing all progress in Offline Encrypted Vault. Your exam timer continues safely!</span>
-    </div>
-
-    <!-- Fullscreen Exit Warning & Action Resolution Modal (Anti-Cheat Enforcement) -->
-    <div id="fullscreen-exit-modal" class="hidden fixed inset-0 z-[100] bg-slate-950/85 backdrop-blur-xl flex items-center justify-center p-4 select-none">
-        <div class="bg-slate-900 border-2 border-rose-600 rounded-3xl max-w-lg w-full p-6 sm:p-8 shadow-2xl text-center animate-in fade-in zoom-in duration-200">
-            <!-- Prominent Red Shield Warning Icon -->
-            <div class="w-20 h-20 rounded-3xl bg-rose-500/20 text-rose-500 border border-rose-500/30 flex items-center justify-center mx-auto mb-4 shadow-lg shadow-rose-950/50">
-                <i data-lucide="shield-alert" class="w-10 h-10 animate-bounce"></i>
-            </div>
-            
-            <!-- Strike Count Badge -->
-            <div class="inline-flex items-center space-x-2 px-4 py-1.5 rounded-full text-xs font-black uppercase tracking-wider bg-rose-500/30 text-rose-200 border border-rose-400/40 mb-3 shadow-inner">
-                <i data-lucide="alert-triangle" class="w-4 h-4 text-rose-400"></i>
-                <span id="fs-modal-strike-pill">STRIKE DETECTED</span>
-            </div>
-
-            <!-- Heading -->
-            <h2 class="text-2xl sm:text-3xl font-black text-white tracking-tight uppercase">FULLSCREEN EXIT DETECTED</h2>
-            
-            <!-- Message -->
-            <p class="text-sm sm:text-base text-slate-300 font-medium max-w-md mx-auto mt-2 leading-relaxed">
-                You exited fullscreen mode. Return to fullscreen to continue your examination.
-            </p>
-
-            <!-- Prominent Countdown Box -->
-            <div class="mt-4 mb-6 p-3.5 rounded-2xl bg-slate-950/80 border border-rose-900/50 flex items-center justify-center space-x-2.5 text-xs sm:text-sm text-amber-300 shadow-inner">
-                <i data-lucide="clock" class="w-4 h-4 text-amber-400"></i>
-                <span>Acknowledge within <strong id="fs-modal-countdown" class="font-mono text-base font-black text-white px-1">10</strong>s to avoid additional penalty</span>
-            </div>
-
-            <div class="space-y-3">
-                <!-- Action 1: Return to Exam (Primary, High-Contrast Button) -->
-                <button type="button" onclick="resumeFullscreenFromModal()" 
-                        class="w-full py-4 px-6 bg-rose-600 hover:bg-rose-500 active:scale-[0.98] text-white font-black text-base sm:text-lg rounded-2xl shadow-xl shadow-rose-600/40 transition flex items-center justify-center space-x-3 cursor-pointer">
-                    <i data-lucide="maximize" class="w-5 h-5"></i>
-                    <span>RETURN TO EXAM</span>
-                </button>
-
-                <!-- Action 2: Request Exam Pause (Requires Tutor Approval) -->
-                <button type="button" onclick="handleModalPauseRequest()" 
-                        class="w-full py-2.5 px-4 bg-slate-800/80 hover:bg-slate-800 text-slate-300 hover:text-white font-semibold text-xs sm:text-sm rounded-xl border border-slate-700/80 transition flex items-center justify-center space-x-2 cursor-pointer">
-                    <i data-lucide="pause-circle" class="w-4 h-4 text-indigo-400"></i>
-                    <span>Request Pause (Tutor Must Approve)</span>
-                </button>
-
-                <!-- Action 3: Finalize & Submit Exam Now -->
-                <button type="button" onclick="handleModalSubmitExam()" 
-                        class="w-full py-2 px-4 bg-transparent hover:bg-rose-950/30 text-slate-400 hover:text-rose-300 font-medium text-xs rounded-lg transition flex items-center justify-center space-x-1.5 cursor-pointer">
-                    <i data-lucide="send" class="w-3.5 h-3.5"></i>
-                    <span>Finalize &amp; Submit Exam Now</span>
-                </button>
-            </div>
-
-            <p class="text-[11px] text-slate-400 mt-5">
-                Note: An unauthorized fullscreen exit strike has been recorded in your security audit trail.
-            </p>
-        </div>
     </div>
 
     <!-- Pre-Exam Readiness Modal -->
@@ -959,28 +914,63 @@
 
 
 
-    <!-- Subtle Top Floating shadcn Warning Alert Toast -->
-    <div id="shadcn-strike-alert" class="p-4 bg-slate-900/95 dark:bg-slate-950/95 backdrop-blur-md text-white rounded-2xl shadow-2xl border border-rose-500/40">
-        <div class="flex items-start justify-between gap-3">
-            <div class="flex items-start space-x-3">
-                <div class="w-8 h-8 rounded-xl bg-rose-500/20 text-rose-400 border border-rose-500/30 flex items-center justify-center flex-shrink-0 mt-0.5">
-                    <i data-lucide="shield-alert" class="w-4 h-4"></i>
+    <!-- Reorganized Cheating Strike Warning Notification Panel (High-Contrast & Opaque Solid Navy) -->
+    <div id="shadcn-strike-alert" class="p-5 sm:p-6 bg-[#0b1120] text-white rounded-2xl border-2 border-rose-500 space-y-4">
+        <!-- 1. Header: Shield Icon + CHEATING STRIKE WARNING + Strike Badge -->
+        <div class="flex items-center justify-between gap-3 border-b border-slate-800 pb-3">
+            <div class="flex items-center space-x-3 min-w-0">
+                <div class="w-10 h-10 rounded-xl bg-rose-950 text-rose-400 border border-rose-500/60 flex items-center justify-center flex-shrink-0 shadow-md">
+                    <i data-lucide="shield-alert" class="w-5 h-5 text-rose-400"></i>
                 </div>
-                <div>
-                    <div class="flex items-center space-x-2">
-                        <span id="toast-strike-title" class="text-xs font-black uppercase tracking-wider text-rose-400">Cheating Strike Warning</span>
-                        <span id="toast-strike-pill" class="px-2 py-0.2 rounded-full text-[10px] font-extrabold bg-rose-500/30 text-rose-200 border border-rose-400/30">Strike 1/3</span>
-                    </div>
-                    <p id="toast-strike-reason" class="text-xs font-medium text-slate-200 mt-1">Multi-Face Detected: Multiple faces identified in camera frame.</p>
-                    <div class="mt-2 flex items-center space-x-2 text-[11px] text-amber-300">
-                        <i data-lucide="clock" class="w-3.5 h-3.5 animate-spin"></i>
-                        <span>Acknowledge within <strong id="toast-countdown" class="font-mono font-bold text-white text-xs">10</strong>s to avoid additional penalty</span>
-                    </div>
-                </div>
+                <h3 class="text-xs sm:text-sm font-black uppercase tracking-wider text-rose-400 truncate">
+                    CHEATING STRIKE WARNING
+                </h3>
             </div>
-            <button type="button" onclick="acknowledgeShadcnWarning()" class="px-3 py-1.5 bg-rose-600 hover:bg-rose-500 text-white text-xs font-bold rounded-xl shadow transition flex-shrink-0 cursor-pointer">
-                Return to Exam
+            <span id="toast-strike-pill" class="px-3.5 py-1 rounded-full text-xs font-black bg-rose-600 text-white border border-rose-400 flex-shrink-0 shadow-sm">
+                Strike 1/3
+            </span>
+        </div>
+
+        <!-- 2. Violation Details: Prominent Category + Pure White Explanation -->
+        <div class="space-y-1.5">
+            <h4 id="toast-violation-category" class="text-sm sm:text-base font-black text-rose-300 tracking-wide uppercase">
+                VOICE DETECTED
+            </h4>
+            <p id="toast-strike-reason" class="text-xs sm:text-sm font-bold text-white leading-relaxed break-words">
+                Continuous human voice activity detected in exam room.
+            </p>
+        </div>
+
+        <!-- 3. Important Permission Notice: Solid Dark Green Panel with Bright White/Light-Green Text -->
+        <div class="flex items-center space-x-2.5 px-4 py-2.5 rounded-xl bg-[#064e3b] border-2 border-emerald-500 text-white shadow-sm">
+            <i data-lucide="check-circle" class="w-4 h-4 flex-shrink-0 text-emerald-300"></i>
+            <p class="text-xs font-bold text-emerald-100 leading-snug">
+                Looking down to solve questions, perform calculations or write answers is allowed.
+            </p>
+        </div>
+
+        <!-- 4. Countdown Notice: High-Contrast Amber Text with Opaque Timer Pill -->
+        <div class="flex items-center space-x-2 text-xs sm:text-sm font-bold text-amber-300">
+            <i data-lucide="clock" class="w-4 h-4 animate-spin text-amber-300 flex-shrink-0"></i>
+            <span>Acknowledge within <strong id="toast-countdown" class="font-mono font-black text-white text-sm bg-rose-900 border border-rose-500 px-2 py-0.5 rounded mx-0.5 shadow-sm">10</strong>s to avoid additional penalty.</span>
+        </div>
+
+        <!-- 5. Action Buttons: Desktop Horizontal / Mobile Stacked with Clear Focus States -->
+        <div class="flex flex-col sm:flex-row items-stretch sm:items-center gap-2.5 pt-1.5 border-t border-slate-800">
+            <button type="button" onclick="acknowledgeShadcnWarning()" class="flex-1 px-5 py-3 bg-rose-600 hover:bg-rose-500 focus:ring-2 focus:ring-rose-400 active:scale-[0.98] text-white font-black text-xs sm:text-sm rounded-xl shadow-lg transition flex items-center justify-center space-x-2 cursor-pointer border border-rose-400">
+                <i data-lucide="scan" class="w-4 h-4 text-white"></i>
+                <span>RETURN TO EXAM</span>
             </button>
+            <div class="flex items-center space-x-2">
+                <button type="button" onclick="requestPauseExam()" title="Request Pause" class="flex-1 sm:flex-initial px-4 py-3 bg-slate-800 hover:bg-slate-700 focus:ring-2 focus:ring-slate-500 text-white text-xs font-bold rounded-xl border border-slate-600 transition flex items-center justify-center space-x-1.5 cursor-pointer shadow-sm">
+                    <i data-lucide="pause-circle" class="w-4 h-4 text-slate-300"></i>
+                    <span>Pause</span>
+                </button>
+                <button type="button" onclick="confirmSubmitExam()" title="Finalize and Submit" class="flex-1 sm:flex-initial px-4 py-3 bg-slate-800 hover:bg-slate-700 focus:ring-2 focus:ring-slate-500 text-white text-xs font-bold rounded-xl border border-slate-600 transition flex items-center justify-center space-x-1.5 cursor-pointer shadow-sm">
+                    <i data-lucide="send" class="w-4 h-4 text-emerald-400"></i>
+                    <span>Submit</span>
+                </button>
+            </div>
         </div>
     </div>
 
@@ -1377,6 +1367,8 @@
         let lookingAwayConsecutiveCount = 0;
         let lookingDownConsecutiveCount = 0;
         let lookingUpConsecutiveCount = 0;
+        let directionalWarningCount = 0;
+        let hasReturnedToNeutral = true;
         // Paper / Desk Workspace Setup Verification State (Persisted across attempt)
         let isDeskSetupVerified = Number(metaEl.dataset.isDeskSetupVerified || 0) === 1;
         let isDeskModalActive = false;
@@ -2150,88 +2142,6 @@
         }
 
 
-        // ── Fullscreen Exit Modal & Anti-Cheat Action Controls ───────────────────
-        let isFullscreenModalActive = false;
-
-        function showFullscreenExitModal() {
-            if (isTerminated || !isExamActive || isBrowsingFile) return;
-            isFullscreenModalActive = true;
-            const modal = document.getElementById('fullscreen-exit-modal');
-            if (modal) {
-                // Synchronize live strike counter and initial countdown
-                const pill = document.getElementById('fs-modal-strike-pill');
-                if (pill) {
-                    pill.innerText = `STRIKE ${warningsCount}/${MAX_WARNINGS}`;
-                }
-                const cdEl = document.getElementById('fs-modal-countdown');
-                if (cdEl) {
-                    cdEl.innerText = strikeToastSeconds || 10;
-                }
-
-                modal.classList.remove('hidden');
-                if (window.lucide && typeof lucide.createIcons === 'function') { try { lucide.createIcons(); } catch(e){} }
-            }
-        }
-
-        async function resumeFullscreenFromModal() {
-            // Dismiss pending strike toast and timer if active
-            if (typeof acknowledgeShadcnWarning === 'function') {
-                acknowledgeShadcnWarning();
-            } else if (strikeToastTimer) {
-                clearInterval(strikeToastTimer);
-                strikeToastTimer = null;
-                const alertEl = document.getElementById('shadcn-strike-alert');
-                if (alertEl) alertEl.classList.remove('active');
-            }
-
-            try {
-                const docEl = document.documentElement;
-                if (docEl.requestFullscreen) {
-                    await docEl.requestFullscreen();
-                } else if (docEl.webkitRequestFullscreen) {
-                    await docEl.webkitRequestFullscreen();
-                } else if (docEl.msRequestFullscreen) {
-                    await docEl.msRequestFullscreen();
-                }
-            } catch (err) {
-                console.warn("Fullscreen resume error:", err);
-            }
-            const modal = document.getElementById('fullscreen-exit-modal');
-            if (modal) modal.classList.add('hidden');
-            isFullscreenModalActive = false;
-        }
-
-        async function handleModalPauseRequest() {
-            const modal = document.getElementById('fullscreen-exit-modal');
-            if (modal) modal.classList.add('hidden');
-            isFullscreenModalActive = false;
-            // Trigger pause request with automated reason
-            requestPauseExam();
-        }
-
-        async function handleModalSubmitExam() {
-            const modal = document.getElementById('fullscreen-exit-modal');
-            if (modal) modal.classList.add('hidden');
-            isFullscreenModalActive = false;
-
-            const result = await Swal.fire({
-                title: 'Submit Exam Now?',
-                text: 'Are you sure you want to finalize and submit your examination?',
-                icon: 'question',
-                showCancelButton: true,
-                confirmButtonText: 'Yes, Submit Now',
-                confirmButtonColor: '#e11d48',
-                cancelButtonText: 'Cancel',
-                cancelButtonColor: '#64748b'
-            });
-
-            if (result.isConfirmed) {
-                submitExamAnswers();
-            } else {
-                showFullscreenExitModal();
-            }
-        }
-
         // ── Request to pause the exam ────────────────────────────────────────────
         async function requestPauseExam() {
             if (!isExamActive || isTerminated || isPauseRequested) return;
@@ -2528,7 +2438,7 @@
                                     const w = br[0] - tl[0];
                                     const h = br[1] - tl[1];
                                     
-                                    // Check if key landmarks (eyes, nose) are present and inside frame boundaries
+                                    // Check if key landmarks (eyes, nose, mouth) are present and inside frame boundaries
                                     let hasVisibleEyes = false;
                                     let isLookingSideways = false;
                                     let isLookingDownAtDesk = false;
@@ -2537,50 +2447,57 @@
                                         const rEye = face.landmarks[0]; // right eye [x, y]
                                         const lEye = face.landmarks[1]; // left eye [x, y]
                                         const nose = face.landmarks[2]; // nose tip [x, y]
+                                        const mouth = face.landmarks.length >= 4 ? face.landmarks[3] : null; // mouth center [x, y]
                                         
-                                        // Eyes must be within frame bounds and not cropped off
-                                        const margin = 10;
+                                        // Landmark visibility within canvas frame
+                                        const margin = 8;
                                         const rEyeInView = rEye && rEye[0] > margin && rEye[0] < (canvas.width - margin) && rEye[1] > margin && rEye[1] < (canvas.height - margin);
                                         const lEyeInView = lEye && lEye[0] > margin && lEye[0] < (canvas.width - margin) && lEye[1] > margin && lEye[1] < (canvas.height - margin);
                                         const noseInView = nose && nose[0] > margin && nose[0] < (canvas.width - margin) && nose[1] > margin && nose[1] < (canvas.height - margin);
                                         
-                                        if (rEyeInView && lEyeInView && noseInView) {
+                                        if (rEyeInView && lEyeInView) {
                                             hasVisibleEyes = true;
-                                            
-                                            // 1. Strict Sideways / Yaw Check (Looking left or right to cheat / glance away):
+                                        }
+
+                                        if (rEyeInView && lEyeInView && noseInView) {
+                                            // 1. Separate Yaw Classification (Looking Left vs Right away from screen)
                                             const distToL = Math.abs(nose[0] - lEye[0]);
                                             const distToR = Math.abs(nose[0] - rEye[0]);
                                             if (distToL > 0 && distToR > 0) {
                                                 const yawRatio = distToL / distToR;
-                                                // STRICT: Yaw ratio > 3.0 or < 0.33 flags looking sideways immediately
-                                                if (yawRatio > 3.0 || yawRatio < 0.33) {
+                                                // Looking left: nose closer to right eye; Looking right: nose closer to left eye
+                                                if (yawRatio > 2.85 || yawRatio < 0.35) {
                                                     isLookingSideways = true;
                                                 }
                                             }
 
-                                            // 2. Strict Upward Pitch Check (Looking up at ceiling / room):
+                                            // 2. Separate Pitch Classification (Looking Upwards vs Downwards vs Straight)
                                             const eyeMidY = (rEye[1] + lEye[1]) / 2;
                                             const eyeToNoseDist = nose[1] - eyeMidY;
-                                            if (eyeToNoseDist > (h * 0.44)) {
+                                            const pitchRatio = eyeToNoseDist / h;
+
+                                            // Upward pitch: nose significantly lower in the bounding box relative to eye line
+                                            if (pitchRatio > 0.44) {
                                                 isLookingUp = true;
                                             }
 
-                                            // 3. Downward Tilt / Pitch (Writing or solving on copy / notebook):
-                                            // ONLY allow downward tilt if NOT looking sideways and NOT looking up!
+                                            // Downward pitch (Writing / Solving on Copy):
+                                            // Normal upright forward gaze has pitchRatio between 0.20 and 0.38.
+                                            // Downward pitch tilts the brow forward/down, compressing eye-to-nose distance (pitchRatio < 0.13),
+                                            // OR when the candidate's entire head is bowed over desk with face in lower portion of the frame.
+                                            // We DO NOT check mouth proximity as natural neutral faces have mouths close to nose tips in BlazeFace.
                                             if (!isLookingSideways && !isLookingUp) {
-                                                if (eyeToNoseDist < (h * 0.30)) {
+                                                if (pitchRatio < 0.13 || (pitchRatio < 0.17 && tl[1] > canvas.height * 0.30)) {
                                                     isLookingDownAtDesk = true;
                                                 }
                                             }
-                                        } else if (!isLookingSideways && (noseInView || rEyeInView || lEyeInView)) {
-                                            // Student is tilting head downward towards notebook, eyelids/lashes foreshorten:
-                                            isLookingDownAtDesk = true;
-                                            hasVisibleEyes = true;
+                                        } else if (noseInView && (!rEyeInView || !lEyeInView)) {
+                                            // When bowed steeply over paper/copy, eyes may be occluded by brow/angle
+                                            if (tl[1] > canvas.height * 0.30 && br[1] > canvas.height * 0.55) {
+                                                isLookingDownAtDesk = true;
+                                                hasVisibleEyes = true;
+                                            }
                                         }
-                                    } else if (!isLookingSideways) {
-                                        // Head bent low over desk solving math
-                                        isLookingDownAtDesk = true;
-                                        hasVisibleEyes = true;
                                     }
 
                                     // Desk View Distance Verification (Student places laptop/device 1.5 - 2.5 ft back):
@@ -2826,52 +2743,68 @@
                                 faceOccludedConsecutiveCount = 0;
                                 triggerViolation('face_occluded', 'Candidate face and eyes are partially hidden or out of camera frame. Keep full face and eyes visible.');
                             }
-                        } else if (hasAnyFaceLookingAway) {
+                        } else if (hasAnyFaceLookingAway || hasAnyFaceLookingUp) {
                             noPersonConsecutiveCount = 0;
                             imposterConsecutiveCount = 0;
                             faceOccludedConsecutiveCount = 0;
                             lookingDownConsecutiveCount = 0;
-                            lookingUpConsecutiveCount = 0;
-                            lookingAwayConsecutiveCount++;
 
-                            ctx.fillStyle = 'rgba(249, 115, 22, 0.90)';
-                            ctx.fillRect(10, 10, canvas.width - 20, 28);
-                            ctx.fillStyle = '#ffffff';
-                            ctx.font = 'bold 12px Inter, sans-serif';
-                            ctx.fillText('⚠️ HEAD TURNED SIDEWAYS — PLEASE LOOK DIRECTLY AT THE SCREEN (STRIKE IN 3s)', 18, 28);
-
-                            if (lookingAwayConsecutiveCount >= 3) {
-                                lookingAwayConsecutiveCount = 0;
-                                triggerViolation('looking_away', 'Candidate repeatedly or continuously looked sideways away from the exam screen.');
-                            }
-                        } else if (hasAnyFaceLookingUp) {
-                            // Candidate is looking up at ceiling/wall (Strict: max 5 seconds = 4 frames at 1.4s)
-                            noPersonConsecutiveCount = 0;
-                            imposterConsecutiveCount = 0;
-                            faceOccludedConsecutiveCount = 0;
-                            lookingAwayConsecutiveCount = 0;
-                            lookingDownConsecutiveCount = 0;
-                            lookingUpConsecutiveCount++;
-
-                            ctx.fillStyle = 'rgba(225, 29, 72, 0.90)';
-                            ctx.fillRect(10, 10, canvas.width - 20, 28);
-                            ctx.fillStyle = '#ffffff';
-                            ctx.font = 'bold 12px Inter, sans-serif';
-                            ctx.fillText('⚠️ HEAD TILTED UPWARD — LOOK AT EXAM SCREEN (STRIKE IN 5s)', 18, 28);
-
-                            if (lookingUpConsecutiveCount >= 4) {
+                            const directionLabel = hasAnyFaceLookingAway ? 'SIDEWAYS (LEFT/RIGHT)' : 'UPWARDS AT CEILING';
+                            if (hasAnyFaceLookingAway) {
+                                lookingAwayConsecutiveCount++;
                                 lookingUpConsecutiveCount = 0;
-                                triggerViolation('looking_away', 'Candidate tilted head and looked upward away from screen for more than 5 seconds.');
+                            } else {
+                                lookingUpConsecutiveCount++;
+                                lookingAwayConsecutiveCount = 0;
+                            }
+
+                            // Transient on-canvas warning banner with current warning tally
+                            const activeCount = Math.max(lookingAwayConsecutiveCount, lookingUpConsecutiveCount);
+                            ctx.fillStyle = hasAnyFaceLookingAway ? 'rgba(249, 115, 22, 0.92)' : 'rgba(225, 29, 72, 0.92)';
+                            ctx.fillRect(10, 10, canvas.width - 20, 28);
+                            ctx.fillStyle = '#ffffff';
+                            ctx.font = 'bold 11px Inter, sans-serif';
+                            ctx.fillText(`⚠️ HEAD TURNED ${directionLabel} (Warning ${directionalWarningCount + 1}/3 before strike)`, 18, 28);
+
+                            // Sustained head deviation confirmed (3 consecutive frames ~2s)
+                            if (activeCount >= 3) {
+                                lookingAwayConsecutiveCount = 0;
+                                lookingUpConsecutiveCount = 0;
+
+                                // Require candidate to return to neutral forward gaze before another warning can register
+                                if (hasReturnedToNeutral) {
+                                    directionalWarningCount++;
+                                    hasReturnedToNeutral = false;
+
+                                    if (directionalWarningCount >= 3) {
+                                        // 3 Directional Warnings = 1 Strike
+                                        directionalWarningCount = 0;
+                                        triggerViolation('looking_away', `Repeated unauthorized head turn detected (${directionLabel}). 3 warnings reached.`);
+                                    } else {
+                                        // Non-strike progressive warning toast
+                                        Swal.fire({
+                                            toast: true,
+                                            position: 'top',
+                                            icon: 'warning',
+                                            title: `Warning (${directionalWarningCount}/3): Look at Exam Screen`,
+                                            text: `Head turned ${directionLabel}. 3 warnings will result in a cheating strike.`,
+                                            showConfirmButton: false,
+                                            timer: 3500,
+                                            background: '#0f172a',
+                                            color: '#f8fafc',
+                                            customClass: { popup: 'border border-amber-500/50 shadow-xl' }
+                                        });
+                                    }
+                                }
                             }
                         } else if (hasAnyFaceLookingDown) {
-                            // Candidate is looking down at copy/notebook to write answers or do rough math work
-                            // Permitted: Students are legitimately allowed to bend down and write on copy/notebook throughout the exam
+                            // Looking down at copy/notebook: FULLY ALLOWED, 0 warnings, 0 strikes
                             noPersonConsecutiveCount = 0;
                             imposterConsecutiveCount = 0;
                             faceOccludedConsecutiveCount = 0;
                             lookingAwayConsecutiveCount = 0;
                             lookingUpConsecutiveCount = 0;
-                            lookingDownConsecutiveCount = 0; // Reset counter - do not strike candidate for downward copy writing
+                            lookingDownConsecutiveCount = 0;
 
                             // Display clear green indicator confirming solving on copy is fully permitted
                             ctx.fillStyle = 'rgba(16, 185, 129, 0.90)';
@@ -2880,10 +2813,13 @@
                             ctx.font = 'bold 11px Inter, sans-serif';
                             ctx.fillText('✍️ WRITING / SOLVING ON COPY ALLOWED ✓', 18, 27);
                         } else {
+                            // Forward straight gaze: candidate has returned to neutral
+                            hasReturnedToNeutral = true;
                             noPersonConsecutiveCount = 0;
                             imposterConsecutiveCount = 0;
                             faceOccludedConsecutiveCount = 0;
                             lookingAwayConsecutiveCount = 0;
+                            lookingUpConsecutiveCount = 0;
                             lookingDownConsecutiveCount = 0;
                         }
 
@@ -3256,18 +3192,10 @@
             ['fullscreenchange', 'webkitfullscreenchange', 'mozfullscreenchange', 'MSFullscreenChange'].forEach(evt => {
                 document.addEventListener(evt, () => {
                     if (isBrowsingFile) return;
+                    if (!isExamActive || isTerminated || isGracePeriod || (typeof Swal !== 'undefined' && Swal.isVisible())) return;
                     const isFs = Boolean(document.fullscreenElement || document.webkitFullscreenElement || document.mozFullScreenElement || document.msFullscreenElement);
                     if (!isFs) {
-                        if (!isExamActive || isTerminated || isGracePeriod) return;
                         triggerViolation('fullscreen_exit', 'Student exited full-screen mode.');
-                        showFullscreenExitModal();
-                    } else {
-                        // Returned to fullscreen — dismiss modal if active
-                        const fsModal = document.getElementById('fullscreen-exit-modal');
-                        if (fsModal && !fsModal.classList.contains('hidden')) {
-                            fsModal.classList.add('hidden');
-                            isFullscreenModalActive = false;
-                        }
                     }
                 });
             });
@@ -3556,21 +3484,23 @@
                 return;
             }
 
-            // Populate subtle shadcn top toast alert & fullscreen exit modal
+            // Populate subtle shadcn top toast alert
             const alertEl = document.getElementById('shadcn-strike-alert');
             const pillEl = document.getElementById('toast-strike-pill');
             const reasonEl = document.getElementById('toast-strike-reason');
             const countdownEl = document.getElementById('toast-countdown');
-            const fsPillEl = document.getElementById('fs-modal-strike-pill');
-            const fsCountdownEl = document.getElementById('fs-modal-countdown');
 
             if (pillEl) pillEl.innerText = `Strike ${warningsCount}/${MAX_WARNINGS}`;
-            if (fsPillEl) fsPillEl.innerText = `STRIKE ${warningsCount}/${MAX_WARNINGS}`;
-            if (reasonEl) reasonEl.innerText = `${type.replace(/_/g, ' ').toUpperCase()}: ${details}`;
+            const categoryEl = document.getElementById('toast-violation-category');
+            const formattedCategory = type.replace(/_/g, ' ').toUpperCase();
+            if (categoryEl) categoryEl.innerText = formattedCategory;
+            if (reasonEl) reasonEl.innerText = details || `Violation detected: ${formattedCategory}`;
+            if (window.lucide && typeof lucide.createIcons === 'function') {
+                try { lucide.createIcons(); } catch(e) {}
+            }
 
             strikeToastSeconds = 10;
             if (countdownEl) countdownEl.innerText = strikeToastSeconds;
-            if (fsCountdownEl) fsCountdownEl.innerText = strikeToastSeconds;
 
             if (alertEl) {
                 alertEl.classList.add('active');
@@ -3579,7 +3509,6 @@
             strikeToastTimer = setInterval(() => {
                 strikeToastSeconds--;
                 if (countdownEl) countdownEl.innerText = strikeToastSeconds;
-                if (fsCountdownEl) fsCountdownEl.innerText = strikeToastSeconds;
                 if (strikeToastSeconds <= 0) {
                     clearInterval(strikeToastTimer);
                     strikeToastTimer = null;

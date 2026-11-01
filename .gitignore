@@ -38,3 +38,8 @@ AGENTS.md
 DECISIONS.md
 SESSION_LOG.md
 TASKS.md
+*-journal
+*.db-journal
+static/forensic_snapshots/
+static/profile_photos/
+static/verified_faces/
