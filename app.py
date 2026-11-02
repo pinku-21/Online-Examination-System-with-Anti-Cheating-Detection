@@ -195,6 +195,23 @@ SECURITY_EVENT_CLASSIFICATION = {
     "secondary_cam_disconnect": {"code": "SEC-016", "severity": "HIGH", "desc": "Secondary Mobile Camera Disconnected / Obscured"}
 }
 
+def row_get(record, key, default=None):
+    """
+    Safe attribute/item lookup supporting both dict and database Row objects (sqlite3.Row, dict_row).
+    Avoids AttributeError: 'sqlite3.Row' object has no attribute 'get'.
+    """
+    if record is None:
+        return default
+    if isinstance(record, dict):
+        return record.get(key, default)
+    try:
+        if key in record.keys():
+            val = record[key]
+            return default if val is None else val
+        return default
+    except Exception:
+        return getattr(record, key, default)
+
 def _canonical_answers_digest(answers_json):
     """Return a stable SHA-256 digest for submitted answers, regardless of JSON key order."""
     if answers_json in (None, ""):
@@ -1776,8 +1793,8 @@ def tutor_update_submission_score(submission_id):
     percentage = (new_score / total_points * 100) if total_points > 0 else 0.0
     integrity_hash = generate_submission_integrity_hash(
         submission_id, submission["roll_number"], new_score, total_points,
-        submission.get("warnings_count") or 0, submission.get("status") or "",
-        submission.get("answers_json")
+        row_get(submission, "warnings_count", 0) or 0, row_get(submission, "status", "") or "",
+        row_get(submission, "answers_json")
     )
 
     cursor.execute("""
@@ -1789,6 +1806,178 @@ def tutor_update_submission_score(submission_id):
     conn.commit()
     conn.close()
     return jsonify({"success": True, "score": round(new_score, 1), "percentage": round(percentage, 1)})
+
+
+def extract_option_parts(option_str):
+    """
+    Given an option string like 'B. Carbon dioxide loses oxygen' or '(B) Some text' or 'B' or 'Some text',
+    returns (letter_key, clean_text).
+    letter_key is lowercase single letter 'a'-'e' or None.
+    clean_text is normalized lowercase text.
+    """
+    if not option_str:
+        return None, ""
+    s = str(option_str).strip()
+    s = s.replace("’", "'").replace("“", '"').replace("”", '"')
+    
+    # Check for prefix: e.g. '(B)', 'B.', 'B)', '[B]', 'Option B:', 'Option B.'
+    m = re.match(r'^(?:option\s+)?[\(\[]?([A-Ea-e0-9])[\)\]\.\:\-\s]+(.*)$', s, re.IGNORECASE)
+    if m:
+        letter = m.group(1).lower()
+        rest = m.group(2).strip().lower().rstrip('. ')
+        return letter, rest
+    
+    # Standalone letter e.g. 'A', 'b', '(C)'
+    m2 = re.match(r'^[\(\[]?([A-Ea-e])[\)\]]?$', s, re.IGNORECASE)
+    if m2:
+        return m2.group(1).lower(), ""
+        
+    return None, s.lower().rstrip('. ')
+
+
+def is_mcq_answer_correct(student_ans, correct_ans, options=None):
+    """
+    Robust comparison for MCQ answers handling option letters (A, B, C, D),
+    full option strings ('B. Carbon dioxide...'), clean option text, and trailing punctuation.
+    CRITICAL: Never marks an answer correct solely because option letters match
+    if their associated text conflicts!
+    """
+    if student_ans is None or correct_ans is None:
+        return False
+    
+    s_raw = str(student_ans).strip()
+    c_raw = str(correct_ans).strip()
+    if not s_raw or not c_raw:
+        return False
+    
+    # 1. Exact string match (case-insensitive, ignoring trailing punctuation)
+    if s_raw.lower().rstrip('. ') == c_raw.lower().rstrip('. '):
+        return True
+        
+    s_letter, s_text = extract_option_parts(s_raw)
+    c_letter, c_text = extract_option_parts(c_raw)
+
+    letter_to_text = {}
+    text_to_letter = {}
+    if options and isinstance(options, list):
+        for idx, opt in enumerate(options):
+            l_code = chr(ord('a') + idx) # 0 -> 'a', 1 -> 'b', ...
+            opt_letter, opt_text = extract_option_parts(opt)
+            assigned_letter = opt_letter or l_code
+            clean_t = opt_text if opt_text else str(opt).strip().lower().rstrip('. ')
+            letter_to_text[assigned_letter] = clean_t
+            text_to_letter[clean_t] = assigned_letter
+
+    # Resolve expected correct text and correct letter
+    expected_text = c_text
+    expected_letter = c_letter
+    if not expected_text and expected_letter and expected_letter in letter_to_text:
+        expected_text = letter_to_text[expected_letter]
+    if not expected_letter and expected_text and expected_text in text_to_letter:
+        expected_letter = text_to_letter[expected_text]
+
+    # Resolve student submitted text and student letter
+    submitted_text = s_text
+    submitted_letter = s_letter
+    if not submitted_text and submitted_letter and submitted_letter in letter_to_text:
+        submitted_text = letter_to_text[submitted_letter]
+    if not submitted_letter and submitted_text and submitted_text in text_to_letter:
+        submitted_letter = text_to_letter[submitted_text]
+
+    # CRITICAL CHECK FOR CONFLICTING LETTER/TEXT:
+    # 1. If student submitted both letter and text:
+    #    Both letter (if expected letter is known) and text (if expected text is known) must match.
+    #    If student paired an incorrect letter with correct text (e.g. "A. Option B's text"),
+    #    or correct letter with incorrect text (e.g. "B. London"), it conflicts and is FALSE.
+    if s_letter and s_text:
+        letter_match = (s_letter.lower() == expected_letter.lower()) if expected_letter else True
+        text_match = (s_text.lower().rstrip('. ') == expected_text.lower().rstrip('. ')) if expected_text else True
+        return letter_match and text_match
+
+    # 2. If student submitted only text (no letter):
+    if s_text and not s_letter:
+        if expected_text:
+            return s_text.lower().rstrip('. ') == expected_text.lower().rstrip('. ')
+        if expected_letter and s_text in text_to_letter:
+            return text_to_letter[s_text].lower() == expected_letter.lower()
+
+    # 3. If student submitted only letter (no text):
+    if s_letter and not s_text:
+        if expected_letter:
+            return s_letter.lower() == expected_letter.lower()
+        if expected_text and s_letter in letter_to_text:
+            return letter_to_text[s_letter].lower().rstrip('. ') == expected_text.lower().rstrip('. ')
+
+    # Fallback: if only letters are available
+    if s_letter and expected_letter:
+        return s_letter.lower() == expected_letter.lower()
+
+    return False
+
+
+def extract_student_response_text(ans_raw):
+    """
+    Safely extracts the student's text or selected choice from ans_raw.
+    Returns (cleaned_text, is_attempted).
+    """
+    if ans_raw is None:
+        return "", False
+    
+    if isinstance(ans_raw, str):
+        s = ans_raw.strip()
+        if not s or s.lower() in ("not attempted", "null", "undefined"):
+            return "", False
+        return s, True
+
+    if isinstance(ans_raw, dict):
+        # 1. Direct answer/option keys
+        for key in ("selected_option", "option", "choice", "selected", "answer"):
+            val = ans_raw.get(key)
+            if val is not None and str(val).strip() and str(val).strip().lower() not in ("not attempted", "null", "undefined"):
+                return str(val).strip(), True
+        
+        # 2. Text key
+        text_val = ans_raw.get("text")
+        notes_val = (ans_raw.get("notes") or "").strip()
+        if text_val is not None and str(text_val).strip() and str(text_val).strip().lower() not in ("not attempted", "null", "undefined"):
+            combined = str(text_val).strip()
+            if notes_val:
+                combined += f" | Notes: {notes_val}"
+            return combined, True
+            
+        # 3. Matching or Hotspot dictionaries
+        matching_dict = ans_raw.get("matching")
+        if isinstance(matching_dict, dict) and matching_dict:
+            pairs = [f"{k} -> {v}" for k, v in matching_dict.items() if v]
+            if pairs:
+                return ", ".join(pairs), True
+                
+        hotspots_dict = ans_raw.get("hotspots")
+        if isinstance(hotspots_dict, dict) and hotspots_dict:
+            pairs = [f"{k}: {v}" for k, v in hotspots_dict.items() if v]
+            if pairs:
+                return ", ".join(pairs), True
+
+        # 4. Key-value pairs excluding media keys
+        excluded = {"image_url", "image_urls", "notes", "text"}
+        custom_parts = [f"{k}: {v}" for k, v in ans_raw.items() if k not in excluded and v]
+        if custom_parts:
+            combined = ", ".join(custom_parts)
+            if notes_val:
+                combined += f" | Notes: {notes_val}"
+            return combined, True
+            
+        # 5. Check if images are attached even if text is empty
+        img_url = ans_raw.get("image_url") or ""
+        img_urls = ans_raw.get("image_urls") or []
+        if img_url or img_urls:
+            count = len(img_urls) if img_urls else 1
+            suffix = f" ({count} Pages Attached)" if count > 1 else " (1 Page Attached)"
+            return f"Handwritten Solution{suffix}", True
+            
+        return "", False
+
+    return str(ans_raw).strip(), bool(str(ans_raw).strip())
 
 
 def compute_submission_score_with_or(questions, answers, manual_eval=None):
@@ -1858,14 +2047,25 @@ def compute_submission_score_with_or(questions, answers, manual_eval=None):
             qid_str = str(q.get("id"))
             q_pts = float(q.get("points") or 1.0)
             earned = 0.0
+            q_type = (q.get("question_type") or "mcq").strip().lower()
+            corr_raw = (q.get("correct_answer") or "").strip()
+            options_list = json.loads(q["options_json"]) if q.get("options_json") else []
 
-            if qid_str in manual_eval:
+            # Retrieve student answer, checking string or int key
+            ans_raw = answers.get(qid_str) if qid_str in answers else answers.get(q.get("id"), "")
+            student_ans, is_att = extract_student_response_text(ans_raw)
+
+            if q_type in ("mcq", "tf", "true_false"):
+                # Under CBSE rules:
+                # An MCQ is an objective question.
+                # If objectively correct, it receives full points (q_pts).
+                # If objectively incorrect or unattempted, it MUST receive 0.0 marks.
+                # Manual evaluation cannot award partial or full marks to an objectively incorrect or unattempted MCQ.
+                is_corr = is_att and is_mcq_answer_correct(student_ans, corr_raw, options_list)
+                earned = q_pts if is_corr else 0.0
+            elif qid_str in manual_eval:
                 earned = float(manual_eval[qid_str].get("awarded_marks", 0.0))
             else:
-                ans_raw = answers.get(qid_str, "")
-                q_type = (q.get("question_type") or "mcq").strip().lower()
-                corr_raw = (q.get("correct_answer") or "").strip()
-
                 if q_type in ("matching", "map_hotspot") or (corr_raw.startswith("{") and corr_raw.endswith("}")):
                     # Partial grading for Map Hotspots and Match the Following
                     try:
@@ -1895,18 +2095,22 @@ def compute_submission_score_with_or(questions, answers, manual_eval=None):
                                 if actual_v is not None and str(actual_v).strip().lower() == str(expected_v).strip().lower():
                                     correct_count += 1
                             earned = round((correct_count / total_items) * q_pts, 2)
-                        elif corr_raw and str(ans_raw).strip().lower() == corr_raw.lower():
+                        elif corr_raw and is_att and student_ans.lower() == corr_raw.lower():
                             earned = q_pts
                     except Exception:
-                        if corr_raw and str(ans_raw).strip().lower() == corr_raw.lower():
+                        if corr_raw and is_att and student_ans.lower() == corr_raw.lower():
                             earned = q_pts
-                else:
-                    if isinstance(ans_raw, dict):
-                        student_ans = (ans_raw.get("text") or "").strip()
-                    else:
-                        student_ans = str(ans_raw).strip() if ans_raw else ""
-                    if corr_raw and student_ans.lower() == corr_raw.lower():
+                elif q_type in ("mcq", "tf", "true_false"):
+                    # CBSE rule: correct = full marks, incorrect = 0, unattempted = 0
+                    if is_att and is_mcq_answer_correct(student_ans, corr_raw, options_list):
                         earned = q_pts
+                    else:
+                        earned = 0.0
+                else:
+                    if is_att and corr_raw and student_ans.lower() == corr_raw.lower():
+                        earned = q_pts
+                    else:
+                        earned = 0.0
 
             group_earned_scores.append(earned)
 
@@ -1948,6 +2152,183 @@ def attach_question_display_labels(question_dicts):
             q_dict["clean_question_text"] = q_dict.get("question_text") or ""
     return question_dicts
 
+
+def prepare_questions_review(raw_questions, student_answers, manual_eval):
+    """
+    Unified helper to prepare question review dicts for both tutor submission details
+    and student result views. Ensures 100% agreement on:
+    - Attempted vs Not Attempted
+    - Student response text / choice
+    - Correctness (is_correct)
+    - Awarded marks under CBSE objective MCQ rules (full marks or 0.0)
+    - Rendered options with exact is_correct and is_selected flags
+    """
+    if student_answers is None:
+        student_answers = {}
+    if manual_eval is None:
+        manual_eval = {}
+
+    questions_review = []
+    for q in raw_questions:
+        q_dict = dict(q)
+        opts_raw = q_dict.get("options_json")
+        options_list = json.loads(opts_raw) if opts_raw else []
+        q_dict["options"] = options_list
+        q_id_str = str(q_dict.get("id"))
+        
+        # Check string or int key in student_answers
+        ans_raw = student_answers.get(q_id_str)
+        if ans_raw is None:
+            ans_raw = student_answers.get(q_dict.get("id"))
+
+        student_text, is_attempted = extract_student_response_text(ans_raw)
+        
+        student_img = ""
+        student_imgs = []
+        if isinstance(ans_raw, dict):
+            student_img = (ans_raw.get("image_url") or "").strip()
+            raw_list = ans_raw.get("image_urls") or []
+            if isinstance(raw_list, list):
+                student_imgs = [u.strip() for u in raw_list if isinstance(u, str) and u.strip()]
+            if student_img and student_img not in student_imgs:
+                student_imgs.insert(0, student_img)
+            elif not student_img and student_imgs:
+                student_img = student_imgs[0]
+
+        page_suffix = f" ({len(student_imgs)} Pages Attached)" if len(student_imgs) > 1 else (" (1 Page Attached)" if student_imgs else "")
+        q_dict["student_answer"] = student_text if is_attempted else "Not Attempted"
+        q_dict["is_attempted"] = is_attempted
+        q_dict["student_image_url"] = student_img
+        q_dict["student_image_urls"] = student_imgs
+
+        correct_ans = (q_dict.get("correct_answer") or "").strip()
+        q_type = (q_dict.get("question_type") or "mcq").strip().lower()
+        earned_score = 0.0
+        try:
+            q_pts = float(q_dict.get("points") or 1.0)
+        except (ValueError, TypeError):
+            q_pts = 1.0
+
+        if q_type in ("matching", "map_hotspot") or (correct_ans.startswith("{") and correct_ans.endswith("}")):
+            try:
+                corr_dict = json.loads(correct_ans) if correct_ans.startswith("{") else {}
+                student_dict = {}
+                if isinstance(ans_raw, dict):
+                    if "matching" in ans_raw or "hotspots" in ans_raw:
+                        student_dict = ans_raw.get("matching") or ans_raw.get("hotspots") or {}
+                    elif "text" in ans_raw:
+                        try:
+                            student_dict = json.loads(ans_raw["text"])
+                        except Exception:
+                            student_dict = {}
+                    else:
+                        student_dict = ans_raw
+                elif isinstance(ans_raw, str) and ans_raw.strip().startswith("{"):
+                    try:
+                        student_dict = json.loads(ans_raw.strip())
+                    except Exception:
+                        student_dict = {}
+
+                if isinstance(corr_dict, dict) and len(corr_dict) > 0 and isinstance(student_dict, dict):
+                    c_count = 0
+                    for k, expected_v in corr_dict.items():
+                        actual_v = student_dict.get(str(k)) or student_dict.get(k)
+                        if actual_v is not None and str(actual_v).strip().lower() == str(expected_v).strip().lower():
+                            c_count += 1
+                    earned_score = round((c_count / len(corr_dict)) * q_pts, 2)
+                    q_dict["is_correct"] = (c_count == len(corr_dict))
+                elif correct_ans and is_attempted and student_text.lower() == correct_ans.lower():
+                    earned_score = q_pts
+                    q_dict["is_correct"] = True
+                else:
+                    q_dict["is_correct"] = False
+            except Exception:
+                q_dict["is_correct"] = (student_text.lower() == correct_ans.lower()) if (correct_ans and is_attempted) else False
+                if q_dict["is_correct"]:
+                    earned_score = q_pts
+        elif q_type in ("mcq", "tf", "true_false"):
+            if not is_attempted:
+                q_dict["is_correct"] = False
+                earned_score = 0.0
+            else:
+                q_dict["is_correct"] = is_mcq_answer_correct(student_text, correct_ans, options_list)
+                earned_score = q_pts if q_dict["is_correct"] else 0.0
+        else:
+            if not is_attempted:
+                q_dict["is_correct"] = False
+                earned_score = 0.0
+            elif correct_ans and student_text.lower() == correct_ans.lower():
+                q_dict["is_correct"] = True
+                earned_score = q_pts
+            else:
+                q_dict["is_correct"] = False
+                earned_score = 0.0
+
+        # Attach manual / AI evaluation data if present
+        eval_item = manual_eval.get(q_id_str)
+        if q_type in ("mcq", "tf", "true_false"):
+            # Enforce CBSE MCQ rule: strictly full marks if correct, strictly 0.0 if incorrect or unattempted.
+            # Manual evaluation must not award partial or full marks to an objectively incorrect MCQ.
+            awarded = q_pts if q_dict.get("is_correct") else 0.0
+            q_dict["awarded_marks"] = awarded
+        elif eval_item:
+            try:
+                awarded = float(eval_item.get("awarded_marks", 0.0) or 0.0)
+            except (ValueError, TypeError):
+                awarded = 0.0
+            q_dict["awarded_marks"] = awarded
+            q_dict["eval_feedback"] = eval_item.get("feedback", "")
+            q_dict["eval_what_did"] = eval_item.get("what_student_did", "")
+            q_dict["eval_where_wrong"] = eval_item.get("where_student_went_wrong", "")
+            q_dict["eval_how_written"] = eval_item.get("how_it_should_be_written", "")
+            q_dict["eval_steps"] = eval_item.get("step_breakdown", [])
+            q_dict["eval_remark"] = eval_item.get("examiner_remark", "")
+            q_dict["eval_by"] = eval_item.get("evaluated_by", "ai")
+            q_dict["eval_model"] = eval_item.get("model_used", "")
+            q_dict["eval_at"] = eval_item.get("evaluated_at", "")
+            q_dict["is_evaluated"] = True
+        else:
+            # Fallback to objective calculation
+            q_dict["awarded_marks"] = earned_score
+            q_dict["eval_feedback"] = ""
+            q_dict["eval_what_did"] = ""
+            q_dict["eval_where_wrong"] = ""
+            q_dict["eval_how_written"] = ""
+            q_dict["eval_steps"] = []
+            q_dict["eval_remark"] = ""
+            q_dict["eval_by"] = "auto"
+            q_dict["eval_model"] = ""
+            q_dict["eval_at"] = ""
+            q_dict["is_evaluated"] = False
+
+        # Rendered options for MCQ display in templates
+        rendered_opts = []
+        if options_list and isinstance(options_list, list):
+            for opt in options_list:
+                opt_str = str(opt).strip()
+                opt_corr = is_mcq_answer_correct(opt_str, correct_ans, options_list) or (correct_ans and opt_str.lower() == str(correct_ans).strip().lower())
+                opt_sel = is_attempted and (is_mcq_answer_correct(opt_str, student_text, options_list) or opt_str.lower() == str(student_text).strip().lower())
+                rendered_opts.append({
+                    "text": opt,
+                    "is_correct": opt_corr,
+                    "is_selected": opt_sel
+                })
+        q_dict["rendered_options"] = rendered_opts
+
+        # Distractor analysis
+        distractor_raw = row_get(q, "distractor_analysis_json")
+        if distractor_raw:
+            try:
+                q_dict["distractor_analysis"] = json.loads(distractor_raw) if isinstance(distractor_raw, str) else distractor_raw
+            except Exception:
+                q_dict["distractor_analysis"] = {}
+        else:
+            q_dict["distractor_analysis"] = {}
+
+        questions_review.append(q_dict)
+
+    return attach_question_display_labels(questions_review)
+
 @app.route("/api/tutor/submission/<int:submission_id>/evaluate-question", methods=["POST"])
 @admin_required
 def api_tutor_evaluate_question(submission_id):
@@ -1973,12 +2354,19 @@ def api_tutor_evaluate_question(submission_id):
 
     # Extract student's response (text + single or multi-page images)
     student_answers = json.loads(submission["answers_json"]) if submission["answers_json"] else {}
+    if not student_answers and row_get(submission, "progress_answers_json"):
+        try:
+            student_answers = json.loads(submission["progress_answers_json"])
+        except Exception:
+            student_answers = {}
     ans_raw = student_answers.get(question_id)
-    student_text = ""
+    if ans_raw is None:
+        ans_raw = student_answers.get(int(question_id))
+
+    student_text, is_att = extract_student_response_text(ans_raw)
     student_img_url = ""
     student_img_urls = []
     if isinstance(ans_raw, dict):
-        student_text = (ans_raw.get("text") or "").strip()
         student_img_url = (ans_raw.get("image_url") or "").strip()
         raw_list = ans_raw.get("image_urls") or []
         if isinstance(raw_list, list):
@@ -1987,12 +2375,67 @@ def api_tutor_evaluate_question(submission_id):
             student_img_urls.insert(0, student_img_url)
         elif not student_img_url and student_img_urls:
             student_img_url = student_img_urls[0]
-    elif isinstance(ans_raw, str):
-        student_text = ans_raw.strip()
 
-    if not student_text and not student_img_urls:
+    if not is_att and not student_img_urls:
         conn.close()
         return jsonify({"success": False, "error": "Student did not submit text or photo for this question."}), 400
+
+    q_type = (question.get("question_type") or "mcq").strip().lower()
+    options_list = json.loads(question["options_json"]) if question.get("options_json") else []
+
+    # If objective MCQ or True/False, evaluate deterministically under CBSE rules (full or 0.0) without calling LLM
+    if q_type in ("mcq", "tf", "true_false"):
+        is_corr = is_att and is_mcq_answer_correct(student_text, question["correct_answer"], options_list)
+        q_max = float(question["points"])
+        awarded = q_max if is_corr else 0.0
+        feedback = "Correct choice selected." if is_corr else f"Incorrect. Correct answer is: {question['correct_answer']}"
+        existing_eval = json.loads(submission["manual_evaluation_json"]) if submission["manual_evaluation_json"] else {}
+        existing_eval[question_id] = {
+            "awarded_marks": awarded,
+            "max_points": q_max,
+            "feedback": feedback,
+            "what_student_did": f"Selected: {student_text}" if is_att else "Not Attempted",
+            "where_student_went_wrong": "" if is_corr else f"Expected: {question['correct_answer']}",
+            "how_it_should_be_written": f"Correct Option: {question['correct_answer']}",
+            "step_breakdown": [],
+            "examiner_remark": "CBSE Objective MCQ Evaluation",
+            "model_used": "Objective Evaluator",
+            "evaluated_by": "auto",
+            "evaluated_at": datetime.now(IST).strftime("%Y-%m-%d %H:%M:%S")
+        }
+        cursor.execute("SELECT * FROM questions WHERE exam_id = ? ORDER BY id ASC", (submission["exam_id"],))
+        all_questions = cursor.fetchall()
+        new_total_score, total_exam_points, percentage = compute_submission_score_with_or(
+            all_questions, student_answers, existing_eval
+        )
+        integrity_hash = generate_submission_integrity_hash(
+            submission_id, submission["roll_number"], new_total_score, total_exam_points,
+            row_get(submission, "warnings_count") or 0, row_get(submission, "status") or "",
+            row_get(submission, "answers_json")
+        )
+        cursor.execute("""
+            UPDATE submissions
+            SET manual_evaluation_json = ?, score = ?, total_points = ?, percentage = ?,
+                integrity_hash = ?
+            WHERE id = ?
+        """, (json.dumps(existing_eval), new_total_score, total_exam_points, percentage,
+              integrity_hash, submission_id))
+        conn.commit()
+        conn.close()
+        return jsonify({
+            "success": True,
+            "awarded_marks": awarded,
+            "feedback": feedback,
+            "what_student_did": f"Selected: {student_text}" if is_att else "Not Attempted",
+            "where_student_went_wrong": "" if is_corr else f"Expected: {question['correct_answer']}",
+            "how_it_should_be_written": f"Correct Option: {question['correct_answer']}",
+            "step_breakdown": [],
+            "examiner_remark": "CBSE Objective MCQ Evaluation",
+            "model_used": "Objective Evaluator",
+            "new_score": round(new_total_score, 1),
+            "total_points": total_exam_points,
+            "percentage": round(percentage, 1)
+        })
 
     # Resolve image paths/URLs for all uploaded pages (handles Cloudinary and local storage)
     abs_img_paths = []
@@ -2059,8 +2502,8 @@ def api_tutor_evaluate_question(submission_id):
 
     integrity_hash = generate_submission_integrity_hash(
         submission_id, submission["roll_number"], new_total_score, total_exam_points,
-        submission.get("warnings_count") or 0, submission.get("status") or "",
-        submission.get("answers_json")
+        row_get(submission, "warnings_count", 0) or 0, row_get(submission, "status", "") or "",
+        row_get(submission, "answers_json")
     )
     cursor.execute("""
         UPDATE submissions
@@ -2119,12 +2562,14 @@ def evaluate_submission_internal(submission_id):
         q_pts = float(q["points"])
         total_exam_points += q_pts
 
-        ans_raw = student_answers.get(qid_s, "")
-        student_text = ""
+        ans_raw = student_answers.get(qid_s)
+        if ans_raw is None:
+            ans_raw = student_answers.get(q["id"])
+        student_text, is_att = extract_student_response_text(ans_raw)
+        
         student_img_url = ""
         student_img_urls = []
         if isinstance(ans_raw, dict):
-            student_text = (ans_raw.get("text") or "").strip()
             student_img_url = (ans_raw.get("image_url") or "").strip()
             raw_list = ans_raw.get("image_urls") or []
             if isinstance(raw_list, list):
@@ -2133,12 +2578,42 @@ def evaluate_submission_internal(submission_id):
                 student_img_urls.insert(0, student_img_url)
             elif not student_img_url and student_img_urls:
                 student_img_url = student_img_urls[0]
-        elif isinstance(ans_raw, str):
-            student_text = ans_raw.strip()
 
         # Skip if nothing answered
-        if not student_text and not student_img_urls:
-            results.append({"question_id": qid_s, "question_text": q["question_text"][:60], "success": False, "awarded_marks": 0, "max_points": q_pts, "reason": "Not attempted"})
+        if not is_att and not student_img_urls:
+            existing_eval[qid_s] = {
+                "awarded_marks": 0.0,
+                "max_points": q_pts,
+                "feedback": "Not attempted.",
+                "model_used": "System",
+                "evaluated_by": "auto",
+                "evaluated_at": datetime.now(IST).strftime("%Y-%m-%d %H:%M:%S")
+            }
+            results.append({"question_id": qid_s, "question_text": q["question_text"][:60], "success": False, "awarded_marks": 0.0, "max_points": q_pts, "reason": "Not attempted"})
+            continue
+
+        q_type = (q.get("question_type") or "mcq").strip().lower()
+        options_list = json.loads(q["options_json"]) if q.get("options_json") else []
+
+        # If objective MCQ or True/False, grade deterministically under CBSE rules without LLM (full or 0.0)
+        if q_type in ("mcq", "tf", "true_false"):
+            is_corr = is_att and is_mcq_answer_correct(student_text, q["correct_answer"], options_list)
+            awarded = q_pts if is_corr else 0.0
+            feedback = "Correct choice selected." if is_corr else f"Incorrect. Correct answer is: {q['correct_answer']}"
+            existing_eval[qid_s] = {
+                "awarded_marks": awarded,
+                "max_points": q_pts,
+                "feedback": feedback,
+                "what_student_did": f"Selected: {student_text}",
+                "where_student_went_wrong": "" if is_corr else f"Expected: {q['correct_answer']}",
+                "how_it_should_be_written": f"Correct Option: {q['correct_answer']}",
+                "step_breakdown": [],
+                "examiner_remark": "CBSE Objective MCQ Evaluation",
+                "model_used": "Objective Evaluator",
+                "evaluated_by": "auto",
+                "evaluated_at": datetime.now(IST).strftime("%Y-%m-%d %H:%M:%S")
+            }
+            results.append({"question_id": qid_s, "question_text": q["question_text"][:60], "success": True, "awarded_marks": awarded, "max_points": q_pts})
             continue
 
         # Resolve image paths/URLs for all pages (handles Cloudinary and local storage)
@@ -2203,8 +2678,8 @@ def evaluate_submission_internal(submission_id):
 
     integrity_hash = generate_submission_integrity_hash(
         submission_id, submission["roll_number"], new_total_score, total_exam_points,
-        submission.get("warnings_count") or 0, submission.get("status") or "",
-        submission.get("answers_json")
+        row_get(submission, "warnings_count", 0) or 0, row_get(submission, "status", "") or "",
+        row_get(submission, "answers_json")
     )
     cursor.execute("""
         UPDATE submissions
@@ -2262,7 +2737,26 @@ def api_tutor_update_question_score(submission_id):
         return jsonify({"success": False, "error": "Question not found."}), 404
 
     max_pts = float(question["points"])
-    new_marks = max(0.0, min(max_pts, round(new_marks, 1)))
+    q_type = (question.get("question_type") or "mcq").strip().lower()
+    if q_type in ("mcq", "tf", "true_false"):
+        # Enforce CBSE rules: Manual evaluation must not award partial or full marks to an objectively incorrect MCQ
+        student_answers_cur = json.loads(submission["answers_json"]) if submission["answers_json"] else {}
+        if not student_answers_cur and row_get(submission, "progress_answers_json"):
+            try:
+                student_answers_cur = json.loads(submission["progress_answers_json"])
+            except Exception:
+                student_answers_cur = {}
+        ans_raw_cur = student_answers_cur.get(question_id)
+        if ans_raw_cur is None:
+            ans_raw_cur = student_answers_cur.get(int(question_id))
+        s_text_cur, is_att_cur = extract_student_response_text(ans_raw_cur)
+        opts_cur = json.loads(question["options_json"]) if question.get("options_json") else []
+        is_corr_cur = is_att_cur and is_mcq_answer_correct(s_text_cur, question["correct_answer"], opts_cur)
+        
+        # If objectively incorrect or unattempted, marks MUST be 0.0
+        new_marks = max_pts if is_corr_cur else 0.0
+    else:
+        new_marks = max(0.0, min(max_pts, round(new_marks, 1)))
 
     student_answers = json.loads(submission["answers_json"]) if submission["answers_json"] else {}
     existing_eval = json.loads(submission["manual_evaluation_json"]) if submission["manual_evaluation_json"] else {}
@@ -2286,8 +2780,8 @@ def api_tutor_update_question_score(submission_id):
 
     integrity_hash = generate_submission_integrity_hash(
         submission_id, submission["roll_number"], new_total_score, total_exam_points,
-        submission.get("warnings_count") or 0, submission.get("status") or "",
-        submission.get("answers_json")
+        row_get(submission, "warnings_count", 0) or 0, row_get(submission, "status", "") or "",
+        row_get(submission, "answers_json")
     )
     cursor.execute("""
         UPDATE submissions
@@ -3211,133 +3705,16 @@ def tutor_submission_details(submission_id):
     raw_questions = cursor.fetchall()
     
     student_answers = json.loads(submission["answers_json"]) if submission["answers_json"] else {}
+    if not student_answers and row_get(submission, "progress_answers_json"):
+        try:
+            student_answers = json.loads(submission["progress_answers_json"])
+        except Exception:
+            student_answers = {}
     manual_eval = json.loads(submission["manual_evaluation_json"]) if submission["manual_evaluation_json"] else {}
     
-    questions_review = []
-    for q in raw_questions:
-        q_dict = dict(q)
-        q_dict["options"] = json.loads(q["options_json"]) if q["options_json"] else []
-        q_id_str = str(q["id"])
-        ans_raw = student_answers.get(q_id_str)
+    questions_review = prepare_questions_review(raw_questions, student_answers, manual_eval)
         
-        student_text = ""
-        student_img = ""
-        student_imgs = []
-        if isinstance(ans_raw, dict):
-            student_text = (ans_raw.get("text") or "").strip()
-            student_img = (ans_raw.get("image_url") or "").strip()
-            raw_list = ans_raw.get("image_urls") or []
-            if isinstance(raw_list, list):
-                student_imgs = [u.strip() for u in raw_list if isinstance(u, str) and u.strip()]
-            if student_img and student_img not in student_imgs:
-                student_imgs.insert(0, student_img)
-            elif not student_img and student_imgs:
-                student_img = student_imgs[0]
-        elif isinstance(ans_raw, str):
-            student_text = ans_raw.strip()
-            
-        page_suffix = f" ({len(student_imgs)} Pages Attached)" if len(student_imgs) > 1 else (" (1 Page Attached)" if student_imgs else "")
-        if isinstance(ans_raw, dict):
-            # Extract clean written text, ignoring media keys
-            typed_val = ans_raw.get("text", "")
-            notes_val = ans_raw.get("notes", "")
-            pin_parts = [f"{k}: {v}" for k, v in ans_raw.items() if k not in ("notes", "image_url", "image_urls", "text") and v]
-            if pin_parts:
-                student_text = ", ".join(pin_parts)
-                if notes_val:
-                    student_text += f" | Notes: {notes_val}"
-            elif typed_val:
-                student_text = typed_val
-                if notes_val:
-                    student_text += f" | Notes: {notes_val}"
-            else:
-                student_text = ""
-        q_dict["student_answer"] = student_text if student_text else (f"Handwritten Solution{page_suffix}" if student_imgs else "Not Attempted")
-        q_dict["student_image_url"] = student_img
-        q_dict["student_image_urls"] = student_imgs
-        
-        correct_ans = (q["correct_answer"] or "").strip()
-        q_type = (q.get("question_type") or "mcq").strip().lower()
-        earned_score = 0.0
-        q_pts = float(q.get("points") or 1.0)
-
-        if q_type in ("matching", "map_hotspot") or (correct_ans.startswith("{") and correct_ans.endswith("}")):
-            try:
-                corr_dict = json.loads(correct_ans) if correct_ans.startswith("{") else {}
-                student_dict = {}
-                if isinstance(ans_raw, dict):
-                    if "matching" in ans_raw or "hotspots" in ans_raw:
-                        student_dict = ans_raw.get("matching") or ans_raw.get("hotspots") or {}
-                    elif "text" in ans_raw:
-                        try:
-                            student_dict = json.loads(ans_raw["text"])
-                        except Exception:
-                            student_dict = {}
-                    else:
-                        student_dict = ans_raw
-                elif isinstance(ans_raw, str) and ans_raw.strip().startswith("{"):
-                    try:
-                        student_dict = json.loads(ans_raw.strip())
-                    except Exception:
-                        student_dict = {}
-
-                if isinstance(corr_dict, dict) and len(corr_dict) > 0 and isinstance(student_dict, dict):
-                    c_count = 0
-                    for k, expected_v in corr_dict.items():
-                        actual_v = student_dict.get(str(k)) or student_dict.get(k)
-                        if actual_v is not None and str(actual_v).strip().lower() == str(expected_v).strip().lower():
-                            c_count += 1
-                    earned_score = round((c_count / len(corr_dict)) * q_pts, 2)
-                    q_dict["is_correct"] = (c_count == len(corr_dict))
-                elif correct_ans and student_text.lower() == correct_ans.lower():
-                    earned_score = q_pts
-                    q_dict["is_correct"] = True
-                else:
-                    q_dict["is_correct"] = False
-            except Exception:
-                q_dict["is_correct"] = (student_text.lower() == correct_ans.lower()) if correct_ans else False
-                if q_dict["is_correct"]:
-                    earned_score = q_pts
-        else:
-            if correct_ans:
-                q_dict["is_correct"] = (student_text.lower() == correct_ans.lower())
-                if q_dict["is_correct"]:
-                    earned_score = q_pts
-            else:
-                q_dict["is_correct"] = False
-
-        # Attach manual / AI evaluation data if present
-        eval_item = manual_eval.get(q_id_str)
-        if eval_item:
-            q_dict["awarded_marks"] = float(eval_item.get("awarded_marks", 0.0))
-            q_dict["eval_feedback"] = eval_item.get("feedback", "")
-            q_dict["eval_what_did"] = eval_item.get("what_student_did", "")
-            q_dict["eval_where_wrong"] = eval_item.get("where_student_went_wrong", "")
-            q_dict["eval_how_written"] = eval_item.get("how_it_should_be_written", "")
-            q_dict["eval_steps"] = eval_item.get("step_breakdown", [])
-            q_dict["eval_remark"] = eval_item.get("examiner_remark", "")
-            q_dict["eval_by"] = eval_item.get("evaluated_by", "ai")
-            q_dict["eval_model"] = eval_item.get("model_used", "")
-            q_dict["eval_at"] = eval_item.get("evaluated_at", "")
-            q_dict["is_evaluated"] = True
-        else:
-            # Fallback to objective calculation
-            default_pts = earned_score if (q_type in ("matching", "map_hotspot") or (correct_ans.startswith("{") and correct_ans.endswith("}"))) else (float(q["points"]) if q_dict["is_correct"] else 0.0)
-            q_dict["awarded_marks"] = default_pts
-            q_dict["eval_feedback"] = ""
-            q_dict["eval_what_did"] = ""
-            q_dict["eval_where_wrong"] = ""
-            q_dict["eval_how_written"] = ""
-            q_dict["eval_steps"] = []
-            q_dict["eval_remark"] = ""
-            q_dict["eval_by"] = "auto"
-            q_dict["eval_model"] = ""
-            q_dict["eval_at"] = ""
-            q_dict["is_evaluated"] = False
-            
-        questions_review.append(q_dict)
-        
-    # Serialize violations safely for interactive timeline player
+    # Serialize violations safely for interactive timeline player    # Serialize violations safely for interactive timeline player
     violations_clean = []
     for idx, v in enumerate(violations):
         raw_ts = v["timestamp"]
@@ -3356,7 +3733,7 @@ def tutor_submission_details(submission_id):
 
     questions_review = attach_question_display_labels(questions_review)
     geo_info = {}
-    if submission.get("geo_location_json"):
+    if row_get(submission, "geo_location_json"):
         try:
             geo_info = json.loads(submission["geo_location_json"])
         except Exception:
@@ -3970,12 +4347,12 @@ def api_log_violation(submission_id):
         termination_reason = f"Exceeded maximum allowed anti-cheating warnings ({new_warnings}/{max_allowed} strikes). Violation: {violation_type.replace('_', ' ').title()}"
         
         # Calculate cryptographic integrity token for the terminated record
-        terminated_answers = submission.get("answers_json")
+        terminated_answers = row_get(submission, "answers_json")
         if not terminated_answers or terminated_answers == "{}":
-            terminated_answers = submission.get("progress_answers_json") or "{}"
+            terminated_answers = row_get(submission, "progress_answers_json") or "{}"
         term_hash = generate_submission_integrity_hash(
             submission_id, submission["roll_number"],
-            submission.get("score") or 0.0, submission.get("total_points") or 0.0,
+            row_get(submission, "score", 0.0) or 0.0, row_get(submission, "total_points", 0.0) or 0.0,
             new_warnings, "terminated", terminated_answers
         )
 
@@ -4059,8 +4436,9 @@ def api_submit_exam(submission_id):
             submitted_text = ans_raw.strip()
 
         # 1. Check if Honeypot decoy signature was produced by student (from ChatGPT or leaked solution)
-        if q.get("is_honeypot") in [1, True, "1"]:
-            sig = (q.get("honeypot_signature") or "").strip().lower()
+        is_hp = row_get(q, "is_honeypot")
+        if is_hp in [1, True, "1"]:
+            sig = (row_get(q, "honeypot_signature") or "").strip().lower()
             if sig and sig in submitted_text.lower():
                 honeypot_triggers.append(f"Q{q['id']} signature match: '{sig}'")
 
@@ -4085,7 +4463,7 @@ def api_submit_exam(submission_id):
         submission["roll_number"], 
         total_score, 
         total_points, 
-        submission.get("warnings_count", 0),
+        row_get(submission, "warnings_count", 0) or 0,
         'submitted',
         json.dumps(answers)
     )
@@ -4675,8 +5053,9 @@ def api_approve_device_switch(submission_id):
     cursor.execute("UPDATE submissions SET device_switch_approved = 1 WHERE id = ?", (submission_id,))
 
     # Invalidate old active session token for the user so simultaneous logins are prevented
-    if sub.get("user_id"):
-        cursor.execute("UPDATE users SET active_session_token = '' WHERE id = ?", (sub["user_id"],))
+    sub_user_id = row_get(sub, "user_id")
+    if sub_user_id:
+        cursor.execute("UPDATE users SET active_session_token = '' WHERE id = ?", (sub_user_id,))
 
     # If there was a pending request in device_switch_requests, mark it approved
     cursor.execute("""
@@ -4711,7 +5090,7 @@ def api_toggle_exam_results_published(exam_id):
         conn.close()
         return jsonify({"success": False, "error": "Exam not found."}), 404
 
-    current_val = int(exam.get("results_published") or 0)
+    current_val = int(row_get(exam, "results_published", 0) or 0)
     new_val = 0 if current_val == 1 else 1
 
     cursor.execute("UPDATE exams SET results_published = ? WHERE id = ?", (new_val, exam_id))
@@ -4749,7 +5128,7 @@ def api_toggle_submission_published(submission_id):
         conn.close()
         return jsonify({"success": False, "error": "Submission not found."}), 404
 
-    current_val = int(sub.get("is_published") or 0)
+    current_val = int(row_get(sub, "is_published", 0) or 0)
     new_val = 0 if current_val == 1 else 1
 
     cursor.execute("UPDATE submissions SET is_published = ? WHERE id = ?", (new_val, submission_id))
@@ -5074,142 +5453,16 @@ def exam_result(submission_id):
         conn.close()
 
         student_answers = json.loads(submission["answers_json"]) if submission["answers_json"] else {}
+        if not student_answers and row_get(submission, "progress_answers_json"):
+            try:
+                student_answers = json.loads(submission["progress_answers_json"])
+            except Exception:
+                student_answers = {}
         manual_eval = json.loads(submission["manual_evaluation_json"]) if submission["manual_evaluation_json"] else {}
 
-        for q in raw_questions:
-            q_dict = dict(q)
-            q_dict["options"] = json.loads(q["options_json"]) if q["options_json"] else []
-            q_id_str = str(q["id"])
-            ans_raw = student_answers.get(q_id_str)
+        questions_review = prepare_questions_review(raw_questions, student_answers, manual_eval)
 
-            student_text = ""
-            student_img = ""
-            student_imgs = []
-            if isinstance(ans_raw, dict):
-                student_text = (ans_raw.get("text") or "").strip()
-                student_img = (ans_raw.get("image_url") or "").strip()
-                raw_list = ans_raw.get("image_urls") or []
-                if isinstance(raw_list, list):
-                    student_imgs = [u.strip() for u in raw_list if isinstance(u, str) and u.strip()]
-                if student_img and student_img not in student_imgs:
-                    student_imgs.insert(0, student_img)
-                elif not student_img and student_imgs:
-                    student_img = student_imgs[0]
-            elif isinstance(ans_raw, str):
-                student_text = ans_raw.strip()
-
-            page_suffix = f" ({len(student_imgs)} Pages)" if len(student_imgs) > 1 else (" (1 Page)" if student_imgs else "")
-            if isinstance(ans_raw, dict):
-                typed_val = ans_raw.get("text", "")
-                notes_val = ans_raw.get("notes", "")
-                pin_parts = [f"{k}: {v}" for k, v in ans_raw.items() if k not in ("notes", "image_url", "image_urls", "text") and v]
-                if pin_parts:
-                    student_text = ", ".join(pin_parts)
-                    if notes_val:
-                        student_text += f" | Notes: {notes_val}"
-                elif typed_val:
-                    student_text = typed_val
-                    if notes_val:
-                        student_text += f" | Notes: {notes_val}"
-                else:
-                    student_text = ""
-            q_dict["student_answer"] = student_text if student_text else (f"Handwritten Solution{page_suffix}" if student_imgs else "Not Attempted")
-            q_dict["student_image_url"] = student_img
-            q_dict["student_image_urls"] = student_imgs
-
-            correct_ans = (q["correct_answer"] or "").strip()
-            q_type = (q.get("question_type") or "mcq").strip().lower()
-            earned_score = 0.0
-            q_pts = float(q.get("points") or 1.0)
-
-            if q_type in ("matching", "map_hotspot") or (correct_ans.startswith("{") and correct_ans.endswith("}")):
-                try:
-                    corr_dict = json.loads(correct_ans) if correct_ans.startswith("{") else {}
-                    student_dict = {}
-                    if isinstance(ans_raw, dict):
-                        if "matching" in ans_raw or "hotspots" in ans_raw:
-                            student_dict = ans_raw.get("matching") or ans_raw.get("hotspots") or {}
-                        elif "text" in ans_raw:
-                            try:
-                                student_dict = json.loads(ans_raw["text"])
-                            except Exception:
-                                student_dict = {}
-                        else:
-                            student_dict = ans_raw
-                    elif isinstance(ans_raw, str) and ans_raw.strip().startswith("{"):
-                        try:
-                            student_dict = json.loads(ans_raw.strip())
-                        except Exception:
-                            student_dict = {}
-
-                    if isinstance(corr_dict, dict) and len(corr_dict) > 0 and isinstance(student_dict, dict):
-                        c_count = 0
-                        for k, expected_v in corr_dict.items():
-                            actual_v = student_dict.get(str(k)) or student_dict.get(k)
-                            if actual_v is not None and str(actual_v).strip().lower() == str(expected_v).strip().lower():
-                                c_count += 1
-                        earned_score = round((c_count / len(corr_dict)) * q_pts, 2)
-                        q_dict["is_correct"] = (c_count == len(corr_dict))
-                    elif correct_ans and student_text.lower() == correct_ans.lower():
-                        earned_score = q_pts
-                        q_dict["is_correct"] = True
-                    else:
-                        q_dict["is_correct"] = False
-                except Exception:
-                    q_dict["is_correct"] = (student_text.lower() == correct_ans.lower()) if correct_ans else False
-                    if q_dict["is_correct"]:
-                        earned_score = q_pts
-            else:
-                if correct_ans:
-                    q_dict["is_correct"] = (student_text.lower() == correct_ans.lower())
-                    if q_dict["is_correct"]:
-                        earned_score = q_pts
-                else:
-                    q_dict["is_correct"] = False
-
-            eval_item = manual_eval.get(q_id_str)
-            if eval_item:
-                try:
-                    q_dict["awarded_marks"] = float(eval_item.get("awarded_marks", 0.0) or 0.0)
-                except (ValueError, TypeError):
-                    q_dict["awarded_marks"] = 0.0
-                q_dict["eval_feedback"] = eval_item.get("feedback", "")
-                q_dict["eval_what_did"] = eval_item.get("what_student_did", "")
-                q_dict["eval_where_wrong"] = eval_item.get("where_student_went_wrong", "")
-                q_dict["eval_how_written"] = eval_item.get("how_it_should_be_written", "")
-                q_dict["eval_steps"] = eval_item.get("step_breakdown", [])
-                q_dict["eval_remark"] = eval_item.get("examiner_remark", "")
-                q_dict["eval_by"] = eval_item.get("evaluated_by", "ai")
-                q_dict["is_evaluated"] = True
-            else:
-                try:
-                    pts_val = float(q["points"] or 1.0)
-                except (ValueError, TypeError):
-                    pts_val = 1.0
-                default_pts = earned_score if (q_type in ("matching", "map_hotspot") or (correct_ans.startswith("{") and correct_ans.endswith("}"))) else (pts_val if q_dict["is_correct"] else 0.0)
-                q_dict["awarded_marks"] = default_pts
-                q_dict["eval_feedback"] = ""
-                q_dict["eval_what_did"] = ""
-                q_dict["eval_where_wrong"] = ""
-                q_dict["eval_how_written"] = ""
-                q_dict["eval_steps"] = []
-                q_dict["eval_remark"] = ""
-                q_dict["eval_by"] = "auto"
-            # Parse AI Distractor Analysis if present
-            distractor_raw = q.get("distractor_analysis_json")
-            if distractor_raw:
-                try:
-                    q_dict["distractor_analysis"] = json.loads(distractor_raw) if isinstance(distractor_raw, str) else distractor_raw
-                except Exception:
-                    q_dict["distractor_analysis"] = {}
-            else:
-                q_dict["distractor_analysis"] = {}
-
-            questions_review.append(q_dict)
-
-        questions_review = attach_question_display_labels(questions_review)
-
-    # Educational Intelligence: Compute Weak-Area Diagnostic Breakdown
+    # Educational Intelligence: Compute Weak-Area Diagnostic Breakdown    # Educational Intelligence: Compute Weak-Area Diagnostic Breakdown
     topic_breakdown = {}
     for q in questions_review:
         topic = (q.get("topic_category") or "General Core Concept").strip()

@@ -1420,56 +1420,154 @@
                 if (window.lucide) lucide.createIcons();
                 const recordBtn = document.getElementById('btn-intercom-record');
                 const playBtn = document.getElementById('btn-intercom-play');
+                const playLabel = document.getElementById('play-btn-label');
                 const statusSpan = document.getElementById('intercom-mic-status');
                 const labelSpan = document.getElementById('record-btn-label');
                 let isRecording = false;
-                let audioBlob = null;
                 let stream = null;
+                let activeAudioPlayer = null;
+                let activeAudioUrl = null;
+                let recordingTimer = null;
+                let recordingSeconds = 0;
+                let isConvertingAudio = false;
+                let audioConversionPromise = null;
+
+                function getSupportedAudioMimeType() {
+                    const types = [
+                        'audio/webm;codecs=opus',
+                        'audio/webm',
+                        'audio/ogg;codecs=opus',
+                        'audio/mp4',
+                        ''
+                    ];
+                    for (const t of types) {
+                        if (!t || MediaRecorder.isTypeSupported(t)) return t;
+                    }
+                    return '';
+                }
+
+                function cleanupAudioPlayer() {
+                    if (activeAudioPlayer) {
+                        try {
+                            activeAudioPlayer.pause();
+                            activeAudioPlayer.currentTime = 0;
+                        } catch(e) {}
+                        activeAudioPlayer = null;
+                    }
+                    if (playLabel) playLabel.innerText = 'Review';
+                    if (playBtn) {
+                        playBtn.classList.remove('bg-emerald-700', 'text-white');
+                        playBtn.classList.add('bg-slate-800', 'text-emerald-400');
+                    }
+                }
 
                 async function startVoiceRecording() {
+                    cleanupAudioPlayer();
+                    if (activeAudioUrl) {
+                        URL.revokeObjectURL(activeAudioUrl);
+                        activeAudioUrl = null;
+                    }
+                    proctorRecordedBase64 = '';
+                    proctorAudioChunks = [];
+                    if (playBtn) {
+                        playBtn.disabled = true;
+                        playBtn.classList.remove('text-emerald-400', 'border-emerald-600');
+                        playBtn.classList.add('text-slate-400');
+                    }
+
                     try {
                         stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-                        proctorAudioChunks = [];
-                        proctorMediaRecorder = new MediaRecorder(stream);
+                        const mimeType = getSupportedAudioMimeType();
+                        const options = mimeType ? { mimeType } : {};
+                        proctorMediaRecorder = new MediaRecorder(stream, options);
+
                         proctorMediaRecorder.ondataavailable = (e) => {
                             if (e.data && e.data.size > 0) proctorAudioChunks.push(e.data);
                         };
+
                         proctorMediaRecorder.onstop = () => {
-                            audioBlob = new Blob(proctorAudioChunks, { type: 'audio/webm' });
-                            const reader = new FileReader();
-                            reader.readAsDataURL(audioBlob);
-                            reader.onloadend = () => {
-                                proctorRecordedBase64 = reader.result;
-                                if (statusSpan) statusSpan.innerText = 'Voice Memo Attached ✓';
-                                if (playBtn) {
-                                    playBtn.disabled = false;
-                                    playBtn.classList.remove('text-slate-400');
-                                    playBtn.classList.add('text-emerald-400', 'border-emerald-600');
+                            if (recordingTimer) {
+                                clearInterval(recordingTimer);
+                                recordingTimer = null;
+                            }
+                            if (stream) {
+                                stream.getTracks().forEach(t => t.stop());
+                                stream = null;
+                            }
+
+                            const chosenMime = proctorMediaRecorder.mimeType || mimeType || 'audio/webm';
+                            const recordedBlob = new Blob(proctorAudioChunks, { type: chosenMime });
+
+                            isConvertingAudio = true;
+                            audioConversionPromise = new Promise((resolve) => {
+                                if (recordedBlob.size > 100) {
+                                    activeAudioUrl = URL.createObjectURL(recordedBlob);
+                                    const reader = new FileReader();
+                                    reader.readAsDataURL(recordedBlob);
+                                    reader.onloadend = () => {
+                                        proctorRecordedBase64 = reader.result;
+                                        isConvertingAudio = false;
+                                        const secDisplay = recordingSeconds > 0 ? ` (${recordingSeconds}s)` : '';
+                                        if (statusSpan) statusSpan.innerText = `Voice Memo Attached${secDisplay} ✓`;
+                                        if (playBtn) {
+                                            playBtn.disabled = false;
+                                            playBtn.classList.remove('text-slate-400', 'cursor-not-allowed', 'opacity-40');
+                                            playBtn.classList.add('text-emerald-400', 'border-emerald-600', 'hover:bg-slate-700');
+                                        }
+                                        const msgInput = document.getElementById('swal-nudge-msg');
+                                        if (msgInput && !msgInput.value.trim()) {
+                                            msgInput.value = '🎙️ Proctor Voice Dispatch Attached';
+                                        }
+                                        resolve(proctorRecordedBase64);
+                                    };
+                                    reader.onerror = () => {
+                                        isConvertingAudio = false;
+                                        resolve(null);
+                                    };
+                                } else {
+                                    isConvertingAudio = false;
+                                    if (statusSpan) statusSpan.innerText = 'Recording was empty. Try speaking again.';
+                                    if (playBtn) playBtn.disabled = true;
+                                    resolve(null);
                                 }
-                                const msgInput = document.getElementById('swal-nudge-msg');
-                                if (msgInput && !msgInput.value.trim()) {
-                                    msgInput.value = '🎙️ Proctor Voice Dispatch Attached';
-                                }
-                            };
-                            if (stream) stream.getTracks().forEach(t => t.stop());
+                            });
                         };
-                        proctorMediaRecorder.start();
+
+                        // Collect audio slices every 250ms for guaranteed chunk capture
+                        proctorMediaRecorder.start(250);
                         isRecording = true;
+                        recordingSeconds = 0;
+
                         if (recordBtn) recordBtn.classList.replace('from-rose-600', 'from-red-700');
-                        if (labelSpan) labelSpan.innerText = '● Recording... Click to Finish';
-                        if (statusSpan) statusSpan.innerText = 'Recording in progress...';
+                        if (labelSpan) labelSpan.innerText = '● Recording (0s)... Click to Stop';
+                        if (statusSpan) statusSpan.innerText = 'Live microphone active...';
+
+                        recordingTimer = setInterval(() => {
+                            recordingSeconds++;
+                            if (labelSpan) labelSpan.innerText = `● Recording (${recordingSeconds}s)... Click to Stop`;
+                        }, 1000);
+
                     } catch (err) {
-                        alert('Could not access microphone: ' + (err.message || 'Permission denied'));
+                        console.error('Microphone access error:', err);
+                        const reason = err.name === 'NotAllowedError' ? 'Microphone permission denied by browser.' : (err.message || 'Permission denied');
+                        Swal.showValidationMessage(`Microphone error: ${reason}`);
+                        if (statusSpan) statusSpan.innerText = 'Microphone access denied';
                     }
                 }
 
                 function stopVoiceRecording() {
-                    if (proctorMediaRecorder && proctorMediaRecorder.state === 'recording') {
-                        proctorMediaRecorder.stop();
-                        isRecording = false;
-                        if (labelSpan) labelSpan.innerText = 'Re-record Voice';
-                        if (recordBtn) recordBtn.classList.replace('from-red-700', 'from-rose-600');
+                    if (proctorMediaRecorder && proctorMediaRecorder.state !== 'inactive') {
+                        try {
+                            proctorMediaRecorder.stop();
+                        } catch(e) {}
                     }
+                    if (recordingTimer) {
+                        clearInterval(recordingTimer);
+                        recordingTimer = null;
+                    }
+                    isRecording = false;
+                    if (labelSpan) labelSpan.innerText = 'Re-record Voice';
+                    if (recordBtn) recordBtn.classList.replace('from-red-700', 'from-rose-600');
                 }
 
                 if (recordBtn) {
@@ -1484,10 +1582,38 @@
 
                 if (playBtn) {
                     playBtn.onclick = () => {
-                        if (proctorRecordedBase64) {
-                            const audio = new Audio(proctorRecordedBase64);
-                            audio.play();
+                        if (!proctorRecordedBase64 && !activeAudioUrl) return;
+
+                        if (activeAudioPlayer && !activeAudioPlayer.paused) {
+                            // Toggle pause/stop if already playing
+                            cleanupAudioPlayer();
+                            return;
                         }
+
+                        cleanupAudioPlayer();
+                        const playbackSrc = activeAudioUrl || proctorRecordedBase64;
+                        activeAudioPlayer = new Audio(playbackSrc);
+
+                        if (playLabel) playLabel.innerText = 'Playing...';
+                        playBtn.classList.add('bg-emerald-700', 'text-white');
+
+                        activeAudioPlayer.onended = () => {
+                            cleanupAudioPlayer();
+                        };
+                        activeAudioPlayer.onerror = (e) => {
+                            console.error('Playback error:', e);
+                            cleanupAudioPlayer();
+                            // Fallback try base64 if objectUrl had issues
+                            if (proctorRecordedBase64 && playbackSrc !== proctorRecordedBase64) {
+                                activeAudioPlayer = new Audio(proctorRecordedBase64);
+                                activeAudioPlayer.play().catch(() => {});
+                            }
+                        };
+
+                        activeAudioPlayer.play().catch(playErr => {
+                            console.warn('Audio play request blocked:', playErr);
+                            cleanupAudioPlayer();
+                        });
                     };
                 }
             },
@@ -1495,7 +1621,13 @@
             confirmButtonText: '📡 Transmit Intercom to Candidate',
             confirmButtonColor: '#0284c7',
             cancelButtonText: 'Cancel',
-            preConfirm: () => {
+            preConfirm: async () => {
+                if (isRecording) {
+                    stopVoiceRecording();
+                }
+                if (isConvertingAudio && audioConversionPromise) {
+                    await audioConversionPromise;
+                }
                 const msg = (document.getElementById('swal-nudge-msg').value || '').trim();
                 const sev = document.getElementById('swal-nudge-severity').value;
                 if (!msg && !proctorRecordedBase64) {

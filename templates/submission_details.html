@@ -706,9 +706,37 @@
                         </div>
                     {% endif %}
 
+                    {% if q.rendered_options %}
+                        <!-- Options for MCQ (Tutor Review) -->
+                        <div class="space-y-1.5 my-2">
+                            <span class="text-[10px] font-bold uppercase tracking-wider text-slate-500 block">Question Choices & Candidate Selection:</span>
+                            <div class="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                                {% for opt in q.rendered_options %}
+                                    {% set is_corr = opt.is_correct %}
+                                    {% set is_selected = opt.is_selected %}
+                                    <div class="px-3.5 py-2.5 rounded-xl text-xs font-medium border 
+                                        {% if is_corr and is_selected %}bg-emerald-50 border-emerald-300 text-emerald-950 font-bold shadow-2xs
+                                        {% elif is_corr %}bg-emerald-50/70 border-emerald-300 text-emerald-900 font-bold
+                                        {% elif is_selected %}bg-rose-50 border-rose-300 text-rose-950 font-bold shadow-2xs
+                                        {% else %}bg-slate-50/80 border-slate-200 text-slate-700{% endif %} flex items-center justify-between">
+                                        <span>{{ opt.text }}</span>
+                                        {% if is_corr and is_selected %}
+                                            <span class="text-[10px] text-emerald-700 font-bold flex items-center"><i data-lucide="check-check" class="w-3.5 h-3.5 mr-1"></i> Correct (Student Selected)</span>
+                                        {% elif is_corr %}
+                                            <span class="text-[10px] text-emerald-700 font-bold flex items-center"><i data-lucide="check" class="w-3.5 h-3.5 mr-1"></i> Model Key</span>
+                                        {% elif is_selected %}
+                                            <span class="text-[10px] text-rose-700 font-bold flex items-center"><i data-lucide="x" class="w-3.5 h-3.5 mr-1"></i> Student Selected</span>
+                                        {% endif %}
+                                    </div>
+                                {% endfor %}
+                            </div>
+                        </div>
+                    {% endif %}
+
                     <!-- Student Written Text -->
                     {% set is_ans_correct = q.is_correct or (q.awarded_marks and q.awarded_marks >= q.points) %}
-                    {% set is_ans_wrong = not is_ans_correct and (q.awarded_marks == 0.0 or q.awarded_marks == 0) and q.student_answer and q.student_answer != 'Not Attempted' %}
+                    {% set is_not_attempted = not q.is_attempted or q.student_answer == 'Not Attempted' %}
+                    {% set is_ans_wrong = not is_ans_correct and not is_not_attempted %}
                     <div class="text-xs space-y-2 p-3.5 rounded-xl border {% if is_ans_correct %}bg-emerald-50/70 border-emerald-200 text-emerald-950{% elif is_ans_wrong %}bg-rose-50/70 border-rose-200 text-rose-950{% else %}bg-slate-50/80 border-slate-200 text-slate-800{% endif %}">
                         <div class="flex items-center justify-between">
                             <div class="flex items-center space-x-2">
@@ -720,6 +748,10 @@
                             {% if is_ans_correct %}
                                 <span class="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-black bg-emerald-100 text-emerald-800 border border-emerald-300">
                                     <i data-lucide="check" class="w-3 h-3 mr-0.5"></i> Correct
+                                </span>
+                            {% elif is_not_attempted %}
+                                <span class="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-black bg-slate-100 text-slate-600 border border-slate-300">
+                                    <i data-lucide="minus-circle" class="w-3 h-3 mr-0.5"></i> Not Attempted
                                 </span>
                             {% elif is_ans_wrong %}
                                 <span class="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-black bg-rose-100 text-rose-800 border border-rose-300">
