@@ -11,7 +11,7 @@ import hashlib
 import hmac
 from functools import wraps
 from datetime import datetime, timezone, timedelta
-from flask import Flask, render_template, render_template_string, request, jsonify, redirect, url_for, flash, session
+from flask import Flask, render_template, render_template_string, request, jsonify, redirect, url_for, flash, session, send_from_directory
 from werkzeug.utils import secure_filename
 
 try:
@@ -173,6 +173,11 @@ def health_check():
         "service": "Online Examination System",
         "timestamp": get_current_time().isoformat()
     }), 200
+
+@app.route("/googlede1ba37c9959b88b.html")
+def google_verification():
+    """Serve Google Search Console ownership verification file directly without authentication."""
+    return send_from_directory(app.root_path, "googlede1ba37c9959b88b.html", mimetype="text/html")
 
 # --- CYBERSECURITY HELPERS (Integrity & SIEM Classification) ---
 SECURITY_EVENT_CLASSIFICATION = {
