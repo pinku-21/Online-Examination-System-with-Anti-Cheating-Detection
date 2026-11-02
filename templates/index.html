@@ -17,116 +17,465 @@
     "priceCurrency": "USD"
   },
   "featureList": [
-    "AI Question Generation with Google Gemini and Groq",
-    "Client-Side Multi-Sensor Proctoring with TensorFlow.js and MediaPipe",
-    "Automated Grading and Forensic Integrity Audit Trails",
-    "Configurable Video Proctoring and Workspace Desk Verification",
-    "Real-Time Intercom and Session Anomaly Alerts"
+    "Online examination management and scheduled assessments",
+    "AI-assisted question generation with Google Gemini and Groq",
+    "Automated instant grading with formula rendering via KaTeX",
+    "AI-assisted browser-based proctoring using TensorFlow.js and MediaPipe",
+    "Multi-sensor examination integrity and anomaly monitoring",
+    "Submission and tamper-evident forensic audit management"
   ]
 }
 </script>
 
-<div class="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 py-16">
-    <!-- Hero Section -->
-    <div class="text-center max-w-3xl mx-auto">
+<div class="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 py-12 sm:py-16 space-y-20 sm:space-y-28">
+
+    <!-- 1. HERO SECTION -->
+    <header class="text-center max-w-4xl mx-auto pt-4 sm:pt-8">
         <!-- Top Announcement Badge -->
-        <div class="inline-flex items-center gap-2 px-3 py-1.5 rounded-full border border-slate-200 bg-white shadow-xs text-xs font-medium text-slate-700 mb-6">
+        <div class="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-full border border-slate-200 bg-white/90 shadow-2xs text-xs font-medium text-slate-700 mb-6">
             <span class="inline-block w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></span>
             <span class="font-semibold text-slate-900">ExamGuard AI v2.4</span>
-            <span class="text-slate-400">|</span>
-            <span class="text-slate-600">Multi-Sensor Anti-Cheating Engine</span>
+            <span class="text-slate-300">|</span>
+            <span class="text-slate-600">Enterprise Educational Assessment Platform</span>
         </div>
 
-        <h1 class="text-4xl sm:text-6xl font-black text-slate-900 tracking-tight leading-[1.15]">
-            High-Integrity Online Exams, 
-            <span class="text-transparent bg-clip-text bg-gradient-to-r from-sky-600 via-indigo-600 to-sky-700">Autonomous Proctoring</span>
+        <h1 class="text-4xl sm:text-6xl font-black text-slate-900 tracking-tight leading-[1.12]">
+            ExamGuard AI – Smarter Online Examinations,
+            <span class="text-transparent bg-clip-text bg-gradient-to-r from-sky-600 via-indigo-600 to-sky-700">Greater Exam Integrity</span>
         </h1>
+
         <p class="mt-6 text-base sm:text-lg text-slate-600 leading-relaxed max-w-2xl mx-auto">
-            Eliminate exam administration complexity. Generate questions with Gemini AI, run edge-based multi-sensor proctoring, and review verifiable fraud forensics in seconds.
+            A comprehensive web-based assessment suite empowering schools, colleges, and universities to author AI-assisted exams, run lightweight browser-based proctoring, and maintain verifiable academic audit trails.
         </p>
 
-        <!-- CTA Action Buttons (shadcn style) -->
-        <div class="mt-8 flex flex-wrap items-center justify-center gap-3">
-            <a href="/login?role=admin" class="shadcn-btn shadcn-btn-default h-11 px-6 rounded-xl font-medium shadow-sm hover:shadow">
-                <i data-lucide="shield" class="w-4 h-4 text-indigo-400"></i>
-                <span>Tutor / Admin Portal</span>
+        <!-- CTA Action Buttons -->
+        <div class="mt-8 flex flex-wrap items-center justify-center gap-3.5">
+            <a href="/register" class="shadcn-btn shadcn-btn-primary h-12 px-7 rounded-xl font-semibold shadow-sm hover:shadow transition-all">
+                <i data-lucide="sparkles" class="w-4 h-4"></i>
+                <span>Get Started Free</span>
             </a>
-            <a href="/login?role=student" class="shadcn-btn shadcn-btn-primary h-11 px-6 rounded-xl font-medium shadow-sm hover:shadow">
-                <i data-lucide="user-check" class="w-4 h-4"></i>
-                <span>Student Sign In</span>
+            <a href="/login?role=student" class="shadcn-btn shadcn-btn-secondary h-12 px-6 rounded-xl font-medium border border-slate-200 hover:bg-slate-100 transition-all">
+                <i data-lucide="user" class="w-4 h-4 text-sky-600"></i>
+                <span>Student Login</span>
             </a>
-            <a href="/register" class="shadcn-btn shadcn-btn-outline h-11 px-5 rounded-xl font-medium">
-                <i data-lucide="user-plus" class="w-4 h-4 text-slate-500"></i>
-                <span>Register Account</span>
+            <a href="/login?role=admin" class="shadcn-btn shadcn-btn-outline h-12 px-6 rounded-xl font-medium border border-slate-300 hover:bg-slate-50 transition-all">
+                <i data-lucide="shield" class="w-4 h-4 text-slate-700"></i>
+                <span>Tutor / Admin Login</span>
             </a>
         </div>
-    </div>
 
-    <!-- Feature Bento Grid (shadcn-card styling) -->
-    <div class="mt-16 grid grid-cols-1 md:grid-cols-3 gap-6">
-        <!-- Feature 1 -->
-        <div class="shadcn-card p-6 bg-white flex flex-col justify-between">
-            <div>
-                <div class="w-10 h-10 rounded-lg bg-sky-50 text-sky-600 border border-sky-100 flex items-center justify-center mb-4">
-                    <i data-lucide="sparkles" class="w-5 h-5"></i>
+        <!-- Metric highlights -->
+        <div class="mt-12 pt-8 border-t border-slate-200/80 grid grid-cols-2 sm:grid-cols-4 gap-4 text-left">
+            <div class="p-4 rounded-xl bg-white/60 border border-slate-200/70 shadow-2xs">
+                <div class="text-2xl font-black text-slate-900">100%</div>
+                <div class="text-xs text-slate-500 mt-0.5">Browser-Based Delivery</div>
+            </div>
+            <div class="p-4 rounded-xl bg-white/60 border border-slate-200/70 shadow-2xs">
+                <div class="text-2xl font-black text-sky-600">Edge AI</div>
+                <div class="text-xs text-slate-500 mt-0.5">On-Device Proctoring</div>
+            </div>
+            <div class="p-4 rounded-xl bg-white/60 border border-slate-200/70 shadow-2xs">
+                <div class="text-2xl font-black text-indigo-600">Dual Mode</div>
+                <div class="text-xs text-slate-500 mt-0.5">Video ON or OFF Choice</div>
+            </div>
+            <div class="p-4 rounded-xl bg-white/60 border border-slate-200/70 shadow-2xs">
+                <div class="text-2xl font-black text-emerald-600">Automated</div>
+                <div class="text-xs text-slate-500 mt-0.5">Instant Grading & Review</div>
+            </div>
+        </div>
+    </header>
+
+    <!-- 2. ABOUT EXAMGUARD -->
+    <section id="about" class="scroll-mt-24">
+        <div class="max-w-3xl mx-auto text-center mb-10">
+            <span class="text-xs font-bold text-sky-600 tracking-wider uppercase bg-sky-50 px-3 py-1 rounded-full border border-sky-100">About the Platform</span>
+            <h2 class="text-3xl sm:text-4xl font-extrabold text-slate-900 tracking-tight mt-3">What is ExamGuard AI?</h2>
+            <p class="mt-3 text-slate-600 text-base leading-relaxed">
+                Traditional remote assessments often force institutions into a difficult tradeoff: install intrusive spyware software on student machines, or accept unmonitored tests prone to academic dishonesty. ExamGuard AI bridges this gap with an open, privacy-conscious web architecture.
+            </p>
+        </div>
+
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-6 items-stretch">
+            <div class="shadcn-card p-7 bg-white rounded-2xl border border-slate-200 flex flex-col justify-between">
+                <div>
+                    <div class="w-11 h-11 rounded-xl bg-rose-50 text-rose-600 border border-rose-100 flex items-center justify-center mb-4">
+                        <i data-lucide="alert-triangle" class="w-5 h-5"></i>
+                    </div>
+                    <h3 class="text-lg font-bold text-slate-900 mb-2">The Problems We Aim to Solve</h3>
+                    <ul class="space-y-2.5 text-sm text-slate-600">
+                        <li class="flex items-start gap-2">
+                            <i data-lucide="x" class="w-4 h-4 text-rose-500 shrink-0 mt-0.5"></i>
+                            <span>Heavy native app requirements that crash standard student Chromebooks or low-spec laptops.</span>
+                        </li>
+                        <li class="flex items-start gap-2">
+                            <i data-lucide="x" class="w-4 h-4 text-rose-500 shrink-0 mt-0.5"></i>
+                            <span>Unclear cheating allegations based on opaque algorithmic scoring without audit evidence.</span>
+                        </li>
+                        <li class="flex items-start gap-2">
+                            <i data-lucide="x" class="w-4 h-4 text-rose-500 shrink-0 mt-0.5"></i>
+                            <span>Time-consuming manual question authoring and slow, error-prone paper grading workflows.</span>
+                        </li>
+                    </ul>
                 </div>
-                <h3 class="font-bold text-slate-900 text-lg mb-2">AI-Driven Question Gen</h3>
-                <p class="text-sm text-slate-600 leading-relaxed">
-                    Upload chapter PDFs or course notes to automatically produce rigorous, balanced MCQs with formulas rendered via KaTeX.
+                <div class="mt-6 pt-4 border-t border-slate-100 text-xs text-slate-500 font-medium">
+                    Eliminates invasive desktop installations
+                </div>
+            </div>
+
+            <div class="shadcn-card p-7 bg-white rounded-2xl border border-slate-200 flex flex-col justify-between">
+                <div>
+                    <div class="w-11 h-11 rounded-xl bg-emerald-50 text-emerald-600 border border-emerald-100 flex items-center justify-center mb-4">
+                        <i data-lucide="check-circle-2" class="w-5 h-5"></i>
+                    </div>
+                    <h3 class="text-lg font-bold text-slate-900 mb-2">The ExamGuard AI Solution</h3>
+                    <ul class="space-y-2.5 text-sm text-slate-600">
+                        <li class="flex items-start gap-2">
+                            <i data-lucide="check" class="w-4 h-4 text-emerald-600 shrink-0 mt-0.5"></i>
+                            <span><strong>Zero-Install Edge AI:</strong> Computer vision models execute directly in standard modern web browsers via TensorFlow.js.</span>
+                        </li>
+                        <li class="flex items-start gap-2">
+                            <i data-lucide="check" class="w-4 h-4 text-emerald-600 shrink-0 mt-0.5"></i>
+                            <span><strong>Verifiable Evidence:</strong> Timestamped snapshots and event logs provide teachers with clear factual records.</span>
+                        </li>
+                        <li class="flex items-start gap-2">
+                            <i data-lucide="check" class="w-4 h-4 text-emerald-600 shrink-0 mt-0.5"></i>
+                            <span><strong>Flexible Policies:</strong> Instructors can turn video proctoring completely OFF when camera monitoring is not required.</span>
+                        </li>
+                    </ul>
+                </div>
+                <div class="mt-6 pt-4 border-t border-slate-100 text-xs text-slate-500 font-medium">
+                    Fair, transparent, and respectful of candidate privacy
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- 3. KEY FEATURES -->
+    <section id="features" class="scroll-mt-24">
+        <div class="max-w-3xl mx-auto text-center mb-12">
+            <span class="text-xs font-bold text-indigo-600 tracking-wider uppercase bg-indigo-50 px-3 py-1 rounded-full border border-indigo-100">Platform Capabilities</span>
+            <h2 class="text-3xl sm:text-4xl font-extrabold text-slate-900 tracking-tight mt-3">Built for Modern Educational Integrity</h2>
+            <p class="mt-3 text-slate-600 text-base leading-relaxed">
+                Six core capability pillars designed around actual classroom and institutional needs.
+            </p>
+        </div>
+
+        <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+            <!-- Feature 1 -->
+            <div class="shadcn-card p-6 bg-white rounded-2xl border border-slate-200 flex flex-col justify-between">
+                <div>
+                    <div class="w-10 h-10 rounded-xl bg-sky-50 text-sky-600 border border-sky-100 flex items-center justify-center mb-4">
+                        <i data-lucide="clipboard-check" class="w-5 h-5"></i>
+                    </div>
+                    <h3 class="font-bold text-slate-900 text-lg mb-2">Online Examination Management</h3>
+                    <p class="text-sm text-slate-600 leading-relaxed">
+                        Schedule timed exams, set custom duration limits, configure pass criteria, and distribute instant access codes to enrolled candidates.
+                    </p>
+                </div>
+                <div class="mt-6 pt-4 border-t border-slate-100 text-xs font-medium text-sky-600">
+                    Comprehensive Exam Scheduler
+                </div>
+            </div>
+
+            <!-- Feature 2 -->
+            <div class="shadcn-card p-6 bg-white rounded-2xl border border-slate-200 flex flex-col justify-between">
+                <div>
+                    <div class="w-10 h-10 rounded-xl bg-indigo-50 text-indigo-600 border border-indigo-100 flex items-center justify-center mb-4">
+                        <i data-lucide="cpu" class="w-5 h-5"></i>
+                    </div>
+                    <h3 class="font-bold text-slate-900 text-lg mb-2">AI-Assisted Question Generation</h3>
+                    <p class="text-sm text-slate-600 leading-relaxed">
+                        Upload curriculum documents or syllabi to automatically draft balanced multiple-choice questions with LaTeX mathematical formulas rendered via KaTeX.
+                    </p>
+                </div>
+                <div class="mt-6 pt-4 border-t border-slate-100 text-xs font-medium text-indigo-600">
+                    Gemini 2.5 & Groq Integration
+                </div>
+            </div>
+
+            <!-- Feature 3 -->
+            <div class="shadcn-card p-6 bg-white rounded-2xl border border-slate-200 flex flex-col justify-between">
+                <div>
+                    <div class="w-10 h-10 rounded-xl bg-emerald-50 text-emerald-600 border border-emerald-100 flex items-center justify-center mb-4">
+                        <i data-lucide="calculator" class="w-5 h-5"></i>
+                    </div>
+                    <h3 class="font-bold text-slate-900 text-lg mb-2">Automated Assessment</h3>
+                    <p class="text-sm text-slate-600 leading-relaxed">
+                        Automatic score calculation upon submission, instant performance breakdown, and flexible instructor manual score adjustments with full rationale tracking.
+                    </p>
+                </div>
+                <div class="mt-6 pt-4 border-t border-slate-100 text-xs font-medium text-emerald-600">
+                    Deterministic Scoring Engine
+                </div>
+            </div>
+
+            <!-- Feature 4 -->
+            <div class="shadcn-card p-6 bg-white rounded-2xl border border-slate-200 flex flex-col justify-between">
+                <div>
+                    <div class="w-10 h-10 rounded-xl bg-purple-50 text-purple-600 border border-purple-100 flex items-center justify-center mb-4">
+                        <i data-lucide="video" class="w-5 h-5"></i>
+                    </div>
+                    <h3 class="font-bold text-slate-900 text-lg mb-2">AI-Assisted Browser Proctoring</h3>
+                    <p class="text-sm text-slate-600 leading-relaxed">
+                        Optional webcam proctoring runs BlazeFace and COCO-SSD on-device to flag multiple individuals or unauthorized mobile devices without recording 24/7 video streams.
+                    </p>
+                </div>
+                <div class="mt-6 pt-4 border-t border-slate-100 text-xs font-medium text-purple-600">
+                    Client Edge TensorFlow.js
+                </div>
+            </div>
+
+            <!-- Feature 5 -->
+            <div class="shadcn-card p-6 bg-white rounded-2xl border border-slate-200 flex flex-col justify-between">
+                <div>
+                    <div class="w-10 h-10 rounded-xl bg-amber-50 text-amber-600 border border-amber-100 flex items-center justify-center mb-4">
+                        <i data-lucide="shield-alert" class="w-5 h-5"></i>
+                    </div>
+                    <h3 class="font-bold text-slate-900 text-lg mb-2">Examination Integrity Monitoring</h3>
+                    <p class="text-sm text-slate-600 leading-relaxed">
+                        Monitors browser tab switching, window focus changes, developer inspection attempts, and honeypot question traps with clear candidate warnings.
+                    </p>
+                </div>
+                <div class="mt-6 pt-4 border-t border-slate-100 text-xs font-medium text-amber-600">
+                    Multi-Sensor Anomaly Tracking
+                </div>
+            </div>
+
+            <!-- Feature 6 -->
+            <div class="shadcn-card p-6 bg-white rounded-2xl border border-slate-200 flex flex-col justify-between">
+                <div>
+                    <div class="w-10 h-10 rounded-xl bg-slate-100 text-slate-800 border border-slate-200 flex items-center justify-center mb-4">
+                        <i data-lucide="file-text" class="w-5 h-5"></i>
+                    </div>
+                    <h3 class="font-bold text-slate-900 text-lg mb-2">Submission & Audit Management</h3>
+                    <p class="text-sm text-slate-600 leading-relaxed">
+                        Access complete forensic audit logs with timestamped snapshot evidence, session timeline breakdowns, and exportable print-ready reports for exam boards.
+                    </p>
+                </div>
+                <div class="mt-6 pt-4 border-t border-slate-100 text-xs font-medium text-slate-700">
+                    Verifiable Audit Trails
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- 4. HOW IT WORKS -->
+    <section id="how-it-works" class="scroll-mt-24">
+        <div class="max-w-3xl mx-auto text-center mb-12">
+            <span class="text-xs font-bold text-emerald-600 tracking-wider uppercase bg-emerald-50 px-3 py-1 rounded-full border border-emerald-100">Simple Workflow</span>
+            <h2 class="text-3xl sm:text-4xl font-extrabold text-slate-900 tracking-tight mt-3">How ExamGuard AI Works</h2>
+            <p class="mt-3 text-slate-600 text-base leading-relaxed">
+                A seamless, intuitive experience designed for educators and students alike.
+            </p>
+        </div>
+
+        <div class="grid grid-cols-1 lg:grid-cols-2 gap-8">
+            <!-- Teacher Workflow -->
+            <div class="shadcn-card p-7 bg-white rounded-2xl border border-slate-200">
+                <div class="flex items-center gap-3 mb-6 pb-4 border-b border-slate-100">
+                    <div class="w-9 h-9 rounded-lg bg-indigo-50 text-indigo-600 flex items-center justify-center">
+                        <i data-lucide="graduation-cap" class="w-5 h-5"></i>
+                    </div>
+                    <div>
+                        <h3 class="font-bold text-slate-900 text-base">Teacher & Instructor Workflow</h3>
+                        <p class="text-xs text-slate-500">From curriculum draft to verified exam report</p>
+                    </div>
+                </div>
+
+                <ol class="space-y-4 text-sm text-slate-600">
+                    <li class="flex items-start gap-3">
+                        <span class="w-6 h-6 rounded-full bg-slate-900 text-white text-xs font-bold flex items-center justify-center shrink-0 mt-0.5">1</span>
+                        <div>
+                            <span class="font-semibold text-slate-900">Create or Generate Questions:</span>
+                            <span class="block text-xs text-slate-500 mt-0.5">Author questions manually or use Gemini AI to generate balanced assessments from PDF notes.</span>
+                        </div>
+                    </li>
+                    <li class="flex items-start gap-3">
+                        <span class="w-6 h-6 rounded-full bg-slate-900 text-white text-xs font-bold flex items-center justify-center shrink-0 mt-0.5">2</span>
+                        <div>
+                            <span class="font-semibold text-slate-900">Configure Proctoring Policy:</span>
+                            <span class="block text-xs text-slate-500 mt-0.5">Select Video Proctoring (ON or OFF), set time limits, and publish the 6-digit access code.</span>
+                        </div>
+                    </li>
+                    <li class="flex items-start gap-3">
+                        <span class="w-6 h-6 rounded-full bg-slate-900 text-white text-xs font-bold flex items-center justify-center shrink-0 mt-0.5">3</span>
+                        <div>
+                            <span class="font-semibold text-slate-900">Monitor and Review Forensics:</span>
+                            <span class="block text-xs text-slate-500 mt-0.5">Review submissions, inspect flagged anomaly evidence, and finalize student grades.</span>
+                        </div>
+                    </li>
+                </ol>
+            </div>
+
+            <!-- Student Workflow -->
+            <div class="shadcn-card p-7 bg-white rounded-2xl border border-slate-200">
+                <div class="flex items-center gap-3 mb-6 pb-4 border-b border-slate-100">
+                    <div class="w-9 h-9 rounded-lg bg-sky-50 text-sky-600 flex items-center justify-center">
+                        <i data-lucide="user" class="w-5 h-5"></i>
+                    </div>
+                    <div>
+                        <h3 class="font-bold text-slate-900 text-base">Student Examination Experience</h3>
+                        <p class="text-xs text-slate-500">Distraction-free, browser-based assessment</p>
+                    </div>
+                </div>
+
+                <ol class="space-y-4 text-sm text-slate-600">
+                    <li class="flex items-start gap-3">
+                        <span class="w-6 h-6 rounded-full bg-sky-600 text-white text-xs font-bold flex items-center justify-center shrink-0 mt-0.5">1</span>
+                        <div>
+                            <span class="font-semibold text-slate-900">Sign In and Select Exam:</span>
+                            <span class="block text-xs text-slate-500 mt-0.5">Log in with institutional credentials and enter the exam access code.</span>
+                        </div>
+                    </li>
+                    <li class="flex items-start gap-3">
+                        <span class="w-6 h-6 rounded-full bg-sky-600 text-white text-xs font-bold flex items-center justify-center shrink-0 mt-0.5">2</span>
+                        <div>
+                            <span class="font-semibold text-slate-900">Guided Setup (If Video ON):</span>
+                            <span class="block text-xs text-slate-500 mt-0.5">Quick camera check and workspace alignment (skipped completely if Video is OFF).</span>
+                        </div>
+                    </li>
+                    <li class="flex items-start gap-3">
+                        <span class="w-6 h-6 rounded-full bg-sky-600 text-white text-xs font-bold flex items-center justify-center shrink-0 mt-0.5">3</span>
+                        <div>
+                            <span class="font-semibold text-slate-900">Take Assessment & Instant Review:</span>
+                            <span class="block text-xs text-slate-500 mt-0.5">Submit answers, receive automated scores, and review detailed question breakdowns.</span>
+                        </div>
+                    </li>
+                </ol>
+            </div>
+        </div>
+    </section>
+
+    <!-- 5. WHO CAN USE IT? -->
+    <section id="audience" class="scroll-mt-24">
+        <div class="max-w-3xl mx-auto text-center mb-12">
+            <span class="text-xs font-bold text-amber-600 tracking-wider uppercase bg-amber-50 px-3 py-1 rounded-full border border-amber-100">Institutional Fit</span>
+            <h2 class="text-3xl sm:text-4xl font-extrabold text-slate-900 tracking-tight mt-3">Tailored for Educational Institutions</h2>
+            <p class="mt-3 text-slate-600 text-base leading-relaxed">
+                Whether deploying for a single class or an entire faculty, ExamGuard AI adapts to your institution's specific testing scale.
+            </p>
+        </div>
+
+        <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
+            <div class="shadcn-card p-6 bg-white rounded-2xl border border-slate-200 flex flex-col justify-between">
+                <div>
+                    <div class="w-10 h-10 rounded-xl bg-sky-50 text-sky-600 flex items-center justify-center mb-4">
+                        <i data-lucide="school" class="w-5 h-5"></i>
+                    </div>
+                    <h3 class="font-bold text-slate-900 text-base mb-1.5">K-12 Schools</h3>
+                    <p class="text-xs text-slate-600 leading-relaxed">
+                        Deliver chapter quizzes and midterms on standard student Chromebooks without technical setup hurdles.
+                    </p>
+                </div>
+                <div class="mt-4 pt-3 border-t border-slate-100 text-[11px] font-semibold text-slate-500">
+                    Simple Code-Based Entry
+                </div>
+            </div>
+
+            <div class="shadcn-card p-6 bg-white rounded-2xl border border-slate-200 flex flex-col justify-between">
+                <div>
+                    <div class="w-10 h-10 rounded-xl bg-indigo-50 text-indigo-600 flex items-center justify-center mb-4">
+                        <i data-lucide="building" class="w-5 h-5"></i>
+                    </div>
+                    <h3 class="font-bold text-slate-900 text-base mb-1.5">Colleges</h3>
+                    <p class="text-xs text-slate-600 leading-relaxed">
+                        Support STEM examinations with KaTeX mathematical formulas, complex diagrams, and objective auto-grading.
+                    </p>
+                </div>
+                <div class="mt-4 pt-3 border-t border-slate-100 text-[11px] font-semibold text-slate-500">
+                    KaTeX Math & Formula Support
+                </div>
+            </div>
+
+            <div class="shadcn-card p-6 bg-white rounded-2xl border border-slate-200 flex flex-col justify-between">
+                <div>
+                    <div class="w-10 h-10 rounded-xl bg-emerald-50 text-emerald-600 flex items-center justify-center mb-4">
+                        <i data-lucide="landmark" class="w-5 h-5"></i>
+                    </div>
+                    <h3 class="font-bold text-slate-900 text-base mb-1.5">Universities</h3>
+                    <p class="text-xs text-slate-600 leading-relaxed">
+                        Maintain departmental integrity standards with verifiable forensic timelines and tamper-evident submission records.
+                    </p>
+                </div>
+                <div class="mt-4 pt-3 border-t border-slate-100 text-[11px] font-semibold text-slate-500">
+                    Verifiable Audit Records
+                </div>
+            </div>
+
+            <div class="shadcn-card p-6 bg-white rounded-2xl border border-slate-200 flex flex-col justify-between">
+                <div>
+                    <div class="w-10 h-10 rounded-xl bg-purple-50 text-purple-600 flex items-center justify-center mb-4">
+                        <i data-lucide="award" class="w-5 h-5"></i>
+                    </div>
+                    <h3 class="font-bold text-slate-900 text-base mb-1.5">Testing Centers</h3>
+                    <p class="text-xs text-slate-600 leading-relaxed">
+                        Flexible proctoring toggles accommodate open-book assessments as well as high-security invigilated exams.
+                    </p>
+                </div>
+                <div class="mt-4 pt-3 border-t border-slate-100 text-[11px] font-semibold text-slate-500">
+                    Configurable Policy Rules
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- 6. SECURITY AND PRIVACY -->
+    <section id="security" class="scroll-mt-24">
+        <div class="shadcn-card bg-gradient-to-br from-slate-900 to-slate-950 text-white p-8 sm:p-12 rounded-3xl border border-slate-800 shadow-xl">
+            <div class="max-w-3xl mb-8">
+                <span class="text-xs font-bold text-sky-400 tracking-wider uppercase bg-sky-950/80 px-3 py-1 rounded-full border border-sky-800">Defensible Security</span>
+                <h2 class="text-3xl font-extrabold tracking-tight mt-3 text-white">Realistic Security & Data Protection</h2>
+                <p class="mt-3 text-slate-300 text-sm sm:text-base leading-relaxed">
+                    ExamGuard AI adheres to practical defense-in-depth engineering principles. We avoid unrealistic 100% security claims, focusing instead on verifiable technical safeguards and candidate privacy.
                 </p>
             </div>
-            <div class="mt-5 pt-4 border-t border-slate-100 flex items-center justify-between text-xs text-slate-500">
-                <span>Gemini 2.5 & Groq</span>
-                <span class="font-medium text-sky-600">Automated</span>
-            </div>
-        </div>
 
-        <!-- Feature 2 -->
-        <div class="shadcn-card p-6 bg-white flex flex-col justify-between">
-            <div>
-                <div class="w-10 h-10 rounded-lg bg-indigo-50 text-indigo-600 border border-indigo-100 flex items-center justify-center mb-4">
-                    <i data-lucide="eye" class="w-5 h-5"></i>
+            <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
+                <div class="p-5 rounded-2xl bg-slate-800/60 border border-slate-700/80">
+                    <div class="w-9 h-9 rounded-lg bg-sky-500/20 text-sky-400 flex items-center justify-center mb-3">
+                        <i data-lucide="lock" class="w-4 h-4"></i>
+                    </div>
+                    <h3 class="font-bold text-white text-base mb-1.5">Edge Privacy Architecture</h3>
+                    <p class="text-xs text-slate-300 leading-relaxed">
+                        Webcam streams are analyzed locally on the candidate's device via TensorFlow.js. Video frames are not continuously uploaded to cloud servers, protecting student privacy.
+                    </p>
                 </div>
-                <h3 class="font-bold text-slate-900 text-lg mb-2">Client Edge Proctoring</h3>
-                <p class="text-sm text-slate-600 leading-relaxed">
-                    Browser ML models (BlazeFace & COCO-SSD) flag multi-face presence, gaze deviations, and unauthorized mobile phones in real-time.
-                </p>
-            </div>
-            <div class="mt-5 pt-4 border-t border-slate-100 flex items-center justify-between text-xs text-slate-500">
-                <span>TensorFlow.js Edge</span>
-                <span class="font-medium text-indigo-600">Zero Server Lag</span>
-            </div>
-        </div>
 
-        <!-- Feature 3 -->
-        <div class="shadcn-card p-6 bg-white flex flex-col justify-between">
-            <div>
-                <div class="w-10 h-10 rounded-lg bg-emerald-50 text-emerald-600 border border-emerald-100 flex items-center justify-center mb-4">
-                    <i data-lucide="file-check-2" class="w-5 h-5"></i>
+                <div class="p-5 rounded-2xl bg-slate-800/60 border border-slate-700/80">
+                    <div class="w-9 h-9 rounded-lg bg-emerald-500/20 text-emerald-400 flex items-center justify-center mb-3">
+                        <i data-lucide="shield-check" class="w-4 h-4"></i>
+                    </div>
+                    <h3 class="font-bold text-white text-base mb-1.5">Defense-in-Depth Headers</h3>
+                    <p class="text-xs text-slate-300 leading-relaxed">
+                        Enforces strict Content Security Policy (CSP), HTTP Strict Transport Security (HSTS), X-Frame-Options DENY, and CSRF protection across all state-changing endpoints.
+                    </p>
                 </div>
-                <h3 class="font-bold text-slate-900 text-lg mb-2">Automated Grading & Audit</h3>
-                <p class="text-sm text-slate-600 leading-relaxed">
-                    Instant scoring with granular violation logs, webcam snapshots, trust scores, and exportable forensics for academic integrity.
-                </p>
-            </div>
-            <div class="mt-5 pt-4 border-t border-slate-100 flex items-center justify-between text-xs text-slate-500">
-                <span>Full Audit Trail</span>
-                <span class="font-medium text-emerald-600">Exportable</span>
+
+                <div class="p-5 rounded-2xl bg-slate-800/60 border border-slate-700/80">
+                    <div class="w-9 h-9 rounded-lg bg-indigo-500/20 text-indigo-400 flex items-center justify-center mb-3">
+                        <i data-lucide="eye-off" class="w-4 h-4"></i>
+                    </div>
+                    <h3 class="font-bold text-white text-base mb-1.5">Indexing Protection</h3>
+                    <p class="text-xs text-slate-300 leading-relaxed">
+                        All student submissions, candidate reports, and tutor dashboards are strictly protected by session authentication and protocol-level <code class="text-sky-300">X-Robots-Tag: noindex, nofollow</code> headers.
+                    </p>
+                </div>
             </div>
         </div>
-    </div>
+    </section>
 
-    <!-- Frequently Asked Questions (FAQ) Section -->
-    <div class="mt-24 border-t border-slate-200 pt-16">
-        <div class="text-center max-w-2xl mx-auto mb-12">
-            <h2 class="text-3xl font-extrabold text-slate-900 tracking-tight">Frequently Asked Questions</h2>
-            <p class="mt-3 text-slate-600">Answers to common questions about ExamGuard AI examinations, privacy, and proctoring technology.</p>
+    <!-- 7. FREQUENTLY ASKED QUESTIONS (FAQ) -->
+    <section id="faq" class="scroll-mt-24">
+        <div class="max-w-2xl mx-auto text-center mb-10">
+            <span class="text-xs font-bold text-sky-600 tracking-wider uppercase bg-sky-50 px-3 py-1 rounded-full border border-sky-100">Support & FAQ</span>
+            <h2 class="text-3xl font-extrabold text-slate-900 tracking-tight mt-3">Frequently Asked Questions</h2>
+            <p class="mt-3 text-slate-600 text-sm">Answers to common questions about ExamGuard AI examinations, privacy, and proctoring technology.</p>
         </div>
 
         <div class="grid grid-cols-1 md:grid-cols-2 gap-6 max-w-4xl mx-auto">
-            <div class="shadcn-card p-6 bg-white rounded-xl border border-slate-200 shadow-xs">
+            <div class="shadcn-card p-6 bg-white rounded-xl border border-slate-200 shadow-2xs">
                 <h3 class="text-base font-bold text-slate-900 flex items-center gap-2 mb-2">
-                    <i data-lucide="help-circle" class="w-4 h-4 text-sky-600"></i>
+                    <i data-lucide="help-circle" class="w-4 h-4 text-sky-600 shrink-0"></i>
                     What is ExamGuard AI?
                 </h3>
                 <p class="text-sm text-slate-600 leading-relaxed">
@@ -134,9 +483,9 @@
                 </p>
             </div>
 
-            <div class="shadcn-card p-6 bg-white rounded-xl border border-slate-200 shadow-xs">
+            <div class="shadcn-card p-6 bg-white rounded-xl border border-slate-200 shadow-2xs">
                 <h3 class="text-base font-bold text-slate-900 flex items-center gap-2 mb-2">
-                    <i data-lucide="lock" class="w-4 h-4 text-indigo-600"></i>
+                    <i data-lucide="lock" class="w-4 h-4 text-indigo-600 shrink-0"></i>
                     How does client-side proctoring protect student privacy?
                 </h3>
                 <p class="text-sm text-slate-600 leading-relaxed">
@@ -144,9 +493,9 @@
                 </p>
             </div>
 
-            <div class="shadcn-card p-6 bg-white rounded-xl border border-slate-200 shadow-xs">
+            <div class="shadcn-card p-6 bg-white rounded-xl border border-slate-200 shadow-2xs">
                 <h3 class="text-base font-bold text-slate-900 flex items-center gap-2 mb-2">
-                    <i data-lucide="monitor" class="w-4 h-4 text-emerald-600"></i>
+                    <i data-lucide="monitor" class="w-4 h-4 text-emerald-600 shrink-0"></i>
                     Can exams be run without webcam requirements?
                 </h3>
                 <p class="text-sm text-slate-600 leading-relaxed">
@@ -154,16 +503,96 @@
                 </p>
             </div>
 
-            <div class="shadcn-card p-6 bg-white rounded-xl border border-slate-200 shadow-xs">
+            <div class="shadcn-card p-6 bg-white rounded-xl border border-slate-200 shadow-2xs">
                 <h3 class="text-base font-bold text-slate-900 flex items-center gap-2 mb-2">
-                    <i data-lucide="file-text" class="w-4 h-4 text-amber-600"></i>
+                    <i data-lucide="file-text" class="w-4 h-4 text-amber-600 shrink-0"></i>
                     How are proctoring events reviewed?
                 </h3>
                 <p class="text-sm text-slate-600 leading-relaxed">
                     Any flagged events (such as multiple faces, tab switching, or unauthorized devices) are logged with exact timestamps and evidence snapshots in the tutor portal, giving educators objective data for integrity decisions.
                 </p>
             </div>
+
+            <div class="shadcn-card p-6 bg-white rounded-xl border border-slate-200 shadow-2xs">
+                <h3 class="text-base font-bold text-slate-900 flex items-center gap-2 mb-2">
+                    <i data-lucide="sparkles" class="w-4 h-4 text-sky-600 shrink-0"></i>
+                    How does AI question generation work?
+                </h3>
+                <p class="text-sm text-slate-600 leading-relaxed">
+                    Instructors can upload course syllabi or textbook notes. Integrated AI models (Google Gemini and Groq) draft multiple-choice questions with answer choices and mathematical formula syntax for instructor review.
+                </p>
+            </div>
+
+            <div class="shadcn-card p-6 bg-white rounded-xl border border-slate-200 shadow-2xs">
+                <h3 class="text-base font-bold text-slate-900 flex items-center gap-2 mb-2">
+                    <i data-lucide="device-laptop" class="w-4 h-4 text-purple-600 shrink-0"></i>
+                    Do students need to install software?
+                </h3>
+                <p class="text-sm text-slate-600 leading-relaxed">
+                    No installation or browser extensions are required. ExamGuard AI operates entirely within modern web browsers (Chrome, Edge, Firefox, Safari) on laptops, desktops, and Chromebooks.
+                </p>
+            </div>
         </div>
-    </div>
+    </section>
+
+    <!-- 8. FOOTER -->
+    <footer class="mt-20 pt-12 pb-8 border-t border-slate-200 text-slate-600 text-sm">
+        <div class="grid grid-cols-1 md:grid-cols-4 gap-8 mb-10">
+            <!-- Col 1: Branding -->
+            <div class="md:col-span-2 space-y-3">
+                <div class="flex items-center gap-2">
+                    <div class="w-8 h-8 rounded-lg bg-slate-900 text-white flex items-center justify-center shadow-xs">
+                        <i data-lucide="shield-check" class="w-4 h-4 text-sky-400"></i>
+                    </div>
+                    <span class="font-bold text-lg text-slate-900">ExamGuard<span class="text-sky-600">AI</span></span>
+                </div>
+                <p class="text-xs text-slate-500 max-w-sm leading-relaxed">
+                    High-integrity online examination platform featuring AI question generation, client-side browser proctoring, and verifiable forensic audit trails.
+                </p>
+                <div class="text-[11px] text-slate-400">
+                    &copy; {{ current_year or 2026 }} ExamGuard AI. All rights reserved.
+                </div>
+            </div>
+
+            <!-- Col 2: Navigation -->
+            <div class="space-y-2.5">
+                <h4 class="text-xs font-bold uppercase tracking-wider text-slate-900">Platform</h4>
+                <ul class="space-y-1.5 text-xs text-slate-600">
+                    <li><a href="/" class="hover:text-sky-600 transition">Home</a></li>
+                    <li><a href="/#about" class="hover:text-sky-600 transition">About</a></li>
+                    <li><a href="/#features" class="hover:text-sky-600 transition">Key Features</a></li>
+                    <li><a href="/#how-it-works" class="hover:text-sky-600 transition">How It Works</a></li>
+                    <li><a href="/#security" class="hover:text-sky-600 transition">Security & Privacy</a></li>
+                    <li><a href="/#faq" class="hover:text-sky-600 transition">FAQ</a></li>
+                </ul>
+            </div>
+
+            <!-- Col 3: Portal & Support -->
+            <div class="space-y-2.5">
+                <h4 class="text-xs font-bold uppercase tracking-wider text-slate-900">Portals & Support</h4>
+                <ul class="space-y-1.5 text-xs text-slate-600">
+                    <li><a href="/login?role=student" class="hover:text-sky-600 transition">Student Login</a></li>
+                    <li><a href="/login?role=admin" class="hover:text-sky-600 transition">Tutor / Admin Login</a></li>
+                    <li><a href="/register" class="hover:text-sky-600 transition">Register Account</a></li>
+                    <li class="pt-2 text-[11px] text-slate-500">
+                        <span class="block font-medium text-slate-700">Institutional Contact:</span>
+                        <a href="mailto:support@examguard.ai" class="text-sky-600 hover:underline">support@examguard.ai</a>
+                    </li>
+                </ul>
+            </div>
+        </div>
+
+        <div class="pt-6 border-t border-slate-100 flex flex-col sm:flex-row items-center justify-between text-xs text-slate-400 gap-2">
+            <div>
+                Built for academic rigor, candidate privacy, and defensible examination audits.
+            </div>
+            <div class="flex items-center gap-4">
+                <a href="/login" class="hover:text-slate-600 transition">Sign In</a>
+                <span class="text-slate-300">&bull;</span>
+                <a href="/register" class="hover:text-slate-600 transition">Register</a>
+            </div>
+        </div>
+    </footer>
+
 </div>
 {% endblock %}
