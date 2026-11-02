@@ -1,6 +1,31 @@
 {% extends "base.html" %}
 
 {% block content %}
+<!-- Structured Data (JSON-LD) for SoftwareApplication -->
+<script type="application/ld+json">
+{
+  "@context": "https://schema.org",
+  "@type": "SoftwareApplication",
+  "name": "ExamGuard AI",
+  "operatingSystem": "Web Browser",
+  "applicationCategory": "EducationalApplication",
+  "description": "ExamGuard AI is an online examination and proctoring platform featuring AI question generation, client-side browser proctoring, and verifiable forensic audit trails.",
+  "url": "https://exam.pinku19.me/",
+  "offers": {
+    "@type": "Offer",
+    "price": "0",
+    "priceCurrency": "USD"
+  },
+  "featureList": [
+    "AI Question Generation with Google Gemini and Groq",
+    "Client-Side Multi-Sensor Proctoring with TensorFlow.js and MediaPipe",
+    "Automated Grading and Forensic Integrity Audit Trails",
+    "Configurable Video Proctoring and Workspace Desk Verification",
+    "Real-Time Intercom and Session Anomaly Alerts"
+  ]
+}
+</script>
+
 <div class="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 py-16">
     <!-- Hero Section -->
     <div class="text-center max-w-3xl mx-auto">
@@ -90,6 +115,55 @@
             </div>
         </div>
     </div>
+
+    <!-- Frequently Asked Questions (FAQ) Section -->
+    <div class="mt-24 border-t border-slate-200 pt-16">
+        <div class="text-center max-w-2xl mx-auto mb-12">
+            <h2 class="text-3xl font-extrabold text-slate-900 tracking-tight">Frequently Asked Questions</h2>
+            <p class="mt-3 text-slate-600">Answers to common questions about ExamGuard AI examinations, privacy, and proctoring technology.</p>
+        </div>
+
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-6 max-w-4xl mx-auto">
+            <div class="shadcn-card p-6 bg-white rounded-xl border border-slate-200 shadow-xs">
+                <h3 class="text-base font-bold text-slate-900 flex items-center gap-2 mb-2">
+                    <i data-lucide="help-circle" class="w-4 h-4 text-sky-600"></i>
+                    What is ExamGuard AI?
+                </h3>
+                <p class="text-sm text-slate-600 leading-relaxed">
+                    ExamGuard AI is a secure web-based examination platform designed for educators and institutions. It automates test creation, delivers timed assessments, and provides multi-sensor proctoring with tamper-evident audit trails.
+                </p>
+            </div>
+
+            <div class="shadcn-card p-6 bg-white rounded-xl border border-slate-200 shadow-xs">
+                <h3 class="text-base font-bold text-slate-900 flex items-center gap-2 mb-2">
+                    <i data-lucide="lock" class="w-4 h-4 text-indigo-600"></i>
+                    How does client-side proctoring protect student privacy?
+                </h3>
+                <p class="text-sm text-slate-600 leading-relaxed">
+                    Proctoring detection models (such as BlazeFace and COCO-SSD) run locally inside the student's web browser using TensorFlow.js. Video streams are analyzed on-device rather than continuously uploaded, minimizing bandwidth and safeguarding student privacy.
+                </p>
+            </div>
+
+            <div class="shadcn-card p-6 bg-white rounded-xl border border-slate-200 shadow-xs">
+                <h3 class="text-base font-bold text-slate-900 flex items-center gap-2 mb-2">
+                    <i data-lucide="monitor" class="w-4 h-4 text-emerald-600"></i>
+                    Can exams be run without webcam requirements?
+                </h3>
+                <p class="text-sm text-slate-600 leading-relaxed">
+                    Yes. Tutors can configure exams with Video Proctoring toggled OFF. When disabled, candidates take assessments without webcam permission prompts, desk setup, or facial recognition steps.
+                </p>
+            </div>
+
+            <div class="shadcn-card p-6 bg-white rounded-xl border border-slate-200 shadow-xs">
+                <h3 class="text-base font-bold text-slate-900 flex items-center gap-2 mb-2">
+                    <i data-lucide="file-text" class="w-4 h-4 text-amber-600"></i>
+                    How are proctoring events reviewed?
+                </h3>
+                <p class="text-sm text-slate-600 leading-relaxed">
+                    Any flagged events (such as multiple faces, tab switching, or unauthorized devices) are logged with exact timestamps and evidence snapshots in the tutor portal, giving educators objective data for integrity decisions.
+                </p>
+            </div>
+        </div>
+    </div>
 </div>
 {% endblock %}
-

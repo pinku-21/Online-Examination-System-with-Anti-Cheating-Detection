@@ -1,0 +1,5 @@
+User-agent: *
+Allow: /
+
+# Directives
+Sitemap: https://exam.pinku19.me/sitemap.xml

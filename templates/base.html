@@ -4,7 +4,33 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <meta name="csrf-token" content="{{ csrf_token }}">
-    <title>{% block title %}ExamGuard AI - Smart Examination & Anti-Cheating System{% endblock %}</title>
+    <title>{% block title %}ExamGuard AI - AI-Powered Online Examination & Autonomous Proctoring System{% endblock %}</title>
+
+    <!-- Canonical & SEO Meta -->
+    {% block canonical_tag %}
+    <link rel="canonical" href="{% block canonical_url %}https://exam.pinku19.me/{% endblock %}">
+    {% endblock %}
+    <meta name="description" content="{% block meta_description %}ExamGuard AI is an automated online examination platform featuring AI question generation, client-side browser proctoring, and verifiable forensic audit trails.{% endblock %}">
+    <meta name="keywords" content="ExamGuard AI, online examination system, anti-cheating proctoring, AI exam proctor, online assessment platform">
+    <meta name="author" content="ExamGuard AI">
+    {% block meta_robots %}{% endblock %}
+
+    <!-- Favicon -->
+    <link rel="icon" type="image/svg+xml" href="{{ url_for('static', filename='favicon.svg') }}">
+    <link rel="alternate icon" href="/favicon.ico">
+
+    <!-- Open Graph / Facebook -->
+    <meta property="og:type" content="website">
+    <meta property="og:url" content="{% block og_url %}https://exam.pinku19.me/{% endblock %}">
+    <meta property="og:title" content="{% block og_title %}ExamGuard AI - AI-Powered Online Examination & Autonomous Proctoring System{% endblock %}">
+    <meta property="og:description" content="{% block og_description %}ExamGuard AI is an automated online examination platform featuring AI question generation, client-side browser proctoring, and verifiable forensic audit trails.{% endblock %}">
+    <meta property="og:site_name" content="ExamGuard AI">
+
+    <!-- Twitter Cards -->
+    <meta name="twitter:card" content="summary_large_image">
+    <meta name="twitter:url" content="{% block twitter_url %}https://exam.pinku19.me/{% endblock %}">
+    <meta name="twitter:title" content="{% block twitter_title %}ExamGuard AI - AI-Powered Online Examination & Autonomous Proctoring System{% endblock %}">
+    <meta name="twitter:description" content="{% block twitter_description %}ExamGuard AI is an automated online examination platform featuring AI question generation, client-side browser proctoring, and verifiable forensic audit trails.{% endblock %}">
     <!-- Tailwind CSS via CDN -->
     <script src="https://cdn.tailwindcss.com"></script>
     <script>
@@ -70,7 +96,7 @@
     <script defer src="https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/contrib/auto-render.min.js" onload="if (window.renderMathInElement) { renderMathInElement(document.body, { delimiters: [{left: '$$', right: '$$', display: true}, {left: '$', right: '$', display: false}, {left: '\\(', right: '\\)', display: false}, {left: '\\[', right: '\\]', display: true}], throwOnError: false }); }"></script>
     <style>
         @import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600&display=swap');
-        
+
         :root {
             --background: 210 40% 98%;
             --foreground: 222.2 84% 4.9%;
@@ -119,7 +145,7 @@
             color: hsl(var(--foreground));
             transition: background-color 0.2s ease, color 0.2s ease;
         }
-        
+
         /* shadcn/ui Utility Helpers */
         .shadcn-card {
             background-color: hsl(var(--card));
@@ -360,7 +386,7 @@
                     </span>
                 </div>
             </a>
-            
+
             <nav class="flex items-center space-x-2 sm:space-x-3">
                 {% if session.get('user_id') %}
                     {% if session.get('user_role') == 'admin' %}
@@ -377,7 +403,7 @@
                     {% endif %}
 
                     <!-- Top Right User Profile Hub Trigger (matches mobile app screenshot) -->
-                    <button type="button" onclick="openStudentHubDrawer()" id="btn-open-hub-drawer" 
+                    <button type="button" onclick="openStudentHubDrawer()" id="btn-open-hub-drawer"
                             class="flex items-center gap-2 pl-1.5 pr-2.5 py-1 rounded-full bg-slate-100 hover:bg-slate-200/80 dark:bg-slate-800 dark:hover:bg-slate-700/80 border border-slate-200 dark:border-slate-700 transition cursor-pointer group shadow-2xs"
                             title="Open Assessment Hub & Exam Menu">
                         <div class="w-7 h-7 rounded-full overflow-hidden bg-sky-500 text-white flex items-center justify-center font-bold text-xs ring-2 ring-white dark:ring-slate-900 flex-shrink-0">
@@ -428,9 +454,9 @@
 
     <!-- SLIDE-OVER ASSESSMENT HUB DRAWER (matches user's mobile screen) -->
     <div id="student-hub-drawer-backdrop" class="fixed inset-0 z-50 bg-slate-900/50 backdrop-blur-xs transition-opacity opacity-0 pointer-events-none duration-300"></div>
-    <aside id="student-hub-drawer" 
+    <aside id="student-hub-drawer"
            class="fixed top-0 right-0 z-50 h-full w-full sm:w-[410px] bg-slate-50 dark:bg-slate-950 shadow-2xl border-l border-slate-200 dark:border-slate-800 transform translate-x-full transition-transform duration-300 ease-in-out flex flex-col overflow-hidden">
-        
+
         <!-- Drawer Header with Close Button -->
         <div class="px-5 py-3.5 bg-white dark:bg-slate-900 border-b border-slate-200/80 dark:border-slate-800 flex items-center justify-between">
             <div class="flex items-center gap-2">
@@ -443,7 +469,7 @@
         </div>
 
         <div class="flex-1 overflow-y-auto px-5 py-5 space-y-4">
-            
+
             {% if session.get('user_id') %}
             <!-- 1. Gradient Profile Header Card (Matches Screenshot #1) -->
             <div class="relative overflow-hidden rounded-3xl bg-gradient-to-br from-sky-500 via-sky-600 to-indigo-600 text-white p-5 shadow-lg shadow-sky-500/20">

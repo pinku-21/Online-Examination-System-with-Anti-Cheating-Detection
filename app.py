@@ -161,6 +161,11 @@ def apply_security_headers(response):
     # Apply HSTS over HTTPS / Render reverse proxy
     if request.is_secure or request.headers.get("X-Forwarded-Proto", "").lower() == "https":
         response.headers["Strict-Transport-Security"] = "max-age=31536000; includeSubDomains"
+
+    # Prevent search engines from indexing private candidate, tutor, exam, or API endpoints
+    private_prefixes = ("/student", "/tutor", "/exam", "/api", "/asset", "/submission")
+    if request.path.startswith(private_prefixes):
+        response.headers["X-Robots-Tag"] = "noindex, nofollow"
         
     return response
 
@@ -173,6 +178,21 @@ def health_check():
         "service": "Online Examination System",
         "timestamp": get_current_time().isoformat()
     }), 200
+
+@app.route("/robots.txt")
+def robots_txt():
+    """Serve search engine crawling directives."""
+    return send_from_directory(app.static_folder, "robots.txt", mimetype="text/plain")
+
+@app.route("/sitemap.xml")
+def sitemap_xml():
+    """Serve XML sitemap for public pages."""
+    return send_from_directory(app.static_folder, "sitemap.xml", mimetype="application/xml")
+
+@app.route("/favicon.ico")
+def favicon_ico():
+    """Serve SVG favicon for legacy / standard root favicon requests."""
+    return send_from_directory(app.static_folder, "favicon.svg", mimetype="image/svg+xml")
 
 @app.route("/googlede1ba37c9959b88b.html")
 def google_verification():
