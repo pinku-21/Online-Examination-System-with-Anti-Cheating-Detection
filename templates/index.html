@@ -32,9 +32,9 @@
     <!-- 1. HERO SECTION -->
     <header class="text-center max-w-4xl mx-auto pt-4 sm:pt-8">
         <!-- Top Announcement Badge -->
-        <div class="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-full border border-slate-200 bg-white/90 shadow-2xs text-xs font-medium text-slate-700 mb-6">
-            <span class="inline-block w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></span>
-            <span class="font-semibold text-slate-900">ExamGuard AI v2.4</span>
+        <div class="inline-flex items-center gap-2.5 px-4 py-1.5 rounded-full border border-sky-200/80 bg-white/90 shadow-xs text-xs font-medium text-slate-700 mb-6">
+            <img src="{{ url_for('static', filename='brand/app_icon_64.png') }}" alt="Logo" class="w-4 h-4 rounded-sm object-cover">
+            <span class="font-bold text-slate-900">ExamGuard AI v2.4</span>
             <span class="text-slate-300">|</span>
             <span class="text-slate-600">Enterprise Educational Assessment Platform</span>
         </div>
@@ -540,11 +540,11 @@
         <div class="grid grid-cols-1 md:grid-cols-4 gap-8 mb-10">
             <!-- Col 1: Branding -->
             <div class="md:col-span-2 space-y-3">
-                <div class="flex items-center gap-2">
-                    <div class="w-8 h-8 rounded-lg bg-slate-900 text-white flex items-center justify-center shadow-xs">
-                        <i data-lucide="shield-check" class="w-4 h-4 text-sky-400"></i>
+                <div class="flex items-center gap-2.5">
+                    <div class="relative w-8 h-8 rounded-lg overflow-hidden border border-sky-500/40 shadow-xs shadow-sky-500/20 bg-slate-950 flex items-center justify-center p-0.5">
+                        <img src="{{ url_for('static', filename='brand/app_icon_64.png') }}" alt="ExamGuard AI" class="w-full h-full object-cover rounded-md">
                     </div>
-                    <span class="font-bold text-lg text-slate-900">ExamGuard<span class="text-sky-600">AI</span></span>
+                    <span class="font-black text-lg text-slate-900">ExamGuard<span class="text-transparent bg-clip-text bg-gradient-to-r from-sky-500 to-cyan-500"> AI</span></span>
                 </div>
                 <p class="text-xs text-slate-500 max-w-sm leading-relaxed">
                     High-integrity online examination platform featuring AI question generation, client-side browser proctoring, and verifiable forensic audit trails.
