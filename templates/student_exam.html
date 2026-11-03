@@ -307,29 +307,64 @@
 
             // Auto-extract targets if hotspots are empty
             if ((!hotspots || hotspots.length === 0) && q.question_text) {
+                // Known geographical coordinate anchor dictionary
+                const GEO_TARGET_COORDS = [
+                    { keywords: ['himalay', 'k2', 'karakoram', 'everest', 'ladakh', 'kashmir'], name: 'Himalayan Mountains', x: 44.0, y: 16.0 },
+                    { keywords: ['thar', 'desert', 'rajasthan', 'aravalli', 'jaipur'], name: 'Thar Desert', x: 21.0, y: 32.0 },
+                    { keywords: ['ganga', 'ganges', 'yamuna', 'plain', 'varanasi', 'prayagraj'], name: 'River Ganga', x: 47.0, y: 31.0 },
+                    { keywords: ['western ghat', 'malabar', 'konkan', 'sahyadri', 'goa', 'mumbai'], name: 'Western Ghats', x: 24.0, y: 68.0 },
+                    { keywords: ['eastern ghat', 'coromandel', 'odisha', 'andhra', 'visakhapatnam'], name: 'Eastern Ghats', x: 54.0, y: 62.0 },
+                    { keywords: ['indian ocean', 'kanyakumari', 'cape comorin', 'southern sea'], name: 'Indian Ocean', x: 48.0, y: 93.0 },
+                    { keywords: ['arabian sea', 'lakshadweep'], name: 'Arabian Sea', x: 12.0, y: 72.0 },
+                    { keywords: ['bay of bengal', 'andaman'], name: 'Bay of Bengal', x: 80.0, y: 65.0 },
+                    { keywords: ['deccan', 'plateau', 'maharashtra', 'telangana'], name: 'Deccan Plateau', x: 38.0, y: 55.0 },
+                    { keywords: ['brahmaputra', 'assam', 'guwahati'], name: 'Brahmaputra River', x: 78.0, y: 28.0 },
+                    { keywords: ['sundarbans', 'delta', 'kolkata', 'bengal'], name: 'Sundarbans Delta', x: 67.0, y: 44.0 }
+                ];
+
                 const matches = [...q.question_text.matchAll(/(?:Pin\s*P?(\d+)|\(([a-zA-Z0-9]+)\))\s*[:\-\—]?\s*([^\n\(]+)/g)];
                 if (matches.length > 0) {
                     const extractedLabels = matches.map(m => (m[3] || '').trim().replace(/[\.\;\,]+$/, ''));
                     labels = extractedLabels;
-                    const coords = [
-                        { x: 26.0, y: 68.0 }, // West (Western Ghats / Pin 1)
-                        { x: 21.0, y: 32.0 }, // North-West (Thar Desert / Aravalli / Pin 2)
-                        { x: 40.0, y: 42.0 }, // Central (Tropic of Cancer / Pin 3)
-                        { x: 52.0, y: 22.0 }, // North-East (Sikkim / Kanchenjunga)
-                        { x: 46.0, y: 65.0 }  // East (Eastern Ghats)
-                    ];
-                    hotspots = extractedLabels.map((lbl, idx) => ({
-                        id: 'P' + (idx + 1),
-                        x: (coords[idx] ? coords[idx].x : (25 + (idx * 20) % 55)),
-                        y: (coords[idx] ? coords[idx].y : (30 + (idx * 18) % 55))
-                    }));
+                    hotspots = extractedLabels.map((lbl, idx) => {
+                        const lblLower = lbl.toLowerCase();
+                        const matchedGeo = GEO_TARGET_COORDS.find(g => g.keywords.some(k => lblLower.includes(k)));
+                        return {
+                            id: 'P' + (idx + 1),
+                            x: matchedGeo ? matchedGeo.x : (20 + ((idx * 21) % 60)),
+                            y: matchedGeo ? matchedGeo.y : (22 + ((idx * 17) % 65))
+                        };
+                    });
                 } else {
-                    // Absolute guarantee: at least 3 default pins
-                    hotspots = [
-                        { id: 'P1', x: 26.0, y: 68.0 },
-                        { id: 'P2', x: 21.0, y: 32.0 },
-                        { id: 'P3', x: 40.0, y: 42.0 }
-                    ];
+                    // Try colon-separated / comma-separated list of items (e.g. Locate ... on map: The Himalayas, The Thar Desert...)
+                    const colonIdx = q.question_text.indexOf(':');
+                    let listItems = [];
+                    if (colonIdx !== -1) {
+                        const listPart = q.question_text.substring(colonIdx + 1);
+                        listItems = listPart.split(/[,;]|\band\b/i)
+                            .map(s => s.replace(/^(?:and\s+|the\s+)/i, '').replace(/[\.\;\,\(\)]+$/g, '').trim())
+                            .filter(s => s.length > 2);
+                    }
+
+                    if (listItems.length > 0) {
+                        labels = listItems;
+                        hotspots = listItems.map((lbl, idx) => {
+                            const lblLower = lbl.toLowerCase();
+                            const matchedGeo = GEO_TARGET_COORDS.find(g => g.keywords.some(k => lblLower.includes(k)));
+                            return {
+                                id: 'P' + (idx + 1),
+                                x: matchedGeo ? matchedGeo.x : (20 + ((idx * 21) % 60)),
+                                y: matchedGeo ? matchedGeo.y : (22 + ((idx * 17) % 65))
+                            };
+                        });
+                    } else {
+                        // Absolute guarantee: 3 canonical pins
+                        hotspots = [
+                            { id: 'P1', x: 44.0, y: 16.0 }, // Himalayas
+                            { id: 'P2', x: 21.0, y: 32.0 }, // Thar Desert
+                            { id: 'P3', x: 24.0, y: 68.0 }  // Western Ghats
+                        ];
+                    }
                 }
                 if (!q.options || typeof q.options !== 'object' || Array.isArray(q.options)) {
                     q.options = { hotspots: hotspots, labels: labels, image_url: mapImg };
@@ -339,7 +374,6 @@
                     q.options.image_url = mapImg;
                 }
             }
-
             // Fallback candidate labels if labels array is empty
             if (!labels || labels.length === 0) {
                 const qLower = (q.question_text || '').toLowerCase();
@@ -376,8 +410,8 @@
                 </div>
 
                 <div class="border-2 border-indigo-200 rounded-2xl overflow-hidden bg-sky-50/50 shadow-md max-w-full mx-auto text-center p-2" id="student-map-canvas-${q.id}">
-                    <div class="relative inline-block max-w-full leading-none">
-                        ${mapImg ? `<img src="${mapImg}" alt="Map Question" class="max-h-[460px] max-w-full w-auto h-auto block mx-auto pointer-events-none select-none">` : `<div class="p-12 text-slate-500">Map loading...</div>`}
+                    <div class="relative inline-block max-w-full leading-none" style="min-width: min(100%, 360px); min-height: 280px;">
+                        ${mapImg ? `<img src="${mapImg}" alt="Map Question" class="max-h-[520px] max-w-full w-auto h-auto block mx-auto pointer-events-none select-none transition-opacity duration-300" style="min-width: min(100%, 320px); min-height: 260px; object-fit: contain;" onerror="this.onerror=null; this.src='/static/maps/india.svg';">` : `<div class="p-12 text-slate-500">Map loading...</div>`}
                         ${hotspots.map((h, idx) => {
                             const ans = currentPins[h.id];
                             const isAnswered = Boolean(ans);

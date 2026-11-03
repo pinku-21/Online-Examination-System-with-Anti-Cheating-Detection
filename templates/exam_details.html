@@ -1347,6 +1347,17 @@
             try { proctorMediaRecorder.stop(); } catch(e){}
         }
 
+        // Shared modal state accessible across both didOpen and preConfirm
+        let isRecording = false;
+        let stream = null;
+        let activeAudioPlayer = null;
+        let activeAudioUrl = null;
+        let recordingTimer = null;
+        let recordingSeconds = 0;
+        let isConvertingAudio = false;
+        let audioConversionPromise = null;
+        let stopVoiceRecording = () => {};
+
         const { value: formValues, isConfirmed } = await Swal.fire({
             title: `🎙️ Emergency Walkie-Talkie & Intercom`,
             html: `
@@ -1426,14 +1437,6 @@
                 const playLabel = document.getElementById('play-btn-label');
                 const statusSpan = document.getElementById('intercom-mic-status');
                 const labelSpan = document.getElementById('record-btn-label');
-                let isRecording = false;
-                let stream = null;
-                let activeAudioPlayer = null;
-                let activeAudioUrl = null;
-                let recordingTimer = null;
-                let recordingSeconds = 0;
-                let isConvertingAudio = false;
-                let audioConversionPromise = null;
 
                 function getSupportedAudioMimeType() {
                     const types = [
@@ -1558,7 +1561,7 @@
                     }
                 }
 
-                function stopVoiceRecording() {
+                stopVoiceRecording = function() {
                     if (proctorMediaRecorder && proctorMediaRecorder.state !== 'inactive') {
                         try {
                             proctorMediaRecorder.stop();
@@ -1571,7 +1574,7 @@
                     isRecording = false;
                     if (labelSpan) labelSpan.innerText = 'Re-record Voice';
                     if (recordBtn) recordBtn.classList.replace('from-red-700', 'from-rose-600');
-                }
+                };
 
                 if (recordBtn) {
                     recordBtn.onclick = () => {
@@ -1624,6 +1627,7 @@
             confirmButtonText: '📡 Transmit Intercom to Candidate',
             confirmButtonColor: '#0284c7',
             cancelButtonText: 'Cancel',
+            showLoaderOnConfirm: true,
             preConfirm: async () => {
                 if (isRecording) {
                     stopVoiceRecording();
@@ -1647,10 +1651,26 @@
 
         if (!isConfirmed || !formValues) return;
 
+        // Visual loading state & transmission in progress
+        Swal.fire({
+            title: 'Transmitting Intercom...',
+            text: 'Delivering secure voice memo and notice to candidate...',
+            allowOutsideClick: false,
+            allowEscapeKey: false,
+            didOpen: () => {
+                Swal.showLoading();
+            }
+        });
+
         try {
+            const csrfMeta = document.querySelector('meta[name="csrf-token"]');
+            const csrfToken = csrfMeta ? csrfMeta.getAttribute('content') : '';
+            const headers = { 'Content-Type': 'application/json' };
+            if (csrfToken) headers['X-CSRFToken'] = csrfToken;
+
             const resp = await fetch(`/api/tutor/submission/${subId}/send-message`, {
                 method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
+                headers: headers,
                 body: JSON.stringify(formValues)
             });
             const res = await resp.json();
@@ -1659,17 +1679,17 @@
                     icon: 'success',
                     title: 'Transmitted!',
                     text: res.message || 'Intercom dispatched to student screen.',
-                    timer: 2000,
-                    showConfirmButton: false
+                    timer: 2500,
+                    showConfirmButton: true
                 });
             } else {
-                Swal.fire({ icon: 'error', title: 'Error', text: res.error || 'Failed to dispatch intercom.' });
+                Swal.fire({ icon: 'error', title: 'Transmission Error', text: res.error || 'Failed to dispatch intercom.' });
             }
         } catch (err) {
-            Swal.fire({ icon: 'error', title: 'Network Error', text: 'Could not connect to proctor server.' });
+            console.error('Intercom transmission network error:', err);
+            Swal.fire({ icon: 'error', title: 'Network Error', text: 'Could not connect to proctor server. Please verify network connection.' });
         }
     }
-
     // Auto-poll telemetry every 5 seconds when on cockpit view
     document.addEventListener('DOMContentLoaded', () => {
         fetchLiveProctorData();
