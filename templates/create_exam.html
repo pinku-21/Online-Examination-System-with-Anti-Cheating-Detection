@@ -40,6 +40,10 @@
                     <i data-lucide="clipboard-paste" class="w-3.5 h-3.5 text-slate-500"></i>
                     <span>2. Paste Question Paper</span>
                 </button>
+                <button type="button" id="tab-mode-local" onclick="switchCreationMode('local')" class="shadcn-tab-trigger flex-1 py-2 text-xs flex items-center justify-center space-x-2">
+                    <i data-lucide="brain-circuit" class="w-3.5 h-3.5 text-emerald-700"></i>
+                    <span>3. Local AI Studio</span>
+                </button>
             </div>
 
             <!-- OPTION 1 PANEL: Upload & AI Generator (shadcn-card with Step Accordions) -->
@@ -331,6 +335,72 @@ Section B - Short Questions (3 marks each)
                     </button>
                 </div>
             </div>
+
+            <!-- OPTION 3 PANEL: Local AI Studio foundation -->
+            <section id="panel-mode-local" class="hidden bg-white rounded-2xl p-5 sm:p-6 border border-emerald-200 shadow-sm space-y-5" aria-labelledby="local-ai-title">
+                <div class="flex items-start justify-between gap-3 border-b border-slate-100 pb-4">
+                    <div>
+                        <h3 id="local-ai-title" class="font-bold text-slate-900 flex items-center gap-2">
+                            <i data-lucide="brain-circuit" class="w-5 h-5 text-emerald-700"></i>
+                            <span>Local AI Studio</span>
+                        </h3>
+                        <p class="text-xs text-slate-500 mt-1">A private workspace powered by Ollama models you run or control.</p>
+                    </div>
+                    <span class="shadcn-badge bg-emerald-50 text-emerald-700 border-emerald-200 text-[10px]">New workspace</span>
+                </div>
+
+                <div class="rounded-xl border border-emerald-200 bg-emerald-50/60 p-4">
+                    <div class="flex items-center gap-2 text-sm font-bold text-emerald-950">
+                        <i data-lucide="shield-check" class="w-4 h-4"></i>
+                        Local-first. No paid API fallback.
+                    </div>
+                    <p class="text-xs leading-relaxed text-emerald-900 mt-1">This workspace will connect to your own Ollama server. It will not send prompts to Gemini, Groq, OpenRouter, or another hosted AI provider.</p>
+                </div>
+
+                <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                    <div class="rounded-xl border border-slate-200 p-4 space-y-2">
+                        <div class="flex items-center gap-2 font-bold text-sm text-slate-900">
+                            <i data-lucide="monitor" class="w-4 h-4 text-emerald-700"></i> My Windows PC
+                        </div>
+                        <span class="inline-flex text-[10px] font-bold rounded-full bg-emerald-50 text-emerald-700 px-2 py-1">Preferred local model</span>
+                        <p class="text-xs text-slate-600">Ollama · qwen2.5:3b</p>
+                        <p class="text-[11px] text-slate-500">Available when your PC is running and securely reachable.</p>
+                    </div>
+                    <div class="rounded-xl border border-slate-200 p-4 space-y-2">
+                        <div class="flex items-center gap-2 font-bold text-sm text-slate-900">
+                            <i data-lucide="cloud" class="w-4 h-4 text-sky-700"></i> Optional remote Ollama
+                        </div>
+                        <span class="inline-flex text-[10px] font-bold rounded-full bg-slate-100 text-slate-600 px-2 py-1">Not configured</span>
+                        <p class="text-xs text-slate-600">For mobile access when your PC is offline.</p>
+                        <p class="text-[11px] text-slate-500">No cloud host will be created or billed automatically.</p>
+                    </div>
+                </div>
+
+                <div class="rounded-xl border border-slate-200 p-4 space-y-3">
+                    <div class="flex items-center justify-between gap-2">
+                        <h4 class="font-bold text-sm text-slate-900">Connection manager</h4>
+                        <span class="inline-flex items-center gap-1.5 text-[11px] font-semibold text-amber-700">
+                            <span class="w-2 h-2 rounded-full bg-amber-400"></span> Setup required
+                        </span>
+                    </div>
+                    <p class="text-xs text-slate-600">The web app is hosted separately from your Windows computer. We will configure a secure bridge before enabling connection tests. Ollama's port must never be exposed directly to the public internet.</p>
+                    <label for="local-ai-model" class="block text-xs font-semibold text-slate-700">Preferred model</label>
+                    <input id="local-ai-model" type="text" value="qwen2.5:3b" readonly class="w-full px-3 py-2 text-sm rounded-lg border border-slate-200 bg-slate-50 text-slate-700">
+                    <button type="button" disabled class="w-full py-2.5 rounded-xl bg-slate-200 text-slate-500 text-sm font-bold cursor-not-allowed" title="Connection bridge is not configured yet">
+                        <i data-lucide="plug" class="w-4 h-4 inline mr-1"></i> Connection test will be enabled after secure setup
+                    </button>
+                </div>
+
+                <div class="rounded-xl bg-slate-50 border border-slate-200 p-4">
+                    <h4 class="font-bold text-sm text-slate-800 mb-2">Coming next</h4>
+                    <ul class="text-xs text-slate-600 space-y-1.5 list-disc pl-4">
+                        <li>Secure local-PC connection and health check</li>
+                        <li>Optional authenticated remote Ollama endpoint</li>
+                        <li>Local chat, model list and conversation history</li>
+                        <li>Document intelligence and specialist agents</li>
+                    </ul>
+                </div>
+            </section>
 
             <!-- Exam Parameters Card -->
             <div class="bg-white rounded-2xl p-6 border border-slate-200 shadow-sm space-y-4">
@@ -700,24 +770,27 @@ Section B - Short Questions (3 marks each)
 
     // Switch between Option 1 (Upload & Generate) and Option 2 (Paste Existing Questions)
     function switchCreationMode(mode) {
-        const tabAi = document.getElementById('tab-mode-ai');
-        const tabPaste = document.getElementById('tab-mode-paste');
-        const panelAi = document.getElementById('panel-mode-ai');
-        const panelPaste = document.getElementById('panel-mode-paste');
-
-        if (mode === 'ai') {
-            tabAi.className = 'py-2.5 px-3 rounded-xl text-xs font-bold transition flex items-center justify-center space-x-2 bg-gradient-to-r from-sky-600 to-indigo-600 text-white shadow-sm';
-            tabPaste.className = 'py-2.5 px-3 rounded-xl text-xs font-bold transition flex items-center justify-center space-x-2 bg-slate-50 text-slate-700 hover:bg-slate-100 hover:text-slate-900 border border-slate-200';
-            panelAi.classList.remove('hidden');
-            panelPaste.classList.add('hidden');
-        } else {
-            tabPaste.className = 'py-2.5 px-3 rounded-xl text-xs font-bold transition flex items-center justify-center space-x-2 bg-gradient-to-r from-emerald-600 to-teal-600 text-white shadow-sm';
-            tabAi.className = 'py-2.5 px-3 rounded-xl text-xs font-bold transition flex items-center justify-center space-x-2 bg-slate-50 text-slate-700 hover:bg-slate-100 hover:text-slate-900 border border-slate-200';
-            panelPaste.classList.remove('hidden');
-            panelAi.classList.add('hidden');
-            document.getElementById('pasted-paper-text').focus();
+        const modes = {
+            ai: { tab: 'tab-mode-ai', panel: 'panel-mode-ai', active: 'bg-gradient-to-r from-sky-600 to-indigo-600 text-white shadow-sm' },
+            paste: { tab: 'tab-mode-paste', panel: 'panel-mode-paste', active: 'bg-gradient-to-r from-emerald-600 to-teal-600 text-white shadow-sm' },
+            local: { tab: 'tab-mode-local', panel: 'panel-mode-local', active: 'bg-gradient-to-r from-emerald-600 to-teal-600 text-white shadow-sm' }
+        };
+        const selected = modes[mode] || modes.ai;
+        Object.values(modes).forEach(item => {
+            const tab = document.getElementById(item.tab);
+            const panel = document.getElementById(item.panel);
+            if (tab) tab.className = 'shadcn-tab-trigger flex-1 py-2 text-xs flex items-center justify-center space-x-2 bg-slate-50 text-slate-700 hover:bg-slate-100 border border-slate-200';
+            if (panel) panel.classList.add('hidden');
+        });
+        const activeTab = document.getElementById(selected.tab);
+        const activePanel = document.getElementById(selected.panel);
+        if (activeTab) activeTab.className = 'shadcn-tab-trigger flex-1 py-2 text-xs flex items-center justify-center space-x-2 ' + selected.active;
+        if (activePanel) activePanel.classList.remove('hidden');
+        if (mode === 'paste') {
+            const pastedText = document.getElementById('pasted-paper-text');
+            if (pastedText) pastedText.focus();
         }
-        lucide.createIcons();
+        if (window.lucide) lucide.createIcons();
     }
 
     function clearPastedText() {
