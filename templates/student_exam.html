@@ -416,11 +416,11 @@
                             const ans = currentPins[h.id];
                             const isAnswered = Boolean(ans);
                             return `
-                                <div class="absolute -translate-x-1/2 -translate-y-full cursor-pointer group z-20 pointer-events-auto" style="left: ${h.x}%; top: ${h.y}%;" onclick="openHotspotPicker('${q.id}', '${h.id}', ${idx+1})" id="pin-marker-${q.id}-${h.id}">
-                                    <div class="w-8 h-8 rounded-full ${isAnswered ? 'bg-emerald-600 ring-emerald-300' : 'bg-rose-600 ring-rose-300 animate-bounce'} text-white font-black text-xs flex items-center justify-center shadow-lg border-2 border-white ring-4 transition transform group-hover:scale-125">
+                                <div class="absolute -translate-x-1/2 -translate-y-1/2 cursor-pointer group z-20 pointer-events-auto" style="left: ${h.x}%; top: ${h.y}%;" onclick="openHotspotPicker('${q.id}', '${h.id}', ${idx+1})" id="pin-marker-${q.id}-${h.id}">
+                                    <div class="w-3.5 h-3.5 sm:w-4 sm:h-4 rounded-full ${isAnswered ? 'bg-emerald-600 ring-1 ring-emerald-300' : 'bg-rose-600 ring-1 ring-rose-300'} text-white font-bold text-[9px] sm:text-[10px] leading-none flex items-center justify-center shadow-sm border border-white transition transform group-hover:scale-125 select-none">
                                         ${idx+1}
                                     </div>
-                                    <div class="absolute top-9 left-1/2 -translate-x-1/2 bg-slate-900/90 text-white text-[11px] font-bold px-2 py-0.5 rounded shadow whitespace-nowrap z-30">
+                                    <div class="hidden group-hover:block absolute bottom-full left-1/2 -translate-x-1/2 mb-1.5 bg-slate-900/95 text-white text-[10px] font-medium px-2 py-0.5 rounded shadow-md whitespace-nowrap z-30 pointer-events-none">
                                         ${ans ? ans.substring(0, 25) : `Pin ${idx+1}: Click to identify`}
                                     </div>
                                 </div>

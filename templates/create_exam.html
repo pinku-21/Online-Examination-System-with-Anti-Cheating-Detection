@@ -1383,11 +1383,11 @@ Section B - Short Questions (3 marks each)
                             <div class="relative inline-block border-2 border-indigo-200 rounded-xl overflow-hidden bg-slate-900 shadow-sm max-w-full cursor-crosshair select-none" id="map-canvas-${qIndex}" onclick="handleMapCanvasClick(event, ${qIndex})">
                                 <img src="${mapImg}" alt="Map Question Diagram" class="max-h-[380px] w-auto block mx-auto pointer-events-none" id="map-img-${qIndex}">
                                 ${hotspots.map((h, hIdx) => `
-                                    <div class="absolute -translate-x-1/2 -translate-y-full cursor-pointer group pointer-events-auto" style="left: ${h.x}%; top: ${h.y}%;" title="Pin ${hIdx+1}: ${correctPins[h.id] || 'Click to edit'}">
-                                        <div class="w-6 h-6 rounded-full bg-rose-600 text-white text-[11px] font-black flex items-center justify-center shadow-lg border-2 border-white ring-2 ring-rose-400 group-hover:scale-125 transition">
+                                    <div class="absolute -translate-x-1/2 -translate-y-1/2 cursor-pointer group pointer-events-auto" style="left: ${h.x}%; top: ${h.y}%;" title="Pin ${hIdx+1}: ${correctPins[h.id] || 'Click to edit'}">
+                                        <div class="w-3.5 h-3.5 sm:w-4 sm:h-4 rounded-full bg-rose-600 text-white text-[9px] sm:text-[10px] font-bold leading-none flex items-center justify-center shadow-sm border border-white ring-1 ring-rose-400 group-hover:scale-125 transition select-none">
                                             ${hIdx+1}
                                         </div>
-                                        <div class="hidden group-hover:block absolute top-7 left-1/2 -translate-x-1/2 bg-slate-900 text-white text-[10px] font-bold px-2 py-0.5 rounded shadow whitespace-nowrap z-30">
+                                        <div class="hidden group-hover:block absolute bottom-full left-1/2 -translate-x-1/2 mb-1.5 bg-slate-900/95 text-white text-[10px] font-medium px-2 py-0.5 rounded shadow-md whitespace-nowrap z-30 pointer-events-none">
                                             ${correctPins[h.id] || `Pin ${hIdx+1}`}
                                         </div>
                                     </div>
