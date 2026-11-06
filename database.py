@@ -725,6 +725,15 @@ def get_student_submissions(user_id, roll_number=None):
         if row.get("max_warnings") is None:
             row["max_warnings"] = 10
 
+        # Never expose provisional marks in the student dashboard.
+        if row.get("status") in ("submitted", "terminated") and not bool(row.get("is_published")):
+            row["score"] = None
+            row["total_points"] = None
+            row["percentage"] = None
+            row["result_pending"] = True
+        else:
+            row["result_pending"] = False
+
     return results
 
 def get_setting(key, default=""):
