@@ -725,14 +725,24 @@ def get_student_submissions(user_id, roll_number=None):
         if row.get("max_warnings") is None:
             row["max_warnings"] = 10
 
-        # Never expose provisional marks in the student dashboard.
-        if row.get("status") in ("submitted", "terminated") and not bool(row.get("is_published") or row.get("exam_results_published")):
+        # Show the AI-calculated total once evaluation is complete, while
+        # keeping question-level answers and feedback hidden until publication.
+        is_published = bool(row.get("is_published") or row.get("exam_results_published"))
+        evaluation_complete = row.get("evaluation_status") in ("awaiting_teacher", "needs_review")
+        row["result_pending"] = (
+            row.get("status") in ("submitted", "terminated")
+            and not is_published
+            and not evaluation_complete
+        )
+        row["awaiting_publication"] = (
+            row.get("status") in ("submitted", "terminated")
+            and not is_published
+            and evaluation_complete
+        )
+        if row["result_pending"]:
             row["score"] = None
             row["total_points"] = None
             row["percentage"] = None
-            row["result_pending"] = True
-        else:
-            row["result_pending"] = False
 
     return results
 
