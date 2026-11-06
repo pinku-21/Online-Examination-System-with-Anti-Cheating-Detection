@@ -2570,8 +2570,16 @@ def evaluate_submission_internal(submission_id):
         conn.close()
         return False, "Submission not found"
 
-    cursor.execute("SELECT * FROM questions WHERE exam_id = ?", (submission["exam_id"],))
+    cursor.execute("SELECT * FROM questions WHERE exam_id = ? ORDER BY id ASC", (submission["exam_id"],))
     all_questions = cursor.fetchall()
+    total_questions = len(all_questions)
+    cursor.execute("""
+        UPDATE submissions
+        SET evaluation_status = 'evaluating', evaluation_progress = 0,
+            evaluation_total_questions = ?, evaluation_error = ''
+        WHERE id = ?
+    """, (total_questions, submission_id))
+    conn.commit()
 
     student_answers = json.loads(submission["answers_json"]) if submission["answers_json"] else {}
     existing_eval = json.loads(submission["manual_evaluation_json"]) if submission["manual_evaluation_json"] else {}
@@ -2581,8 +2589,11 @@ def evaluate_submission_internal(submission_id):
 
     results = []
     total_exam_points = 0.0
+    has_evaluation_errors = False
 
-    for q in all_questions:
+    for question_index, q in enumerate(all_questions, start=1):
+        cursor.execute("UPDATE submissions SET evaluation_progress = ? WHERE id = ?", (question_index, submission_id))
+        conn.commit()
         qid_s = str(q["id"])
         q_pts = float(q["points"])
         total_exam_points += q_pts
@@ -2665,7 +2676,11 @@ def evaluate_submission_internal(submission_id):
         )
 
         if eval_result.get("success"):
-            awarded = float(eval_result["awarded_marks"])
+            try:
+                awarded = round(float(eval_result["awarded_marks"]), 1)
+            except (TypeError, ValueError):
+                awarded = 0.0
+            awarded = max(0.0, min(q_pts, awarded))
             feedback = eval_result.get("feedback", "")
             model_used = eval_result.get("model_used", "AI")
             existing_eval[qid_s] = {
@@ -2683,18 +2698,20 @@ def evaluate_submission_internal(submission_id):
             }
             results.append({"question_id": qid_s, "question_text": q["question_text"][:60], "success": True, "awarded_marks": awarded, "max_points": q_pts})
         else:
-            # Fall back to objective check
-            corr = (q["correct_answer"] or "").strip().lower()
-            awarded = q_pts if (corr and student_text.lower() == corr) else 0.0
+            # Never silently convert an AI failure into a guessed score.
+            # The teacher must review this answer before publishing the result.
+            has_evaluation_errors = True
             existing_eval[qid_s] = {
-                "awarded_marks": awarded,
+                "awarded_marks": 0.0,
                 "max_points": q_pts,
-                "feedback": "Objective check fallback.",
-                "model_used": "System",
-                "evaluated_by": "auto",
+                "feedback": "AI evaluation could not be completed. Teacher review is required.",
+                "model_used": "Evaluation unavailable",
+                "evaluated_by": "system",
+                "evaluation_failed": True,
+                "evaluation_error": str(eval_result.get("error", "AI evaluation failed."))[:500],
                 "evaluated_at": datetime.now(IST).strftime("%Y-%m-%d %H:%M:%S")
             }
-            results.append({"question_id": qid_s, "question_text": q["question_text"][:60], "success": False, "awarded_marks": awarded, "max_points": q_pts, "reason": eval_result.get("error", "AI failed")})
+            results.append({"question_id": qid_s, "question_text": q["question_text"][:60], "success": False, "awarded_marks": 0.0, "max_points": q_pts, "reason": eval_result.get("error", "AI failed")})
 
     # Recalculate total score taking OR alternatives into account
     new_total_score, total_exam_points, percentage = compute_submission_score_with_or(
@@ -2706,16 +2723,61 @@ def evaluate_submission_internal(submission_id):
         row_get(submission, "warnings_count", 0) or 0, row_get(submission, "status", "") or "",
         row_get(submission, "answers_json")
     )
+    final_eval_status = "needs_review" if has_evaluation_errors else "awaiting_teacher"
+    failure_count = sum(1 for item in results if not item.get("success") and item.get("reason") != "Not attempted")
+    status_message = f"{failure_count} answer(s) need manual review." if failure_count else ""
     cursor.execute("""
         UPDATE submissions
         SET manual_evaluation_json = ?, score = ?, total_points = ?, percentage = ?,
-            integrity_hash = ?
+            integrity_hash = ?, evaluation_status = ?, evaluation_progress = ?,
+            evaluation_total_questions = ?, evaluation_error = ?
         WHERE id = ?
     """, (json.dumps(existing_eval), new_total_score, total_exam_points, percentage,
-          integrity_hash, submission_id))
+          integrity_hash, final_eval_status, total_questions, total_questions,
+          status_message, submission_id))
     conn.commit()
     conn.close()
-    return True, {"results": results, "new_score": new_total_score, "total_points": total_exam_points, "percentage": percentage}
+    return True, {"results": results, "new_score": new_total_score, "total_points": total_exam_points, "percentage": percentage, "evaluation_status": final_eval_status}
+
+def _run_submission_evaluation(submission_id):
+    """Claim a queued submission once, run grading, and persist worker failures."""
+    claim_conn = get_connection()
+    try:
+        claim_cursor = claim_conn.cursor()
+        claim_cursor.execute("""
+            UPDATE submissions
+            SET evaluation_status = 'evaluating'
+            WHERE id = ? AND evaluation_status = 'queued' AND is_published = 0
+        """, (submission_id,))
+        claimed = claim_cursor.rowcount == 1
+        claim_conn.commit()
+    finally:
+        claim_conn.close()
+
+    if not claimed:
+        return False, "Evaluation job was already claimed or is no longer pending."
+
+    try:
+        return evaluate_submission_internal(submission_id)
+    except Exception as exc:
+        app.logger.exception("Automatic evaluation failed for submission %s", submission_id)
+        conn = None
+        try:
+            conn = get_connection()
+            cursor = conn.cursor()
+            cursor.execute("""
+                UPDATE submissions
+                SET evaluation_status = 'failed', evaluation_error = ?
+                WHERE id = ? AND is_published = 0
+            """, (str(exc)[:1000], submission_id))
+            conn.commit()
+        except Exception:
+            app.logger.exception("Could not persist evaluation failure for submission %s", submission_id)
+        finally:
+            if conn:
+                conn.close()
+        return False, "Automatic evaluation failed. Teacher review is required."
+
 
 @app.route("/api/tutor/submission/<int:submission_id>/evaluate-all", methods=["POST"])
 @admin_required
@@ -4504,9 +4566,20 @@ def api_submit_exam(submission_id):
     conn.commit()
     conn.close()
 
-    # Trigger automatic AI grading for all questions (including handwritten answers) in a background thread
-    # Results remain unpublished until verified by the tutor
-    threading.Thread(target=evaluate_submission_internal, args=(submission_id,), daemon=True).start()
+    # Persist the queued state before starting background evaluation.
+    queue_conn = get_connection()
+    queue_cursor = queue_conn.cursor()
+    queue_cursor.execute("""
+        UPDATE submissions
+        SET evaluation_status = 'queued', evaluation_progress = 0,
+            evaluation_total_questions = ?, evaluation_error = ''
+        WHERE id = ?
+    """, (len(questions), submission_id))
+    queue_conn.commit()
+    queue_conn.close()
+
+    # Existing execution remains asynchronous; status and failures are now persisted.
+    threading.Thread(target=_run_submission_evaluation, args=(submission_id,), daemon=True).start()
     
     return jsonify({"success": True, "submission_id": submission_id, "integrity_hash": integrity_token})
 
@@ -5208,12 +5281,16 @@ def api_toggle_submission_published(submission_id):
 
 
 @app.route("/api/submission/<int:submission_id>/publish-status", methods=["GET"])
+@login_required
 def api_submission_publish_status(submission_id):
-    """Allows student result page to poll and automatically refresh once tutor publishes."""
+    """Secure status endpoint for student evaluation progress and result publication."""
     conn = get_connection()
     cursor = conn.cursor()
     cursor.execute("""
-        SELECT s.id, s.is_published, e.results_published
+        SELECT s.id, s.user_id, s.roll_number, s.is_published,
+               s.evaluation_status, s.evaluation_progress,
+               s.evaluation_total_questions, s.evaluation_error,
+               e.results_published
         FROM submissions s
         JOIN exams e ON s.exam_id = e.id
         WHERE s.id = ?
@@ -5224,8 +5301,24 @@ def api_submission_publish_status(submission_id):
     if not row:
         return jsonify({"success": False, "error": "Submission not found."}), 404
 
+    if session.get("user_role") == "student":
+        owns_submission = (
+            (row["user_id"] is not None and row["user_id"] == session.get("user_id"))
+            or (row["user_id"] is None and row["roll_number"] == session.get("roll_number"))
+        )
+        if not owns_submission:
+            return jsonify({"success": False, "error": "Access denied."}), 403
+
     is_pub = bool(row["is_published"] or row["results_published"])
-    return jsonify({"success": True, "is_published": is_pub, "published": is_pub})
+    return jsonify({
+        "success": True,
+        "is_published": is_pub,
+        "published": is_pub,
+        "evaluation_status": row["evaluation_status"] or "not_started",
+        "evaluation_progress": int(row["evaluation_progress"] or 0),
+        "evaluation_total_questions": int(row["evaluation_total_questions"] or 0),
+        "evaluation_error": row["evaluation_error"] or ""
+    })
 
 
 
@@ -5461,13 +5554,24 @@ def exam_result(submission_id):
     sub_dict["score"] = round(float(sub_dict.get("score") or 0.0), 1)
     sub_dict["total_points"] = round(float(sub_dict.get("total_points") or 0.0), 1)
 
-    passed = (pct_val >= pass_val) and (sub_dict.get("status") != "terminated")
-    
-    # Check if tutor has published the evaluated results to the student
     is_published = bool(sub_dict.get("is_published") or sub_dict.get("results_published"))
-    # Admin / Tutor can always preview full questions
+    passed = is_published and (pct_val >= pass_val) and (sub_dict.get("status") != "terminated")
+
+    # Admin / Tutor can always preview the provisional evaluation for review.
     if session.get("user_role") == "admin":
         is_published = True
+        passed = (pct_val >= pass_val) and (sub_dict.get("status") != "terminated")
+
+    # Students may see the AI-calculated total once grading is complete, but
+    # question-level answers, correct answers, and feedback remain unpublished.
+    evaluation_complete = sub_dict.get("evaluation_status") in ("awaiting_teacher", "needs_review")
+    score_visible = is_published or evaluation_complete
+    if session.get("user_role") == "student" and not score_visible:
+        sub_dict["score"] = None
+        sub_dict["total_points"] = None
+        sub_dict["percentage"] = None
+    if session.get("user_role") == "student" and not is_published:
+        passed = False
 
     questions_review = []
     if is_published:
@@ -5564,6 +5668,32 @@ def exam_result(submission_id):
                            diagnostic_summary=diagnostic_summary,
                            integrity_hash=stored_hash or expected_hash,
                            is_tamper_verified=is_tamper_verified)
+
+def _recover_queued_evaluations():
+    """Resume jobs that were queued but not started before the app process stopped."""
+    conn = get_connection()
+    cursor = conn.cursor()
+    cursor.execute("""
+        SELECT id FROM submissions
+        WHERE status = 'submitted' AND evaluation_status = 'queued' AND is_published = 0
+        ORDER BY submitted_at ASC
+    """)
+    pending_ids = [row["id"] for row in cursor.fetchall()]
+    conn.close()
+    for pending_id in pending_ids:
+        threading.Thread(
+            target=_run_submission_evaluation,
+            args=(pending_id,),
+            daemon=True
+        ).start()
+
+
+# Recover persisted jobs that were waiting in the queue during a prior process shutdown.
+try:
+    _recover_queued_evaluations()
+except Exception:
+    app.logger.exception("Could not recover queued AI evaluation jobs")
+
 
 if __name__ == "__main__":
     is_debug = os.environ.get("FLASK_DEBUG", "False").strip().lower() in ("true", "1", "t")

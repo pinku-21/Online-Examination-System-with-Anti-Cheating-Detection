@@ -293,6 +293,10 @@ def init_db():
                 "ALTER TABLE questions ADD COLUMN IF NOT EXISTS figure_url TEXT",
                 "ALTER TABLE submissions ADD COLUMN IF NOT EXISTS user_id INTEGER",
                 "ALTER TABLE submissions ADD COLUMN IF NOT EXISTS manual_evaluation_json TEXT",
+                "ALTER TABLE submissions ADD COLUMN IF NOT EXISTS evaluation_status TEXT NOT NULL DEFAULT 'not_started'",
+                "ALTER TABLE submissions ADD COLUMN IF NOT EXISTS evaluation_progress INTEGER DEFAULT 0",
+                "ALTER TABLE submissions ADD COLUMN IF NOT EXISTS evaluation_total_questions INTEGER DEFAULT 0",
+                "ALTER TABLE submissions ADD COLUMN IF NOT EXISTS evaluation_error TEXT DEFAULT ''",
                 "ALTER TABLE users ADD COLUMN IF NOT EXISTS profile_photo TEXT DEFAULT ''",
                 "ALTER TABLE submissions ADD COLUMN IF NOT EXISTS verified_face_url TEXT DEFAULT ''",
                 "ALTER TABLE submissions ADD COLUMN IF NOT EXISTS is_face_verified INTEGER DEFAULT 0",
@@ -496,6 +500,10 @@ def init_db():
                 ("questions", "figure_url", "TEXT"),
                 ("submissions", "user_id", "INTEGER"),
                 ("submissions", "manual_evaluation_json", "TEXT"),
+                ("submissions", "evaluation_status", "TEXT NOT NULL DEFAULT 'not_started'"),
+                ("submissions", "evaluation_progress", "INTEGER DEFAULT 0"),
+                ("submissions", "evaluation_total_questions", "INTEGER DEFAULT 0"),
+                ("submissions", "evaluation_error", "TEXT DEFAULT ''"),
                 ("users", "profile_photo", "TEXT DEFAULT ''"),
                 ("submissions", "verified_face_url", "TEXT DEFAULT ''"),
                 ("submissions", "is_face_verified", "INTEGER DEFAULT 0"),
@@ -670,7 +678,7 @@ def get_student_submissions(user_id, roll_number=None):
     cursor = conn.cursor()
     if user_id:
         cursor.execute("""
-            SELECT s.*, e.title as exam_title, e.max_warnings, e.passing_percentage, e.exam_code
+            SELECT s.*, e.title as exam_title, e.max_warnings, e.passing_percentage, e.exam_code, e.results_published as exam_results_published
             FROM submissions s
             JOIN exams e ON s.exam_id = e.id
             WHERE s.user_id = ?
@@ -678,7 +686,7 @@ def get_student_submissions(user_id, roll_number=None):
         """, (user_id,))
     elif roll_number:
         cursor.execute("""
-            SELECT s.*, e.title as exam_title, e.max_warnings, e.passing_percentage, e.exam_code
+            SELECT s.*, e.title as exam_title, e.max_warnings, e.passing_percentage, e.exam_code, e.results_published as exam_results_published
             FROM submissions s
             JOIN exams e ON s.exam_id = e.id
             WHERE s.user_id IS NULL AND s.roll_number = ?
@@ -716,6 +724,25 @@ def get_student_submissions(user_id, roll_number=None):
             row["warnings_count"] = 0
         if row.get("max_warnings") is None:
             row["max_warnings"] = 10
+
+        # Show the AI-calculated total once evaluation is complete, while
+        # keeping question-level answers and feedback hidden until publication.
+        is_published = bool(row.get("is_published") or row.get("exam_results_published"))
+        evaluation_complete = row.get("evaluation_status") in ("awaiting_teacher", "needs_review")
+        row["result_pending"] = (
+            row.get("status") in ("submitted", "terminated")
+            and not is_published
+            and not evaluation_complete
+        )
+        row["awaiting_publication"] = (
+            row.get("status") in ("submitted", "terminated")
+            and not is_published
+            and evaluation_complete
+        )
+        if row["result_pending"]:
+            row["score"] = None
+            row["total_points"] = None
+            row["percentage"] = None
 
     return results
 

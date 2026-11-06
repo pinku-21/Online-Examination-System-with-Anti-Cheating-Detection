@@ -328,11 +328,19 @@
                             <tr class="hover:bg-slate-50/60 transition">
                                 <td class="px-6 py-4 font-bold text-slate-900">{{ sub.exam_title }}</td>
                                 <td class="px-6 py-4 font-mono text-xs text-slate-700 font-semibold">{{ sub.exam_code }}</td>
-                                <td class="px-6 py-4 font-bold text-slate-900">{{ sub.score }} / {{ sub.total_points }}</td>
+                                <td class="px-6 py-4 font-bold text-slate-900">
+                                    {% if sub.result_pending %}Evaluating{% else %}{{ sub.score }} / {{ sub.total_points }}{% endif %}
+                                </td>
                                 <td class="px-6 py-4">
-                                    <span class="font-bold {% if (sub.percentage | default(0.0)) >= (sub.passing_percentage | default(40.0)) %}text-emerald-600{% else %}text-rose-600{% endif %}">
-                                        {{ sub.percentage | default(0.0) }}%
-                                    </span>
+                                    {% if sub.result_pending %}
+                                        <span class="font-semibold text-slate-500">AI evaluation in progress</span>
+                                    {% elif sub.awaiting_publication %}
+                                        <span class="font-semibold text-sky-700">AI marks ready · Awaiting publication</span>
+                                    {% else %}
+                                        <span class="font-bold {% if (sub.percentage | default(0.0)) >= (sub.passing_percentage | default(40.0)) %}text-emerald-600{% else %}text-rose-600{% endif %}">
+                                            {{ sub.percentage | default(0.0) }}%
+                                        </span>
+                                    {% endif %}
                                 </td>
                                 <td class="px-6 py-4">
                                     <span class="text-xs font-semibold {% if sub.warnings_count > 0 %}text-amber-600 font-bold{% else %}text-slate-600{% endif %}">
@@ -345,7 +353,11 @@
                                             Terminated
                                         </span>
                                     {% elif sub.status == 'submitted' %}
-                                        {% if (sub.percentage | default(0.0)) >= (sub.passing_percentage | default(40.0)) %}
+                                        {% if sub.result_pending %}
+                                            <span class="shadcn-badge bg-sky-50 text-sky-700 border-sky-200">AI Evaluating</span>
+                                        {% elif sub.awaiting_publication %}
+                                            <span class="shadcn-badge bg-amber-50 text-amber-700 border-amber-200">Awaiting Teacher Publication</span>
+                                        {% elif (sub.percentage | default(0.0)) >= (sub.passing_percentage | default(40.0)) %}
                                             <span class="shadcn-badge bg-emerald-50 text-emerald-700 border-emerald-200">
                                                 Passed ✓
                                             </span>
