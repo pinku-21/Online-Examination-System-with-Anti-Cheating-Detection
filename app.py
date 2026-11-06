@@ -2570,8 +2570,16 @@ def evaluate_submission_internal(submission_id):
         conn.close()
         return False, "Submission not found"
 
-    cursor.execute("SELECT * FROM questions WHERE exam_id = ?", (submission["exam_id"],))
+    cursor.execute("SELECT * FROM questions WHERE exam_id = ? ORDER BY id ASC", (submission["exam_id"],))
     all_questions = cursor.fetchall()
+    total_questions = len(all_questions)
+    cursor.execute("""
+        UPDATE submissions
+        SET evaluation_status = 'evaluating', evaluation_progress = 0,
+            evaluation_total_questions = ?, evaluation_error = ''
+        WHERE id = ?
+    """, (total_questions, submission_id))
+    conn.commit()
 
     student_answers = json.loads(submission["answers_json"]) if submission["answers_json"] else {}
     existing_eval = json.loads(submission["manual_evaluation_json"]) if submission["manual_evaluation_json"] else {}
@@ -2581,8 +2589,11 @@ def evaluate_submission_internal(submission_id):
 
     results = []
     total_exam_points = 0.0
+    has_evaluation_errors = False
 
-    for q in all_questions:
+    for question_index, q in enumerate(all_questions, start=1):
+        cursor.execute("UPDATE submissions SET evaluation_progress = ? WHERE id = ?", (question_index, submission_id))
+        conn.commit()
         qid_s = str(q["id"])
         q_pts = float(q["points"])
         total_exam_points += q_pts
@@ -2665,7 +2676,11 @@ def evaluate_submission_internal(submission_id):
         )
 
         if eval_result.get("success"):
-            awarded = float(eval_result["awarded_marks"])
+            try:
+                awarded = round(float(eval_result["awarded_marks"]), 1)
+            except (TypeError, ValueError):
+                awarded = 0.0
+            awarded = max(0.0, min(q_pts, awarded))
             feedback = eval_result.get("feedback", "")
             model_used = eval_result.get("model_used", "AI")
             existing_eval[qid_s] = {
@@ -2683,18 +2698,20 @@ def evaluate_submission_internal(submission_id):
             }
             results.append({"question_id": qid_s, "question_text": q["question_text"][:60], "success": True, "awarded_marks": awarded, "max_points": q_pts})
         else:
-            # Fall back to objective check
-            corr = (q["correct_answer"] or "").strip().lower()
-            awarded = q_pts if (corr and student_text.lower() == corr) else 0.0
+            # Never silently convert an AI failure into a guessed score.
+            # The teacher must review this answer before publishing the result.
+            has_evaluation_errors = True
             existing_eval[qid_s] = {
-                "awarded_marks": awarded,
+                "awarded_marks": 0.0,
                 "max_points": q_pts,
-                "feedback": "Objective check fallback.",
-                "model_used": "System",
-                "evaluated_by": "auto",
+                "feedback": "AI evaluation could not be completed. Teacher review is required.",
+                "model_used": "Evaluation unavailable",
+                "evaluated_by": "system",
+                "evaluation_failed": True,
+                "evaluation_error": str(eval_result.get("error", "AI evaluation failed."))[:500],
                 "evaluated_at": datetime.now(IST).strftime("%Y-%m-%d %H:%M:%S")
             }
-            results.append({"question_id": qid_s, "question_text": q["question_text"][:60], "success": False, "awarded_marks": awarded, "max_points": q_pts, "reason": eval_result.get("error", "AI failed")})
+            results.append({"question_id": qid_s, "question_text": q["question_text"][:60], "success": False, "awarded_marks": 0.0, "max_points": q_pts, "reason": eval_result.get("error", "AI failed")})
 
     # Recalculate total score taking OR alternatives into account
     new_total_score, total_exam_points, percentage = compute_submission_score_with_or(
