@@ -5562,11 +5562,15 @@ def exam_result(submission_id):
         is_published = True
         passed = (pct_val >= pass_val) and (sub_dict.get("status") != "terminated")
 
-    # Students must never see provisional marks or a provisional pass/fail decision.
-    if session.get("user_role") == "student" and not is_published:
+    # Students may see the AI-calculated total once grading is complete, but
+    # question-level answers, correct answers, and feedback remain unpublished.
+    evaluation_complete = sub_dict.get("evaluation_status") in ("awaiting_teacher", "needs_review")
+    score_visible = is_published or evaluation_complete
+    if session.get("user_role") == "student" and not score_visible:
         sub_dict["score"] = None
         sub_dict["total_points"] = None
         sub_dict["percentage"] = None
+    if session.get("user_role") == "student" and not is_published:
         passed = False
 
     questions_review = []
