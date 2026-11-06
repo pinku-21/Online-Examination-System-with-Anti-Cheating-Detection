@@ -5265,12 +5265,16 @@ def api_toggle_submission_published(submission_id):
 
 
 @app.route("/api/submission/<int:submission_id>/publish-status", methods=["GET"])
+@login_required
 def api_submission_publish_status(submission_id):
-    """Allows student result page to poll and automatically refresh once tutor publishes."""
+    """Secure status endpoint for student evaluation progress and result publication."""
     conn = get_connection()
     cursor = conn.cursor()
     cursor.execute("""
-        SELECT s.id, s.is_published, e.results_published
+        SELECT s.id, s.user_id, s.roll_number, s.is_published,
+               s.evaluation_status, s.evaluation_progress,
+               s.evaluation_total_questions, s.evaluation_error,
+               e.results_published
         FROM submissions s
         JOIN exams e ON s.exam_id = e.id
         WHERE s.id = ?
@@ -5281,8 +5285,24 @@ def api_submission_publish_status(submission_id):
     if not row:
         return jsonify({"success": False, "error": "Submission not found."}), 404
 
+    if session.get("user_role") == "student":
+        owns_submission = (
+            (row["user_id"] is not None and row["user_id"] == session.get("user_id"))
+            or (row["user_id"] is None and row["roll_number"] == session.get("roll_number"))
+        )
+        if not owns_submission:
+            return jsonify({"success": False, "error": "Access denied."}), 403
+
     is_pub = bool(row["is_published"] or row["results_published"])
-    return jsonify({"success": True, "is_published": is_pub, "published": is_pub})
+    return jsonify({
+        "success": True,
+        "is_published": is_pub,
+        "published": is_pub,
+        "evaluation_status": row["evaluation_status"] or "not_started",
+        "evaluation_progress": int(row["evaluation_progress"] or 0),
+        "evaluation_total_questions": int(row["evaluation_total_questions"] or 0),
+        "evaluation_error": row["evaluation_error"] or ""
+    })
 
 
 
@@ -5518,13 +5538,20 @@ def exam_result(submission_id):
     sub_dict["score"] = round(float(sub_dict.get("score") or 0.0), 1)
     sub_dict["total_points"] = round(float(sub_dict.get("total_points") or 0.0), 1)
 
-    passed = (pct_val >= pass_val) and (sub_dict.get("status") != "terminated")
-    
-    # Check if tutor has published the evaluated results to the student
     is_published = bool(sub_dict.get("is_published") or sub_dict.get("results_published"))
-    # Admin / Tutor can always preview full questions
+    passed = is_published and (pct_val >= pass_val) and (sub_dict.get("status") != "terminated")
+
+    # Admin / Tutor can always preview the provisional evaluation for review.
     if session.get("user_role") == "admin":
         is_published = True
+        passed = (pct_val >= pass_val) and (sub_dict.get("status") != "terminated")
+
+    # Students must never see provisional marks or a provisional pass/fail decision.
+    if session.get("user_role") == "student" and not is_published:
+        sub_dict["score"] = None
+        sub_dict["total_points"] = None
+        sub_dict["percentage"] = None
+        passed = False
 
     questions_review = []
     if is_published:
