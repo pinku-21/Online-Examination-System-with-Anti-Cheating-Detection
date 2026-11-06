@@ -1084,6 +1084,97 @@ def new_exam():
     
     return render_template("create_exam.html", has_api_key=has_api_key, students=students, classes=distinct_classes)
 
+@app.route("/api/local-ai/status", methods=["GET"])
+@admin_required
+def api_local_ai_status():
+    """Check the local Ollama service without contacting any hosted AI provider."""
+    import requests
+
+    ollama_url = "http://127.0.0.1:11434"
+    expected_model = "qwen2.5:3b"
+    try:
+        response = requests.get(f"{ollama_url}/api/tags", timeout=(2, 5))
+        response.raise_for_status()
+        payload = response.json()
+        models = payload.get("models", []) if isinstance(payload, dict) else []
+        model_names = [item.get("name", "") for item in models if isinstance(item, dict)]
+        model_available = any(
+            name == expected_model or name.startswith(expected_model + ":")
+            for name in model_names
+        )
+        return jsonify({
+            "success": True,
+            "connected": True,
+            "model": expected_model,
+            "model_available": model_available,
+            "models": model_names,
+            "message": "Ollama is running." if model_available else "Ollama is running, but qwen2.5:3b is not installed."
+        }), 200
+    except requests.exceptions.ConnectionError:
+        return jsonify({
+            "success": False,
+            "connected": False,
+            "model": expected_model,
+            "message": "Ollama is not reachable on this computer. Start Ollama and try again."
+        }), 503
+    except requests.exceptions.Timeout:
+        return jsonify({
+            "success": False,
+            "connected": False,
+            "model": expected_model,
+            "message": "Ollama did not respond in time. Check that the local service is running."
+        }), 504
+    except (requests.RequestException, ValueError) as exc:
+        app.logger.warning("Local Ollama status check failed: %s", exc)
+        return jsonify({
+            "success": False,
+            "connected": False,
+            "model": expected_model,
+            "message": "Could not read a valid response from local Ollama."
+        }), 502
+
+
+@app.route("/api/local-ai/chat", methods=["POST"])
+@admin_required
+def api_local_ai_chat():
+    """Send a bounded text prompt to the fixed local Qwen model; never fall back to cloud AI."""
+    import requests
+
+    data = request.get_json(silent=True) or {}
+    prompt = data.get("prompt", "")
+    if not isinstance(prompt, str) or not prompt.strip():
+        return jsonify({"success": False, "error": "Enter a message first."}), 400
+    if len(prompt) > 5000:
+        return jsonify({"success": False, "error": "Message is too long. Keep it under 5,000 characters."}), 413
+
+    try:
+        response = requests.post(
+            "http://127.0.0.1:11434/api/chat",
+            json={
+                "model": "qwen2.5:3b",
+                "messages": [{"role": "user", "content": prompt.strip()}],
+                "stream": False,
+                "options": {"temperature": 0.3}
+            },
+            timeout=(5, 180)
+        )
+        response.raise_for_status()
+        payload = response.json()
+        answer = payload.get("message", {}).get("content", "")
+        if not isinstance(answer, str) or not answer.strip():
+            return jsonify({"success": False, "error": "The local model returned an empty response."}), 502
+        return jsonify({"success": True, "model": "qwen2.5:3b", "answer": answer.strip()}), 200
+    except requests.exceptions.ConnectionError:
+        return jsonify({"success": False, "error": "Ollama is not running on this computer. Start Ollama and retry."}), 503
+    except requests.exceptions.Timeout:
+        return jsonify({"success": False, "error": "The local model took too long to respond. Try a shorter prompt."}), 504
+    except requests.RequestException as exc:
+        app.logger.warning("Local Ollama chat failed: %s", exc)
+        return jsonify({"success": False, "error": "Local Ollama request failed. Check the Ollama service and model."}), 502
+    except ValueError:
+        return jsonify({"success": False, "error": "Ollama returned an invalid response."}), 502
+
+
 @app.route("/api/generate-questions", methods=["POST"])
 @admin_required
 def api_generate_questions():
