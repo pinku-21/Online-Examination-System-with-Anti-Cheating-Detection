@@ -30,7 +30,7 @@
                 </div>
                 <span class="shadcn-badge bg-sky-50 text-sky-700 border-sky-200 mb-2 font-bold uppercase tracking-wider text-[11px]">Submission Received</span>
                 <h1 class="text-2xl sm:text-3xl font-bold text-slate-900 tracking-tight">Your answers are being evaluated</h1>
-                <p class="text-sm text-slate-500 mt-1">Your marks will remain hidden until your teacher reviews and publishes them.</p>
+                <p class="text-sm text-slate-500 mt-1">Your total marks will appear when AI evaluation finishes. Detailed answers and feedback stay private until your teacher publishes them.</p>
             {% elif passed %}
                 <div class="w-16 h-16 rounded-2xl bg-emerald-50 text-emerald-600 border border-emerald-200 flex items-center justify-center mx-auto mb-4">
                     <i data-lucide="award" class="w-8 h-8"></i>
@@ -71,14 +71,14 @@
         <!-- Score Breakdown Cards (shadcn cards) -->
         <div class="grid grid-cols-2 gap-4 mb-6">
             <div class="shadcn-card p-5 bg-white text-center border border-slate-200">
-                {% if is_published %}
-                    <span class="text-xs font-semibold text-slate-500 uppercase tracking-wider block mb-1">Final Score</span>
+                {% if score_visible %}
+                    <span class="text-xs font-semibold text-slate-500 uppercase tracking-wider block mb-1">{% if is_published %}Final Score{% else %}AI Evaluated Score{% endif %}</span>
                     <span class="text-3xl font-bold text-slate-900">{{ submission.score }}</span>
                     <span class="text-xs text-sky-600 font-semibold block mt-1">out of {{ submission.total_points }} ({{ submission.percentage }}%)</span>
                 {% else %}
                     <span class="text-xs font-semibold text-slate-500 uppercase tracking-wider block mb-1">Final Score</span>
                     <span class="text-2xl font-bold text-slate-500">Hidden</span>
-                    <span class="text-xs text-slate-500 font-medium block mt-1">Available after teacher approval</span>
+                    <span class="text-xs text-slate-500 font-medium block mt-1">Available after AI evaluation</span>
                 {% endif %}
             </div>
 
@@ -184,13 +184,12 @@
             </div>
             <h2 class="text-xl font-extrabold text-slate-900 mb-2">Evaluation Under Review by Tutor</h2>
             <p class="text-sm text-slate-600 max-w-lg mx-auto mb-4">
-                Your submitted responses, uploaded handwritten sheets, and detailed mistake reviews are currently being evaluated by the instructor. 
-                Full question-by-question analysis, model answers, and teacher remarks will be unlocked right here as soon as the tutor publishes the official evaluation.
+                {% if evaluation_complete %}AI has completed the scoring. Your total marks are now visible above. Your teacher is reviewing the marks; your submitted answers, correct answers, question-wise marks, and explanations will be unlocked after publication.{% else %}Your answers are being evaluated by AI. Your total marks will appear here when evaluation finishes. Your submitted answers, correct answers, question-wise marks, and explanations will remain private until your teacher publishes the result.{% endif %}
             </p>
             <div class="max-w-xl mx-auto mt-5 text-left bg-white border border-sky-200 rounded-2xl p-4">
                 <div class="flex items-center justify-between gap-3 mb-2">
                     <span id="evaluation-status-title" class="text-sm font-bold text-slate-800">
-                        {% if submission.evaluation_status == 'awaiting_teacher' %}AI evaluation completed{% elif submission.evaluation_status == 'needs_review' %}Teacher review required{% elif submission.evaluation_status == 'failed' %}Evaluation needs attention{% else %}AI is evaluating your answers{% endif %}
+                        {% if evaluation_complete %}AI evaluation completed{% elif submission.evaluation_status == 'needs_review' %}Teacher review required{% elif submission.evaluation_status == 'failed' %}Evaluation needs attention{% else %}AI is evaluating your answers{% endif %}
                     </span>
                     <span id="evaluation-progress-count" class="text-xs font-mono text-slate-500">{{ submission.evaluation_progress or 0 }} / {{ submission.evaluation_total_questions or 0 }}</span>
                 </div>
@@ -198,12 +197,12 @@
                     <div id="evaluation-progress-bar" class="h-full rounded-full bg-sky-500 transition-all duration-500" style="width: 0%"></div>
                 </div>
                 <p id="evaluation-status-copy" class="text-xs text-slate-500 mt-3">
-                    {% if submission.evaluation_status == 'awaiting_teacher' %}Your answers have been checked. Your teacher must verify and publish the result.{% elif submission.evaluation_status == 'needs_review' %}Some answers could not be evaluated automatically. Your teacher will review them.{% elif submission.evaluation_status == 'failed' %}Automatic evaluation stopped. Your teacher must review this submission.{% else %}Please wait while your answers and uploaded answer sheets are checked.{% endif %}
+                    {% if submission.evaluation_status == 'awaiting_teacher' %}AI scoring is complete. Your total marks are visible above; detailed answer review is awaiting teacher publication.{% elif submission.evaluation_status == 'needs_review' %}Some answers could not be evaluated automatically. Your teacher will review them.{% elif submission.evaluation_status == 'failed' %}Automatic evaluation stopped. Your teacher must review this submission.{% else %}Please wait while your answers and uploaded answer sheets are checked.{% endif %}
                 </p>
             </div>
             <div class="inline-flex items-center space-x-2 px-4 py-2 bg-white/80 border border-amber-300 rounded-full text-xs font-semibold text-amber-900 shadow-xs">
                 <i data-lucide="shield-check" class="w-4 h-4 text-amber-600"></i>
-                <span>Your marks remain private until your teacher publishes them</span>
+                <span>Detailed answer review remains private until your teacher publishes it</span>
             </div>
         </div>
     {% else %}
@@ -514,12 +513,13 @@
 </div>
 
 {% if not is_published %}
-<div id="publish-poll-sentinel" data-submission-id="{{ submission.id | default(0) }}" class="hidden"></div>
+<div id="publish-poll-sentinel" data-submission-id="{{ submission.id | default(0) }}" data-evaluation-status="{{ submission.evaluation_status or '' }}" class="hidden"></div>
 <script>
     // Live Auto-Refresh: When result is pending review, poll the server and reload automatically once published
     document.addEventListener('DOMContentLoaded', function() {
         var sentinel = document.getElementById('publish-poll-sentinel');
         var subId = sentinel ? sentinel.getAttribute('data-submission-id') : '0';
+        var initialStatus = sentinel ? sentinel.getAttribute('data-evaluation-status') : '';
         if (!subId || subId === '0') return;
 
         function refreshEvaluationStatus() {
@@ -545,9 +545,10 @@
                     var bar = document.getElementById('evaluation-progress-bar');
                     if (count) count.textContent = done + ' / ' + total;
                     if (bar) bar.style.width = pct + '%';
-                    if (status === 'awaiting_teacher') {
+                    if (status === 'awaiting_teacher' || status === 'needs_review') {
+                        if (initialStatus !== 'awaiting_teacher' && initialStatus !== 'needs_review') { window.location.reload(); return; }
                         if (title) title.textContent = 'AI evaluation completed';
-                        if (copy) copy.textContent = 'Your answers have been checked. Your teacher must verify and publish the result.';
+                        if (copy) copy.textContent = 'AI scoring is complete. Your total marks will appear after this page refreshes; detailed answer review is awaiting teacher publication.';
                     } else if (status === 'needs_review') {
                         if (title) title.textContent = 'Teacher review required';
                         if (copy) copy.textContent = 'Some answers could not be evaluated automatically. Your teacher will review them.';
