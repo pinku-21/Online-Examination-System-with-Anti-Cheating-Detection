@@ -686,7 +686,7 @@ def get_student_submissions(user_id, roll_number=None):
         """, (user_id,))
     elif roll_number:
         cursor.execute("""
-            SELECT s.*, e.title as exam_title, e.max_warnings, e.passing_percentage, e.exam_code
+            SELECT s.*, e.title as exam_title, e.max_warnings, e.passing_percentage, e.exam_code, e.results_published as exam_results_published
             FROM submissions s
             JOIN exams e ON s.exam_id = e.id
             WHERE s.user_id IS NULL AND s.roll_number = ?
