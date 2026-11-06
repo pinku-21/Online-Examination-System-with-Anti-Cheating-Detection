@@ -2740,7 +2740,23 @@ def evaluate_submission_internal(submission_id):
     return True, {"results": results, "new_score": new_total_score, "total_points": total_exam_points, "percentage": percentage, "evaluation_status": final_eval_status}
 
 def _run_submission_evaluation(submission_id):
-    """Run automatic grading and persist failure state if the worker crashes."""
+    """Claim a queued submission once, run grading, and persist worker failures."""
+    claim_conn = get_connection()
+    try:
+        claim_cursor = claim_conn.cursor()
+        claim_cursor.execute("""
+            UPDATE submissions
+            SET evaluation_status = 'evaluating'
+            WHERE id = ? AND evaluation_status = 'queued' AND is_published = 0
+        """, (submission_id,))
+        claimed = claim_cursor.rowcount == 1
+        claim_conn.commit()
+    finally:
+        claim_conn.close()
+
+    if not claimed:
+        return False, "Evaluation job was already claimed or is no longer pending."
+
     try:
         return evaluate_submission_internal(submission_id)
     except Exception as exc:
@@ -5648,6 +5664,32 @@ def exam_result(submission_id):
                            diagnostic_summary=diagnostic_summary,
                            integrity_hash=stored_hash or expected_hash,
                            is_tamper_verified=is_tamper_verified)
+
+def _recover_queued_evaluations():
+    """Resume jobs that were queued but not started before the app process stopped."""
+    conn = get_connection()
+    cursor = conn.cursor()
+    cursor.execute("""
+        SELECT id FROM submissions
+        WHERE status = 'submitted' AND evaluation_status = 'queued' AND is_published = 0
+        ORDER BY submitted_at ASC
+    """)
+    pending_ids = [row["id"] for row in cursor.fetchall()]
+    conn.close()
+    for pending_id in pending_ids:
+        threading.Thread(
+            target=_run_submission_evaluation,
+            args=(pending_id,),
+            daemon=True
+        ).start()
+
+
+# Recover persisted jobs that were waiting in the queue during a prior process shutdown.
+try:
+    _recover_queued_evaluations()
+except Exception:
+    app.logger.exception("Could not recover queued AI evaluation jobs")
+
 
 if __name__ == "__main__":
     is_debug = os.environ.get("FLASK_DEBUG", "False").strip().lower() in ("true", "1", "t")
