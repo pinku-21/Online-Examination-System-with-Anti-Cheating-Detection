@@ -2723,16 +2723,45 @@ def evaluate_submission_internal(submission_id):
         row_get(submission, "warnings_count", 0) or 0, row_get(submission, "status", "") or "",
         row_get(submission, "answers_json")
     )
+    final_eval_status = "needs_review" if has_evaluation_errors else "awaiting_teacher"
+    failure_count = sum(1 for item in results if not item.get("success") and item.get("reason") != "Not attempted")
+    status_message = f"{failure_count} answer(s) need manual review." if failure_count else ""
     cursor.execute("""
         UPDATE submissions
         SET manual_evaluation_json = ?, score = ?, total_points = ?, percentage = ?,
-            integrity_hash = ?
+            integrity_hash = ?, evaluation_status = ?, evaluation_progress = ?,
+            evaluation_total_questions = ?, evaluation_error = ?
         WHERE id = ?
     """, (json.dumps(existing_eval), new_total_score, total_exam_points, percentage,
-          integrity_hash, submission_id))
+          integrity_hash, final_eval_status, total_questions, total_questions,
+          status_message, submission_id))
     conn.commit()
     conn.close()
-    return True, {"results": results, "new_score": new_total_score, "total_points": total_exam_points, "percentage": percentage}
+    return True, {"results": results, "new_score": new_total_score, "total_points": total_exam_points, "percentage": percentage, "evaluation_status": final_eval_status}
+
+def _run_submission_evaluation(submission_id):
+    """Run automatic grading and persist failure state if the worker crashes."""
+    try:
+        return evaluate_submission_internal(submission_id)
+    except Exception as exc:
+        app.logger.exception("Automatic evaluation failed for submission %s", submission_id)
+        conn = None
+        try:
+            conn = get_connection()
+            cursor = conn.cursor()
+            cursor.execute("""
+                UPDATE submissions
+                SET evaluation_status = 'failed', evaluation_error = ?
+                WHERE id = ? AND is_published = 0
+            """, (str(exc)[:1000], submission_id))
+            conn.commit()
+        except Exception:
+            app.logger.exception("Could not persist evaluation failure for submission %s", submission_id)
+        finally:
+            if conn:
+                conn.close()
+        return False, "Automatic evaluation failed. Teacher review is required."
+
 
 @app.route("/api/tutor/submission/<int:submission_id>/evaluate-all", methods=["POST"])
 @admin_required
@@ -4521,9 +4550,20 @@ def api_submit_exam(submission_id):
     conn.commit()
     conn.close()
 
-    # Trigger automatic AI grading for all questions (including handwritten answers) in a background thread
-    # Results remain unpublished until verified by the tutor
-    threading.Thread(target=evaluate_submission_internal, args=(submission_id,), daemon=True).start()
+    # Persist the queued state before starting background evaluation.
+    queue_conn = get_connection()
+    queue_cursor = queue_conn.cursor()
+    queue_cursor.execute("""
+        UPDATE submissions
+        SET evaluation_status = 'queued', evaluation_progress = 0,
+            evaluation_total_questions = ?, evaluation_error = ''
+        WHERE id = ?
+    """, (len(questions), submission_id))
+    queue_conn.commit()
+    queue_conn.close()
+
+    # Existing execution remains asynchronous; status and failures are now persisted.
+    threading.Thread(target=_run_submission_evaluation, args=(submission_id,), daemon=True).start()
     
     return jsonify({"success": True, "submission_id": submission_id, "integrity_hash": integrity_token})
 
