@@ -37,6 +37,7 @@ def _local_base_url(base_url: str | None = None) -> str:
         or parsed.hostname not in {"127.0.0.1", "localhost", "::1"}
         or parsed.username
         or parsed.password
+        or parsed.path not in {"", "/"}
         or parsed.query
         or parsed.fragment
     ):
@@ -175,11 +176,13 @@ def generate_image_locally(
         image_bytes = image_response.content
         content_type = image_response.headers.get("Content-Type", "").split(";")[0].lower()
         signature = _ALLOWED_IMAGE_TYPES.get(content_type)
+        valid_signature = bool(signature and image_bytes.startswith(signature))
+        if content_type == "image/webp":
+            valid_signature = valid_signature and len(image_bytes) >= 12 and image_bytes[8:12] == b"WEBP"
         if (
-            not signature
+            not valid_signature
             or not image_bytes
             or len(image_bytes) > _MAX_IMAGE_BYTES
-            or not image_bytes.startswith(signature)
         ):
             raise LocalImageGenerationError(
                 "ComfyUI returned an unsupported, invalid, or oversized image."
