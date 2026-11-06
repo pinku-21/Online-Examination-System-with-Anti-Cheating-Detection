@@ -383,22 +383,25 @@ Section B - Short Questions (3 marks each)
                             <span class="w-2 h-2 rounded-full bg-amber-400"></span> Setup required
                         </span>
                     </div>
-                    <p class="text-xs text-slate-600">The web app is hosted separately from your Windows computer. We will configure a secure bridge before enabling connection tests. Ollama's port must never be exposed directly to the public internet.</p>
+                    <p class="text-xs text-slate-600">Run the Flask application on this same Windows PC as Ollama. This local-only connection uses 127.0.0.1 and never exposes Ollama's port to the internet. The hosted Render copy cannot directly reach Ollama on your laptop.</p>
                     <label for="local-ai-model" class="block text-xs font-semibold text-slate-700">Preferred model</label>
                     <input id="local-ai-model" type="text" value="qwen2.5:3b" readonly class="w-full px-3 py-2 text-sm rounded-lg border border-slate-200 bg-slate-50 text-slate-700">
-                    <button type="button" disabled class="w-full py-2.5 rounded-xl bg-slate-200 text-slate-500 text-sm font-bold cursor-not-allowed" title="Connection bridge is not configured yet">
-                        <i data-lucide="plug" class="w-4 h-4 inline mr-1"></i> Connection test will be enabled after secure setup
+                    <div id="local-ai-status" role="status" aria-live="polite" class="text-xs rounded-lg bg-slate-50 border border-slate-200 px-3 py-2 text-slate-600">Not checked yet.</div>
+                    <button id="local-ai-test-btn" type="button" onclick="checkLocalOllama()" class="w-full py-2.5 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white text-sm font-bold">
+                        <i data-lucide="plug" class="w-4 h-4 inline mr-1"></i> Test local connection
                     </button>
                 </div>
 
-                <div class="rounded-xl bg-slate-50 border border-slate-200 p-4">
-                    <h4 class="font-bold text-sm text-slate-800 mb-2">Coming next</h4>
-                    <ul class="text-xs text-slate-600 space-y-1.5 list-disc pl-4">
-                        <li>Secure local-PC connection and health check</li>
-                        <li>Optional authenticated remote Ollama endpoint</li>
-                        <li>Local chat, model list and conversation history</li>
-                        <li>Document intelligence and specialist agents</li>
-                    </ul>
+                <div class="rounded-xl border border-slate-200 p-4 space-y-3">
+                    <div class="flex items-center justify-between gap-2">
+                        <h4 class="font-bold text-sm text-slate-900">Local Qwen chat</h4>
+                        <span class="text-[10px] text-slate-500">Text-only · up to 5,000 characters</span>
+                    </div>
+                    <textarea id="local-ai-prompt" rows="3" maxlength="5000" placeholder="Ask Qwen a question..." class="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm focus:ring-2 focus:ring-emerald-500 focus:outline-none"></textarea>
+                    <button id="local-ai-send-btn" type="button" onclick="sendLocalAiPrompt()" class="w-full py-2.5 rounded-xl bg-slate-900 hover:bg-slate-800 text-white text-sm font-bold">
+                        <i data-lucide="send" class="w-4 h-4 inline mr-1"></i> Send to local Qwen
+                    </button>
+                    <div id="local-ai-answer" class="hidden whitespace-pre-wrap break-words rounded-lg bg-slate-50 border border-slate-200 p-3 text-sm text-slate-700" aria-live="polite"></div>
                 </div>
             </section>
 
@@ -791,6 +794,62 @@ Section B - Short Questions (3 marks each)
             if (pastedText) pastedText.focus();
         }
         if (window.lucide) lucide.createIcons();
+    }
+
+    async function checkLocalOllama() {
+        const status = document.getElementById('local-ai-status');
+        const button = document.getElementById('local-ai-test-btn');
+        if (!status || !button) return;
+        button.disabled = true;
+        status.textContent = 'Checking Ollama on this computer...';
+        status.className = 'text-xs rounded-lg bg-slate-50 border border-slate-200 px-3 py-2 text-slate-600';
+        try {
+            const response = await fetch('/api/local-ai/status');
+            const result = await response.json();
+            status.textContent = result.message || 'Local connection check finished.';
+            status.className = 'text-xs rounded-lg border px-3 py-2 ' +
+                (result.connected && result.model_available
+                    ? 'bg-emerald-50 border-emerald-200 text-emerald-800'
+                    : 'bg-amber-50 border-amber-200 text-amber-800');
+        } catch (error) {
+            status.textContent = 'Could not contact the ExamGuard local server.';
+            status.className = 'text-xs rounded-lg bg-rose-50 border border-rose-200 px-3 py-2 text-rose-800';
+        } finally {
+            button.disabled = false;
+        }
+    }
+
+    async function sendLocalAiPrompt() {
+        const promptEl = document.getElementById('local-ai-prompt');
+        const answerEl = document.getElementById('local-ai-answer');
+        const button = document.getElementById('local-ai-send-btn');
+        const prompt = (promptEl?.value || '').trim();
+        if (!prompt) {
+            Swal.fire({ icon: 'info', title: 'Enter a message', text: 'Write a question for your local Qwen model.' });
+            return;
+        }
+        button.disabled = true;
+        button.textContent = 'Qwen is thinking...';
+        answerEl.classList.remove('hidden');
+        answerEl.textContent = 'Waiting for your local model...';
+        try {
+            const response = await fetch('/api/local-ai/chat', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ prompt })
+            });
+            const result = await response.json();
+            if (!response.ok || !result.success) {
+                throw new Error(result.error || 'Local AI request failed.');
+            }
+            answerEl.textContent = result.answer;
+        } catch (error) {
+            answerEl.textContent = error.message || 'Could not reach local Qwen.';
+        } finally {
+            button.disabled = false;
+            button.innerHTML = '<i data-lucide="send" class="w-4 h-4 inline mr-1"></i> Send to local Qwen';
+            if (window.lucide) lucide.createIcons();
+        }
     }
 
     function clearPastedText() {
