@@ -104,20 +104,21 @@ def test_geographic_targets_fall_within_expected_state_bounds():
 
     # City coordinates and their corresponding state id in india.svg
     cities_to_verify = [
-        ("Jaipur", 28.0, 31.5, "rj"),  # Rajasthan
-        ("Srinagar", 27.5, 14.5, "jk"),  # Jammu & Kashmir
-        ("New Delhi", 30.4, 30.2, "dl"),  # Delhi
-        ("Mumbai", 24.5, 56.0, "mh"),  # Maharashtra
-        ("Kolkata", 66.5, 44.0, "wb"),  # West Bengal
-        ("Bengaluru", 28.0, 75.0, "ka"),  # Karnataka
-        ("Chennai", 35.0, 80.0, "tn"),  # Tamil Nadu
-        ("Lucknow", 43.0, 36.0, "up"),  # Uttar Pradesh
-        ("Patna", 58.0, 38.0, "br"),  # Bihar
-        ("Gandhinagar", 16.0, 48.0, "gj"),  # Gujarat
-        ("Hyderabad", 37.5, 63.0, "tg"),  # Telangana
-        ("Bhopal", 35.0, 47.0, "mp"),  # Madhya Pradesh
-        ("Thiruvananthapuram", 28.0, 93.0, "kl"),  # Kerala
-        ("Guwahati", 80.0, 37.0, "as"),  # Assam
+        ("Chennai", 40.2, 80.8, "tn"),  # Tamil Nadu (Capital)
+        ("Bhubaneswar", 58.5, 54.0, "or"),  # Odisha (Capital)
+        ("Mumbai", 20.0, 56.5, "mh"),  # Maharashtra (Capital)
+        ("New Delhi", 30.4, 30.2, "dl"),  # Delhi (National Capital)
+        ("Bengaluru", 30.5, 79.0, "ka"),  # Karnataka (Capital)
+        ("Kolkata", 66.5, 48.5, "wb"),  # West Bengal (Capital)
+        ("Jaipur", 25.5, 31.5, "rj"),  # Rajasthan (Capital)
+        ("Srinagar", 25.0, 14.5, "jk"),  # Jammu & Kashmir
+        ("Lucknow", 42.5, 32.0, "up"),  # Uttar Pradesh (Capital)
+        ("Patna", 56.5, 37.5, "br"),  # Bihar (Capital)
+        ("Gandhinagar", 16.0, 48.0, "gj"),  # Gujarat (Capital)
+        ("Hyderabad", 37.0, 64.0, "tg"),  # Telangana (Capital)
+        ("Bhopal", 34.0, 48.0, "mp"),  # Madhya Pradesh (Capital)
+        ("Thiruvananthapuram", 28.0, 92.0, "kl"),  # Kerala (Capital)
+        ("Guwahati", 78.5, 37.5, "as"),  # Assam
     ]
 
     import re

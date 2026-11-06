@@ -355,21 +355,22 @@ SPECIALIZED QUESTION FORMAT RULES:
        Set "figure_url": "/static/maps/india.svg"
        Set "figure_svg": null
        Set "options": {{ "image_url": "/static/maps/india.svg", "hotspots": [...], "labels": [...] }}
-       (Accurate percentage coordinates for India map viewBox:
-         - New Delhi: x=34.0, y=28.5
-         - Jaipur (Rajasthan): x=28.0, y=31.5
-         - Mumbai (Maharashtra): x=24.5, y=56.0
-         - Kolkata (West Bengal): x=66.5, y=44.0
-         - Bengaluru (Karnataka): x=34.0, y=74.0
-         - Chennai (Tamil Nadu): x=42.0, y=75.5
-         - Lucknow (Uttar Pradesh): x=46.5, y=32.0
-         - Patna (Bihar): x=56.0, y=34.5
-         - Gandhinagar/Ahmedabad (Gujarat): x=19.5, y=40.5
-         - Hyderabad (Telangana): x=38.5, y=57.0
-         - Bhopal (Madhya Pradesh): x=35.0, y=43.0
-         - Thiruvananthapuram (Kerala): x=32.5, y=87.5
-         - Srinagar (Jammu & Kashmir): x=27.5, y=14.5
-         - Guwahati (Assam): x=78.5, y=32.0
+       (Accurate verified percentage coordinates calibrated to India map viewBox (612x696):
+         - Chennai (Tamil Nadu): x=40.2, y=80.8
+         - Bhubaneswar (Odisha): x=58.5, y=54.0
+         - Mumbai (Maharashtra): x=20.0, y=56.5
+         - New Delhi (Delhi): x=30.4, y=30.2
+         - Bengaluru (Karnataka): x=30.5, y=79.0
+         - Kolkata (West Bengal): x=66.5, y=48.5
+         - Jaipur (Rajasthan): x=25.5, y=31.5
+         - Lucknow (Uttar Pradesh): x=42.5, y=32.0
+         - Patna (Bihar): x=56.5, y=37.5
+         - Gandhinagar/Ahmedabad (Gujarat): x=16.0, y=48.0
+         - Hyderabad (Telangana): x=37.0, y=64.0
+         - Bhopal (Madhya Pradesh): x=34.0, y=48.0
+         - Thiruvananthapuram (Kerala): x=28.0, y=92.0
+         - Srinagar (Jammu & Kashmir): x=25.0, y=14.5
+         - Guwahati (Assam): x=78.5, y=37.5
        )
      * For World maps (Continents, Oceans, Countries):
        Set "figure_url": "/static/maps/world.svg"

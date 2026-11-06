@@ -307,19 +307,37 @@
 
             // Auto-extract targets if hotspots are empty
             if ((!hotspots || hotspots.length === 0) && q.question_text) {
-                // Known geographical coordinate anchor dictionary
+                // Calibrated, verified geographical coordinate dictionary (polygon-verified on india.svg viewBox 612x696)
                 const GEO_TARGET_COORDS = [
-                    { keywords: ['himalay', 'k2', 'karakoram', 'everest', 'ladakh', 'kashmir'], name: 'Himalayan Mountains', x: 44.0, y: 16.0 },
-                    { keywords: ['thar', 'desert', 'rajasthan', 'aravalli', 'jaipur'], name: 'Thar Desert', x: 21.0, y: 32.0 },
-                    { keywords: ['ganga', 'ganges', 'yamuna', 'plain', 'varanasi', 'prayagraj'], name: 'River Ganga', x: 47.0, y: 31.0 },
-                    { keywords: ['western ghat', 'malabar', 'konkan', 'sahyadri', 'goa', 'mumbai'], name: 'Western Ghats', x: 24.0, y: 68.0 },
-                    { keywords: ['eastern ghat', 'coromandel', 'odisha', 'andhra', 'visakhapatnam'], name: 'Eastern Ghats', x: 54.0, y: 62.0 },
-                    { keywords: ['indian ocean', 'kanyakumari', 'cape comorin', 'southern sea'], name: 'Indian Ocean', x: 48.0, y: 93.0 },
+                    // Major Cities & Capitals
+                    { keywords: ['chennai', 'madras', 'tamil nadu capital', 'capital of tamil nadu'], name: 'Chennai', x: 40.2, y: 80.8 },
+                    { keywords: ['bhubaneswar', 'bhubaneshwar', 'odisha capital', 'capital of odisha', 'orissa'], name: 'Bhubaneswar', x: 58.5, y: 54.0 },
+                    { keywords: ['mumbai', 'bombay', 'maharashtra capital', 'capital of maharashtra'], name: 'Mumbai', x: 20.0, y: 56.5 },
+                    { keywords: ['new delhi', 'delhi', 'national capital', 'capital of india'], name: 'New Delhi', x: 30.4, y: 30.2 },
+                    { keywords: ['bengaluru', 'bangalore', 'karnataka capital', 'capital of karnataka'], name: 'Bengaluru', x: 30.5, y: 79.0 },
+                    { keywords: ['kolkata', 'calcutta', 'west bengal capital', 'capital of west bengal'], name: 'Kolkata', x: 66.5, y: 48.5 },
+                    { keywords: ['jaipur', 'rajasthan capital', 'capital of rajasthan', 'pink city'], name: 'Jaipur', x: 25.5, y: 31.5 },
+                    { keywords: ['lucknow', 'uttar pradesh capital', 'capital of uttar pradesh'], name: 'Lucknow', x: 42.5, y: 32.0 },
+                    { keywords: ['patna', 'bihar capital', 'capital of bihar'], name: 'Patna', x: 56.5, y: 37.5 },
+                    { keywords: ['gandhinagar', 'ahmedabad', 'gujarat capital', 'capital of gujarat'], name: 'Gandhinagar', x: 16.0, y: 48.0 },
+                    { keywords: ['hyderabad', 'telangana capital', 'capital of telangana'], name: 'Hyderabad', x: 37.0, y: 64.0 },
+                    { keywords: ['bhopal', 'madhya pradesh capital', 'capital of madhya pradesh'], name: 'Bhopal', x: 34.0, y: 48.0 },
+                    { keywords: ['thiruvananthapuram', 'trivandrum', 'kerala capital', 'capital of kerala'], name: 'Thiruvananthapuram', x: 28.0, y: 92.0 },
+                    { keywords: ['srinagar', 'jammu', 'kashmir'], name: 'Srinagar', x: 25.0, y: 14.5 },
+                    { keywords: ['guwahati', 'dispur', 'assam capital', 'capital of assam'], name: 'Guwahati', x: 78.5, y: 37.5 },
+
+                    // Geographical & Physical Landmarks
+                    { keywords: ['himalay', 'k2', 'karakoram', 'everest', 'ladakh'], name: 'Himalayan Mountains', x: 38.0, y: 16.0 },
+                    { keywords: ['thar', 'desert', 'aravalli'], name: 'Thar Desert', x: 17.0, y: 31.0 },
+                    { keywords: ['ganga', 'ganges', 'yamuna', 'prayagraj', 'varanasi'], name: 'River Ganga', x: 44.0, y: 32.0 },
+                    { keywords: ['western ghat', 'malabar', 'konkan', 'sahyadri'], name: 'Western Ghats', x: 22.0, y: 70.0 },
+                    { keywords: ['eastern ghat', 'coromandel', 'visakhapatnam'], name: 'Eastern Ghats', x: 44.0, y: 62.0 },
+                    { keywords: ['indian ocean', 'kanyakumari', 'cape comorin', 'southern sea'], name: 'Indian Ocean', x: 40.0, y: 96.0 },
                     { keywords: ['arabian sea', 'lakshadweep'], name: 'Arabian Sea', x: 12.0, y: 72.0 },
                     { keywords: ['bay of bengal', 'andaman'], name: 'Bay of Bengal', x: 80.0, y: 65.0 },
-                    { keywords: ['deccan', 'plateau', 'maharashtra', 'telangana'], name: 'Deccan Plateau', x: 38.0, y: 55.0 },
-                    { keywords: ['brahmaputra', 'assam', 'guwahati'], name: 'Brahmaputra River', x: 78.0, y: 28.0 },
-                    { keywords: ['sundarbans', 'delta', 'kolkata', 'bengal'], name: 'Sundarbans Delta', x: 67.0, y: 44.0 }
+                    { keywords: ['deccan', 'plateau'], name: 'Deccan Plateau', x: 35.0, y: 63.0 },
+                    { keywords: ['brahmaputra'], name: 'Brahmaputra River', x: 78.5, y: 35.0 },
+                    { keywords: ['sundarbans', 'delta'], name: 'Sundarbans Delta', x: 68.0, y: 50.0 }
                 ];
 
                 const matches = [...q.question_text.matchAll(/(?:Pin\s*P?(\d+)|\(([a-zA-Z0-9]+)\))\s*[:\-\—]?\s*([^\n\(]+)/g)];
