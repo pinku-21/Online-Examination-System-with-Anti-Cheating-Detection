@@ -678,7 +678,7 @@ def get_student_submissions(user_id, roll_number=None):
     cursor = conn.cursor()
     if user_id:
         cursor.execute("""
-            SELECT s.*, e.title as exam_title, e.max_warnings, e.passing_percentage, e.exam_code
+            SELECT s.*, e.title as exam_title, e.max_warnings, e.passing_percentage, e.exam_code, e.results_published as exam_results_published
             FROM submissions s
             JOIN exams e ON s.exam_id = e.id
             WHERE s.user_id = ?
@@ -726,7 +726,7 @@ def get_student_submissions(user_id, roll_number=None):
             row["max_warnings"] = 10
 
         # Never expose provisional marks in the student dashboard.
-        if row.get("status") in ("submitted", "terminated") and not bool(row.get("is_published")):
+        if row.get("status") in ("submitted", "terminated") and not bool(row.get("is_published") or row.get("exam_results_published")):
             row["score"] = None
             row["total_points"] = None
             row["percentage"] = None
