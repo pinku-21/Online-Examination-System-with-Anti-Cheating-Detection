@@ -29,7 +29,7 @@
                     <i data-lucide="brain-circuit" class="w-8 h-8 animate-pulse"></i>
                 </div>
                 <span class="shadcn-badge bg-sky-50 text-sky-700 border-sky-200 mb-2 font-bold uppercase tracking-wider text-[11px]">Submission Received</span>
-                <h1 class="text-2xl sm:text-3xl font-bold text-slate-900 tracking-tight">Your answers are being evaluated</h1>
+                <h1 class="text-2xl sm:text-3xl font-bold text-slate-900 tracking-tight">{% if evaluation_complete %}AI evaluation completed{% else %}Your answers are being evaluated{% endif %}</h1>
                 <p class="text-sm text-slate-500 mt-1">Your total marks will appear when AI evaluation finishes. Detailed answers and feedback stay private until your teacher publishes them.</p>
             {% elif passed %}
                 <div class="w-16 h-16 rounded-2xl bg-emerald-50 text-emerald-600 border border-emerald-200 flex items-center justify-center mx-auto mb-4">
@@ -189,7 +189,7 @@
             <div class="max-w-xl mx-auto mt-5 text-left bg-white border border-sky-200 rounded-2xl p-4">
                 <div class="flex items-center justify-between gap-3 mb-2">
                     <span id="evaluation-status-title" class="text-sm font-bold text-slate-800">
-                        {% if evaluation_complete %}AI evaluation completed{% elif submission.evaluation_status == 'needs_review' %}Teacher review required{% elif submission.evaluation_status == 'failed' %}Evaluation needs attention{% else %}AI is evaluating your answers{% endif %}
+                        {% if evaluation_complete %}AI evaluation completed{% elif submission.evaluation_status == 'failed' %}Evaluation needs attention{% else %}AI is evaluating your answers{% endif %}
                     </span>
                     <span id="evaluation-progress-count" class="text-xs font-mono text-slate-500">{{ submission.evaluation_progress or 0 }} / {{ submission.evaluation_total_questions or 0 }}</span>
                 </div>
@@ -549,9 +549,6 @@
                         if (initialStatus !== 'awaiting_teacher' && initialStatus !== 'needs_review') { window.location.reload(); return; }
                         if (title) title.textContent = 'AI evaluation completed';
                         if (copy) copy.textContent = 'AI scoring is complete. Your total marks will appear after this page refreshes; detailed answer review is awaiting teacher publication.';
-                    } else if (status === 'needs_review') {
-                        if (title) title.textContent = 'Teacher review required';
-                        if (copy) copy.textContent = 'Some answers could not be evaluated automatically. Your teacher will review them.';
                     } else if (status === 'failed') {
                         if (title) title.textContent = 'Evaluation needs attention';
                         if (copy) copy.textContent = 'Automatic evaluation stopped. Your teacher must review this submission.';
