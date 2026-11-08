@@ -599,6 +599,15 @@ def login():
                 existing_token = user.get("active_session_token")
                 # If student is already attempting an exam and attempts to login from a new session without permission
                 if active_exam and existing_token and not active_exam["device_switch_approved"]:
+                    # Check if there is already a pending request for this submission
+                    cursor.execute("""
+                        SELECT id FROM device_switch_requests
+                        WHERE student_id = ? AND submission_id = ? AND status = 'pending'
+                        ORDER BY created_at DESC LIMIT 1
+                    """, (user["id"], active_exam["id"]))
+                    existing_pending_req = cursor.fetchone()
+                    pending_req_id = existing_pending_req["id"] if existing_pending_req else None
+
                     conn.close()
                     flash(f"⚠️ Exam In Progress: You are already taking '{active_exam['exam_title']}' on another device! Simultaneous logins are blocked. To switch devices during an exam, you can request your tutor to approve a Device Switch.", "danger")
                     return render_template(
@@ -610,7 +619,8 @@ def login():
                         student_identifier=identifier,
                         active_exam_id=active_exam["exam_id"],
                         active_submission_id=active_exam["id"],
-                        active_exam_title=active_exam["exam_title"]
+                        active_exam_title=active_exam["exam_title"],
+                        pending_request_id=pending_req_id
                     )
 
                 # Reset device_switch_approved flag once student uses it to log in

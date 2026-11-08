@@ -213,8 +213,8 @@
                                      data-code="{{ exam.exam_code | lower }}"
                                      data-subject="{{ (exam.subject or 'General') | lower }}"
                                      data-schedule-type="{{ exam.schedule_type or 'anytime' }}"
-                                     data-start-date="{{ (exam.start_time or '')[:10] }}"
-                                     data-end-date="{{ (exam.end_time or '')[:10] }}">
+                                     data-start-date="{{ (exam.start_time | string)[:10] if exam.start_time else '' }}"
+                                     data-end-date="{{ (exam.end_time | string)[:10] if exam.end_time else '' }}">
                                     <div class="space-y-1">
                                         <div class="flex items-center space-x-3 flex-wrap gap-y-1">
                                             <h3 class="font-bold text-slate-900 text-base">{{ exam.title }}</h3>
@@ -398,7 +398,7 @@
                                     {{ c.exam_title }}
                                 </td>
                                 <td class="py-3 px-4 text-slate-500 font-mono text-[11px]">
-                                    {{ (c.started_at or '')[11:19] or 'Just now' }}
+                                    {{ c.started_at | format_time_12h }}
                                 </td>
                                 <td class="py-3 px-4 font-mono font-bold text-slate-800">
                                     {% if c.time_remaining_seconds is not none %}

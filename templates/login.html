@@ -237,11 +237,15 @@
     }
 
     function startDeviceSwitchPolling(requestId) {
+        if (!requestId || requestId === 'null' || requestId === 'undefined') {
+            return;
+        }
         if (deviceSwitchPollInterval) clearInterval(deviceSwitchPollInterval);
 
         async function pollDeviceSwitchStatus() {
             try {
                 const resp = await fetch(`/api/student/device-switch-status/${requestId}`);
+                if (!resp.ok) return;
                 const data = await resp.json();
 
                 if (data.success) {
@@ -296,5 +300,13 @@
         const modal = document.getElementById('device-switch-modal');
         if (modal) modal.classList.add('hidden');
     }
+
+    {% if pending_request_id %}
+    document.addEventListener('DOMContentLoaded', () => {
+        const modal = document.getElementById('device-switch-modal');
+        if (modal) modal.classList.remove('hidden');
+        startDeviceSwitchPolling({{ pending_request_id }});
+    });
+    {% endif %}
 </script>
 {% endblock %}
