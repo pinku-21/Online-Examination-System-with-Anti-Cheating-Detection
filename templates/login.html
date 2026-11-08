@@ -70,7 +70,7 @@
         </div>
 
         <!-- Pending Status Modal Overlay -->
-        <div id="device-switch-modal" class="hidden fixed inset-0 z-50 bg-slate-950/80 backdrop-blur-md flex items-center justify-center p-4">
+        <div id="device-switch-modal" class="hidden fixed inset-0 z-50 bg-slate-950/80 backdrop-blur-md flex items-center justify-center p-4" data-pending-id="{{ pending_request_id or '' }}">
             <div class="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-3xl max-w-md w-full p-6 text-center shadow-2xl animate-in fade-in zoom-in duration-200">
                 <div id="modal-spinner" class="w-16 h-16 rounded-2xl bg-sky-50 dark:bg-sky-950/50 text-sky-600 mx-auto mb-4 flex items-center justify-center border border-sky-200 dark:border-sky-800">
                     <i data-lucide="loader-2" class="w-8 h-8 animate-spin"></i>
@@ -301,12 +301,13 @@
         if (modal) modal.classList.add('hidden');
     }
 
-    {% if pending_request_id %}
     document.addEventListener('DOMContentLoaded', () => {
         const modal = document.getElementById('device-switch-modal');
-        if (modal) modal.classList.remove('hidden');
-        startDeviceSwitchPolling({{ pending_request_id }});
+        const pendingId = modal ? modal.dataset.pendingId : null;
+        if (pendingId) {
+            modal.classList.remove('hidden');
+            startDeviceSwitchPolling(parseInt(pendingId, 10));
+        }
     });
-    {% endif %}
 </script>
 {% endblock %}
