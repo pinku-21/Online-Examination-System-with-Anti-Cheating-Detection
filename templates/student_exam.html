@@ -916,6 +916,29 @@
         </div>
     </div>
 
+    <!-- Fullscreen Enforcement Overlay (Blurred kiosk lockdown) -->
+    <div id="fullscreen-paused-overlay" class="fixed inset-0 z-50 bg-slate-950/85 backdrop-blur-xl flex flex-col items-center justify-center p-6 text-white text-center hidden">
+        <div class="max-w-md w-full bg-slate-900 border border-slate-700 rounded-3xl p-8 shadow-2xl space-y-5 animate-in fade-in zoom-in-95 duration-200">
+            <div class="w-16 h-16 rounded-2xl bg-indigo-500/20 text-indigo-400 flex items-center justify-center mx-auto border border-indigo-500/30 shadow-inner">
+                <i data-lucide="maximize" class="w-8 h-8"></i>
+            </div>
+            <div>
+                <h3 class="text-xl font-black text-white">Assessment Paused</h3>
+                <p class="text-xs text-slate-400 mt-1.5 leading-relaxed">
+                    This examination requires continuous fullscreen kiosk mode. Question content is locked until you return to fullscreen.
+                </p>
+            </div>
+            <div class="p-3 bg-slate-800/80 rounded-xl border border-slate-700/60 text-xs text-slate-300">
+                <p class="font-semibold text-amber-400 mb-1">⚠️ Security Notice</p>
+                <span>Exiting fullscreen generates a logged security audit event and may count toward candidate strikes.</span>
+            </div>
+            <button type="button" onclick="resumeFullscreenMode()" class="w-full py-3.5 bg-indigo-600 hover:bg-indigo-500 text-white font-bold rounded-2xl shadow-lg shadow-indigo-600/30 transition flex items-center justify-center space-x-2 text-sm cursor-pointer">
+                <i data-lucide="scan" class="w-4 h-4"></i>
+                <span>Resume Fullscreen Exam</span>
+            </button>
+        </div>
+    </div>
+
     <!-- Exam Navigation Header (shadcn style) -->
     <header class="bg-white/95 backdrop-blur-md border-b border-slate-200 sticky top-0 z-40 px-4 sm:px-6 py-2.5">
         <div class="max-w-7xl mx-auto flex items-center justify-between">
@@ -1205,6 +1228,12 @@
         data-duration-minutes="{{ submission.duration_minutes }}" data-warnings-count="{{ submission.warnings_count }}"
         data-enable-video="{{ 1 if submission.enable_video_detection in [1, True, '1'] else 0 }}"
         data-enable-audio="{{ 1 if submission.enable_audio_detection in [1, True, '1'] else 0 }}"
+        data-enable-fullscreen="{{ 1 if submission.enable_fullscreen_enforcement in [1, True, '1'] else 0 }}"
+        data-enable-tab-monitoring="{{ 1 if submission.enable_tab_monitoring in [1, True, '1', None] else 0 }}"
+        data-allow-copy="{{ 1 if submission.allow_student_copy in [1, True, '1'] else 0 }}"
+        data-allow-cut="{{ 1 if submission.allow_student_cut in [1, True, '1'] else 0 }}"
+        data-allow-paste="{{ 1 if submission.allow_student_paste in [1, True, '1'] else 0 }}"
+        data-enable-dom-shield="{{ 1 if submission.enable_dom_integrity_shield in [1, True, '1', None] else 0 }}"
         data-schedule-type="{{ submission.schedule_type or 'anytime' }}" data-end-time="{{ submission.end_time or '' }}"
         data-is-face-verified="{{ 1 if submission.is_face_verified in [1, True, '1'] else 0 }}"
         data-is-desk-setup-verified="{{ 1 if submission.is_desk_setup_verified in [1, True, '1'] else 0 }}"
@@ -1224,6 +1253,12 @@
         const DURATION_MINUTES = Number(metaEl.dataset.durationMinutes);
         const ENABLE_VIDEO = Number(metaEl.dataset.enableVideo) === 1;
         const ENABLE_AUDIO = Number(metaEl.dataset.enableAudio) === 1;
+        const ENABLE_FULLSCREEN = Number(metaEl.dataset.enableFullscreen) === 1;
+        const ENABLE_TAB_MONITORING = Number(metaEl.dataset.enableTabMonitoring) === 1;
+        const ALLOW_COPY = Number(metaEl.dataset.allowCopy) === 1;
+        const ALLOW_CUT = Number(metaEl.dataset.allowCut) === 1;
+        const ALLOW_PASTE = Number(metaEl.dataset.allowPaste) === 1;
+        const ENABLE_DOM_SHIELD = Number(metaEl.dataset.enableDomShield) === 1;
         const SCHEDULE_TYPE = metaEl.dataset.scheduleType || 'anytime';
         const END_TIME_STR = metaEl.dataset.endTime || '';
         const QUESTIONS = JSON.parse(document.getElementById('exam-questions-json').textContent);
@@ -3218,110 +3253,200 @@
             }
         }
 
-        // Anti-Cheating Engine
+        // Fullscreen Enforcement Helper
+        async function resumeFullscreenMode() {
+            try {
+                const docEl = document.documentElement;
+                if (docEl.requestFullscreen) {
+                    await docEl.requestFullscreen();
+                } else if (docEl.webkitRequestFullscreen) {
+                    await docEl.webkitRequestFullscreen();
+                } else if (docEl.msRequestFullscreen) {
+                    await docEl.msRequestFullscreen();
+                }
+                const overlay = document.getElementById('fullscreen-paused-overlay');
+                if (overlay) overlay.classList.add('hidden');
+            } catch (err) {
+                console.warn("Fullscreen resume failed:", err);
+            }
+        }
+
+        // Assessment Integrity Engine (Enterprise-Grade Multi-Sensor Proctoring)
         function initAntiCheatingProctor() {
-            // 1. Tab Switch / Window Minimize (visibilitychange)
+            // 1. Browser Tab Visibility Monitoring (with 1.5s Debounce & File Upload Suppression)
+            let tabDebounceTimer = null;
+            let hiddenStartTime = 0;
+
             document.addEventListener('visibilitychange', () => {
                 if (isBrowsingFile) return;
                 if (!isExamActive || isTerminated || isGracePeriod) return;
+
                 if (document.hidden) {
-                    // Try fetch violation immediately
-                    triggerViolation('tab_switch', 'Student switched browser tab or minimized window.');
-                    // Beacon fallback for Android mobile lifecycle
-                    try {
-                        const blob = new Blob([JSON.stringify({ type: 'tab_switch', details: 'Mobile browser app minimized or backgrounded.' })], { type: 'application/json' });
-                        navigator.sendBeacon(`/api/submission/${SUBMISSION_ID}/violation`, blob);
-                    } catch(e){}
+                    hiddenStartTime = Date.now();
+                    // 1.5s debounce to eliminate transient OS workspace or notification glitches
+                    tabDebounceTimer = setTimeout(() => {
+                        if (document.hidden && !isBrowsingFile && isExamActive && !isTerminated) {
+                            if (ENABLE_TAB_MONITORING) {
+                                triggerViolation('tab_switch', 'Candidate switched browser tab or minimized examination window.');
+                            } else {
+                                // Log informational audit without strike
+                                triggerViolation('tab_switch', 'Informational Audit: Tab switch during unmonitored window.');
+                            }
+
+                            // Beacon fallback for mobile browser minimizing
+                            try {
+                                const blob = new Blob([JSON.stringify({
+                                    type: 'tab_switch',
+                                    details: 'Candidate backgrounded or minimized browser app.'
+                                })], { type: 'application/json' });
+                                navigator.sendBeacon(`/api/submission/${SUBMISSION_ID}/violation`, blob);
+                            } catch(e){}
+                        }
+                    }, 1500);
+                } else {
+                    if (tabDebounceTimer) {
+                        clearTimeout(tabDebounceTimer);
+                        tabDebounceTimer = null;
+                    }
+                    hiddenStartTime = 0;
                 }
             });
 
-            // 2. Window Blur (e.g. clicking another app / dual monitors)
+            // 2. Window Blur & Focus Monitoring (with 1.5s Debounce & Modal Suppression)
+            let blurDebounceTimer = null;
             window.addEventListener('blur', () => {
                 if (isBrowsingFile) return;
-                if (!isExamActive || isTerminated || isGracePeriod || (typeof Swal !== 'undefined' && Swal.isVisible())) return;
-                triggerViolation('window_blur', 'Exam window lost focus (clicked outside).');
-            });
+                if (!isExamActive || isTerminated || isGracePeriod) return;
+                if (typeof Swal !== 'undefined' && Swal.isVisible()) return;
 
-            // 3. Fullscreen Exit (standard + webkit + mobile events)
-            ['fullscreenchange', 'webkitfullscreenchange', 'mozfullscreenchange', 'MSFullscreenChange'].forEach(evt => {
-                document.addEventListener(evt, () => {
-                    if (isBrowsingFile) return;
-                    if (!isExamActive || isTerminated || isGracePeriod || (typeof Swal !== 'undefined' && Swal.isVisible())) return;
-                    const isFs = Boolean(document.fullscreenElement || document.webkitFullscreenElement || document.mozFullScreenElement || document.msFullscreenElement);
-                    if (!isFs) {
-                        triggerViolation('fullscreen_exit', 'Student exited full-screen mode.');
+                blurDebounceTimer = setTimeout(() => {
+                    if (!document.hasFocus() && !isBrowsingFile && isExamActive && !isTerminated) {
+                        if (typeof Swal !== 'undefined' && Swal.isVisible()) return;
+                        if (ENABLE_TAB_MONITORING) {
+                            triggerViolation('window_blur', 'Candidate clicked outside examination window or switched application focus.');
+                        } else {
+                            triggerViolation('window_blur', 'Informational Audit: Window blur event.');
+                        }
                     }
-                });
+                }, 1500);
             });
 
-            // 4. Disable Right Click Context Menu with Granular Strike Logging
+            window.addEventListener('focus', () => {
+                if (blurDebounceTimer) {
+                    clearTimeout(blurDebounceTimer);
+                    blurDebounceTimer = null;
+                }
+            });
+
+            // 3. Fullscreen Exit Detection & Kiosk Enforcement
+            const handleFullscreenChange = () => {
+                if (isBrowsingFile) return;
+                if (!isExamActive || isTerminated || isGracePeriod) return;
+
+                const isFs = Boolean(
+                    document.fullscreenElement ||
+                    document.webkitFullscreenElement ||
+                    document.mozFullScreenElement ||
+                    document.msFullscreenElement
+                );
+
+                const overlay = document.getElementById('fullscreen-paused-overlay');
+
+                if (!isFs) {
+                    // If fullscreen enforcement is enabled, display pause overlay
+                    if (ENABLE_FULLSCREEN && overlay) {
+                        overlay.classList.remove('hidden');
+                    }
+                    triggerViolation('fullscreen_exit', 'Candidate exited fullscreen examination mode.');
+                } else {
+                    if (overlay) overlay.classList.add('hidden');
+                }
+            };
+
+            ['fullscreenchange', 'webkitfullscreenchange', 'mozfullscreenchange', 'MSFullscreenChange'].forEach(evt => {
+                document.addEventListener(evt, handleFullscreenChange);
+            });
+
+            // 4. Disable Right-Click Context Menu
             document.addEventListener('contextmenu', (e) => {
                 e.preventDefault();
                 const targetTag = (e.target && e.target.tagName) ? e.target.tagName : 'WINDOW';
-                triggerViolation('right_click', `Attempted unauthorized right-click context menu on <${targetTag}> (coords: ${e.clientX}, ${e.clientY}).`);
+                triggerViolation('right_click', `Unauthorized right-click context menu intercepted on <${targetTag}>.`);
             });
 
-            // 5. Disable Copy, Cut, Paste with Irregular Buffer Inspection
-            ['copy', 'cut', 'paste'].forEach(evt => {
-                document.addEventListener(evt, (e) => {
-                    e.preventDefault();
-                    let clipDetail = `Attempted unauthorized ${evt.toUpperCase()} event on active exam document.`;
-                    if (evt === 'paste') {
-                        try {
-                            const clipText = (e.clipboardData || window.clipboardData).getData('text') || '';
-                            if (clipText.length > 0) {
-                                clipDetail += ` Clipboard cache payload detected (${clipText.length} chars: "${clipText.substring(0, 30)}...").`;
-                            }
-                        } catch (cErr) {}
-                    }
-                    triggerViolation('clipboard_attempt', clipDetail);
-                });
+            // 5. Independent Clipboard Interceptors (Zero Content Retention)
+            // Privacy by Design: Never collect, inspect, or transmit actual clipboard string contents!
+            document.addEventListener('copy', (e) => {
+                if (ALLOW_COPY) {
+                    // Allowed by exam policy - optional silent audit
+                    return;
+                }
+                e.preventDefault();
+                const targetField = (e.target && (e.target.id || e.target.name || e.target.tagName)) || 'DOCUMENT';
+                triggerViolation('clipboard_copy', `Copy blocked by policy on <${targetField}>.`);
             });
 
-            // 6. Block Shortcut Keys (Alt+Tab, F12, Ctrl+C, Ctrl+V, etc.)
+            document.addEventListener('cut', (e) => {
+                if (ALLOW_CUT) {
+                    return;
+                }
+                e.preventDefault();
+                const targetField = (e.target && (e.target.id || e.target.name || e.target.tagName)) || 'DOCUMENT';
+                triggerViolation('clipboard_cut', `Cut blocked by policy on <${targetField}>.`);
+            });
+
+            document.addEventListener('paste', (e) => {
+                if (ALLOW_PASTE) {
+                    return;
+                }
+                e.preventDefault();
+                const targetField = (e.target && (e.target.id || e.target.name || e.target.tagName)) || 'DOCUMENT';
+                triggerViolation('clipboard_paste', `Paste blocked by policy into [${targetField}].`);
+            });
+
+            // 6. Block Shortcut Keys (DevTools, Inspect, Print, Save)
             document.addEventListener('keydown', (e) => {
                 if (
                     e.key === 'F12' ||
                     (e.ctrlKey && e.shiftKey && (e.key === 'I' || e.key === 'J' || e.key === 'C')) ||
-                    (e.ctrlKey && (e.key === 'u' || e.key === 'U'))
+                    (e.ctrlKey && (e.key === 'u' || e.key === 'U')) ||
+                    (e.ctrlKey && (e.key === 's' || e.key === 'S')) ||
+                    (e.ctrlKey && (e.key === 'p' || e.key === 'P'))
                 ) {
                     e.preventDefault();
-                    triggerViolation('devtools_attempt', `Attempted developer inspection shortcut: ${e.ctrlKey ? 'Ctrl+' : ''}${e.key}`);
+                    triggerViolation('devtools_attempt', `Blocked shortcut command: ${e.ctrlKey ? 'Ctrl+' : ''}${e.shiftKey ? 'Shift+' : ''}${e.key}`);
                 }
             });
 
-            // 7. Active DevTools Timing Trap (Detects docked or undocked DevTools opening via debugger latency)
+            // 7. Active DevTools Timing Trap (Detects console/debugger latency)
             let devtoolsThreshold = 160;
             let devtoolsCheckInterval = setInterval(() => {
                 if (!isExamActive || isTerminated || isGracePeriod) return;
                 const start = performance.now();
-                // If DevTools is open, debugger statement causes significant delay
                 (function() {
                     const img = new Image();
                     Object.defineProperty(img, 'id', {
                         get: function() {
-                            triggerViolation('devtools_tamper', 'Client-side inspection trap triggered: Browser console or DevTools opened.');
+                            triggerViolation('devtools_tamper', 'Console / DevTools inspection panel opened.');
                         }
                     });
                     console.dir(img);
                 })();
                 const duration = performance.now() - start;
                 if (duration > devtoolsThreshold) {
-                    triggerViolation('devtools_tamper', 'Debugger latency anomaly detected (Console / DevTools inspection active).');
+                    triggerViolation('devtools_tamper', 'Debugger latency anomaly detected.');
                 }
-            }, 3000);
+            }, 3500);
 
             // 8. Synthetic Input Attack Prevention (Detects script-based click injection via e.isTrusted)
             document.addEventListener('click', (e) => {
                 if (e.isTrusted === false) {
                     e.preventDefault();
-                    triggerViolation('devtools_tamper', 'Synthetic input injection attack detected (scripted mouse click).');
+                    triggerViolation('devtools_tamper', 'Synthetic scripted mouse click detected.');
                 }
             }, true);
 
-            // 9. Biometric Keystroke Dynamics & Cadence Heuristics (AI Auto-Type Burst Injection Detection)
-            // Human keystroke inter-arrival time (flight time) has natural variance (80ms - 350ms).
-            // Scripted auto-typers / extensions inject uniform 2-15ms bursts or paste 60+ chars with 0 interval.
+            // 9. Biometric Keystroke Dynamics & Auto-Type Burst Injection Detection
             let lastKeyTime = 0;
             let keyFlightIntervals = [];
             let rapidBurstCount = 0;
@@ -3334,25 +3459,22 @@
                     keyFlightIntervals.push(delta);
                     if (keyFlightIntervals.length > 30) keyFlightIntervals.shift();
 
-                    // Detect inhuman continuous high-speed injection (< 18ms per keystroke across 15+ characters)
                     if (delta < 18 && e.key.length === 1) {
                         rapidBurstCount++;
                         if (rapidBurstCount >= 16) {
-                            triggerViolation('keystroke_anomaly', `Automated Keystroke Injection detected: Inhuman typing velocity (>250 WPM, flight time: ${Math.round(delta)}ms per char).`);
+                            triggerViolation('keystroke_anomaly', `Automated Keystroke Injection detected (>250 WPM, delta ${Math.round(delta)}ms).`);
                             rapidBurstCount = 0;
                         }
                     } else {
                         rapidBurstCount = Math.max(0, rapidBurstCount - 1);
                     }
 
-                    // Check for artificial zero-variance cadence (bot typing scripts that use fixed sleep intervals like exactly 50ms)
                     if (keyFlightIntervals.length >= 20) {
                         const avg = keyFlightIntervals.reduce((a, b) => a + b, 0) / keyFlightIntervals.length;
                         const variance = keyFlightIntervals.reduce((sum, v) => sum + Math.pow(v - avg, 2), 0) / keyFlightIntervals.length;
                         const stdDev = Math.sqrt(variance);
-                        // Standard deviation below 4ms across 20 keystrokes is statistically impossible for humans
                         if (stdDev < 4.0 && avg < 120) {
-                            triggerViolation('keystroke_anomaly', `Unnatural Typing Cadence Anomaly: Near-zero cadence variance (std dev: ${stdDev.toFixed(1)}ms) indicates robotic input injector.`);
+                            triggerViolation('keystroke_anomaly', `Robotic typing cadence anomaly detected (std dev ${stdDev.toFixed(1)}ms).`);
                             keyFlightIntervals = [];
                         }
                     }
@@ -3360,77 +3482,88 @@
                 lastKeyTime = now;
             }, true);
 
-            // Large text block sudden insertion detector (paste bypass / script innerHTML insertion)
+            // Large text block sudden insertion detector
             document.addEventListener('input', (e) => {
                 if (!isExamActive || isTerminated || isGracePeriod) return;
                 if (e.target && (e.target.tagName === 'TEXTAREA' || e.target.tagName === 'INPUT')) {
                     const inserted = e.data || '';
-                    // If an input event directly inserts > 65 characters in a single event without clipboard paste
                     if (inserted.length > 65 && e.inputType !== 'insertFromPaste') {
-                        triggerViolation('keystroke_anomaly', `Unauthorized Text Block Injection: ${inserted.length} characters inserted in single synthetic event.`);
+                        triggerViolation('keystroke_anomaly', `Unauthorized bulk text injection (${inserted.length} characters).`);
                     }
                 }
             }, true);
 
-            // 10. Browser Extension & Shadow-DOM Tampering Interceptor (Continuous Runtime Shield)
-            // Proactively monitors unauthorized external script injections, style injections, and custom overlay DOM nodes
-            try {
-                const extensionObserver = new MutationObserver((mutations) => {
-                    if (!isExamActive || isTerminated || isGracePeriod) return;
-                    for (const mutation of mutations) {
-                        for (const node of mutation.addedNodes) {
-                            if (node.nodeType === 1) { // Element node
-                                const el = node;
-                                const tagName = (el.tagName || '').toLowerCase();
-                                const idStr = (el.id || '').toLowerCase();
-                                const classStr = (el.className && typeof el.className === 'string' ? el.className : '').toLowerCase();
-                                const srcStr = (el.src || el.getAttribute('src') || '').toLowerCase();
-                                const hrefStr = (el.href || el.getAttribute('href') || '').toLowerCase();
-                                
-                                const isExtensionProtocol = srcStr.startsWith('chrome-extension://') || 
-                                                            srcStr.startsWith('moz-extension://') ||
-                                                            hrefStr.startsWith('chrome-extension://') ||
-                                                            hrefStr.startsWith('moz-extension://');
+            // 10. Targeted DOM Integrity Shield (Targeted MutationObserver on Critical Elements)
+            if (ENABLE_DOM_SHIELD) {
+                try {
+                    const domShieldObserver = new MutationObserver((mutations) => {
+                        if (!isExamActive || isTerminated || isGracePeriod) return;
 
-                                const isSuspiciousExt = isExtensionProtocol ||
-                                                        idStr.includes('chatgpt') || idStr.includes('ai-helper') ||
-                                                        idStr.includes('solver') || idStr.includes('copilot') ||
-                                                        idStr.includes('bypass') || idStr.includes('tampermonkey') ||
-                                                        classStr.includes('gpt-') || classStr.includes('ai-helper') ||
-                                                        tagName.includes('chatgpt') || tagName.includes('ai-companion') ||
-                                                        tagName.startsWith('grammarly-') || tagName.startsWith('extension-');
-                                
-                                if (isSuspiciousExt) {
-                                    triggerViolation('extension_tamper', `Active Browser Extension Intercepted: <${tagName} id="${el.id}"> injected into exam page.`);
-                                    try { el.remove(); } catch(remErr) {}
-                                    return;
+                        for (const mutation of mutations) {
+                            // Check added nodes
+                            for (const node of mutation.addedNodes) {
+                                if (node.nodeType === 1) {
+                                    const el = node;
+                                    const tagName = (el.tagName || '').toLowerCase();
+                                    const idStr = (el.id || '').toLowerCase();
+                                    const classStr = (el.className && typeof el.className === 'string' ? el.className : '').toLowerCase();
+                                    const srcStr = (el.src || el.getAttribute('src') || '').toLowerCase();
+
+                                    // Whitelist legitimate application widgets
+                                    if (
+                                        classStr.includes('katex') ||
+                                        classStr.includes('swal2') ||
+                                        classStr.includes('lucide') ||
+                                        tagName === 'svg' ||
+                                        tagName === 'path' ||
+                                        idStr.startsWith('katex-') ||
+                                        idStr.startsWith('swal2-')
+                                    ) {
+                                        continue;
+                                    }
+
+                                    // Detect suspicious external scripts or extensions
+                                    const isSuspicious = srcStr.startsWith('chrome-extension://') ||
+                                                         srcStr.startsWith('moz-extension://') ||
+                                                         tagName === 'script' ||
+                                                         idStr.includes('chatgpt') ||
+                                                         idStr.includes('solver') ||
+                                                         idStr.includes('tampermonkey') ||
+                                                         classStr.includes('gpt-');
+
+                                    if (isSuspicious) {
+                                        triggerViolation('dom_mutation_detected', `Unauthorized script/DOM injection intercepted: <${tagName} id="${el.id}">.`);
+                                        return;
+                                    }
+                                }
+                            }
+
+                            // Check removed critical nodes
+                            for (const node of mutation.removedNodes) {
+                                if (node.nodeType === 1) {
+                                    const id = node.id || '';
+                                    if (id === 'webcam-preview' || id === 'exam-timer' || id === 'current-question-text') {
+                                        triggerViolation('dom_mutation_detected', `Critical assessment DOM element was removed: #${id}`);
+                                        return;
+                                    }
                                 }
                             }
                         }
-                    }
-                });
+                    });
 
-                extensionObserver.observe(document.documentElement, {
-                    childList: true,
-                    subtree: true
-                });
-
-                // Periodic prototype guard: check if any extension hijacks fullscreen or blur while test is active
-                setInterval(() => {
-                    if (!isExamActive || isTerminated || isGracePeriod) return;
-                    try {
-                        const fsFn = (document.exitFullscreen || document.webkitExitFullscreen);
-                        if (fsFn && !Function.prototype.toString.call(fsFn).includes('[native code]')) {
-                            triggerViolation('extension_tamper', 'Extension Hijack Detected: document.exitFullscreen prototype was hooked.');
-                        }
-                    } catch (e) {}
-                }, 5000);
-            } catch (obsErr) {
-                console.warn('DOM Mutation observer error:', obsErr);
+                    // Target the main container rather than documentElement to avoid noise
+                    const targetContainer = document.querySelector('main') || document.body;
+                    domShieldObserver.observe(targetContainer, {
+                        childList: true,
+                        subtree: true
+                    });
+                } catch (obsErr) {
+                    console.warn('DOM Shield observer setup notice:', obsErr);
+                }
             }
         }
 
-        // Instant AI Proctor Voice Warning Synthesizer (SpeechSynthesis API)
+                // Instant AI Proctor Voice Warning Synthesizer (SpeechSynthesis API)
         function playAIVoiceWarning(type) {
             try {
                 if (!('speechSynthesis' in window)) return;

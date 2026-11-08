@@ -208,16 +208,20 @@ SECURITY_EVENT_CLASSIFICATION = {
     "multiple_faces": {"code": "SEC-004", "severity": "HIGH", "desc": "Physical Perimeter Breach: Multiple Persons Detected"},
     "no_face": {"code": "SEC-005", "severity": "MEDIUM", "desc": "Webcam Feed Obscured / Candidate Absence"},
     "mobile_phone_detected": {"code": "SEC-006", "severity": "CRITICAL", "desc": "Unauthorized Communication Device Detected"},
-    "tab_switch": {"code": "SEC-007", "severity": "HIGH", "desc": "Session Window Blur / Unauthorized Tab Switch"},
-    "window_blur": {"code": "SEC-008", "severity": "MEDIUM", "desc": "Operating System Focus Loss / External Overlay"},
-    "fullscreen_exit": {"code": "SEC-009", "severity": "HIGH", "desc": "Kiosk Environment / Fullscreen Sandbox Escape"},
-    "clipboard_attempt": {"code": "SEC-010", "severity": "MEDIUM", "desc": "Restricted Clipboard Injection / Extraction"},
-    "right_click": {"code": "SEC-011", "severity": "LOW", "desc": "Unauthorized Context Menu Invocation"},
-    "voice_detected": {"code": "SEC-012", "severity": "MEDIUM", "desc": "Acoustic Anomaly / Unauthorized Speech Detected"},
-    "session_anomaly": {"code": "SEC-013", "severity": "CRITICAL", "desc": "Concurrent Session / Device Hijacking Attempt"},
-    "keystroke_anomaly": {"code": "SEC-014", "severity": "CRITICAL", "desc": "Biometric Keystroke Anomaly / Fast-Type AI Injector Detected"},
-    "extension_tamper": {"code": "SEC-015", "severity": "CRITICAL", "desc": "Browser Extension / DOM Mutation Injection Detected"},
-    "secondary_cam_disconnect": {"code": "SEC-016", "severity": "HIGH", "desc": "Secondary Mobile Camera Disconnected / Obscured"}
+    "tab_switch": {"code": "SEC-007", "severity": "HIGH", "category": "browser_focus", "desc": "Session Window Blur / Unauthorized Tab Switch"},
+    "window_blur": {"code": "SEC-008", "severity": "MEDIUM", "category": "browser_focus", "desc": "Operating System Focus Loss / External Overlay"},
+    "fullscreen_exit": {"code": "SEC-009", "severity": "HIGH", "category": "fullscreen", "desc": "Kiosk Environment / Fullscreen Sandbox Escape"},
+    "clipboard_attempt": {"code": "SEC-010", "severity": "HIGH", "category": "clipboard", "desc": "Restricted Clipboard Injection / Extraction"},
+    "clipboard_copy": {"code": "SEC-010A", "severity": "WARNING", "category": "clipboard", "desc": "Unauthorized Copy Attempt on Examination Content"},
+    "clipboard_cut": {"code": "SEC-010B", "severity": "WARNING", "category": "clipboard", "desc": "Unauthorized Cut Attempt on Examination Field"},
+    "clipboard_paste": {"code": "SEC-010C", "severity": "WARNING", "category": "clipboard", "desc": "Unauthorized Paste Attempt into Answer Field"},
+    "right_click": {"code": "SEC-011", "severity": "INFO", "category": "browser_focus", "desc": "Unauthorized Context Menu Invocation"},
+    "voice_detected": {"code": "SEC-012", "severity": "WARNING", "category": "audio", "desc": "Acoustic Anomaly / Unauthorized Speech Detected"},
+    "session_anomaly": {"code": "SEC-013", "severity": "CRITICAL", "category": "session", "desc": "Concurrent Session / Device Hijacking Attempt"},
+    "keystroke_anomaly": {"code": "SEC-014", "severity": "CRITICAL", "category": "input", "desc": "Biometric Keystroke Anomaly / Fast-Type AI Injector Detected"},
+    "extension_tamper": {"code": "SEC-015", "severity": "CRITICAL", "category": "dom_integrity", "desc": "Browser Extension / Suspicious Script or DOM Injection Detected"},
+    "dom_mutation_detected": {"code": "SEC-015B", "severity": "WARNING", "category": "dom_integrity", "desc": "Suspicious Script or DOM Injection Detected"},
+    "secondary_cam_disconnect": {"code": "SEC-016", "severity": "HIGH", "category": "camera", "desc": "Secondary Mobile Camera Disconnected / Obscured"}
 }
 
 def row_get(record, key, default=None):
@@ -3132,7 +3136,14 @@ def api_exam_access_schedule(exam_id):
     conn = get_connection()
     cursor = conn.cursor()
     if request.method == "GET":
-        cursor.execute("SELECT id, title, access_type, assigned_class, schedule_type, start_time, end_time, duration_minutes, enable_audio_detection, enable_video_detection FROM exams WHERE id = ?", (exam_id,))
+        cursor.execute("""
+            SELECT id, title, access_type, assigned_class, schedule_type, start_time, end_time,
+                   duration_minutes, enable_audio_detection, enable_video_detection,
+                   enable_fullscreen_enforcement, enable_tab_monitoring,
+                   allow_student_copy, allow_student_cut, allow_student_paste,
+                   enable_dom_integrity_shield
+            FROM exams WHERE id = ?
+        """, (exam_id,))
         exam = cursor.fetchone()
         if not exam:
             conn.close()
@@ -3152,6 +3163,12 @@ def api_exam_access_schedule(exam_id):
         dur_val = int(ex_dict.get("duration_minutes") or 30)
         enable_audio_val = 1 if ex_dict.get("enable_audio_detection") in [1, True, "1"] else 0
         enable_video_val = 1 if ex_dict.get("enable_video_detection") in [1, True, "1"] else 0
+        enable_fs_val = 1 if ex_dict.get("enable_fullscreen_enforcement") in [1, True, "1"] else 0
+        enable_tab_val = 1 if ex_dict.get("enable_tab_monitoring") in [1, True, "1"] else 0
+        allow_copy_val = 1 if ex_dict.get("allow_student_copy") in [1, True, "1"] else 0
+        allow_cut_val = 1 if ex_dict.get("allow_student_cut") in [1, True, "1"] else 0
+        allow_paste_val = 1 if ex_dict.get("allow_student_paste") in [1, True, "1"] else 0
+        enable_dom_val = 1 if ex_dict.get("enable_dom_integrity_shield") in [1, True, "1"] else 0
         return jsonify({
             "success": True,
             "exam": {
@@ -3164,7 +3181,13 @@ def api_exam_access_schedule(exam_id):
                 "end_time": et_val,
                 "duration_minutes": dur_val,
                 "enable_audio_detection": enable_audio_val,
-                "enable_video_detection": enable_video_val
+                "enable_video_detection": enable_video_val,
+                "enable_fullscreen_enforcement": enable_fs_val,
+                "enable_tab_monitoring": enable_tab_val,
+                "allow_student_copy": allow_copy_val,
+                "allow_student_cut": allow_cut_val,
+                "allow_student_paste": allow_paste_val,
+                "enable_dom_integrity_shield": enable_dom_val
             },
             "access_type": ex_dict.get("access_type") or "all",
             "assigned_class": ex_dict.get("assigned_class") or "",
@@ -3174,6 +3197,12 @@ def api_exam_access_schedule(exam_id):
             "duration_minutes": dur_val,
             "enable_audio_detection": enable_audio_val,
             "enable_video_detection": enable_video_val,
+            "enable_fullscreen_enforcement": enable_fs_val,
+            "enable_tab_monitoring": enable_tab_val,
+            "allow_student_copy": allow_copy_val,
+            "allow_student_cut": allow_cut_val,
+            "allow_student_paste": allow_paste_val,
+            "enable_dom_integrity_shield": enable_dom_val,
             "assigned_student_ids": assigned_ids
         })
 
@@ -3209,16 +3238,44 @@ def api_exam_access_schedule(exam_id):
 
     enable_audio = data.get("enable_audio_detection")
     enable_video = data.get("enable_video_detection")
-    if enable_audio is not None and enable_video is not None:
-        ea_val = 1 if enable_audio in [1, True, "1"] else 0
-        ev_val = 1 if enable_video in [1, True, "1"] else 0
-        cursor.execute("UPDATE exams SET enable_audio_detection = ?, enable_video_detection = ? WHERE id = ?", (ea_val, ev_val, exam_id))
-    elif enable_audio is not None:
-        ea_val = 1 if enable_audio in [1, True, "1"] else 0
-        cursor.execute("UPDATE exams SET enable_audio_detection = ? WHERE id = ?", (ea_val, exam_id))
-    elif enable_video is not None:
-        ev_val = 1 if enable_video in [1, True, "1"] else 0
-        cursor.execute("UPDATE exams SET enable_video_detection = ? WHERE id = ?", (ev_val, exam_id))
+    enable_fs = data.get("enable_fullscreen_enforcement")
+    enable_tab = data.get("enable_tab_monitoring")
+    allow_copy = data.get("allow_student_copy")
+    allow_cut = data.get("allow_student_cut")
+    allow_paste = data.get("allow_student_paste")
+    enable_dom = data.get("enable_dom_integrity_shield")
+
+    update_fields = []
+    update_vals = []
+
+    if enable_audio is not None:
+        update_fields.append("enable_audio_detection = ?")
+        update_vals.append(1 if enable_audio in [1, True, "1"] else 0)
+    if enable_video is not None:
+        update_fields.append("enable_video_detection = ?")
+        update_vals.append(1 if enable_video in [1, True, "1"] else 0)
+    if enable_fs is not None:
+        update_fields.append("enable_fullscreen_enforcement = ?")
+        update_vals.append(1 if enable_fs in [1, True, "1"] else 0)
+    if enable_tab is not None:
+        update_fields.append("enable_tab_monitoring = ?")
+        update_vals.append(1 if enable_tab in [1, True, "1"] else 0)
+    if allow_copy is not None:
+        update_fields.append("allow_student_copy = ?")
+        update_vals.append(1 if allow_copy in [1, True, "1"] else 0)
+    if allow_cut is not None:
+        update_fields.append("allow_student_cut = ?")
+        update_vals.append(1 if allow_cut in [1, True, "1"] else 0)
+    if allow_paste is not None:
+        update_fields.append("allow_student_paste = ?")
+        update_vals.append(1 if allow_paste in [1, True, "1"] else 0)
+    if enable_dom is not None:
+        update_fields.append("enable_dom_integrity_shield = ?")
+        update_vals.append(1 if enable_dom in [1, True, "1"] else 0)
+
+    if update_fields:
+        update_vals.append(exam_id)
+        cursor.execute(f"UPDATE exams SET {', '.join(update_fields)} WHERE id = ?", tuple(update_vals))
 
     cursor.execute("DELETE FROM exam_assignments WHERE exam_id = ?", (exam_id,))
     if access_type == "selected" and assigned_students:
@@ -4243,7 +4300,11 @@ def student_exam_room(submission_id):
     cursor = conn.cursor()
     
     cursor.execute("""
-        SELECT s.*, e.title, e.duration_minutes, e.max_warnings, e.exam_code, e.enable_audio_detection, e.enable_video_detection,
+        SELECT s.*, e.title, e.duration_minutes, e.max_warnings, e.exam_code,
+               e.enable_audio_detection, e.enable_video_detection,
+               e.enable_fullscreen_enforcement, e.enable_tab_monitoring,
+               e.allow_student_copy, e.allow_student_cut, e.allow_student_paste,
+               e.enable_dom_integrity_shield,
                e.schedule_type, e.start_time, e.end_time,
                u.profile_photo AS student_profile_photo
         FROM submissions s
@@ -4356,7 +4417,10 @@ def api_log_violation(submission_id):
     Increments warning counter. If warnings >= max_warnings, terminates exam immediately.
     """
     data = request.get_json() or {}
-    violation_type = (data.get("type") or "unknown").strip()
+    violation_type = (data.get("type") or "").strip()
+    if not violation_type or violation_type not in SECURITY_EVENT_CLASSIFICATION:
+        return jsonify({"success": False, "error": f"Invalid or unrecognized security event type: {violation_type}"}), 400
+
     raw_details = data.get("details", "")
     details = str(raw_details)[:500] if raw_details else ""
     client_ip = (request.remote_addr or "127.0.0.1").strip()
@@ -4377,13 +4441,16 @@ def api_log_violation(submission_id):
     
     sec_meta = classify_security_event(violation_type)
     event_code = sec_meta.get("code", "SEC-ALERT")
-    severity = sec_meta.get("severity", "HIGH")
+    severity = sec_meta.get("severity", "WARNING")
     
     conn = get_connection()
     cursor = conn.cursor()
     
     cursor.execute("""
-        SELECT s.*, e.max_warnings, e.id as exam_id
+        SELECT s.*, e.max_warnings, e.id as exam_id,
+               e.enable_fullscreen_enforcement, e.enable_tab_monitoring,
+               e.allow_student_copy, e.allow_student_cut, e.allow_student_paste,
+               e.enable_dom_integrity_shield
         FROM submissions s
         JOIN exams e ON s.exam_id = e.id
         WHERE s.id = ?
@@ -4397,7 +4464,30 @@ def api_log_violation(submission_id):
     # Student ownership check: prevents tampering with other candidates' exams
     if session.get("user_role") == "student" and submission["user_id"] != session.get("user_id"):
         conn.close()
-        return jsonify({"terminated": False, "error": "Access denied."}), 403
+        return jsonify({"success": False, "terminated": False, "error": "Access denied."}), 403
+
+    # Check whether the tutor's policy allows this action without issuing a warning strike
+    is_warning_strike = True
+    if violation_type == "clipboard_copy" and row_get(submission, "allow_student_copy") == 1:
+        is_warning_strike = False
+        severity = "INFO"
+    elif violation_type == "clipboard_cut" and row_get(submission, "allow_student_cut") == 1:
+        is_warning_strike = False
+        severity = "INFO"
+    elif violation_type == "clipboard_paste" and row_get(submission, "allow_student_paste") == 1:
+        is_warning_strike = False
+        severity = "INFO"
+    elif violation_type == "fullscreen_exit" and row_get(submission, "enable_fullscreen_enforcement") == 0:
+        is_warning_strike = False
+        severity = "INFO"
+    elif violation_type in ("tab_switch", "window_blur") and row_get(submission, "enable_tab_monitoring") == 0:
+        is_warning_strike = False
+        severity = "INFO"
+    elif violation_type in ("extension_tamper", "dom_mutation_detected") and row_get(submission, "enable_dom_integrity_shield") == 0:
+        is_warning_strike = False
+        severity = "INFO"
+    elif severity == "INFO":
+        is_warning_strike = False
 
     # Process and save Forensic Incident Webcam Snapshot if provided
     raw_snapshot = data.get("snapshot") or ""
@@ -4423,13 +4513,14 @@ def api_log_violation(submission_id):
         VALUES (?, ?, ?, ?, ?, ?)
     """, (submission_id, violation_type, details, severity, event_code, snapshot_url))
     
-    new_warnings = submission["warnings_count"] + 1
-    max_allowed = submission["max_warnings"]
+    current_warnings = int(row_get(submission, "warnings_count", 0) or 0)
+    new_warnings = current_warnings + (1 if is_warning_strike else 0)
+    max_allowed = int(row_get(submission, "max_warnings", 3) or 3)
     
     is_terminated = False
     termination_reason = None
     
-    if new_warnings >= max_allowed:
+    if is_warning_strike and new_warnings >= max_allowed:
         is_terminated = True
         termination_reason = f"Exceeded maximum allowed anti-cheating warnings ({new_warnings}/{max_allowed} strikes). Violation: {violation_type.replace('_', ' ').title()}"
         
