@@ -25,12 +25,28 @@
                     {{ submission.termination_reason or 'Exceeded the maximum allowed anti-cheating warnings.' }}
                 </p>
             {% elif not is_published %}
-                <div class="w-16 h-16 rounded-2xl bg-sky-50 text-sky-600 border border-sky-200 flex items-center justify-center mx-auto mb-4">
-                    <i data-lucide="brain-circuit" class="w-8 h-8 animate-pulse"></i>
-                </div>
-                <span class="shadcn-badge bg-sky-50 text-sky-700 border-sky-200 mb-2 font-bold uppercase tracking-wider text-[11px]">Submission Received</span>
-                <h1 class="text-2xl sm:text-3xl font-bold text-slate-900 tracking-tight">{% if evaluation_complete %}AI evaluation completed{% else %}Your answers are being evaluated{% endif %}</h1>
-                <p class="text-sm text-slate-500 mt-1">{% if evaluation_complete %}AI has finished grading. Your total marks are shown below; detailed answers and feedback stay private until your teacher publishes them.{% else %}Your total marks will appear when AI evaluation finishes. Detailed answers and feedback stay private until your teacher publishes them.{% endif %}</p>
+                {% if evaluation_complete %}
+                    <div class="w-16 h-16 rounded-2xl bg-emerald-50 text-emerald-600 border border-emerald-200 flex items-center justify-center mx-auto mb-4">
+                        <i data-lucide="check-circle" class="w-8 h-8 text-emerald-600"></i>
+                    </div>
+                    <span class="shadcn-badge bg-emerald-50 text-emerald-700 border-emerald-200 mb-2 font-bold uppercase tracking-wider text-[11px]">Examination Submitted Successfully</span>
+                    <h1 class="text-2xl sm:text-3xl font-bold text-slate-900 tracking-tight">AI Evaluation Completed</h1>
+                    <p class="text-sm text-slate-600 mt-1 max-w-lg mx-auto">Your total score is available below. Detailed answer review and question-wise feedback remain private until published by your tutor.</p>
+                {% elif submission.evaluation_status == 'failed' %}
+                    <div class="w-16 h-16 rounded-2xl bg-amber-50 text-amber-600 border border-amber-200 flex items-center justify-center mx-auto mb-4">
+                        <i data-lucide="alert-circle" class="w-8 h-8 text-amber-600"></i>
+                    </div>
+                    <span class="shadcn-badge bg-amber-50 text-amber-700 border-amber-200 mb-2 font-bold uppercase tracking-wider text-[11px]">Manual Review Required</span>
+                    <h1 class="text-2xl sm:text-3xl font-bold text-slate-900 tracking-tight">Evaluation Needs Teacher Review</h1>
+                    <p class="text-sm text-slate-500 mt-1 max-w-lg mx-auto">Automatic grading stopped. Your instructor will review your submission and award marks directly.</p>
+                {% else %}
+                    <div class="w-16 h-16 rounded-2xl bg-sky-50 text-sky-600 border border-sky-200 flex items-center justify-center mx-auto mb-4">
+                        <i data-lucide="brain-circuit" class="w-8 h-8 animate-pulse"></i>
+                    </div>
+                    <span class="shadcn-badge bg-sky-50 text-sky-700 border-sky-200 mb-2 font-bold uppercase tracking-wider text-[11px]">Submission Received</span>
+                    <h1 class="text-2xl sm:text-3xl font-bold text-slate-900 tracking-tight">Your answers are being evaluated</h1>
+                    <p class="text-sm text-slate-500 mt-1 max-w-lg mx-auto">Your total marks will appear automatically when AI evaluation finishes. Detailed answers and feedback stay private until your teacher publishes them.</p>
+                {% endif %}
             {% elif passed %}
                 <div class="w-16 h-16 rounded-2xl bg-emerald-50 text-emerald-600 border border-emerald-200 flex items-center justify-center mx-auto mb-4">
                     <i data-lucide="award" class="w-8 h-8"></i>
@@ -545,10 +561,13 @@
                     var bar = document.getElementById('evaluation-progress-bar');
                     if (count) count.textContent = done + ' / ' + total;
                     if (bar) bar.style.width = pct + '%';
-                    if (status === 'awaiting_teacher' || status === 'needs_review') {
-                        if (initialStatus !== 'awaiting_teacher' && initialStatus !== 'needs_review') { window.location.reload(); return; }
+                    if (status === 'awaiting_teacher' || status === 'needs_review' || status === 'evaluated') {
+                        if (initialStatus !== 'awaiting_teacher' && initialStatus !== 'needs_review' && initialStatus !== 'evaluated') {
+                            window.location.reload();
+                            return;
+                        }
                         if (title) title.textContent = 'AI evaluation completed';
-                        if (copy) copy.textContent = 'AI scoring is complete. Your total marks will appear after this page refreshes; detailed answer review is awaiting teacher publication.';
+                        if (copy) copy.textContent = 'AI scoring is complete. Your total marks are visible above; detailed answer review is awaiting teacher publication.';
                     } else if (status === 'failed') {
                         if (title) title.textContent = 'Evaluation needs attention';
                         if (copy) copy.textContent = 'Automatic evaluation stopped. Your teacher must review this submission.';
