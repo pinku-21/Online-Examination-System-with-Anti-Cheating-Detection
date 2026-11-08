@@ -12,6 +12,7 @@
     // Check if session has student role or if we are on student pages
     const isStudentPage = window.location.pathname.startsWith('/student') ||
                           window.location.pathname.startsWith('/exam/') ||
+                          document.getElementById('device-switch-modal') !== null ||
                           userRole === 'student';
 
     if (!isStudentPage) {
