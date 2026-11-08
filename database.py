@@ -728,7 +728,7 @@ def get_student_submissions(user_id, roll_number=None):
         # Show the AI-calculated total once evaluation is complete, while
         # keeping question-level answers and feedback hidden until publication.
         is_published = bool(row.get("is_published") or row.get("exam_results_published"))
-        evaluation_complete = row.get("evaluation_status") in ("awaiting_teacher", "needs_review")
+        evaluation_complete = row.get("evaluation_status") in ("awaiting_teacher", "needs_review", "evaluated")
         row["result_pending"] = (
             row.get("status") in ("submitted", "terminated")
             and not is_published

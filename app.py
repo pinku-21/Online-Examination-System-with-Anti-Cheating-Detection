@@ -2628,8 +2628,8 @@ def evaluate_submission_internal(submission_id):
             results.append({"question_id": qid_s, "question_text": q["question_text"][:60], "success": False, "awarded_marks": 0.0, "max_points": q_pts, "reason": "Not attempted"})
             continue
 
-        q_type = (q.get("question_type") or "mcq").strip().lower()
-        options_list = json.loads(q["options_json"]) if q.get("options_json") else []
+        q_type = (row_get(q, "question_type", "mcq") or "mcq").strip().lower()
+        options_list = json.loads(q["options_json"]) if row_get(q, "options_json") else []
 
         # If objective MCQ or True/False, grade deterministically under CBSE rules without LLM (full or 0.0)
         if q_type in ("mcq", "tf", "true_false"):
@@ -5290,6 +5290,7 @@ def api_submission_publish_status(submission_id):
         SELECT s.id, s.user_id, s.roll_number, s.is_published,
                s.evaluation_status, s.evaluation_progress,
                s.evaluation_total_questions, s.evaluation_error,
+               s.score, s.total_points, s.percentage,
                e.results_published
         FROM submissions s
         JOIN exams e ON s.exam_id = e.id
@@ -5310,15 +5311,27 @@ def api_submission_publish_status(submission_id):
             return jsonify({"success": False, "error": "Access denied."}), 403
 
     is_pub = bool(row["is_published"] or row["results_published"])
-    return jsonify({
+    eval_status = row["evaluation_status"] or "not_started"
+    eval_complete = eval_status in ("awaiting_teacher", "needs_review", "evaluated")
+    score_visible = is_pub or eval_complete or (session.get("user_role") == "admin")
+
+    resp_data = {
         "success": True,
         "is_published": is_pub,
         "published": is_pub,
-        "evaluation_status": row["evaluation_status"] or "not_started",
+        "evaluation_status": eval_status,
+        "evaluation_complete": eval_complete,
         "evaluation_progress": int(row["evaluation_progress"] or 0),
         "evaluation_total_questions": int(row["evaluation_total_questions"] or 0),
         "evaluation_error": row["evaluation_error"] or ""
-    })
+    }
+
+    if score_visible:
+        resp_data["score"] = round(float(row["score"] or 0.0), 1)
+        resp_data["total_points"] = round(float(row["total_points"] or 0.0), 1)
+        resp_data["percentage"] = round(float(row["percentage"] or 0.0), 1)
+
+    return jsonify(resp_data)
 
 
 
@@ -5509,7 +5522,7 @@ def exam_result(submission_id):
     cursor = conn.cursor()
     
     cursor.execute("""
-        SELECT s.*, e.title, e.max_warnings, e.passing_percentage
+        SELECT s.*, e.title, e.max_warnings, e.passing_percentage, e.results_published
         FROM submissions s
         JOIN exams e ON s.exam_id = e.id
         WHERE s.id = ?
@@ -5564,7 +5577,7 @@ def exam_result(submission_id):
 
     # Students may see the AI-calculated total once grading is complete, but
     # question-level answers, correct answers, and feedback remain unpublished.
-    evaluation_complete = sub_dict.get("evaluation_status") in ("awaiting_teacher", "needs_review")
+    evaluation_complete = sub_dict.get("evaluation_status") in ("awaiting_teacher", "needs_review", "evaluated")
     score_visible = is_published or evaluation_complete
     if session.get("user_role") == "student" and not score_visible:
         sub_dict["score"] = None
@@ -5591,7 +5604,7 @@ def exam_result(submission_id):
 
         questions_review = prepare_questions_review(raw_questions, student_answers, manual_eval)
 
-    # Educational Intelligence: Compute Weak-Area Diagnostic Breakdown    # Educational Intelligence: Compute Weak-Area Diagnostic Breakdown
+    # Educational Intelligence: Compute Weak-Area Diagnostic Breakdown
     topic_breakdown = {}
     for q in questions_review:
         topic = (q.get("topic_category") or "General Core Concept").strip()
@@ -5664,6 +5677,8 @@ def exam_result(submission_id):
                            violations=violations, 
                            passed=passed, 
                            is_published=is_published,
+                           evaluation_complete=evaluation_complete,
+                           score_visible=score_visible,
                            questions=questions_review,
                            diagnostic_summary=diagnostic_summary,
                            integrity_hash=stored_hash or expected_hash,
