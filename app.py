@@ -21,9 +21,9 @@ except Exception:
     pass
 
 from database import (
-    init_db, 
-    get_connection, 
-    get_setting, 
+    init_db,
+    get_connection,
+    get_setting,
     set_setting,
     save_generation_job,
     update_generation_job,
@@ -33,7 +33,9 @@ from database import (
     get_user_by_id,
     get_student_submissions,
     save_persistent_asset,
-    get_persistent_asset
+    get_persistent_asset,
+    publish_student_sync_event,
+    record_exam_time_extension
 )
 from cloud_services import (
     upload_image_to_cloud,
@@ -41,9 +43,9 @@ from cloud_services import (
 )
 import base64
 from ai_service import (
-    extract_text_from_pdf, 
+    extract_text_from_pdf,
     extract_figures_from_pdf,
-    generate_questions_with_gemini, 
+    generate_questions_with_gemini,
     generate_questions_with_groq,
     generate_questions_unified,
     parse_pasted_paper_unified,
@@ -141,10 +143,10 @@ def apply_security_headers(response):
     response.headers["X-XSS-Protection"] = "1; mode=block"
     response.headers["Referrer-Policy"] = "strict-origin-when-cross-origin"
     response.headers["Cross-Origin-Opener-Policy"] = "same-origin"
-    
+
     # OWASP Permissions-Policy (restricts sensor access to explicit examination needs)
     response.headers["Permissions-Policy"] = "camera=(self), microphone=(self), geolocation=(), display-capture=(self), payment=(), usb=()"
-    
+
     # Modern Content Security Policy (allows necessary CDNs for Tailwind, SweetAlert, Lucide, MathJax, and webcam media)
     csp_directives = [
         "default-src 'self'",
@@ -157,7 +159,7 @@ def apply_security_headers(response):
         "frame-ancestors 'none'"
     ]
     response.headers["Content-Security-Policy"] = "; ".join(csp_directives)
-    
+
     # Apply HSTS over HTTPS / Render reverse proxy
     if request.is_secure or request.headers.get("X-Forwarded-Proto", "").lower() == "https":
         response.headers["Strict-Transport-Security"] = "max-age=31536000; includeSubDomains"
@@ -166,7 +168,7 @@ def apply_security_headers(response):
     private_prefixes = ("/student", "/tutor", "/exam", "/api", "/asset", "/submission")
     if request.path.startswith(private_prefixes):
         response.headers["X-Robots-Tag"] = "noindex, nofollow"
-        
+
     return response
 
 @app.route("/health")
@@ -208,16 +210,20 @@ SECURITY_EVENT_CLASSIFICATION = {
     "multiple_faces": {"code": "SEC-004", "severity": "HIGH", "desc": "Physical Perimeter Breach: Multiple Persons Detected"},
     "no_face": {"code": "SEC-005", "severity": "MEDIUM", "desc": "Webcam Feed Obscured / Candidate Absence"},
     "mobile_phone_detected": {"code": "SEC-006", "severity": "CRITICAL", "desc": "Unauthorized Communication Device Detected"},
-    "tab_switch": {"code": "SEC-007", "severity": "HIGH", "desc": "Session Window Blur / Unauthorized Tab Switch"},
-    "window_blur": {"code": "SEC-008", "severity": "MEDIUM", "desc": "Operating System Focus Loss / External Overlay"},
-    "fullscreen_exit": {"code": "SEC-009", "severity": "HIGH", "desc": "Kiosk Environment / Fullscreen Sandbox Escape"},
-    "clipboard_attempt": {"code": "SEC-010", "severity": "MEDIUM", "desc": "Restricted Clipboard Injection / Extraction"},
-    "right_click": {"code": "SEC-011", "severity": "LOW", "desc": "Unauthorized Context Menu Invocation"},
-    "voice_detected": {"code": "SEC-012", "severity": "MEDIUM", "desc": "Acoustic Anomaly / Unauthorized Speech Detected"},
-    "session_anomaly": {"code": "SEC-013", "severity": "CRITICAL", "desc": "Concurrent Session / Device Hijacking Attempt"},
-    "keystroke_anomaly": {"code": "SEC-014", "severity": "CRITICAL", "desc": "Biometric Keystroke Anomaly / Fast-Type AI Injector Detected"},
-    "extension_tamper": {"code": "SEC-015", "severity": "CRITICAL", "desc": "Browser Extension / DOM Mutation Injection Detected"},
-    "secondary_cam_disconnect": {"code": "SEC-016", "severity": "HIGH", "desc": "Secondary Mobile Camera Disconnected / Obscured"}
+    "tab_switch": {"code": "SEC-007", "severity": "HIGH", "category": "browser_focus", "desc": "Session Window Blur / Unauthorized Tab Switch"},
+    "window_blur": {"code": "SEC-008", "severity": "MEDIUM", "category": "browser_focus", "desc": "Operating System Focus Loss / External Overlay"},
+    "fullscreen_exit": {"code": "SEC-009", "severity": "HIGH", "category": "fullscreen", "desc": "Kiosk Environment / Fullscreen Sandbox Escape"},
+    "clipboard_attempt": {"code": "SEC-010", "severity": "HIGH", "category": "clipboard", "desc": "Restricted Clipboard Injection / Extraction"},
+    "clipboard_copy": {"code": "SEC-010A", "severity": "WARNING", "category": "clipboard", "desc": "Unauthorized Copy Attempt on Examination Content"},
+    "clipboard_cut": {"code": "SEC-010B", "severity": "WARNING", "category": "clipboard", "desc": "Unauthorized Cut Attempt on Examination Field"},
+    "clipboard_paste": {"code": "SEC-010C", "severity": "WARNING", "category": "clipboard", "desc": "Unauthorized Paste Attempt into Answer Field"},
+    "right_click": {"code": "SEC-011", "severity": "INFO", "category": "browser_focus", "desc": "Unauthorized Context Menu Invocation"},
+    "voice_detected": {"code": "SEC-012", "severity": "WARNING", "category": "audio", "desc": "Acoustic Anomaly / Unauthorized Speech Detected"},
+    "session_anomaly": {"code": "SEC-013", "severity": "CRITICAL", "category": "session", "desc": "Concurrent Session / Device Hijacking Attempt"},
+    "keystroke_anomaly": {"code": "SEC-014", "severity": "CRITICAL", "category": "input", "desc": "Biometric Keystroke Anomaly / Fast-Type AI Injector Detected"},
+    "extension_tamper": {"code": "SEC-015", "severity": "CRITICAL", "category": "dom_integrity", "desc": "Browser Extension / Suspicious Script or DOM Injection Detected"},
+    "dom_mutation_detected": {"code": "SEC-015B", "severity": "WARNING", "category": "dom_integrity", "desc": "Suspicious Script or DOM Injection Detected"},
+    "secondary_cam_disconnect": {"code": "SEC-016", "severity": "HIGH", "category": "camera", "desc": "Secondary Mobile Camera Disconnected / Obscured"}
 }
 
 def row_get(record, key, default=None):
@@ -465,7 +471,7 @@ def login_required(f):
                 return jsonify({"success": False, "error": "Authentication required. Please log in."}), 401
             flash("Please sign in to access this page.", "warning")
             return redirect(url_for("login", next=request.path))
-        
+
         # Single-device session verification for students
         if session.get("user_role") == "student":
             my_token = session.get("session_token")
@@ -578,7 +584,7 @@ def login():
             if user["role"] == "student":
                 conn = get_connection()
                 cursor = conn.cursor()
-                
+
                 # Check if this student currently has an active in_progress or paused exam
                 cursor.execute("""
                     SELECT s.id, s.exam_id, s.status, s.device_switch_approved, e.title as exam_title
@@ -699,7 +705,7 @@ def register():
             save_persistent_asset(f"profile_photos/{photo_filename}", photo_file.mimetype or "image/jpeg", photo_bytes)
             profile_photo_url = f"/static/profile_photos/{photo_filename}"
 
-        res = create_user(username, email, password, full_name, role="student", 
+        res = create_user(username, email, password, full_name, role="student",
                           roll_number=roll_number, class_name=class_name,
                           profile_photo=profile_photo_url)
         if res.get("success"):
@@ -819,7 +825,7 @@ def admin_delete_exam(exam_id):
     if not exam:
         conn.close()
         return jsonify({"success": False, "error": "Exam not found."}), 404
-    
+
     exam_title = exam["title"]
     # Explicitly cascade delete submissions, questions, assignments, violations, and proctor messages
     cursor.execute("SELECT id FROM submissions WHERE exam_id = ?", (exam_id,))
@@ -829,11 +835,19 @@ def admin_delete_exam(exam_id):
             cursor.execute("DELETE FROM violations WHERE submission_id = ?", (sid,))
             cursor.execute("DELETE FROM proctor_messages WHERE submission_id = ?", (sid,))
         cursor.execute("DELETE FROM submissions WHERE exam_id = ?", (exam_id,))
-    
+
     cursor.execute("DELETE FROM questions WHERE exam_id = ?", (exam_id,))
     cursor.execute("DELETE FROM exam_assignments WHERE exam_id = ?", (exam_id,))
     cursor.execute("DELETE FROM exams WHERE id = ?", (exam_id,))
-    
+
+    # Broadcast exam_deleted sync event to all students
+    publish_student_sync_event(
+        event_type="exam_deleted",
+        exam_id=exam_id,
+        payload={"exam_id": exam_id, "title": exam_title},
+        conn=conn
+    )
+
     conn.commit()
     conn.close()
     return jsonify({"success": True, "message": f"Exam '{exam_title}' has been successfully deleted."})
@@ -943,7 +957,7 @@ def tutor_dashboard():
     conn = get_connection()
     cursor = conn.cursor()
     cursor.execute("""
-        SELECT e.*, 
+        SELECT e.*,
                (SELECT COUNT(*) FROM questions WHERE exam_id = e.id) as question_count,
                (SELECT COUNT(*) FROM submissions WHERE exam_id = e.id) as submission_count,
                (SELECT COUNT(*) FROM submissions WHERE exam_id = e.id AND status = 'terminated') as terminated_count,
@@ -953,23 +967,23 @@ def tutor_dashboard():
     """)
     exams = [dict(r) for r in cursor.fetchall()]
     conn.close()
-    
+
     gemini_key = get_setting("gemini_api_key", "") or os.environ.get("GEMINI_API_KEY", "").strip()
     groq_key = get_setting("groq_api_key", "") or os.environ.get("GROQ_API_KEY", "").strip()
     openrouter_key = get_setting("openrouter_api_key", "") or os.environ.get("OPENROUTER_API_KEY", "").strip()
     public_url = get_setting("public_url", "")
     has_api_key = bool(
-        (gemini_key and len(gemini_key.strip()) > 10) or 
+        (gemini_key and len(gemini_key.strip()) > 10) or
         (groq_key and len(groq_key.strip()) > 10) or
         (openrouter_key and len(openrouter_key.strip()) > 10)
     )
-    
+
     conn2 = get_connection()
     cursor2 = conn2.cursor()
     cursor2.execute("SELECT id, full_name, username, roll_number, email, class_name, profile_photo, created_at FROM users WHERE role = 'student' ORDER BY created_at DESC")
     students = [dict(r) for r in cursor2.fetchall()]
     distinct_classes = sorted(list(set(s['class_name'] for s in students if s.get('class_name'))))
-    
+
     # Query active/unresolved security incidents across all exams for the SIEM Security Operations Center
     cursor2.execute("""
         SELECT v.*, s.student_name, s.roll_number, s.client_ip, s.exam_id, e.title as exam_title
@@ -991,7 +1005,7 @@ def tutor_dashboard():
     conn_req = get_connection()
     c_req = conn_req.cursor()
     c_req.execute("""
-        SELECT r.*, 
+        SELECT r.*,
                u.full_name as student_name, u.username, u.roll_number,
                e.title as exam_title,
                res_u.full_name as resolved_by_name
@@ -1007,7 +1021,7 @@ def tutor_dashboard():
     conn_req.close()
 
     return render_template(
-        "tutor_dashboard.html", 
+        "tutor_dashboard.html",
         exams=exams,
         students=students,
         classes=distinct_classes,
@@ -1033,7 +1047,7 @@ def tutor_save_settings():
     groq_key = request.form.get("groq_api_key", "").strip()
     openrouter_key = request.form.get("openrouter_api_key", "").strip()
     public_url = request.form.get("public_url", "").strip().rstrip("/")
-    
+
     if gemini_key:
         set_setting("gemini_api_key", gemini_key)
     if groq_key:
@@ -1053,7 +1067,7 @@ def tutor_save_settings():
     if cloudinary_key: set_setting("cloudinary_api_key", cloudinary_key)
     if cloudinary_secret: set_setting("cloudinary_api_secret", cloudinary_secret)
     if resend_key: set_setting("resend_api_key", resend_key)
-        
+
     flash("Settings updated successfully!", "success")
     return redirect(url_for("tutor_dashboard"))
 
@@ -1071,17 +1085,17 @@ def new_exam():
     gemini_key = get_setting("gemini_api_key", "") or os.environ.get("GEMINI_API_KEY", "").strip()
     groq_key = get_setting("groq_api_key", "") or os.environ.get("GROQ_API_KEY", "").strip()
     has_api_key = bool(
-        (gemini_key and len(gemini_key.strip()) > 10) or 
+        (gemini_key and len(gemini_key.strip()) > 10) or
         (groq_key and len(groq_key.strip()) > 10)
     )
-    
+
     conn = get_connection()
     cursor = conn.cursor()
     cursor.execute("SELECT id, full_name, username, roll_number, class_name FROM users WHERE role = 'student' ORDER BY full_name ASC")
     students = [dict(r) for r in cursor.fetchall()]
     distinct_classes = sorted(list(set(s['class_name'] for s in students if s.get('class_name'))))
     conn.close()
-    
+
     return render_template("create_exam.html", has_api_key=has_api_key, students=students, classes=distinct_classes)
 
 @app.route("/api/generate-questions", methods=["POST"])
@@ -1108,18 +1122,18 @@ def api_generate_questions():
     difficulty = request.form.get("difficulty", "Medium")
     question_type = request.form.get("question_type", "mcq")
     use_mock = request.form.get("use_mock", "false").lower() == "true"
-    
+
     uploaded_files = request.files.getlist("files")
     saved_images = []
     extracted_pdf_texts = []
     extracted_figures = []
-    
+
     for f in uploaded_files:
         if f and f.filename:
             filename = secure_filename(f.filename)
             file_path = os.path.join(app.config["UPLOAD_FOLDER"], filename)
             f.save(file_path)
-            
+
             ext = os.path.splitext(filename)[1].lower()
             if ext == ".pdf":
                 pdf_text = extract_text_from_pdf(file_path)
@@ -1195,23 +1209,23 @@ def api_parse_pasted_questions():
     _cleanup_old_jobs()
     raw_text = request.form.get("raw_text", "").strip()
     uploaded_files = request.files.getlist("files") or request.files.getlist("file")
-    
+
     saved_images = []
     extracted_pdf_texts = []
     extracted_figures = []
-    
+
     for f in uploaded_files:
         if f and f.filename:
             filename = secure_filename(f.filename)
             file_path = os.path.join(app.config["UPLOAD_FOLDER"], filename)
             f.save(file_path)
-            
+
             ext = os.path.splitext(filename)[1].lower()
             if ext == ".pdf":
                 pdf_text = extract_text_from_pdf(file_path)
                 if pdf_text and len(pdf_text.strip()) > 30:
                     extracted_pdf_texts.append(pdf_text)
-                
+
                 # Always extract embedded figures and diagrams from PDF
                 try:
                     figs = extract_figures_from_pdf(file_path)
@@ -1269,7 +1283,7 @@ def api_job_status(job_id):
     # 1. Check local worker memory
     with _job_lock:
         job = _job_store.get(job_id)
-    
+
     if job:
         if job["status"] == "running":
             return jsonify({"status": "running"})
@@ -1299,24 +1313,24 @@ def api_upload_figure():
     file = request.files["figure_file"]
     if not file or not file.filename:
         return jsonify({"success": False, "error": "No file selected"}), 400
-        
+
     filename = secure_filename(file.filename)
     stem, ext = os.path.splitext(filename)
     if ext.lower() not in [".jpg", ".jpeg", ".png", ".webp", ".svg", ".gif"]:
         return jsonify({"success": False, "error": "Only image files (JPG, PNG, WEBP, SVG) are supported"}), 400
-        
+
     unique_name = f"custom_{int(datetime.now().timestamp())}_{filename}"
     figures_dir = os.path.join(os.path.dirname(__file__), "static", "question_figures")
     os.makedirs(figures_dir, exist_ok=True)
-    
+
     file_bytes = file.read()
     save_path = os.path.join(figures_dir, unique_name)
     with open(save_path, "wb") as f:
         f.write(file_bytes)
-        
+
     mime_type = file.mimetype or "image/png"
     save_persistent_asset(f"question_figures/{unique_name}", mime_type, file_bytes)
-    
+
     return jsonify({"success": True, "figure_url": f"/static/question_figures/{unique_name}"})
 
 @app.route("/api/submission/<int:submission_id>/upload-answer-image", methods=["POST"])
@@ -1328,18 +1342,18 @@ def api_upload_answer_image(submission_id):
     cursor.execute("SELECT * FROM submissions WHERE id = ?", (submission_id,))
     submission = cursor.fetchone()
     conn.close()
-    
+
     if not submission or submission["status"] != "in_progress":
         return jsonify({"success": False, "error": "Exam session is not currently active."}), 400
-        
+
     # Student authorization: must own this exam session
     if session.get("user_role") == "student" and submission["user_id"] != session.get("user_id"):
         return jsonify({"success": False, "error": "Access denied."}), 403
-        
+
     uploaded_file = request.files.get("answer_image") or request.files.get("file")
     if not uploaded_file or not uploaded_file.filename:
         return jsonify({"success": False, "error": "No image file provided."}), 400
-        
+
     raw_name = uploaded_file.filename or "photo.jpg"
     filename = secure_filename(raw_name) or f"photo_{int(datetime.now().timestamp())}.jpg"
     _, ext = os.path.splitext(filename)
@@ -1354,12 +1368,12 @@ def api_upload_answer_image(submission_id):
             filename = os.path.splitext(filename)[0] + ".jpg"
         else:
             return jsonify({"success": False, "error": "Only image formats (JPG, PNG, WEBP) are supported."}), 400
-        
+
     q_id = request.form.get("question_id", "0")
     unique_name = f"ans_{submission_id}_q{q_id}_{int(datetime.now().timestamp())}_{filename}"
     upload_dir = os.path.join(os.path.dirname(__file__), "static", "student_answers")
     os.makedirs(upload_dir, exist_ok=True)
-    
+
     file_bytes = uploaded_file.read()
 
     # Optimize and compress image: Auto-orient EXIF, resize if >1600px, and compress to JPEG quality 82
@@ -1371,12 +1385,12 @@ def api_upload_answer_image(submission_id):
             pil_img = ImageOps.exif_transpose(pil_img)
             if pil_img.mode not in ("RGB", "L"):
                 pil_img = pil_img.convert("RGB")
-            
+
             # Scale down if camera shot exceeds 1600px width/height
             max_dim = 1600
             if max(pil_img.size) > max_dim:
                 pil_img.thumbnail((max_dim, max_dim), Image.Resampling.LANCZOS)
-            
+
             out_buf = io.BytesIO()
             pil_img.save(out_buf, format="JPEG", quality=82, optimize=True)
             file_bytes = out_buf.getvalue()
@@ -1388,16 +1402,16 @@ def api_upload_answer_image(submission_id):
     save_path = os.path.join(upload_dir, unique_name)
     with open(save_path, "wb") as f:
         f.write(file_bytes)
-    
+
     # Also save permanently to database so it never vanishes on Render restarts
     save_persistent_asset(f"student_answers/{unique_name}", mime_type, file_bytes)
-    
+
     # Cloudinary Persistent Cloud Upload (Free-for-dev)
     is_cloud, cloud_url = upload_image_to_cloud(file_bytes, folder="examguard/student_answers", public_id=unique_name.rsplit('.', 1)[0])
     img_url_to_return = cloud_url if is_cloud else f"/static/student_answers/{unique_name}"
-    
+
     return jsonify({
-        "success": True, 
+        "success": True,
         "image_url": img_url_to_return
     })
 
@@ -1411,7 +1425,7 @@ def _send_static_file_with_persistence(filename):
     clean_filename = str(filename).replace("\\", "/").lstrip("/")
     static_root = app.static_folder or os.path.join(os.path.dirname(__file__), "static")
     file_path = os.path.join(static_root, clean_filename)
-    
+
     if os.path.exists(file_path):
         return send_from_directory(static_root, clean_filename)
 
@@ -1473,12 +1487,12 @@ def api_upload_profile_photo():
     unique_name = f"user_{user_id}_{int(datetime.now().timestamp())}{ext}"
     upload_dir = os.path.join(os.path.dirname(__file__), "static", "profile_photos")
     os.makedirs(upload_dir, exist_ok=True)
-    
+
     file_bytes = uploaded_file.read()
     save_path = os.path.join(upload_dir, unique_name)
     with open(save_path, "wb") as f:
         f.write(file_bytes)
-    
+
     # Save permanently to database persistent_assets
     mime_type = uploaded_file.mimetype or "image/jpeg"
     save_persistent_asset(f"profile_photos/{unique_name}", mime_type, file_bytes)
@@ -1588,7 +1602,7 @@ def api_verify_face_ai(submission_id):
     if not os.path.exists(abs_ref_path):
         conn.close()
         return jsonify({
-            "success": False, 
+            "success": False,
             "error": "Reference photo file not found on server. Please click 'Upload/Change Photo' to register your photo."
         }), 400
 
@@ -1613,7 +1627,7 @@ def api_verify_face_ai(submission_id):
     # Require strict biometric match with at least 80% AI confidence to authorize exam entry
     if is_match and confidence >= 80.0:
         cursor.execute("""
-            UPDATE submissions 
+            UPDATE submissions
             SET verified_face_url = ?, is_face_verified = 1, face_match_confidence = ?
             WHERE id = ?
         """, (snapshot_rel_url, confidence, submission_id))
@@ -1633,7 +1647,7 @@ def api_verify_face_ai(submission_id):
             INSERT INTO violations (submission_id, violation_type, details)
             VALUES (?, 'impersonation_mismatch', ?)
         """, (submission_id, f"Live face does not match registered profile: {reason} (Confidence: {confidence}%)"))
-        
+
         cursor.execute("UPDATE submissions SET warnings_count = warnings_count + 1 WHERE id = ?", (submission_id,))
         cursor.execute("""
             SELECT s.warnings_count, e.max_warnings
@@ -1649,7 +1663,7 @@ def api_verify_face_ai(submission_id):
             is_terminated = True
             term_reason = f"Exceeded maximum allowed anti-cheating warnings ({cur_warn}/{max_warn} strikes). Violation: Biometric Impersonation Mismatch."
             cursor.execute("""
-                UPDATE submissions 
+                UPDATE submissions
                 SET status = 'terminated', termination_reason = ?, submitted_at = CURRENT_TIMESTAMP
                 WHERE id = ?
             """, (term_reason, submission_id))
@@ -1785,7 +1799,7 @@ def api_mobile_status(submission_id):
         sess = _mobile_camera_sessions.get(submission_id)
         if not sess:
             return jsonify({"paired": False, "active": False})
-        
+
         is_active = sess.get("paired", False) and (now - sess.get("last_frame_ts", 0) < 15.0)
         return jsonify({
             "paired": sess.get("paired", False),
@@ -1812,7 +1826,7 @@ def tutor_update_submission_score(submission_id):
     if not submission:
         conn.close()
         return jsonify({"success": False, "error": "Submission not found"}), 404
-        
+
     total_points = float(submission["total_points"]) if submission["total_points"] else 1.0
     new_score = round(new_score, 1)
     percentage = (new_score / total_points * 100) if total_points > 0 else 0.0
@@ -1827,7 +1841,7 @@ def tutor_update_submission_score(submission_id):
         SET score = ?, percentage = ?, integrity_hash = ?
         WHERE id = ?
     """, (new_score, round(percentage, 1), integrity_hash, submission_id))
-    
+
     conn.commit()
     conn.close()
     return jsonify({"success": True, "score": round(new_score, 1), "percentage": round(percentage, 1)})
@@ -1844,19 +1858,19 @@ def extract_option_parts(option_str):
         return None, ""
     s = str(option_str).strip()
     s = s.replace("’", "'").replace("“", '"').replace("”", '"')
-    
+
     # Check for prefix: e.g. '(B)', 'B.', 'B)', '[B]', 'Option B:', 'Option B.'
     m = re.match(r'^(?:option\s+)?[\(\[]?([A-Ea-e0-9])[\)\]\.\:\-\s]+(.*)$', s, re.IGNORECASE)
     if m:
         letter = m.group(1).lower()
         rest = m.group(2).strip().lower().rstrip('. ')
         return letter, rest
-    
+
     # Standalone letter e.g. 'A', 'b', '(C)'
     m2 = re.match(r'^[\(\[]?([A-Ea-e])[\)\]]?$', s, re.IGNORECASE)
     if m2:
         return m2.group(1).lower(), ""
-        
+
     return None, s.lower().rstrip('. ')
 
 
@@ -1869,16 +1883,16 @@ def is_mcq_answer_correct(student_ans, correct_ans, options=None):
     """
     if student_ans is None or correct_ans is None:
         return False
-    
+
     s_raw = str(student_ans).strip()
     c_raw = str(correct_ans).strip()
     if not s_raw or not c_raw:
         return False
-    
+
     # 1. Exact string match (case-insensitive, ignoring trailing punctuation)
     if s_raw.lower().rstrip('. ') == c_raw.lower().rstrip('. '):
         return True
-        
+
     s_letter, s_text = extract_option_parts(s_raw)
     c_letter, c_text = extract_option_parts(c_raw)
 
@@ -1947,7 +1961,7 @@ def extract_student_response_text(ans_raw):
     """
     if ans_raw is None:
         return "", False
-    
+
     if isinstance(ans_raw, str):
         s = ans_raw.strip()
         if not s or s.lower() in ("not attempted", "null", "undefined"):
@@ -1960,7 +1974,7 @@ def extract_student_response_text(ans_raw):
             val = ans_raw.get(key)
             if val is not None and str(val).strip() and str(val).strip().lower() not in ("not attempted", "null", "undefined"):
                 return str(val).strip(), True
-        
+
         # 2. Text key
         text_val = ans_raw.get("text")
         notes_val = (ans_raw.get("notes") or "").strip()
@@ -1969,14 +1983,14 @@ def extract_student_response_text(ans_raw):
             if notes_val:
                 combined += f" | Notes: {notes_val}"
             return combined, True
-            
+
         # 3. Matching or Hotspot dictionaries
         matching_dict = ans_raw.get("matching")
         if isinstance(matching_dict, dict) and matching_dict:
             pairs = [f"{k} -> {v}" for k, v in matching_dict.items() if v]
             if pairs:
                 return ", ".join(pairs), True
-                
+
         hotspots_dict = ans_raw.get("hotspots")
         if isinstance(hotspots_dict, dict) and hotspots_dict:
             pairs = [f"{k}: {v}" for k, v in hotspots_dict.items() if v]
@@ -1991,7 +2005,7 @@ def extract_student_response_text(ans_raw):
             if notes_val:
                 combined += f" | Notes: {notes_val}"
             return combined, True
-            
+
         # 5. Check if images are attached even if text is empty
         img_url = ans_raw.get("image_url") or ""
         img_urls = ans_raw.get("image_urls") or []
@@ -1999,7 +2013,7 @@ def extract_student_response_text(ans_raw):
             count = len(img_urls) if img_urls else 1
             suffix = f" ({count} Pages Attached)" if count > 1 else " (1 Page Attached)"
             return f"Handwritten Solution{suffix}", True
-            
+
         return "", False
 
     return str(ans_raw).strip(), bool(str(ans_raw).strip())
@@ -2200,14 +2214,14 @@ def prepare_questions_review(raw_questions, student_answers, manual_eval):
         options_list = json.loads(opts_raw) if opts_raw else []
         q_dict["options"] = options_list
         q_id_str = str(q_dict.get("id"))
-        
+
         # Check string or int key in student_answers
         ans_raw = student_answers.get(q_id_str)
         if ans_raw is None:
             ans_raw = student_answers.get(q_dict.get("id"))
 
         student_text, is_attempted = extract_student_response_text(ans_raw)
-        
+
         student_img = ""
         student_imgs = []
         if isinstance(ans_raw, dict):
@@ -2602,7 +2616,7 @@ def evaluate_submission_internal(submission_id):
         if ans_raw is None:
             ans_raw = student_answers.get(q["id"])
         student_text, is_att = extract_student_response_text(ans_raw)
-        
+
         student_img_url = ""
         student_img_urls = []
         if isinstance(ans_raw, dict):
@@ -2839,7 +2853,7 @@ def api_tutor_update_question_score(submission_id):
         s_text_cur, is_att_cur = extract_student_response_text(ans_raw_cur)
         opts_cur = json.loads(question["options_json"]) if question.get("options_json") else []
         is_corr_cur = is_att_cur and is_mcq_answer_correct(s_text_cur, question["correct_answer"], opts_cur)
-        
+
         # If objectively incorrect or unattempted, marks MUST be 0.0
         new_marks = max_pts if is_corr_cur else 0.0
     else:
@@ -2896,21 +2910,21 @@ def api_save_exam():
     data = request.get_json()
     if not data:
         return jsonify({"success": False, "error": "No data provided"}), 400
-    
+
     title = data.get("title", "Untitled Exam").strip()
     description = data.get("description", "").strip()
     duration = int(data.get("duration_minutes", 30))
     max_warnings = int(data.get("max_warnings", 3))
     passing_percentage = float(data.get("passing_percentage", 40.0))
     questions_list = data.get("questions", [])
-    
+
     if not questions_list:
         return jsonify({"success": False, "error": "Exam must contain at least 1 question"}), 400
 
     enable_audio = 1 if data.get("enable_audio_detection", 1) in [1, True, "1"] else 0
     enable_video = 1 if data.get("enable_video_detection", 1) in [1, True, "1"] else 0
     exam_code = generate_exam_code()
-    
+
     # Access and schedule options
     access_type = data.get("access_type", "all")  # "all", "class", "selected"
     assigned_class = data.get("assigned_class", "").strip()
@@ -2927,7 +2941,7 @@ def api_save_exam():
             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         """, (exam_code, title, description, duration, max_warnings, passing_percentage, enable_audio, enable_video, access_type, assigned_class, schedule_type, start_time, end_time))
         exam_id = cursor.lastrowid
-        
+
         for q in questions_list:
             distractors = q.get("distractor_analysis") or q.get("distractor_analysis_json") or {}
             if isinstance(distractors, dict):
@@ -2974,7 +2988,7 @@ def api_save_exam():
                 (q.get("blooms_taxonomy") or "Understand").strip(),
                 distractors_str
             ))
-        
+
         # Save student assignments
         if access_type == "selected" and assigned_students:
             for sid in assigned_students:
@@ -2987,9 +3001,26 @@ def api_save_exam():
             for row in cursor.fetchall():
                 cursor.execute("INSERT OR IGNORE INTO exam_assignments (exam_id, user_id) VALUES (?, ?)", (exam_id, row["id"]))
 
+        # Publish exam_published sync event
+        publish_student_sync_event(
+            event_type="exam_published",
+            target_class=assigned_class if access_type == "class" else "",
+            exam_id=exam_id,
+            payload={
+                "exam_id": exam_id,
+                "title": title,
+                "exam_code": exam_code,
+                "duration_minutes": duration,
+                "access_type": access_type,
+                "assigned_class": assigned_class,
+                "schedule_type": schedule_type
+            },
+            conn=conn
+        )
+
         conn.commit()
         conn.close()
-        
+
         return jsonify({"success": True, "exam_id": exam_id, "exam_code": exam_code})
     except Exception as e:
         import traceback
@@ -3132,12 +3163,19 @@ def api_exam_access_schedule(exam_id):
     conn = get_connection()
     cursor = conn.cursor()
     if request.method == "GET":
-        cursor.execute("SELECT id, title, access_type, assigned_class, schedule_type, start_time, end_time, duration_minutes, enable_audio_detection, enable_video_detection FROM exams WHERE id = ?", (exam_id,))
+        cursor.execute("""
+            SELECT id, title, access_type, assigned_class, schedule_type, start_time, end_time,
+                   duration_minutes, enable_audio_detection, enable_video_detection,
+                   enable_fullscreen_enforcement, enable_tab_monitoring,
+                   allow_student_copy, allow_student_cut, allow_student_paste,
+                   enable_dom_integrity_shield
+            FROM exams WHERE id = ?
+        """, (exam_id,))
         exam = cursor.fetchone()
         if not exam:
             conn.close()
             return jsonify({"success": False, "error": "Exam not found"}), 404
-        
+
         cursor.execute("SELECT user_id FROM exam_assignments WHERE exam_id = ?", (exam_id,))
         assigned_ids = [r["user_id"] for r in cursor.fetchall()]
         ex_dict = dict(exam)
@@ -3152,6 +3190,12 @@ def api_exam_access_schedule(exam_id):
         dur_val = int(ex_dict.get("duration_minutes") or 30)
         enable_audio_val = 1 if ex_dict.get("enable_audio_detection") in [1, True, "1"] else 0
         enable_video_val = 1 if ex_dict.get("enable_video_detection") in [1, True, "1"] else 0
+        enable_fs_val = 1 if ex_dict.get("enable_fullscreen_enforcement") in [1, True, "1"] else 0
+        enable_tab_val = 1 if ex_dict.get("enable_tab_monitoring") in [1, True, "1"] else 0
+        allow_copy_val = 1 if ex_dict.get("allow_student_copy") in [1, True, "1"] else 0
+        allow_cut_val = 1 if ex_dict.get("allow_student_cut") in [1, True, "1"] else 0
+        allow_paste_val = 1 if ex_dict.get("allow_student_paste") in [1, True, "1"] else 0
+        enable_dom_val = 1 if ex_dict.get("enable_dom_integrity_shield") in [1, True, "1"] else 0
         return jsonify({
             "success": True,
             "exam": {
@@ -3164,7 +3208,13 @@ def api_exam_access_schedule(exam_id):
                 "end_time": et_val,
                 "duration_minutes": dur_val,
                 "enable_audio_detection": enable_audio_val,
-                "enable_video_detection": enable_video_val
+                "enable_video_detection": enable_video_val,
+                "enable_fullscreen_enforcement": enable_fs_val,
+                "enable_tab_monitoring": enable_tab_val,
+                "allow_student_copy": allow_copy_val,
+                "allow_student_cut": allow_cut_val,
+                "allow_student_paste": allow_paste_val,
+                "enable_dom_integrity_shield": enable_dom_val
             },
             "access_type": ex_dict.get("access_type") or "all",
             "assigned_class": ex_dict.get("assigned_class") or "",
@@ -3174,6 +3224,12 @@ def api_exam_access_schedule(exam_id):
             "duration_minutes": dur_val,
             "enable_audio_detection": enable_audio_val,
             "enable_video_detection": enable_video_val,
+            "enable_fullscreen_enforcement": enable_fs_val,
+            "enable_tab_monitoring": enable_tab_val,
+            "allow_student_copy": allow_copy_val,
+            "allow_student_cut": allow_cut_val,
+            "allow_student_paste": allow_paste_val,
+            "enable_dom_integrity_shield": enable_dom_val,
             "assigned_student_ids": assigned_ids
         })
 
@@ -3209,16 +3265,44 @@ def api_exam_access_schedule(exam_id):
 
     enable_audio = data.get("enable_audio_detection")
     enable_video = data.get("enable_video_detection")
-    if enable_audio is not None and enable_video is not None:
-        ea_val = 1 if enable_audio in [1, True, "1"] else 0
-        ev_val = 1 if enable_video in [1, True, "1"] else 0
-        cursor.execute("UPDATE exams SET enable_audio_detection = ?, enable_video_detection = ? WHERE id = ?", (ea_val, ev_val, exam_id))
-    elif enable_audio is not None:
-        ea_val = 1 if enable_audio in [1, True, "1"] else 0
-        cursor.execute("UPDATE exams SET enable_audio_detection = ? WHERE id = ?", (ea_val, exam_id))
-    elif enable_video is not None:
-        ev_val = 1 if enable_video in [1, True, "1"] else 0
-        cursor.execute("UPDATE exams SET enable_video_detection = ? WHERE id = ?", (ev_val, exam_id))
+    enable_fs = data.get("enable_fullscreen_enforcement")
+    enable_tab = data.get("enable_tab_monitoring")
+    allow_copy = data.get("allow_student_copy")
+    allow_cut = data.get("allow_student_cut")
+    allow_paste = data.get("allow_student_paste")
+    enable_dom = data.get("enable_dom_integrity_shield")
+
+    update_fields = []
+    update_vals = []
+
+    if enable_audio is not None:
+        update_fields.append("enable_audio_detection = ?")
+        update_vals.append(1 if enable_audio in [1, True, "1"] else 0)
+    if enable_video is not None:
+        update_fields.append("enable_video_detection = ?")
+        update_vals.append(1 if enable_video in [1, True, "1"] else 0)
+    if enable_fs is not None:
+        update_fields.append("enable_fullscreen_enforcement = ?")
+        update_vals.append(1 if enable_fs in [1, True, "1"] else 0)
+    if enable_tab is not None:
+        update_fields.append("enable_tab_monitoring = ?")
+        update_vals.append(1 if enable_tab in [1, True, "1"] else 0)
+    if allow_copy is not None:
+        update_fields.append("allow_student_copy = ?")
+        update_vals.append(1 if allow_copy in [1, True, "1"] else 0)
+    if allow_cut is not None:
+        update_fields.append("allow_student_cut = ?")
+        update_vals.append(1 if allow_cut in [1, True, "1"] else 0)
+    if allow_paste is not None:
+        update_fields.append("allow_student_paste = ?")
+        update_vals.append(1 if allow_paste in [1, True, "1"] else 0)
+    if enable_dom is not None:
+        update_fields.append("enable_dom_integrity_shield = ?")
+        update_vals.append(1 if enable_dom in [1, True, "1"] else 0)
+
+    if update_fields:
+        update_vals.append(exam_id)
+        cursor.execute(f"UPDATE exams SET {', '.join(update_fields)} WHERE id = ?", tuple(update_vals))
 
     cursor.execute("DELETE FROM exam_assignments WHERE exam_id = ?", (exam_id,))
     if access_type == "selected" and assigned_students:
@@ -3232,6 +3316,22 @@ def api_exam_access_schedule(exam_id):
         for row in cursor.fetchall():
             cursor.execute("INSERT OR IGNORE INTO exam_assignments (exam_id, user_id) VALUES (?, ?)", (exam_id, row["id"]))
 
+    # Publish schedule_updated / access_updated event
+    publish_student_sync_event(
+        event_type="schedule_updated",
+        target_class=assigned_class if access_type == "class" else "",
+        exam_id=exam_id,
+        payload={
+            "exam_id": exam_id,
+            "access_type": access_type,
+            "assigned_class": assigned_class,
+            "schedule_type": schedule_type,
+            "start_time": start_time,
+            "end_time": end_time
+        },
+        conn=conn
+    )
+
     conn.commit()
     conn.close()
     return jsonify({"success": True, "message": "Access & Schedule settings updated successfully."})
@@ -3241,16 +3341,16 @@ def api_exam_access_schedule(exam_id):
 def tutor_exam_details(exam_id):
     conn = get_connection()
     cursor = conn.cursor()
-    
+
     cursor.execute("SELECT * FROM exams WHERE id = ?", (exam_id,))
     exam = cursor.fetchone()
     if not exam:
         conn.close()
         return "Exam not found", 404
-        
+
     cursor.execute("SELECT * FROM questions WHERE exam_id = ? ORDER BY id ASC", (exam_id,))
     questions = cursor.fetchall()
-    
+
     # Parse options_json
     formatted_questions = []
     for q in questions:
@@ -3287,7 +3387,7 @@ def tutor_exam_details(exam_id):
     percentages = [float(s.get("percentage") or 0.0) for s in completed_subs]
     pass_mark = float(exam.get("passing_percentage") or 40.0)
     passed_count = sum(1 for p in percentages if p >= pass_mark)
-    
+
     analytics = {
         "total_evaluated": len(scores),
         "class_avg": round(sum(scores) / len(scores), 1) if scores else 0.0,
@@ -3308,7 +3408,7 @@ def tutor_exam_details(exam_id):
         for q in formatted_questions:
             qid_str = str(q["id"])
             correct_ans = (q.get("correct_answer") or "").strip().lower()
-            
+
             # Helper to check if student got this question right
             def _is_correct(sub):
                 ans_map = json.loads(sub.get("answers_json") or "{}") if isinstance(sub.get("answers_json"), str) else (sub.get("answers_json") or {})
@@ -3378,7 +3478,7 @@ def tutor_exam_details(exam_id):
             q["irt_recommendation"] = "Needs at least 2 completed student submissions to compute IRT discrimination indexes."
 
     conn.close()
-    
+
     public_url = get_setting("public_url", "")
     return render_template("exam_details.html", exam=exam, questions=formatted_questions, submissions=submissions, students=students, public_url=public_url, analytics=analytics)
 
@@ -3771,7 +3871,7 @@ def verify_certificate_public(token):
 def tutor_submission_details(submission_id):
     conn = get_connection()
     cursor = conn.cursor()
-    
+
     cursor.execute("""
         SELECT s.*, e.title as exam_title, e.max_warnings, e.passing_percentage,
                u.profile_photo AS student_profile_photo
@@ -3784,13 +3884,13 @@ def tutor_submission_details(submission_id):
     if not submission:
         conn.close()
         return "Submission not found", 404
-        
+
     cursor.execute("SELECT * FROM violations WHERE submission_id = ? ORDER BY timestamp ASC", (submission_id,))
     violations = cursor.fetchall()
-    
+
     cursor.execute("SELECT * FROM questions WHERE exam_id = ?", (submission["exam_id"],))
     raw_questions = cursor.fetchall()
-    
+
     student_answers = json.loads(submission["answers_json"]) if submission["answers_json"] else {}
     if not student_answers and row_get(submission, "progress_answers_json"):
         try:
@@ -3798,9 +3898,9 @@ def tutor_submission_details(submission_id):
         except Exception:
             student_answers = {}
     manual_eval = json.loads(submission["manual_evaluation_json"]) if submission["manual_evaluation_json"] else {}
-    
+
     questions_review = prepare_questions_review(raw_questions, student_answers, manual_eval)
-        
+
     # Serialize violations safely for interactive timeline player    # Serialize violations safely for interactive timeline player
     violations_clean = []
     for idx, v in enumerate(violations):
@@ -3827,9 +3927,9 @@ def tutor_submission_details(submission_id):
             geo_info = {}
 
     conn.close()
-    return render_template("submission_details.html", 
-                           submission=submission, 
-                           violations=violations, 
+    return render_template("submission_details.html",
+                           submission=submission,
+                           violations=violations,
                            violations_json=json.dumps(violations_clean, default=str),
                            questions=questions_review,
                            geo_info=geo_info)
@@ -4139,21 +4239,21 @@ def student_start():
     exam_code = request.form.get("exam_code", "").strip().upper()
     student_name = request.form.get("student_name", "").strip() or session.get("user_name", "")
     roll_number = request.form.get("roll_number", "").strip() or session.get("roll_number", "")
-    
+
     if not exam_code or not student_name or not roll_number:
         flash("Please provide Exam Code, Full Name, and Roll Number.", "danger")
         return redirect(url_for("student_join", code=exam_code))
-        
+
     conn = get_connection()
     cursor = conn.cursor()
     cursor.execute("SELECT * FROM exams WHERE exam_code = ? AND is_active = 1", (exam_code,))
     exam = cursor.fetchone()
-    
+
     if not exam:
         conn.close()
         flash("Invalid Exam Code or Exam is no longer active.", "danger")
         return redirect(url_for("student_join"))
-        
+
     user_id = session.get("user_id")
 
     # 1. Access Permission Check
@@ -4162,16 +4262,16 @@ def student_start():
         cursor.execute("SELECT class_name FROM users WHERE id = ?", (user_id,))
         u_info = cursor.fetchone()
         u_class = (u_info["class_name"] or "").strip().lower() if u_info else ""
-        
+
         cursor.execute("SELECT id FROM exam_assignments WHERE exam_id = ? AND user_id = ?", (exam["id"], user_id))
         is_assigned = cursor.fetchone() is not None
-        
+
         has_access = False
         if is_assigned:
             has_access = True
         elif access_type == "class" and exam["assigned_class"] and u_class == exam["assigned_class"].strip().lower():
             has_access = True
-            
+
         if not has_access:
             conn.close()
             flash("Access Restricted: This exam is only accessible to specific students or classes. Your account has not been granted access.", "danger")
@@ -4183,7 +4283,7 @@ def student_start():
         now = get_current_time()
         start_time_str = exam["start_time"]
         end_time_str = exam["end_time"]
-        
+
         if start_time_str:
             try:
                 start_dt = datetime.fromisoformat(start_time_str)
@@ -4193,7 +4293,7 @@ def student_start():
                     return redirect(url_for("student_dashboard"))
             except Exception:
                 pass
-                
+
         if end_time_str:
             try:
                 end_dt = datetime.fromisoformat(end_time_str)
@@ -4233,7 +4333,7 @@ def student_start():
     submission_id = cursor.lastrowid
     conn.commit()
     conn.close()
-    
+
     return redirect(url_for("student_exam_room", submission_id=submission_id))
 
 @app.route("/student/exam/<int:submission_id>")
@@ -4241,9 +4341,13 @@ def student_start():
 def student_exam_room(submission_id):
     conn = get_connection()
     cursor = conn.cursor()
-    
+
     cursor.execute("""
-        SELECT s.*, e.title, e.duration_minutes, e.max_warnings, e.exam_code, e.enable_audio_detection, e.enable_video_detection,
+        SELECT s.*, e.title, e.duration_minutes, e.max_warnings, e.exam_code,
+               e.enable_audio_detection, e.enable_video_detection,
+               e.enable_fullscreen_enforcement, e.enable_tab_monitoring,
+               e.allow_student_copy, e.allow_student_cut, e.allow_student_paste,
+               e.enable_dom_integrity_shield,
                e.schedule_type, e.start_time, e.end_time,
                u.profile_photo AS student_profile_photo
         FROM submissions s
@@ -4252,7 +4356,7 @@ def student_exam_room(submission_id):
         WHERE s.id = ?
     """, (submission_id,))
     submission = cursor.fetchone()
-    
+
     if not submission:
         conn.close()
         return "Exam session not found", 404
@@ -4267,7 +4371,7 @@ def student_exam_room(submission_id):
             conn.close()
             flash("Access Restricted: You can only access your own exam session.", "danger")
             return redirect(url_for("student_dashboard"))
-        
+
     if submission["status"] in ["submitted", "terminated"]:
         conn.close()
         return redirect(url_for("exam_result", submission_id=submission_id))
@@ -4302,7 +4406,7 @@ def student_exam_room(submission_id):
     cursor.execute("SELECT id, question_text, question_type, options_json, points, figure_svg, figure_url, is_honeypot, honeypot_signature, honeypot_perturbation_type FROM questions WHERE exam_id = ? ORDER BY id ASC", (submission["exam_id"],))
     raw_questions = cursor.fetchall()
     conn.close()
-    
+
     # Forensic canary payload unique to this student and submission
     student_uid = submission["user_id"] if submission["user_id"] is not None else 0
     canary_token = f"CANARY-U{student_uid}-S{submission['id']}"
@@ -4325,7 +4429,7 @@ def student_exam_room(submission_id):
 
     # Preserve strictly defined tutor question order (Chronological order)
     # Do not randomize question order so Section A, Section B, OR questions and numbering remain identical for all students.
-        
+
     # Restore saved progress (answers, timer, current question index) for page-refresh recovery
     saved_progress = None
     saved_time_remaining = None
@@ -4356,7 +4460,10 @@ def api_log_violation(submission_id):
     Increments warning counter. If warnings >= max_warnings, terminates exam immediately.
     """
     data = request.get_json() or {}
-    violation_type = (data.get("type") or "unknown").strip()
+    violation_type = (data.get("type") or "").strip()
+    if not violation_type or violation_type not in SECURITY_EVENT_CLASSIFICATION:
+        return jsonify({"success": False, "error": f"Invalid or unrecognized security event type: {violation_type}"}), 400
+
     raw_details = data.get("details", "")
     details = str(raw_details)[:500] if raw_details else ""
     client_ip = (request.remote_addr or "127.0.0.1").strip()
@@ -4374,22 +4481,25 @@ def api_log_violation(submission_id):
         if now_ts - last_call < 0.35:
             return jsonify({"status": "throttled", "ignored": True}), 429
         _api_last_request[rate_key] = now_ts
-    
+
     sec_meta = classify_security_event(violation_type)
     event_code = sec_meta.get("code", "SEC-ALERT")
-    severity = sec_meta.get("severity", "HIGH")
-    
+    severity = sec_meta.get("severity", "WARNING")
+
     conn = get_connection()
     cursor = conn.cursor()
-    
+
     cursor.execute("""
-        SELECT s.*, e.max_warnings, e.id as exam_id
+        SELECT s.*, e.max_warnings, e.id as exam_id,
+               e.enable_fullscreen_enforcement, e.enable_tab_monitoring,
+               e.allow_student_copy, e.allow_student_cut, e.allow_student_paste,
+               e.enable_dom_integrity_shield
         FROM submissions s
         JOIN exams e ON s.exam_id = e.id
         WHERE s.id = ?
     """, (submission_id,))
     submission = cursor.fetchone()
-    
+
     if not submission or submission["status"] != "in_progress":
         conn.close()
         return jsonify({"terminated": True, "reason": "Exam is already closed or invalid"})
@@ -4397,7 +4507,30 @@ def api_log_violation(submission_id):
     # Student ownership check: prevents tampering with other candidates' exams
     if session.get("user_role") == "student" and submission["user_id"] != session.get("user_id"):
         conn.close()
-        return jsonify({"terminated": False, "error": "Access denied."}), 403
+        return jsonify({"success": False, "terminated": False, "error": "Access denied."}), 403
+
+    # Check whether the tutor's policy allows this action without issuing a warning strike
+    is_warning_strike = True
+    if violation_type == "clipboard_copy" and row_get(submission, "allow_student_copy") == 1:
+        is_warning_strike = False
+        severity = "INFO"
+    elif violation_type == "clipboard_cut" and row_get(submission, "allow_student_cut") == 1:
+        is_warning_strike = False
+        severity = "INFO"
+    elif violation_type == "clipboard_paste" and row_get(submission, "allow_student_paste") == 1:
+        is_warning_strike = False
+        severity = "INFO"
+    elif violation_type == "fullscreen_exit" and row_get(submission, "enable_fullscreen_enforcement") == 0:
+        is_warning_strike = False
+        severity = "INFO"
+    elif violation_type in ("tab_switch", "window_blur") and row_get(submission, "enable_tab_monitoring") == 0:
+        is_warning_strike = False
+        severity = "INFO"
+    elif violation_type in ("extension_tamper", "dom_mutation_detected") and row_get(submission, "enable_dom_integrity_shield") == 0:
+        is_warning_strike = False
+        severity = "INFO"
+    elif severity == "INFO":
+        is_warning_strike = False
 
     # Process and save Forensic Incident Webcam Snapshot if provided
     raw_snapshot = data.get("snapshot") or ""
@@ -4416,23 +4549,24 @@ def api_log_violation(submission_id):
             snapshot_url = cloud_snap_url if is_cloud_snap else f"/static/forensic_snapshots/{snap_filename}"
         except Exception as snap_err:
             print(f"Forensic snapshot save error: {snap_err}")
-        
+
     # Insert violation log with SIEM classification and forensic snapshot
     cursor.execute("""
         INSERT INTO violations (submission_id, violation_type, details, severity, event_code, snapshot_url)
         VALUES (?, ?, ?, ?, ?, ?)
     """, (submission_id, violation_type, details, severity, event_code, snapshot_url))
-    
-    new_warnings = submission["warnings_count"] + 1
-    max_allowed = submission["max_warnings"]
-    
+
+    current_warnings = int(row_get(submission, "warnings_count", 0) or 0)
+    new_warnings = current_warnings + (1 if is_warning_strike else 0)
+    max_allowed = int(row_get(submission, "max_warnings", 3) or 3)
+
     is_terminated = False
     termination_reason = None
-    
-    if new_warnings >= max_allowed:
+
+    if is_warning_strike and new_warnings >= max_allowed:
         is_terminated = True
         termination_reason = f"Exceeded maximum allowed anti-cheating warnings ({new_warnings}/{max_allowed} strikes). Violation: {violation_type.replace('_', ' ').title()}"
-        
+
         # Calculate cryptographic integrity token for the terminated record
         terminated_answers = row_get(submission, "answers_json")
         if not terminated_answers or terminated_answers == "{}":
@@ -4445,13 +4579,13 @@ def api_log_violation(submission_id):
 
         # Save any partially-answered questions (from progress_answers_json) into answers_json
         cursor.execute("""
-            UPDATE submissions 
+            UPDATE submissions
             SET warnings_count = ?, status = 'terminated', termination_reason = ?, submitted_at = CURRENT_TIMESTAMP,
                 client_ip = ?, integrity_hash = ?,
                 answers_json = COALESCE(
-                    CASE WHEN (answers_json IS NULL OR answers_json = '' OR answers_json = '{}') 
-                         THEN progress_answers_json 
-                         ELSE answers_json 
+                    CASE WHEN (answers_json IS NULL OR answers_json = '' OR answers_json = '{}')
+                         THEN progress_answers_json
+                         ELSE answers_json
                     END,
                     '{}'
                 )
@@ -4459,10 +4593,10 @@ def api_log_violation(submission_id):
         """, (new_warnings, termination_reason, client_ip, term_hash, submission_id))
     else:
         cursor.execute("UPDATE submissions SET warnings_count = ?, client_ip = ? WHERE id = ?", (new_warnings, client_ip, submission_id))
-        
+
     conn.commit()
     conn.close()
-    
+
     return jsonify({
         "success": True,
         "warnings_count": new_warnings,
@@ -4482,18 +4616,18 @@ def api_submit_exam(submission_id):
         forwarded = request.headers.get("X-Forwarded-For").split(",")[0].strip()
         if forwarded:
             client_ip = forwarded
-    
+
     conn = get_connection()
     cursor = conn.cursor()
-    
+
     cursor.execute("""
-        SELECT s.*, e.duration_minutes 
+        SELECT s.*, e.duration_minutes
         FROM submissions s
         JOIN exams e ON s.exam_id = e.id
         WHERE s.id = ?
     """, (submission_id,))
     submission = cursor.fetchone()
-    
+
     if not submission or submission["status"] not in ["in_progress"]:
         conn.close()
         return jsonify({"success": False, "error": "Submission is already finalized."})
@@ -4502,15 +4636,15 @@ def api_submit_exam(submission_id):
     if session.get("user_role") == "student" and submission["user_id"] != session.get("user_id"):
         conn.close()
         return jsonify({"success": False, "error": "Access denied."}), 403
-        
+
     cursor.execute("SELECT * FROM questions WHERE exam_id = ? ORDER BY id ASC", (submission["exam_id"],))
     questions = cursor.fetchall()
-    
+
     manual_eval = json.loads(submission["manual_evaluation_json"]) if submission["manual_evaluation_json"] else {}
     total_score, total_points, percentage = compute_submission_score_with_or(
         questions, answers, manual_eval
     )
-    
+
     # Evaluate Honeypot Traps & Canary Signatures across submitted answers
     honeypot_triggers = []
     for q in questions:
@@ -4546,23 +4680,23 @@ def api_submit_exam(submission_id):
 
     # Generate cryptographic SHA-256 HMAC for submission integrity & tamper detection
     integrity_token = generate_submission_integrity_hash(
-        submission_id, 
-        submission["roll_number"], 
-        total_score, 
-        total_points, 
+        submission_id,
+        submission["roll_number"],
+        total_score,
+        total_points,
         row_get(submission, "warnings_count", 0) or 0,
         'submitted',
         json.dumps(answers)
     )
-    
+
     cursor.execute("""
-        UPDATE submissions 
-        SET answers_json = ?, score = ?, total_points = ?, percentage = ?, status = 'submitted', 
+        UPDATE submissions
+        SET answers_json = ?, score = ?, total_points = ?, percentage = ?, status = 'submitted',
             submitted_at = CURRENT_TIMESTAMP, client_ip = ?, integrity_hash = ?,
             honeypot_snared = ?, honeypot_details = ?, is_published = 0
         WHERE id = ?
     """, (json.dumps(answers), total_score, total_points, round(percentage, 1), client_ip, integrity_token, honeypot_snared, honeypot_details, submission_id))
-    
+
     conn.commit()
     conn.close()
 
@@ -4580,7 +4714,7 @@ def api_submit_exam(submission_id):
 
     # Existing execution remains asynchronous; status and failures are now persisted.
     threading.Thread(target=_run_submission_evaluation, args=(submission_id,), daemon=True).start()
-    
+
     return jsonify({"success": True, "submission_id": submission_id, "integrity_hash": integrity_token})
 
 
@@ -4768,7 +4902,7 @@ def api_manage_pause(submission_id):
 
     conn = get_connection()
     cursor = conn.cursor()
-    cursor.execute("SELECT id, status FROM submissions WHERE id = ?", (submission_id,))
+    cursor.execute("SELECT id, exam_id, user_id, status FROM submissions WHERE id = ?", (submission_id,))
     sub = cursor.fetchone()
 
     if not sub:
@@ -4782,6 +4916,14 @@ def api_manage_pause(submission_id):
             conn.close()
             return jsonify({"success": False, "error": "No pending pause request."})
         cursor.execute("UPDATE submissions SET status = 'paused' WHERE id = ?", (submission_id,))
+        publish_student_sync_event(
+            event_type="pause_approved",
+            target_student_id=sub["user_id"],
+            exam_id=sub["exam_id"],
+            submission_id=submission_id,
+            payload={"action": "approve_pause", "status": "paused"},
+            conn=conn
+        )
         msg = "Exam paused. The student cannot continue until you approve their resume request."
 
     elif action == "approve_resume":
@@ -4793,6 +4935,14 @@ def api_manage_pause(submission_id):
             SET status = 'in_progress', pause_requested_at = NULL, pause_reason = NULL
             WHERE id = ?
         """, (submission_id,))
+        publish_student_sync_event(
+            event_type="pause_approved",
+            target_student_id=sub["user_id"],
+            exam_id=sub["exam_id"],
+            submission_id=submission_id,
+            payload={"action": "approve_resume", "status": "in_progress"},
+            conn=conn
+        )
         msg = "Resume approved. The student can now re-enter and continue the exam."
 
     elif action == "reject_pause":
@@ -4804,6 +4954,14 @@ def api_manage_pause(submission_id):
             SET status = 'in_progress', pause_requested_at = NULL, pause_reason = NULL
             WHERE id = ?
         """, (submission_id,))
+        publish_student_sync_event(
+            event_type="pause_rejected",
+            target_student_id=sub["user_id"],
+            exam_id=sub["exam_id"],
+            submission_id=submission_id,
+            payload={"action": "reject_pause", "status": "in_progress"},
+            conn=conn
+        )
         msg = "Pause request rejected. The student's exam timer continues."
 
     else:
@@ -4889,7 +5047,7 @@ def api_tutor_get_student_requests():
     conn = get_connection()
     cursor = conn.cursor()
     cursor.execute("""
-        SELECT r.*, 
+        SELECT r.*,
                u.full_name as student_name, u.username, u.roll_number,
                e.title as exam_title,
                res_u.full_name as resolved_by_name
@@ -5030,7 +5188,7 @@ def api_resolve_device_switch_request(request_id):
     conn = get_connection()
     cursor = conn.cursor()
     cursor.execute("""
-        SELECT r.id, r.student_id, r.exam_id, r.submission_id, r.request_type, r.status, 
+        SELECT r.id, r.student_id, r.exam_id, r.submission_id, r.request_type, r.status,
                COALESCE(s.student_name, u.full_name) as student_name, u.username
         FROM device_switch_requests r
         JOIN users u ON r.student_id = u.id
@@ -5086,6 +5244,15 @@ def api_resolve_device_switch_request(request_id):
             except Exception:
                 pass
 
+        publish_student_sync_event(
+            event_type="device_switch_approved",
+            target_student_id=row_get(req, "student_id"),
+            exam_id=row_get(req, "exam_id"),
+            submission_id=row_get(req, "submission_id"),
+            payload={"request_id": request_id, "status": "approved"},
+            conn=conn
+        )
+
         conn.commit()
         conn.close()
         return jsonify({
@@ -5118,6 +5285,15 @@ def api_resolve_device_switch_request(request_id):
                 """, (req["submission_id"], tutor_id, f"Your request was REJECTED: {rejection_note}"))
             except Exception:
                 pass
+
+        publish_student_sync_event(
+            event_type="device_switch_rejected",
+            target_student_id=row_get(req, "student_id"),
+            exam_id=row_get(req, "exam_id"),
+            submission_id=row_get(req, "submission_id"),
+            payload={"request_id": request_id, "status": "rejected", "reason": rejection_note},
+            conn=conn
+        )
 
         conn.commit()
         conn.close()
@@ -5168,6 +5344,16 @@ def api_approve_device_switch(submission_id):
         VALUES (?, 'device_switch_approved', ?, 'INFO', 'SEC-DEV-OK')
     """, (submission_id, f"Device switch approved by tutor #{tutor_id} for student {sub['student_name']}."))
 
+    # Dispatch sync event for the student
+    publish_student_sync_event(
+        event_type="device_switch_approved",
+        target_student_id=sub_user_id,
+        exam_id=row_get(sub, "exam_id"),
+        submission_id=submission_id,
+        payload={"submission_id": submission_id, "status": "approved"},
+        conn=conn
+    )
+
     conn.commit()
     conn.close()
     return jsonify({
@@ -5203,6 +5389,14 @@ def api_toggle_exam_results_published(exam_id):
             WHERE submission_id IN (SELECT id FROM submissions WHERE exam_id = ?)
         """, (exam_id,))
 
+    # Publish sync event so students currently viewing result page or dashboard update immediately
+    publish_student_sync_event(
+        event_type="result_published" if new_val == 1 else "result_unpublished",
+        exam_id=exam_id,
+        payload={"exam_id": exam_id, "is_published": bool(new_val)},
+        conn=conn
+    )
+
     conn.commit()
     conn.close()
 
@@ -5235,6 +5429,18 @@ def api_toggle_submission_published(submission_id):
     if new_val == 1:
         cursor.execute("UPDATE violations SET is_resolved = 1 WHERE submission_id = ?", (submission_id,))
 
+    cursor.execute("SELECT user_id, exam_id FROM submissions WHERE id = ?", (submission_id,))
+    s_meta = cursor.fetchone()
+    if s_meta:
+        publish_student_sync_event(
+            event_type="result_published" if new_val == 1 else "result_unpublished",
+            target_student_id=s_meta["user_id"],
+            exam_id=s_meta["exam_id"],
+            submission_id=submission_id,
+            payload={"submission_id": submission_id, "is_published": bool(new_val)},
+            conn=conn
+        )
+
     conn.commit()
     conn.close()
 
@@ -5252,7 +5458,7 @@ def api_toggle_submission_published(submission_id):
                 st_pct = student_info.get("percentage", 0.0)
                 exam_t = student_info.get("exam_title", "Examination")
                 res_url = f"{request.host_url.rstrip('/')}/student/result/{submission_id}"
-                
+
                 email_html = f"""
                 <div style='font-family: sans-serif; max-width: 600px; margin: 0 auto; padding: 20px; border: 1px solid #e2e8f0; border-radius: 12px;'>
                     <h2 style='color: #0284c7; margin-bottom: 8px;'>ExamGuard AI &bull; Results Published</h2>
@@ -5344,7 +5550,7 @@ def api_exam_live_proctor(exam_id):
     """Returns active and recent candidate telemetry for the real-time proctoring cockpit."""
     conn = get_connection()
     cursor = conn.cursor()
-    
+
     cursor.execute("""
         SELECT s.id, s.exam_id, s.user_id, s.student_name, s.roll_number, s.status,
                s.warnings_count, s.score, s.total_points, s.client_ip, s.time_remaining_seconds,
@@ -5357,8 +5563,8 @@ def api_exam_live_proctor(exam_id):
         FROM submissions s
         LEFT JOIN users u ON s.user_id = u.id
         WHERE s.exam_id = ?
-        ORDER BY 
-            CASE 
+        ORDER BY
+            CASE
                 WHEN s.status = 'in_progress' THEN 1
                 WHEN s.status = 'pause_requested' THEN 2
                 WHEN s.status = 'paused' THEN 3
@@ -5367,15 +5573,15 @@ def api_exam_live_proctor(exam_id):
             END,
             s.started_at DESC
     """, (exam_id,))
-    
+
     rows = cursor.fetchall()
     conn.close()
-    
+
     candidates = []
     for r in rows:
         d = dict(r)
         candidates.append(d)
-        
+
     return jsonify({
         "success": True,
         "exam_id": exam_id,
@@ -5390,31 +5596,41 @@ def api_tutor_force_terminate(submission_id):
     """Tutor immediately terminates an active exam session for severe malpractice."""
     data = request.get_json() or {}
     reason = (data.get("reason") or "Directly terminated by Proctor for academic malpractice.").strip()
-    
+
     conn = get_connection()
     cursor = conn.cursor()
-    cursor.execute("SELECT id, exam_id, student_name, status FROM submissions WHERE id = ?", (submission_id,))
+    cursor.execute("SELECT id, exam_id, user_id, student_name, status FROM submissions WHERE id = ?", (submission_id,))
     sub = cursor.fetchone()
-    
+
     if not sub:
         conn.close()
         return jsonify({"success": False, "error": "Submission not found."}), 404
-        
+
     cursor.execute("""
-        UPDATE submissions 
-        SET status = 'terminated', termination_reason = ? 
+        UPDATE submissions
+        SET status = 'terminated', termination_reason = ?
         WHERE id = ?
     """, (reason, submission_id))
-    
+
     # Log critical violation incident
     cursor.execute("""
         INSERT INTO violations (submission_id, violation_type, details, severity, event_code)
         VALUES (?, 'PROCTOR_MANUAL_TERMINATION', ?, 'CRITICAL', 'SEC-009')
     """, (submission_id, f"Proctor action: {reason}"))
-    
+
+    # Publish sync event so the student exam page can handle immediate termination
+    publish_student_sync_event(
+        event_type="exam_terminated",
+        target_student_id=sub["user_id"],
+        exam_id=sub["exam_id"],
+        submission_id=submission_id,
+        payload={"reason": reason, "status": "terminated"},
+        conn=conn
+    )
+
     conn.commit()
     conn.close()
-    
+
     return jsonify({
         "success": True,
         "message": f"Exam attempt for {sub['student_name']} has been terminated immediately."
@@ -5515,12 +5731,179 @@ def api_get_student_proctor_messages(submission_id):
     })
 
 
+# ---------------------------------------------------------------------------
+# Universal Student Synchronization & Live Exam Control APIs
+# ---------------------------------------------------------------------------
+@app.route("/api/student/sync-events", methods=["GET"])
+@login_required
+def api_student_sync_events():
+    """
+    Authenticated incremental cursor polling endpoint for student clients.
+    Returns events created after the given 'since' cursor matching the student's ID or class.
+    """
+    user_id = session.get("user_id")
+    if session.get("user_role") != "student" and session.get("user_role") != "admin":
+        return jsonify({"success": False, "error": "Access denied."}), 403
+
+    try:
+        since_cursor = int(request.args.get("since", 0))
+    except (ValueError, TypeError):
+        since_cursor = 0
+
+    conn = get_connection()
+    cursor = conn.cursor()
+
+    # Determine student class
+    user_class = ""
+    if user_id:
+        cursor.execute("SELECT class_name FROM users WHERE id = ?", (user_id,))
+        u_row = cursor.fetchone()
+        if u_row:
+            user_class = (row_get(u_row, "class_name", "") or "").strip().lower()
+
+    cursor.execute("""
+        SELECT id, event_type, target_student_id, target_class, exam_id, submission_id, payload_json, created_at
+        FROM student_sync_events
+        WHERE id > ?
+          AND (target_student_id IS NULL OR target_student_id = ?)
+          AND (target_class IS NULL OR target_class = '' OR LOWER(target_class) = ?)
+        ORDER BY id ASC
+        LIMIT 50
+    """, (since_cursor, user_id, user_class))
+    rows = cursor.fetchall()
+    conn.close()
+
+    events = []
+    max_cursor = since_cursor
+    for r in rows:
+        r_dict = dict(r)
+        if r_dict["id"] > max_cursor:
+            max_cursor = r_dict["id"]
+        payload = {}
+        if r_dict.get("payload_json"):
+            try:
+                payload = json.loads(r_dict["payload_json"])
+            except Exception:
+                payload = {}
+        r_dict["payload"] = payload
+        events.append(r_dict)
+
+    return jsonify({
+        "success": True,
+        "cursor": max_cursor,
+        "events": events
+    })
+
+
+@app.route("/api/tutor/submission/<int:submission_id>/extend-time", methods=["POST"])
+@admin_required
+def api_tutor_extend_time(submission_id):
+    """
+    Tutor extends the live duration of an active student exam attempt.
+    Accredits additional minutes to time_remaining_seconds, records an audit log in
+    exam_time_extensions, and dispatches an exam_time_extended sync event.
+    """
+    data = request.get_json(silent=True) or request.form
+    try:
+        minutes_to_add = int(data.get("minutes", 0))
+    except (ValueError, TypeError):
+        minutes_to_add = 0
+
+    if minutes_to_add <= 0 or minutes_to_add > 180:
+        return jsonify({"success": False, "error": "Extension minutes must be a positive integer between 1 and 180."}), 400
+
+    reason = (data.get("reason") or "Tutor granted live time extension").strip()
+    tutor_id = session.get("user_id")
+
+    conn = get_connection()
+    cursor = conn.cursor()
+    cursor.execute("""
+        SELECT s.id, s.exam_id, s.user_id, s.student_name, s.status, s.time_remaining_seconds,
+               e.duration_minutes
+        FROM submissions s
+        JOIN exams e ON s.exam_id = e.id
+        WHERE s.id = ?
+    """, (submission_id,))
+    sub = cursor.fetchone()
+
+    if not sub:
+        conn.close()
+        return jsonify({"success": False, "error": "Submission not found."}), 404
+
+    sub_status = sub["status"]
+    if sub_status not in ("in_progress", "paused", "pause_requested"):
+        conn.close()
+        return jsonify({"success": False, "error": f"Cannot extend time for submission with status '{sub_status}'."}), 400
+
+    # Calculate authoritative remaining time
+    current_rem = row_get(sub, "time_remaining_seconds")
+    if current_rem is None:
+        duration_mins = row_get(sub, "duration_minutes", 30) or 30
+        prev_seconds = int(duration_mins * 60)
+    else:
+        prev_seconds = max(0, int(current_rem))
+
+    added_seconds = int(minutes_to_add * 60)
+    new_seconds = prev_seconds + added_seconds
+
+    # Update submission
+    cursor.execute("""
+        UPDATE submissions
+        SET time_remaining_seconds = ?
+        WHERE id = ?
+    """, (new_seconds, submission_id))
+
+    # Record extension in audit table
+    record_exam_time_extension(
+        exam_id=sub["exam_id"],
+        submission_id=submission_id,
+        student_id=sub["user_id"],
+        tutor_id=tutor_id,
+        prev_seconds=prev_seconds,
+        new_seconds=new_seconds,
+        minutes_added=minutes_to_add,
+        reason=reason,
+        conn=conn
+    )
+
+    # Publish sync event for the student
+    publish_student_sync_event(
+        event_type="exam_time_extended",
+        target_student_id=sub["user_id"],
+        exam_id=sub["exam_id"],
+        submission_id=submission_id,
+        payload={
+            "minutes_added": minutes_to_add,
+            "previous_time_remaining_seconds": prev_seconds,
+            "new_time_remaining_seconds": new_seconds,
+            "reason": reason
+        },
+        conn=conn
+    )
+
+    # Insert security violation notice for proctor visibility
+    cursor.execute("""
+        INSERT INTO violations (submission_id, violation_type, details, severity, event_code)
+        VALUES (?, 'TIME_EXTENSION_GRANTED', ?, 'INFO', 'SEC-EXT-01')
+    """, (submission_id, f"Tutor #{tutor_id} extended exam time by {minutes_to_add} minute(s). Reason: {reason}"))
+
+    conn.commit()
+    conn.close()
+
+    return jsonify({
+        "success": True,
+        "message": f"Successfully added {minutes_to_add} minute(s) to {sub['student_name']}'s exam.",
+        "minutes_added": minutes_to_add,
+        "new_time_remaining_seconds": new_seconds
+    })
+
+
 @app.route("/student/result/<int:submission_id>")
 @login_required
 def exam_result(submission_id):
     conn = get_connection()
     cursor = conn.cursor()
-    
+
     cursor.execute("""
         SELECT s.*, e.title, e.max_warnings, e.passing_percentage, e.results_published
         FROM submissions s
@@ -5528,7 +5911,7 @@ def exam_result(submission_id):
         WHERE s.id = ?
     """, (submission_id,))
     submission = cursor.fetchone()
-    
+
     if not submission:
         conn.close()
         return "Result not found", 404
@@ -5543,11 +5926,11 @@ def exam_result(submission_id):
             conn.close()
             flash("Access Restricted: You can only view your own examination results.", "danger")
             return redirect(url_for("student_dashboard"))
-        
+
     cursor.execute("SELECT * FROM violations WHERE submission_id = ? ORDER BY timestamp ASC", (submission_id,))
     violations = cursor.fetchall()
     conn.close()
-    
+
     sub_dict = dict(submission)
     raw_pct = sub_dict.get("percentage")
     raw_pass = sub_dict.get("passing_percentage")
@@ -5663,7 +6046,7 @@ def exam_result(submission_id):
             sub_dict["integrity_hash"] = expected_hash
         except Exception:
             stored_hash = expected_hash
-            
+
     # Accept valid V1 signatures for historical records; all new writes use V2.
     is_tamper_verified = bool(
         stored_hash and (
@@ -5672,10 +6055,10 @@ def exam_result(submission_id):
         )
     )
 
-    return render_template("exam_result.html", 
-                           submission=sub_dict, 
-                           violations=violations, 
-                           passed=passed, 
+    return render_template("exam_result.html",
+                           submission=sub_dict,
+                           violations=violations,
+                           passed=passed,
                            is_published=is_published,
                            evaluation_complete=evaluation_complete,
                            score_visible=score_visible,

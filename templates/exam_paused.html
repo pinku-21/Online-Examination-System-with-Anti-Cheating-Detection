@@ -147,6 +147,22 @@
         }
         pollTimer = setInterval(checkStatus, 10000);
         checkStatus();
+
+        // Universal Sync Listener: Instant reaction to tutor pause approval/rejection
+        window.addEventListener('examguard:pause_approved', function(e) {
+            var detail = e.detail;
+            if (!detail) return;
+            if (!detail.submission_id || String(detail.submission_id) === String(SUBMISSION_ID)) {
+                checkStatus();
+            }
+        });
+        window.addEventListener('examguard:pause_rejected', function(e) {
+            var detail = e.detail;
+            if (!detail) return;
+            if (!detail.submission_id || String(detail.submission_id) === String(SUBMISSION_ID)) {
+                checkStatus();
+            }
+        });
     </script>
 </body>
 </html>

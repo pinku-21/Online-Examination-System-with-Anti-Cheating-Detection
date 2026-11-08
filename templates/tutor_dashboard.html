@@ -487,6 +487,26 @@
             </div>
         </div>
 
+        <!-- SOC Filter Bar (Severity & Category) -->
+        <div class="p-4 bg-slate-50 border-b border-slate-200 flex flex-wrap items-center justify-between gap-3 text-xs">
+            <div class="flex items-center flex-wrap gap-1.5">
+                <span class="text-[11px] font-bold text-slate-500 uppercase mr-1">Severity:</span>
+                <button type="button" onclick="filterSocIncidents('all', 'sev')" class="soc-sev-btn px-2.5 py-1 rounded-lg font-bold bg-slate-900 text-white transition cursor-pointer" data-sev="all">ALL</button>
+                <button type="button" onclick="filterSocIncidents('CRITICAL', 'sev')" class="soc-sev-btn px-2.5 py-1 rounded-lg font-semibold bg-white border border-slate-200 text-rose-700 hover:bg-rose-50 transition cursor-pointer" data-sev="CRITICAL">CRITICAL</button>
+                <button type="button" onclick="filterSocIncidents('WARNING', 'sev')" class="soc-sev-btn px-2.5 py-1 rounded-lg font-semibold bg-white border border-slate-200 text-amber-700 hover:bg-amber-50 transition cursor-pointer" data-sev="WARNING">WARNING</button>
+                <button type="button" onclick="filterSocIncidents('INFO', 'sev')" class="soc-sev-btn px-2.5 py-1 rounded-lg font-semibold bg-white border border-slate-200 text-slate-700 hover:bg-slate-100 transition cursor-pointer" data-sev="INFO">INFO</button>
+            </div>
+            <div class="flex items-center flex-wrap gap-1.5">
+                <span class="text-[11px] font-bold text-slate-500 uppercase mr-1">Category:</span>
+                <button type="button" onclick="filterSocIncidents('all', 'cat')" class="soc-cat-btn px-2.5 py-1 rounded-lg font-bold bg-indigo-600 text-white transition cursor-pointer" data-cat="all">ALL</button>
+                <button type="button" onclick="filterSocIncidents('clipboard', 'cat')" class="soc-cat-btn px-2.5 py-1 rounded-lg font-semibold bg-white border border-slate-200 text-slate-700 hover:bg-slate-100 transition cursor-pointer" data-cat="clipboard">Clipboard</button>
+                <button type="button" onclick="filterSocIncidents('dom_integrity', 'cat')" class="soc-cat-btn px-2.5 py-1 rounded-lg font-semibold bg-white border border-slate-200 text-slate-700 hover:bg-slate-100 transition cursor-pointer" data-cat="dom_integrity">DOM Integrity</button>
+                <button type="button" onclick="filterSocIncidents('browser_focus', 'cat')" class="soc-cat-btn px-2.5 py-1 rounded-lg font-semibold bg-white border border-slate-200 text-slate-700 hover:bg-slate-100 transition cursor-pointer" data-cat="browser_focus">Focus / Tab</button>
+                <button type="button" onclick="filterSocIncidents('fullscreen', 'cat')" class="soc-cat-btn px-2.5 py-1 rounded-lg font-semibold bg-white border border-slate-200 text-slate-700 hover:bg-slate-100 transition cursor-pointer" data-cat="fullscreen">Fullscreen</button>
+                <button type="button" onclick="filterSocIncidents('ai_vision', 'cat')" class="soc-cat-btn px-2.5 py-1 rounded-lg font-semibold bg-white border border-slate-200 text-slate-700 hover:bg-slate-100 transition cursor-pointer" data-cat="ai_vision">Vision / Audio</button>
+            </div>
+        </div>
+
         {% if security_incidents %}
         <div class="overflow-x-auto">
             <table class="w-full text-xs">
@@ -503,7 +523,9 @@
                 </thead>
                 <tbody class="divide-y divide-slate-100 font-sans">
                     {% for inc in security_incidents %}
-                    <tr class="hover:bg-slate-50/80 transition">
+                    {% set sev_norm = (inc.severity or 'INFO') | upper %}
+                    {% set cat_norm = inc.category or 'general' %}
+                    <tr class="soc-incident-row hover:bg-slate-50/80 transition" data-severity="{{ sev_norm }}" data-category="{{ cat_norm }}">
                         <td class="px-5 py-3 font-mono font-bold text-slate-600">
                             {{ inc.event_code or 'SEC-001' }}
                         </td>
@@ -916,6 +938,54 @@
                     </label>
                 </div>
             </div>
+
+            <!-- Examination Integrity Policies (Enterprise-Grade) -->
+            <div class="p-3.5 bg-slate-50 border border-slate-200 rounded-xl space-y-2">
+                <div class="flex items-center justify-between">
+                    <label class="block text-xs font-bold text-slate-800">
+                        <i data-lucide="lock" class="w-3.5 h-3.5 inline mr-1 text-indigo-600"></i>Assessment Integrity Policies:
+                    </label>
+                    <span class="text-[10px] text-indigo-600 font-semibold bg-indigo-50 px-1.5 py-0.5 rounded">Security Controls</span>
+                </div>
+                <div class="grid grid-cols-1 sm:grid-cols-2 gap-2 pt-1">
+                    <label class="flex items-center justify-between p-2 bg-white rounded-lg border border-slate-200 cursor-pointer" title="Enforces full screen kiosk mode with pause overlay on exit">
+                        <span class="text-xs font-semibold text-slate-800 flex items-center">
+                            <i data-lucide="maximize" class="w-3.5 h-3.5 mr-1.5 text-indigo-600"></i> Fullscreen Kiosk
+                        </span>
+                        <input type="checkbox" id="ma-enable-fullscreen" class="rounded text-indigo-600 focus:ring-indigo-500 w-4 h-4 cursor-pointer">
+                    </label>
+                    <label class="flex items-center justify-between p-2 bg-white rounded-lg border border-slate-200 cursor-pointer" title="Monitors tab switching and window blur with debouncing">
+                        <span class="text-xs font-semibold text-slate-800 flex items-center">
+                            <i data-lucide="eye" class="w-3.5 h-3.5 mr-1.5 text-indigo-600"></i> Tab / Blur Monitor
+                        </span>
+                        <input type="checkbox" id="ma-enable-tab-monitoring" class="rounded text-indigo-600 focus:ring-indigo-500 w-4 h-4 cursor-pointer">
+                    </label>
+                    <label class="flex items-center justify-between p-2 bg-white rounded-lg border border-slate-200 cursor-pointer" title="Allows students to copy examination text">
+                        <span class="text-xs font-semibold text-slate-800 flex items-center">
+                            <i data-lucide="copy" class="w-3.5 h-3.5 mr-1.5 text-slate-600"></i> Allow Copy
+                        </span>
+                        <input type="checkbox" id="ma-allow-copy" class="rounded text-indigo-600 focus:ring-indigo-500 w-4 h-4 cursor-pointer">
+                    </label>
+                    <label class="flex items-center justify-between p-2 bg-white rounded-lg border border-slate-200 cursor-pointer" title="Allows students to cut text">
+                        <span class="text-xs font-semibold text-slate-800 flex items-center">
+                            <i data-lucide="scissors" class="w-3.5 h-3.5 mr-1.5 text-slate-600"></i> Allow Cut
+                        </span>
+                        <input type="checkbox" id="ma-allow-cut" class="rounded text-indigo-600 focus:ring-indigo-500 w-4 h-4 cursor-pointer">
+                    </label>
+                    <label class="flex items-center justify-between p-2 bg-white rounded-lg border border-slate-200 cursor-pointer" title="Allows students to paste text into answer inputs">
+                        <span class="text-xs font-semibold text-slate-800 flex items-center">
+                            <i data-lucide="clipboard" class="w-3.5 h-3.5 mr-1.5 text-slate-600"></i> Allow Paste
+                        </span>
+                        <input type="checkbox" id="ma-allow-paste" class="rounded text-indigo-600 focus:ring-indigo-500 w-4 h-4 cursor-pointer">
+                    </label>
+                    <label class="flex items-center justify-between p-2 bg-white rounded-lg border border-slate-200 cursor-pointer" title="Targeted DOM tamper detection using MutationObserver">
+                        <span class="text-xs font-semibold text-slate-800 flex items-center">
+                            <i data-lucide="shield-alert" class="w-3.5 h-3.5 mr-1.5 text-rose-600"></i> DOM Shield
+                        </span>
+                        <input type="checkbox" id="ma-enable-dom-shield" class="rounded text-indigo-600 focus:ring-indigo-500 w-4 h-4 cursor-pointer">
+                    </label>
+                </div>
+            </div>
         </div>
 
         <!-- Sticky Footer - Always Visible! -->
@@ -1140,6 +1210,27 @@
                 const eaVal = (ex.enable_audio_detection !== undefined) ? ex.enable_audio_detection : data.enable_audio_detection;
                 if (videoEl) videoEl.checked = (evVal === 1 || evVal === true || evVal === '1');
                 if (audioEl) audioEl.checked = (eaVal === 1 || eaVal === true || eaVal === '1');
+
+                const fsEl = document.getElementById('ma-enable-fullscreen');
+                const tabEl = document.getElementById('ma-enable-tab-monitoring');
+                const copyEl = document.getElementById('ma-allow-copy');
+                const cutEl = document.getElementById('ma-allow-cut');
+                const pasteEl = document.getElementById('ma-allow-paste');
+                const domEl = document.getElementById('ma-enable-dom-shield');
+
+                const fsVal = (ex.enable_fullscreen_enforcement !== undefined) ? ex.enable_fullscreen_enforcement : data.enable_fullscreen_enforcement;
+                const tabVal = (ex.enable_tab_monitoring !== undefined) ? ex.enable_tab_monitoring : data.enable_tab_monitoring;
+                const copyVal = (ex.allow_student_copy !== undefined) ? ex.allow_student_copy : data.allow_student_copy;
+                const cutVal = (ex.allow_student_cut !== undefined) ? ex.allow_student_cut : data.allow_student_cut;
+                const pasteVal = (ex.allow_student_paste !== undefined) ? ex.allow_student_paste : data.allow_student_paste;
+                const domVal = (ex.enable_dom_integrity_shield !== undefined) ? ex.enable_dom_integrity_shield : data.enable_dom_integrity_shield;
+
+                if (fsEl) fsEl.checked = (fsVal === 1 || fsVal === true || fsVal === '1');
+                if (tabEl) tabEl.checked = (tabVal === 1 || tabVal === true || tabVal === '1' || tabVal === undefined);
+                if (copyEl) copyEl.checked = (copyVal === 1 || copyVal === true || copyVal === '1');
+                if (cutEl) cutEl.checked = (cutVal === 1 || cutVal === true || cutVal === '1');
+                if (pasteEl) pasteEl.checked = (pasteVal === 1 || pasteVal === true || pasteVal === '1');
+                if (domEl) domEl.checked = (domVal === 1 || domVal === true || domVal === '1' || domVal === undefined);
             }
         } catch (err) {
             console.error('Failed to load access details:', err);
@@ -1156,6 +1247,12 @@
         const durationMinutes = parseInt(document.getElementById('ma-duration-minutes').value) || 30;
         const enableVideo = document.getElementById('ma-enable-video')?.checked ? 1 : 0;
         const enableAudio = document.getElementById('ma-enable-audio')?.checked ? 1 : 0;
+        const enableFullscreen = document.getElementById('ma-enable-fullscreen')?.checked ? 1 : 0;
+        const enableTabMonitoring = document.getElementById('ma-enable-tab-monitoring')?.checked ? 1 : 0;
+        const allowCopy = document.getElementById('ma-allow-copy')?.checked ? 1 : 0;
+        const allowCut = document.getElementById('ma-allow-cut')?.checked ? 1 : 0;
+        const allowPaste = document.getElementById('ma-allow-paste')?.checked ? 1 : 0;
+        const enableDomShield = document.getElementById('ma-enable-dom-shield')?.checked ? 1 : 0;
 
         const assignedStudents = [];
         if (accessType === 'selected') {
@@ -1201,7 +1298,13 @@
                     end_time: endTime,
                     duration_minutes: durationMinutes,
                     enable_video_detection: enableVideo,
-                    enable_audio_detection: enableAudio
+                    enable_audio_detection: enableAudio,
+                    enable_fullscreen_enforcement: enableFullscreen,
+                    enable_tab_monitoring: enableTabMonitoring,
+                    allow_student_copy: allowCopy,
+                    allow_student_cut: allowCut,
+                    allow_student_paste: allowPaste,
+                    enable_dom_integrity_shield: enableDomShield
                 })
             });
             const res = await resp.json();
@@ -1366,6 +1469,41 @@
         } catch (err) {
             Swal.fire({ icon: 'error', title: 'Error', text: 'Network error occurred.' });
         }
+    }
+
+    // Client-side SOC Incident Filtering (Severity & Category)
+    let currentSocSev = 'all';
+    let currentSocCat = 'all';
+
+    function filterSocIncidents(val, type) {
+        if (type === 'sev') {
+            currentSocSev = val;
+            document.querySelectorAll('.soc-sev-btn').forEach(btn => {
+                const match = btn.getAttribute('data-sev') === val;
+                btn.className = match
+                    ? 'soc-sev-btn px-2.5 py-1 rounded-lg font-bold bg-slate-900 text-white transition cursor-pointer'
+                    : 'soc-sev-btn px-2.5 py-1 rounded-lg font-semibold bg-white border border-slate-200 text-slate-700 hover:bg-slate-100 transition cursor-pointer';
+            });
+        } else if (type === 'cat') {
+            currentSocCat = val;
+            document.querySelectorAll('.soc-cat-btn').forEach(btn => {
+                const match = btn.getAttribute('data-cat') === val;
+                btn.className = match
+                    ? 'soc-cat-btn px-2.5 py-1 rounded-lg font-bold bg-indigo-600 text-white transition cursor-pointer'
+                    : 'soc-cat-btn px-2.5 py-1 rounded-lg font-semibold bg-white border border-slate-200 text-slate-700 hover:bg-slate-100 transition cursor-pointer';
+            });
+        }
+
+        const rows = document.querySelectorAll('.soc-incident-row');
+        rows.forEach(row => {
+            const rowSev = (row.getAttribute('data-severity') || '').toUpperCase();
+            const rowCat = (row.getAttribute('data-category') || '').toLowerCase();
+
+            const matchSev = (currentSocSev === 'all') || (rowSev === currentSocSev) || (currentSocSev === 'WARNING' && rowSev === 'HIGH') || (currentSocSev === 'INFO' && (rowSev === 'LOW' || rowSev === 'INFO'));
+            const matchCat = (currentSocCat === 'all') || (rowCat === currentSocCat) || (currentSocCat === 'ai_vision' && (rowCat === 'ai_vision' || rowCat === 'audio_proctoring' || rowCat === 'hardware_device'));
+
+            row.style.display = (matchSev && matchCat) ? '' : 'none';
+        });
     }
 
     // Segmented Dashboard View Switcher (Created Exams vs Student Accounts vs SOC Telemetry)
