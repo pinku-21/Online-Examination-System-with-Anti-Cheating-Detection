@@ -13,6 +13,7 @@ from functools import wraps
 from datetime import datetime, timezone, timedelta
 from flask import Flask, render_template, render_template_string, request, jsonify, redirect, url_for, flash, session, send_from_directory
 from werkzeug.utils import secure_filename
+from werkzeug.middleware.proxy_fix import ProxyFix
 
 try:
     from dotenv import load_dotenv
@@ -62,6 +63,8 @@ def get_current_time():
     return datetime.now(IST).replace(tzinfo=None)
 
 app = Flask(__name__, static_url_path=None)
+# Apply Werkzeug ProxyFix to correctly resolve X-Forwarded-For, X-Forwarded-Proto, and X-Forwarded-Host behind Render / Cloudflare reverse proxies
+app.wsgi_app = ProxyFix(app.wsgi_app, x_for=1, x_proto=1, x_host=1, x_port=1, x_prefix=1)
 # Ensure strong secret key in production (prevent default key session hijacking)
 DEFAULT_DEV_SECRET = "examguard-super-secret-key-2026"
 def resolve_secret_key(environ=None):
@@ -509,8 +512,17 @@ def csrf_protect_check():
         if origin:
             from urllib.parse import urlparse
             origin_host = urlparse(origin).netloc.lower()
+            forwarded_host = request.headers.get("X-Forwarded-Host", "").split(",")[0].strip().lower()
             current_host = request.host.lower()
-            if origin_host and origin_host != current_host:
+            allowed_hosts = {h for h in (current_host, forwarded_host) if h}
+            # Also allow configured public_url domain if set
+            pub_url = get_setting("public_url", "")
+            if pub_url:
+                pub_netloc = urlparse(pub_url).netloc.lower()
+                if pub_netloc:
+                    allowed_hosts.add(pub_netloc)
+
+            if origin_host and origin_host not in allowed_hosts:
                 return jsonify({
                     "success": False,
                     "error": "Cross-Site Request Blocked (CSRF Security Violation): Origin mismatch."
