@@ -376,6 +376,8 @@ def init_db():
                 # Student Requests Enhancement
                 "ALTER TABLE device_switch_requests ADD COLUMN IF NOT EXISTS request_type TEXT DEFAULT 'device_switch'",
                 "ALTER TABLE device_switch_requests ADD COLUMN IF NOT EXISTS reason TEXT DEFAULT ''",
+                # Subject categorization
+                "ALTER TABLE exams ADD COLUMN IF NOT EXISTS subject TEXT DEFAULT 'General'",
             ]
             migration_errors = run_pg_migrations(cursor, conn, migrations)
         else:
@@ -621,6 +623,7 @@ def init_db():
                 # Student Requests Enhancement
                 ("device_switch_requests", "request_type", "TEXT DEFAULT 'device_switch'"),
                 ("device_switch_requests", "reason", "TEXT DEFAULT ''"),
+                ("exams", "subject", "TEXT DEFAULT 'General'"),
             ]:
                 columns = {row["name"] for row in cursor.execute(f"PRAGMA table_info({table})").fetchall()}
                 if column not in columns:

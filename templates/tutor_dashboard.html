@@ -92,13 +92,20 @@
         {% endif %}
     {% endwith %}
 
-    <!-- Segmented View Toggle Switcher (Exams vs Students) -->
+    <!-- Segmented View Toggle Switcher (Exams vs Live Ongoing vs Students vs SOC vs Requests) -->
     <div class="mb-6 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div class="inline-flex p-1 bg-slate-100 dark:bg-slate-800 rounded-2xl border border-slate-200 dark:border-slate-700 shadow-inner flex-wrap">
             <button type="button" id="tab-btn-exams" onclick="switchDashboardView('exams')" class="px-5 py-2.5 rounded-xl text-xs sm:text-sm font-bold flex items-center space-x-2 transition-all bg-white dark:bg-slate-900 text-slate-900 dark:text-white shadow-sm cursor-pointer">
                 <i data-lucide="layers" class="w-4 h-4 text-sky-600"></i>
                 <span>Created Exams ({{ exams|length }})</span>
                 <span class="w-2 h-2 rounded-full bg-emerald-500 animate-pulse ml-1" title="Live Exams Ready"></span>
+            </button>
+            <button type="button" id="tab-btn-live" onclick="switchDashboardView('live')" class="px-5 py-2.5 rounded-xl text-xs sm:text-sm font-semibold flex items-center space-x-2 transition-all text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white cursor-pointer">
+                <i data-lucide="activity" class="w-4 h-4 text-emerald-600"></i>
+                <span>Ongoing Exams</span>
+                <span id="live-ongoing-badge" class="{% if live_ongoing_count == 0 %}hidden{% endif %} px-2 py-0.5 rounded-full text-[10px] font-black bg-emerald-600 text-white ml-1 shadow-sm animate-pulse">
+                    {{ live_ongoing_count }}
+                </span>
             </button>
             <button type="button" id="tab-btn-students" onclick="switchDashboardView('students')" class="px-5 py-2.5 rounded-xl text-xs sm:text-sm font-semibold flex items-center space-x-2 transition-all text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white cursor-pointer">
                 <i data-lucide="users" class="w-4 h-4 text-indigo-600"></i>
@@ -130,87 +137,154 @@
 
     <!-- Exam List Section (shadcn-card styling) -->
     <div id="section-view-exams" class="shadcn-card bg-white overflow-hidden shadow-sm">
-        <div class="p-6 border-b border-slate-200 flex items-center justify-between">
+        <div class="p-6 border-b border-slate-200 flex flex-col md:flex-row md:items-center justify-between gap-4">
             <div class="flex items-center space-x-2">
                 <i data-lucide="layers" class="w-5 h-5 text-slate-700"></i>
                 <h2 class="text-lg font-bold text-slate-900 tracking-tight">Your Created Exams</h2>
+                <span class="text-xs font-semibold px-2.5 py-1 bg-slate-100 text-slate-700 rounded-md border border-slate-200 flex items-center gap-1.5 ml-2">
+                    <span class="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></span>
+                    <span>Live Ready</span>
+                </span>
             </div>
-            <span class="text-xs font-semibold px-2.5 py-1 bg-slate-100 text-slate-700 rounded-md border border-slate-200 flex items-center gap-1.5">
-                <span class="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></span>
-                <span>Live Exams Ready</span>
-            </span>
+
+            <!-- Subject-Wise & Date/Status Filter Controls -->
+            <div class="flex flex-wrap items-center gap-2 text-xs">
+                <div class="relative">
+                    <input type="text" id="filter-exam-search" oninput="filterExamCards()" placeholder="Search title, code, subject..." class="pl-8 pr-3 py-1.5 border border-slate-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-sky-500 w-44 sm:w-52 text-xs">
+                    <i data-lucide="search" class="w-3.5 h-3.5 text-slate-400 absolute left-2.5 top-2.5"></i>
+                </div>
+                <div class="flex items-center space-x-1 bg-slate-50 border border-slate-200 px-2.5 py-1 rounded-xl">
+                    <i data-lucide="calendar" class="w-3.5 h-3.5 text-slate-500"></i>
+                    <input type="date" id="filter-exam-date" onchange="filterExamCards()" title="Filter by Scheduled Date" class="bg-transparent border-0 text-xs text-slate-700 focus:outline-none cursor-pointer">
+                    <button type="button" onclick="clearExamDateFilter()" class="text-[10px] text-slate-400 hover:text-slate-700 ml-1 font-bold">×</button>
+                </div>
+                <select id="filter-exam-status" onchange="filterExamCards()" class="px-2.5 py-1.5 border border-slate-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-sky-500 bg-white text-xs font-semibold text-slate-700 cursor-pointer">
+                    <option value="all">All Timing Types</option>
+                    <option value="scheduled">Scheduled Window</option>
+                    <option value="anytime">Anytime (Flexible)</option>
+                </select>
+                <button type="button" onclick="toggleAllSubjectAccordions()" id="btn-toggle-all-accordions" class="px-2.5 py-1.5 rounded-xl border border-slate-200 hover:bg-slate-100 text-slate-700 font-semibold transition flex items-center gap-1 cursor-pointer" title="Expand/Collapse all subjects">
+                    <i data-lucide="chevrons-up-down" class="w-3.5 h-3.5 text-slate-500"></i>
+                    <span>Toggle All</span>
+                </button>
+            </div>
         </div>
 
         {% if exams %}
-            <div class="divide-y divide-slate-100">
-                {% for exam in exams %}
-                    <div id="exam-card-{{ exam.id }}" class="p-6 hover:bg-slate-50/70 transition flex flex-col md:flex-row md:items-center justify-between gap-4">
-                        <div class="space-y-1">
-                            <div class="flex items-center space-x-3">
-                                <h3 class="font-bold text-slate-900 text-base">{{ exam.title }}</h3>
-                                <span class="shadcn-badge font-mono text-[11px] bg-slate-100 text-slate-800 border-slate-200">Code: {{ exam.exam_code }}</span>
+            <!-- Group Exams by Subject in Collapsible Accordions -->
+            {% set grouped_exams = {} %}
+            {% for exam in exams %}
+                {% set subj = exam.subject or 'General' %}
+                {% if subj not in grouped_exams %}
+                    {% set _ = grouped_exams.update({subj: []}) %}
+                {% endif %}
+                {% set _ = grouped_exams[subj].append(exam) %}
+            {% endfor %}
+
+            <div class="divide-y divide-slate-200" id="exam-subject-groups-container">
+                {% for subj, subj_exams in grouped_exams.items() %}
+                    <div class="subject-accordion-group bg-slate-50/40" data-subject="{{ subj | lower }}">
+                        <!-- Subject Header Accordion Toggle -->
+                        <div onclick="toggleSubjectGroup('subj-block-{{ loop.index }}', 'subj-chevron-{{ loop.index }}')" class="px-6 py-3.5 bg-slate-100/80 hover:bg-slate-200/70 border-y border-slate-200/80 flex items-center justify-between cursor-pointer transition select-none">
+                            <div class="flex items-center space-x-2.5">
+                                <span class="w-8 h-8 rounded-lg bg-sky-100 text-sky-700 font-bold flex items-center justify-center text-xs shadow-2xs">
+                                    <i data-lucide="book-open" class="w-4 h-4"></i>
+                                </span>
+                                <div>
+                                    <h3 class="font-bold text-slate-900 text-sm flex items-center gap-2">
+                                        <span>{{ subj }}</span>
+                                        <span class="px-2 py-0.5 rounded-full text-[11px] font-bold bg-white text-slate-700 border border-slate-300">
+                                            {{ subj_exams|length }} Exam{% if subj_exams|length != 1 %}s{% endif %}
+                                        </span>
+                                    </h3>
+                                </div>
                             </div>
-                            <p class="text-sm text-slate-500 line-clamp-1">{{ exam.description or 'No additional description provided.' }}</p>
-                            <div class="flex flex-wrap items-center gap-3 text-xs text-slate-500 pt-1.5">
-                                <span class="flex items-center"><i data-lucide="clock" class="w-3.5 h-3.5 mr-1 text-slate-400"></i> {{ exam.duration_minutes }} Mins</span>
-                                <span class="flex items-center"><i data-lucide="help-circle" class="w-3.5 h-3.5 mr-1 text-slate-400"></i> {{ exam.question_count }} Questions</span>
-                                <span class="flex items-center"><i data-lucide="alert-octagon" class="w-3.5 h-3.5 mr-1 text-amber-500"></i> Max {{ exam.max_warnings }} Strikes</span>
-                                <span class="flex items-center"><i data-lucide="users" class="w-3.5 h-3.5 mr-1 text-slate-400"></i> {{ exam.submission_count }} Attempts</span>
-                                
-                                {% if exam.schedule_type == 'scheduled' %}
-                                    <span class="flex items-center text-amber-700 font-semibold bg-amber-50 px-2.5 py-0.5 rounded-full border border-amber-200 text-[11px]">
-                                        <i data-lucide="calendar" class="w-3 h-3 mr-1 text-amber-600"></i>
-                                        {% if exam.start_time and exam.end_time %}
-                                            {{ exam.start_time | format_datetime_12h }} - {{ exam.end_time | format_time_12h }}
-                                        {% elif exam.start_time %}
-                                            Starts {{ exam.start_time | format_datetime_12h }}
-                                        {% else %}
-                                            Scheduled Window
-                                        {% endif %}
-                                    </span>
-                                {% else %}
-                                    <span class="flex items-center text-emerald-700 font-semibold bg-emerald-50 px-2.5 py-0.5 rounded-full border border-emerald-200 text-[11px]">
-                                        <i data-lucide="clock" class="w-3 h-3 mr-1 text-emerald-600"></i> Anytime
-                                    </span>
-                                {% endif %}
-
-                                {% if exam.access_type == 'class' %}
-                                    <span class="flex items-center text-purple-700 font-semibold bg-purple-50 px-2.5 py-0.5 rounded-full border border-purple-200 text-[11px]">
-                                        <i data-lucide="graduation-cap" class="w-3 h-3 mr-1 text-purple-600"></i> Class: {{ exam.assigned_class }}
-                                    </span>
-                                {% elif exam.access_type == 'selected' %}
-                                    <span class="flex items-center text-indigo-700 font-semibold bg-indigo-50 px-2.5 py-0.5 rounded-full border border-indigo-200 text-[11px]">
-                                        <i data-lucide="user-check" class="w-3 h-3 mr-1 text-indigo-600"></i> {{ exam.assigned_student_count }} Selected Students
-                                    </span>
-                                {% else %}
-                                    <span class="flex items-center text-slate-600 font-semibold bg-slate-100 px-2.5 py-0.5 rounded-full text-[11px]">
-                                        <i data-lucide="globe" class="w-3 h-3 mr-1 text-slate-500"></i> All Students
-                                    </span>
-                                {% endif %}
-
-                                {% if exam.terminated_count > 0 %}
-                                    <span class="flex items-center text-rose-600 font-semibold"><i data-lucide="shield-x" class="w-3.5 h-3.5 mr-1"></i> {{ exam.terminated_count }} Terminated</span>
-                                {% endif %}
+                            <div class="flex items-center space-x-2 text-slate-500 text-xs">
+                                <span class="hidden sm:inline text-[11px] font-medium text-slate-500">Click to expand/collapse</span>
+                                <i data-lucide="chevron-down" id="subj-chevron-{{ loop.index }}" class="w-4 h-4 text-slate-600 transition-transform duration-200"></i>
                             </div>
                         </div>
 
-                        <div class="flex items-center space-x-2 self-start md:self-center flex-wrap gap-y-1.5">
-                            <button type="button" onclick="openManageAccessModal('{{ exam.id }}', '{{ exam.title | escape }}')" class="shadcn-btn shadcn-btn-outline h-9 text-xs" title="Manage who can access and exam timing">
-                                <i data-lucide="calendar-clock" class="w-3.5 h-3.5 text-indigo-600"></i>
-                                <span>Access & Timing</span>
-                            </button>
-                            <button data-exam-code="{{ exam.exam_code }}" onclick="copyExamLink(this.dataset.examCode)" class="shadcn-btn shadcn-btn-outline h-9 text-xs" title="Copy Student Link">
-                                <i data-lucide="link" class="w-3.5 h-3.5 text-slate-500"></i>
-                                <span>Copy Link</span>
-                            </button>
-                            <a href="/tutor/exam/{{ exam.id }}" class="shadcn-btn shadcn-btn-secondary h-9 text-xs font-semibold">
-                                <i data-lucide="bar-chart-3" class="w-3.5 h-3.5 text-sky-600"></i>
-                                <span>View Results</span>
-                            </a>
-                            <button type="button" onclick="deleteExam('{{ exam.id }}', '{{ exam.title | escape }}')" class="shadcn-btn shadcn-btn-outline h-9 text-xs hover:text-rose-600 hover:border-rose-300" title="Delete Exam">
-                                <i data-lucide="trash-2" class="w-3.5 h-3.5 text-rose-500"></i>
-                                <span class="hidden sm:inline">Delete</span>
-                            </button>
+                        <!-- Subject Exam Items -->
+                        <div id="subj-block-{{ loop.index }}" class="divide-y divide-slate-100 bg-white">
+                            {% for exam in subj_exams %}
+                                <div id="exam-card-{{ exam.id }}" class="exam-card-item p-6 hover:bg-slate-50/70 transition flex flex-col md:flex-row md:items-center justify-between gap-4"
+                                     data-title="{{ exam.title | lower }}"
+                                     data-code="{{ exam.exam_code | lower }}"
+                                     data-subject="{{ (exam.subject or 'General') | lower }}"
+                                     data-schedule-type="{{ exam.schedule_type or 'anytime' }}"
+                                     data-start-date="{{ (exam.start_time or '')[:10] }}"
+                                     data-end-date="{{ (exam.end_time or '')[:10] }}">
+                                    <div class="space-y-1">
+                                        <div class="flex items-center space-x-3 flex-wrap gap-y-1">
+                                            <h3 class="font-bold text-slate-900 text-base">{{ exam.title }}</h3>
+                                            <span class="shadcn-badge font-mono text-[11px] bg-slate-100 text-slate-800 border-slate-200">Code: {{ exam.exam_code }}</span>
+                                            <span class="shadcn-badge font-semibold text-[10px] bg-sky-50 text-sky-800 border-sky-200">{{ exam.subject or 'General' }}</span>
+                                        </div>
+                                        <p class="text-sm text-slate-500 line-clamp-1">{{ exam.description or 'No additional description provided.' }}</p>
+                                        <div class="flex flex-wrap items-center gap-3 text-xs text-slate-500 pt-1.5">
+                                            <span class="flex items-center"><i data-lucide="clock" class="w-3.5 h-3.5 mr-1 text-slate-400"></i> {{ exam.duration_minutes }} Mins</span>
+                                            <span class="flex items-center"><i data-lucide="help-circle" class="w-3.5 h-3.5 mr-1 text-slate-400"></i> {{ exam.question_count }} Questions</span>
+                                            <span class="flex items-center"><i data-lucide="alert-octagon" class="w-3.5 h-3.5 mr-1 text-amber-500"></i> Max {{ exam.max_warnings }} Strikes</span>
+                                            <span class="flex items-center"><i data-lucide="users" class="w-3.5 h-3.5 mr-1 text-slate-400"></i> {{ exam.submission_count }} Attempts</span>
+
+                                            {% if exam.schedule_type == 'scheduled' %}
+                                                <span class="flex items-center text-amber-700 font-semibold bg-amber-50 px-2.5 py-0.5 rounded-full border border-amber-200 text-[11px]">
+                                                    <i data-lucide="calendar" class="w-3 h-3 mr-1 text-amber-600"></i>
+                                                    {% if exam.start_time and exam.end_time %}
+                                                        {{ exam.start_time | format_datetime_12h }} - {{ exam.end_time | format_time_12h }}
+                                                    {% elif exam.start_time %}
+                                                        Starts {{ exam.start_time | format_datetime_12h }}
+                                                    {% else %}
+                                                        Scheduled Window
+                                                    {% endif %}
+                                                </span>
+                                            {% else %}
+                                                <span class="flex items-center text-emerald-700 font-semibold bg-emerald-50 px-2.5 py-0.5 rounded-full border border-emerald-200 text-[11px]">
+                                                    <i data-lucide="clock" class="w-3 h-3 mr-1 text-emerald-600"></i> Anytime
+                                                </span>
+                                            {% endif %}
+
+                                            {% if exam.access_type == 'class' %}
+                                                <span class="flex items-center text-purple-700 font-semibold bg-purple-50 px-2.5 py-0.5 rounded-full border border-purple-200 text-[11px]">
+                                                    <i data-lucide="graduation-cap" class="w-3 h-3 mr-1 text-purple-600"></i> Class: {{ exam.assigned_class }}
+                                                </span>
+                                            {% elif exam.access_type == 'selected' %}
+                                                <span class="flex items-center text-indigo-700 font-semibold bg-indigo-50 px-2.5 py-0.5 rounded-full border border-indigo-200 text-[11px]">
+                                                    <i data-lucide="user-check" class="w-3 h-3 mr-1 text-indigo-600"></i> {{ exam.assigned_student_count }} Selected Students
+                                                </span>
+                                            {% else %}
+                                                <span class="flex items-center text-slate-600 font-semibold bg-slate-100 px-2.5 py-0.5 rounded-full text-[11px]">
+                                                    <i data-lucide="globe" class="w-3 h-3 mr-1 text-slate-500"></i> All Students
+                                                </span>
+                                            {% endif %}
+
+                                            {% if exam.terminated_count > 0 %}
+                                                <span class="flex items-center text-rose-600 font-semibold"><i data-lucide="shield-x" class="w-3.5 h-3.5 mr-1"></i> {{ exam.terminated_count }} Terminated</span>
+                                            {% endif %}
+                                        </div>
+                                    </div>
+
+                                    <div class="flex items-center space-x-2 self-start md:self-center flex-wrap gap-y-1.5">
+                                        <button type="button" onclick="openManageAccessModal('{{ exam.id }}', '{{ exam.title | escape }}')" class="shadcn-btn shadcn-btn-outline h-9 text-xs" title="Manage who can access and exam timing">
+                                            <i data-lucide="calendar-clock" class="w-3.5 h-3.5 text-indigo-600"></i>
+                                            <span>Access & Timing</span>
+                                        </button>
+                                        <button data-exam-code="{{ exam.exam_code }}" onclick="copyExamLink(this.dataset.examCode)" class="shadcn-btn shadcn-btn-outline h-9 text-xs" title="Copy Student Link">
+                                            <i data-lucide="link" class="w-3.5 h-3.5 text-slate-500"></i>
+                                            <span>Copy Link</span>
+                                        </button>
+                                        <a href="/tutor/exam/{{ exam.id }}" class="shadcn-btn shadcn-btn-secondary h-9 text-xs font-semibold">
+                                            <i data-lucide="bar-chart-3" class="w-3.5 h-3.5 text-sky-600"></i>
+                                            <span>View Results</span>
+                                        </a>
+                                        <button type="button" onclick="deleteExam('{{ exam.id }}', '{{ exam.title | escape }}')" class="shadcn-btn shadcn-btn-outline h-9 text-xs hover:text-rose-600 hover:border-rose-300" title="Delete Exam">
+                                            <i data-lucide="trash-2" class="w-3.5 h-3.5 text-rose-500"></i>
+                                            <span class="hidden sm:inline">Delete</span>
+                                        </button>
+                                    </div>
+                                </div>
+                            {% endfor %}
                         </div>
                     </div>
                 {% endfor %}
@@ -230,6 +304,165 @@
                 </a>
             </div>
         {% endif %}
+    </div>
+
+    <!-- Live Ongoing Examinations Management Section -->
+    <div id="section-view-live" class="hidden bg-white rounded-2xl border border-slate-200/80 shadow-sm overflow-hidden mb-8">
+        <div class="p-6 border-b border-slate-200 flex flex-col sm:flex-row sm:items-center justify-between gap-3 bg-gradient-to-r from-slate-900 via-emerald-950/40 to-slate-900 text-white">
+            <div class="flex items-center space-x-3">
+                <div class="w-10 h-10 rounded-xl bg-emerald-500/20 text-emerald-400 flex items-center justify-center border border-emerald-500/30">
+                    <i data-lucide="activity" class="w-5 h-5"></i>
+                </div>
+                <div>
+                    <div class="flex items-center gap-2">
+                        <h2 class="text-base sm:text-lg font-bold">Ongoing Live Examinations Console</h2>
+                        <span id="live-cockpit-header-badge" class="px-2 py-0.5 rounded text-[10px] font-extrabold bg-emerald-500/30 text-emerald-200 border border-emerald-400/30 uppercase tracking-wider animate-pulse">
+                            {{ live_ongoing_count }} Candidate{% if live_ongoing_count != 1 %}s{% endif %} Active
+                        </span>
+                    </div>
+                    <p class="text-xs text-slate-300">Live monitoring cockpit across all running tests, real-time timer tracking, and instant proctor intervention</p>
+                </div>
+            </div>
+            <div class="flex items-center space-x-2">
+                <button type="button" onclick="refreshLiveCandidates(true)" class="px-3.5 py-1.5 bg-white/10 hover:bg-white/20 text-white rounded-xl text-xs font-semibold flex items-center space-x-1.5 transition border border-white/15 cursor-pointer">
+                    <i data-lucide="refresh-cw" class="w-3.5 h-3.5"></i>
+                    <span>Refresh Feed</span>
+                </button>
+            </div>
+        </div>
+
+        <!-- 4 Stat Summary Cards -->
+        <div class="p-6 grid grid-cols-2 md:grid-cols-4 gap-4 bg-slate-50/60 border-b border-slate-200">
+            <div class="bg-white p-4 rounded-xl border border-slate-200/80 shadow-2xs">
+                <p class="text-[11px] font-bold uppercase tracking-wider text-slate-500 mb-1">Total Active Attempts</p>
+                <div class="flex items-baseline space-x-2">
+                    <span id="live-stat-total" class="text-2xl font-black text-slate-900">{{ live_candidates|length }}</span>
+                    <span class="text-xs text-slate-500 font-semibold">Candidates</span>
+                </div>
+            </div>
+            <div class="bg-white p-4 rounded-xl border border-emerald-200/80 shadow-2xs">
+                <p class="text-[11px] font-bold uppercase tracking-wider text-emerald-700 mb-1">Appearing Now</p>
+                <div class="flex items-baseline space-x-2">
+                    <span id="live-stat-ongoing" class="text-2xl font-black text-emerald-600">{{ live_ongoing_count }}</span>
+                    <span class="w-2 h-2 rounded-full bg-emerald-500 animate-ping"></span>
+                </div>
+            </div>
+            <div class="bg-white p-4 rounded-xl border border-amber-200/80 shadow-2xs">
+                <p class="text-[11px] font-bold uppercase tracking-wider text-amber-700 mb-1">Paused / Awaiting</p>
+                <div class="flex items-baseline space-x-2">
+                    <span id="live-stat-paused" class="text-2xl font-black text-amber-600">{{ live_paused_count }}</span>
+                    <span class="text-xs text-slate-500 font-semibold">Needs Tutor</span>
+                </div>
+            </div>
+            <div class="bg-white p-4 rounded-xl border border-slate-200/80 shadow-2xs">
+                <p class="text-[11px] font-bold uppercase tracking-wider text-slate-500 mb-1">Live Intercom Feed</p>
+                <div class="flex items-baseline space-x-2">
+                    <span class="text-sm font-bold text-sky-700">Online & Polling</span>
+                </div>
+            </div>
+        </div>
+
+        <!-- Live Candidate Table -->
+        <div class="overflow-x-auto">
+            <table class="w-full text-left text-xs border-collapse">
+                <thead>
+                    <tr class="bg-slate-100/70 border-b border-slate-200 text-slate-600 font-bold uppercase tracking-wider text-[11px]">
+                        <th class="py-3 px-4">Candidate</th>
+                        <th class="py-3 px-4">Roll No.</th>
+                        <th class="py-3 px-4">Subject</th>
+                        <th class="py-3 px-4">Exam Title</th>
+                        <th class="py-3 px-4">Started At</th>
+                        <th class="py-3 px-4">Time Left</th>
+                        <th class="py-3 px-4">Strikes</th>
+                        <th class="py-3 px-4">Status</th>
+                        <th class="py-3 px-4 text-right">Actions</th>
+                    </tr>
+                </thead>
+                <tbody id="live-candidates-tbody" class="divide-y divide-slate-100">
+                    {% if live_candidates %}
+                        {% for c in live_candidates %}
+                            <tr id="live-candidate-row-{{ c.id }}" class="hover:bg-slate-50/80 transition">
+                                <td class="py-3 px-4 font-bold text-slate-900 flex items-center space-x-2">
+                                    <span class="w-6 h-6 rounded-full bg-slate-200 text-slate-700 flex items-center justify-center font-bold text-[10px]">
+                                        {{ (c.student_name or 'S')[:1] }}
+                                    </span>
+                                    <span>{{ c.student_name }}</span>
+                                </td>
+                                <td class="py-3 px-4 font-mono text-slate-600">{{ c.roll_number or '—' }}</td>
+                                <td class="py-3 px-4">
+                                    <span class="px-2 py-0.5 rounded-full text-[10px] font-semibold bg-sky-50 text-sky-700 border border-sky-200">
+                                        {{ c.subject or 'General' }}
+                                    </span>
+                                </td>
+                                <td class="py-3 px-4 font-medium text-slate-800 max-w-xs truncate" title="{{ c.exam_title }}">
+                                    {{ c.exam_title }}
+                                </td>
+                                <td class="py-3 px-4 text-slate-500 font-mono text-[11px]">
+                                    {{ (c.started_at or '')[11:19] or 'Just now' }}
+                                </td>
+                                <td class="py-3 px-4 font-mono font-bold text-slate-800">
+                                    {% if c.time_remaining_seconds is not none %}
+                                        {{ (c.time_remaining_seconds // 60) }}m {{ (c.time_remaining_seconds % 60) }}s
+                                    {% else %}
+                                        —
+                                    {% endif %}
+                                </td>
+                                <td class="py-3 px-4">
+                                    {% if c.warnings_count > 0 %}
+                                        <span class="px-2 py-0.5 rounded-full text-[10px] font-bold bg-amber-100 text-amber-800 border border-amber-200">
+                                            {{ c.warnings_count }} Strikes
+                                        </span>
+                                    {% else %}
+                                        <span class="text-slate-400 font-mono text-[11px]">0</span>
+                                    {% endif %}
+                                </td>
+                                <td class="py-3 px-4">
+                                    {% if c.status == 'in_progress' %}
+                                        <span class="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-emerald-100 text-emerald-800 border border-emerald-200">
+                                            <span class="w-1.5 h-1.5 rounded-full bg-emerald-600 animate-ping"></span>
+                                            Appearing
+                                        </span>
+                                    {% elif c.status == 'paused' %}
+                                        <span class="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-amber-100 text-amber-800 border border-amber-200">
+                                            <i data-lucide="pause-circle" class="w-3 h-3 text-amber-600"></i>
+                                            Paused
+                                        </span>
+                                    {% elif c.status == 'pause_requested' %}
+                                        <span class="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-purple-100 text-purple-800 border border-purple-200 animate-pulse">
+                                            <i data-lucide="help-circle" class="w-3 h-3 text-purple-600"></i>
+                                            Resume Requested
+                                        </span>
+                                    {% else %}
+                                        <span class="px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-slate-100 text-slate-700">
+                                            {{ c.status }}
+                                        </span>
+                                    {% endif %}
+                                </td>
+                                <td class="py-3 px-4 text-right">
+                                    <div class="inline-flex items-center space-x-1">
+                                        <a href="/tutor/submission/{{ c.id }}" target="_blank" class="px-2.5 py-1 bg-sky-50 hover:bg-sky-100 text-sky-700 border border-sky-200 rounded-lg text-xs font-semibold flex items-center space-x-1 transition" title="View live student console & webcams">
+                                            <i data-lucide="eye" class="w-3.5 h-3.5"></i>
+                                            <span>View Live</span>
+                                        </a>
+                                        <a href="/tutor/exam/{{ c.exam_id }}" class="px-2 py-1 text-slate-500 hover:text-slate-800 hover:bg-slate-100 rounded-lg text-xs" title="View parent exam">
+                                            <i data-lucide="external-link" class="w-3.5 h-3.5"></i>
+                                        </a>
+                                    </div>
+                                </td>
+                            </tr>
+                        {% endfor %}
+                    {% else %}
+                        <tr id="live-candidates-empty-row">
+                            <td colspan="9" class="p-8 text-center text-slate-400">
+                                <i data-lucide="user-check" class="w-8 h-8 mx-auto mb-2 text-slate-300"></i>
+                                <p class="text-sm font-semibold text-slate-600">No active candidates right now</p>
+                                <p class="text-xs text-slate-400 mt-0.5">When students begin an examination, their live progress will stream here in real time.</p>
+                            </td>
+                        </tr>
+                    {% endif %}
+                </tbody>
+            </table>
+        </div>
     </div>
 
     <!-- Student Requests Central Management Section -->
@@ -1506,13 +1739,15 @@
         });
     }
 
-    // Segmented Dashboard View Switcher (Created Exams vs Student Accounts vs SOC Telemetry)
+    // Segmented Dashboard View Switcher (Created Exams vs Live Ongoing vs Student Accounts vs SOC Telemetry vs Requests)
     function switchDashboardView(viewMode) {
         const examsSec = document.getElementById('section-view-exams');
+        const liveSec = document.getElementById('section-view-live');
         const studentsSec = document.getElementById('section-view-students');
         const socSec = document.getElementById('section-view-soc');
         const requestsSec = document.getElementById('section-view-requests');
         const btnExams = document.getElementById('tab-btn-exams');
+        const btnLive = document.getElementById('tab-btn-live');
         const btnStudents = document.getElementById('tab-btn-students');
         const btnSoc = document.getElementById('tab-btn-soc');
         const btnRequests = document.getElementById('tab-btn-requests');
@@ -1521,6 +1756,7 @@
 
         // Reset all sections to hidden
         examsSec.classList.add('hidden');
+        if (liveSec) liveSec.classList.add('hidden');
         studentsSec.classList.add('hidden');
         socSec.classList.add('hidden');
         requestsSec.classList.add('hidden');
@@ -1531,11 +1767,17 @@
         const activeClass = 'px-5 py-2.5 rounded-xl text-xs sm:text-sm font-bold flex items-center space-x-2 transition-all bg-white dark:bg-slate-900 text-slate-900 dark:text-white shadow-sm cursor-pointer';
 
         btnExams.className = inactiveClass;
+        if (btnLive) btnLive.className = inactiveClass;
         btnStudents.className = inactiveClass;
         if (btnSoc) btnSoc.className = inactiveClass;
         if (btnRequests) btnRequests.className = inactiveClass;
 
-        if (viewMode === 'students') {
+        if (viewMode === 'live') {
+            if (liveSec) liveSec.classList.remove('hidden');
+            if (btnLive) btnLive.className = activeClass;
+            localStorage.setItem('examguard_tutor_tab', 'live');
+            refreshLiveCandidates(false);
+        } else if (viewMode === 'students') {
             studentsSec.classList.remove('hidden');
             studentsSec.classList.remove('mt-8');
             btnStudents.className = activeClass;
@@ -1554,6 +1796,205 @@
             localStorage.setItem('examguard_tutor_tab', 'exams');
         }
         if (window.lucide) lucide.createIcons();
+    }
+
+    // Live Polling & Action handlers for Live Ongoing Examinations
+    let liveCandidatesPollTimer = null;
+
+    async function refreshLiveCandidates(showFeedback = false) {
+        try {
+            const resp = await fetch('/api/tutor/live-active-candidates');
+            const data = await resp.json();
+            if (data.success) {
+                // Update nav badge
+                const navBadge = document.getElementById('live-ongoing-badge');
+                if (navBadge) {
+                    navBadge.innerText = data.ongoing_count;
+                    if (data.ongoing_count > 0) {
+                        navBadge.classList.remove('hidden');
+                    } else {
+                        navBadge.classList.add('hidden');
+                    }
+                }
+
+                // Update summary numbers
+                const totalEl = document.getElementById('live-stat-total');
+                if (totalEl) totalEl.innerText = data.total_active;
+                const ongoingEl = document.getElementById('live-stat-ongoing');
+                if (ongoingEl) ongoingEl.innerText = data.ongoing_count;
+                const pausedEl = document.getElementById('live-stat-paused');
+                if (pausedEl) pausedEl.innerText = data.paused_count;
+                const headerBadge = document.getElementById('live-cockpit-header-badge');
+                if (headerBadge) {
+                    headerBadge.innerText = `${data.ongoing_count} Candidate${data.ongoing_count !== 1 ? 's' : ''} Active`;
+                }
+
+                // Render table rows
+                const tbody = document.getElementById('live-candidates-tbody');
+                if (tbody) {
+                    if (!data.candidates || data.candidates.length === 0) {
+                        tbody.innerHTML = `
+                            <tr id="live-candidates-empty-row">
+                                <td colspan="9" class="p-8 text-center text-slate-400">
+                                    <i data-lucide="user-check" class="w-8 h-8 mx-auto mb-2 text-slate-300"></i>
+                                    <p class="text-sm font-semibold text-slate-600">No active candidates right now</p>
+                                    <p class="text-xs text-slate-400 mt-0.5">When students begin an examination, their live progress will stream here in real time.</p>
+                                </td>
+                            </tr>
+                        `;
+                    } else {
+                        tbody.innerHTML = data.candidates.map(c => {
+                            const initial = (c.student_name || 'S').charAt(0);
+                            const startedAtTime = (c.started_at || '').substring(11, 19) || 'Just now';
+                            let timeLeftStr = '—';
+                            if (c.time_remaining_seconds !== null && c.time_remaining_seconds !== undefined) {
+                                const m = Math.floor(c.time_remaining_seconds / 60);
+                                const s = c.time_remaining_seconds % 60;
+                                timeLeftStr = `${m}m ${s}s`;
+                            }
+
+                            let statusBadge = '';
+                            if (c.status === 'in_progress') {
+                                statusBadge = `<span class="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-emerald-100 text-emerald-800 border border-emerald-200"><span class="w-1.5 h-1.5 rounded-full bg-emerald-600 animate-ping"></span>Appearing</span>`;
+                            } else if (c.status === 'paused') {
+                                statusBadge = `<span class="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-amber-100 text-amber-800 border border-amber-200"><i data-lucide="pause-circle" class="w-3 h-3 text-amber-600"></i>Paused</span>`;
+                            } else if (c.status === 'pause_requested') {
+                                statusBadge = `<span class="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-purple-100 text-purple-800 border border-purple-200 animate-pulse"><i data-lucide="help-circle" class="w-3 h-3 text-purple-600"></i>Resume Requested</span>`;
+                            } else {
+                                statusBadge = `<span class="px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-slate-100 text-slate-700">${c.status}</span>`;
+                            }
+
+                            const strikesBadge = c.warnings_count > 0
+                                ? `<span class="px-2 py-0.5 rounded-full text-[10px] font-bold bg-amber-100 text-amber-800 border border-amber-200">${c.warnings_count} Strikes</span>`
+                                : `<span class="text-slate-400 font-mono text-[11px]">0</span>`;
+
+                            return `
+                                <tr id="live-candidate-row-${c.id}" class="hover:bg-slate-50/80 transition">
+                                    <td class="py-3 px-4 font-bold text-slate-900 flex items-center space-x-2">
+                                        <span class="w-6 h-6 rounded-full bg-slate-200 text-slate-700 flex items-center justify-center font-bold text-[10px]">${initial}</span>
+                                        <span>${escapeHtml(c.student_name || 'Student')}</span>
+                                    </td>
+                                    <td class="py-3 px-4 font-mono text-slate-600">${c.roll_number || '—'}</td>
+                                    <td class="py-3 px-4">
+                                        <span class="px-2 py-0.5 rounded-full text-[10px] font-semibold bg-sky-50 text-sky-700 border border-sky-200">
+                                            ${escapeHtml(c.subject || 'General')}
+                                        </span>
+                                    </td>
+                                    <td class="py-3 px-4 font-medium text-slate-800 max-w-xs truncate" title="${escapeHtml(c.exam_title || '')}">
+                                        ${escapeHtml(c.exam_title || 'Untitled Exam')}
+                                    </td>
+                                    <td class="py-3 px-4 text-slate-500 font-mono text-[11px]">${startedAtTime}</td>
+                                    <td class="py-3 px-4 font-mono font-bold text-slate-800">${timeLeftStr}</td>
+                                    <td class="py-3 px-4">${strikesBadge}</td>
+                                    <td class="py-3 px-4">${statusBadge}</td>
+                                    <td class="py-3 px-4 text-right">
+                                        <div class="inline-flex items-center space-x-1">
+                                            <a href="/tutor/submission/${c.id}" target="_blank" class="px-2.5 py-1 bg-sky-50 hover:bg-sky-100 text-sky-700 border border-sky-200 rounded-lg text-xs font-semibold flex items-center space-x-1 transition" title="View live student console & webcams">
+                                                <i data-lucide="eye" class="w-3.5 h-3.5"></i>
+                                                <span>View Live</span>
+                                            </a>
+                                            <a href="/tutor/exam/${c.exam_id}" class="px-2 py-1 text-slate-500 hover:text-slate-800 hover:bg-slate-100 rounded-lg text-xs" title="View parent exam">
+                                                <i data-lucide="external-link" class="w-3.5 h-3.5"></i>
+                                            </a>
+                                        </div>
+                                    </td>
+                                </tr>
+                            `;
+                        }).join('');
+                    }
+                    if (window.lucide) lucide.createIcons();
+                }
+
+                if (showFeedback) {
+                    Swal.fire({ icon: 'success', title: 'Live Feed Updated', text: 'Ongoing candidates refreshed.', timer: 1200, showConfirmButton: false });
+                }
+            }
+        } catch (e) {
+            console.error('Failed to poll live candidates:', e);
+        }
+    }
+
+    // Subject Group Accordion Toggle
+    function toggleSubjectGroup(blockId, chevronId) {
+        const block = document.getElementById(blockId);
+        const chevron = document.getElementById(chevronId);
+        if (!block) return;
+        const isCollapsed = block.classList.contains('hidden');
+        if (isCollapsed) {
+            block.classList.remove('hidden');
+            if (chevron) chevron.style.transform = 'rotate(0deg)';
+        } else {
+            block.classList.add('hidden');
+            if (chevron) chevron.style.transform = 'rotate(-90deg)';
+        }
+    }
+
+    let allAccordionsExpanded = true;
+    function toggleAllSubjectAccordions() {
+        allAccordionsExpanded = !allAccordionsExpanded;
+        const groups = document.querySelectorAll('.subject-accordion-group');
+        groups.forEach((group, idx) => {
+            const block = group.querySelector('[id^="subj-block-"]');
+            const chevron = group.querySelector('[id^="subj-chevron-"]');
+            if (block) {
+                if (allAccordionsExpanded) {
+                    block.classList.remove('hidden');
+                    if (chevron) chevron.style.transform = 'rotate(0deg)';
+                } else {
+                    block.classList.add('hidden');
+                    if (chevron) chevron.style.transform = 'rotate(-90deg)';
+                }
+            }
+        });
+    }
+
+    // Filter Exam Cards by Search, Scheduled Date, and Timing Status
+    function filterExamCards() {
+        const query = (document.getElementById('filter-exam-search')?.value || '').toLowerCase().trim();
+        const dateFilter = document.getElementById('filter-exam-date')?.value || '';
+        const statusFilter = document.getElementById('filter-exam-status')?.value || 'all';
+
+        const groups = document.querySelectorAll('.subject-accordion-group');
+        groups.forEach(group => {
+            const items = group.querySelectorAll('.exam-card-item');
+            let visibleInGroup = 0;
+
+            items.forEach(item => {
+                const title = item.getAttribute('data-title') || '';
+                const code = item.getAttribute('data-code') || '';
+                const subject = item.getAttribute('data-subject') || '';
+                const schedType = item.getAttribute('data-schedule-type') || 'anytime';
+                const startDate = item.getAttribute('data-start-date') || '';
+                const endDate = item.getAttribute('data-end-date') || '';
+
+                const matchesQuery = !query || title.includes(query) || code.includes(query) || subject.includes(query);
+                const matchesStatus = (statusFilter === 'all') || (schedType === statusFilter);
+                let matchesDate = true;
+                if (dateFilter) {
+                    if (schedType === 'scheduled') {
+                        matchesDate = (startDate <= dateFilter && (!endDate || endDate >= dateFilter));
+                    } else {
+                        matchesDate = false; // Anytime exams don't match specific date filter
+                    }
+                }
+
+                if (matchesQuery && matchesStatus && matchesDate) {
+                    item.style.display = '';
+                    visibleInGroup++;
+                } else {
+                    item.style.display = 'none';
+                }
+            });
+
+            // If no items in this subject group match, hide the entire group
+            group.style.display = (visibleInGroup > 0) ? '' : 'none';
+        });
+    }
+
+    function clearExamDateFilter() {
+        const dateInput = document.getElementById('filter-exam-date');
+        if (dateInput) dateInput.value = '';
+        filterExamCards();
     }
 
     // Live Polling & Action handlers for Student Requests
@@ -1693,7 +2134,9 @@
 
     document.addEventListener('DOMContentLoaded', () => {
         const savedTab = localStorage.getItem('examguard_tutor_tab');
-        if (savedTab === 'students') {
+        if (savedTab === 'live') {
+            switchDashboardView('live');
+        } else if (savedTab === 'students') {
             switchDashboardView('students');
         } else if (savedTab === 'soc') {
             switchDashboardView('soc');
@@ -1705,6 +2148,14 @@
 
         // Live polling every 5 seconds for new student requests
         studentRequestsPollTimer = setInterval(refreshStudentRequests, 5000);
+
+        // Live polling every 5 seconds for ongoing candidate attempts
+        liveCandidatesPollTimer = setInterval(() => {
+            const liveSec = document.getElementById('section-view-live');
+            if (liveSec && !liveSec.classList.contains('hidden')) {
+                refreshLiveCandidates(false);
+            }
+        }, 5000);
     });
 </script>
 {% endblock %}

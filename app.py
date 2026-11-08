@@ -1018,7 +1018,22 @@ def tutor_dashboard():
     """)
     student_requests = [dict(r) for r in c_req.fetchall()]
     pending_requests_count = sum(1 for req in student_requests if req.get('status') == 'pending')
+
+    # Query currently active / live candidates across all exams for the Live Examinations console
+    c_req.execute("""
+        SELECT s.id, s.exam_id, s.user_id, s.student_name, s.roll_number, s.status,
+               s.started_at, s.time_remaining_seconds, s.warnings_count,
+               e.title as exam_title, COALESCE(e.subject, 'General') as subject, e.duration_minutes
+        FROM submissions s
+        JOIN exams e ON s.exam_id = e.id
+        WHERE s.status IN ('in_progress', 'paused', 'pause_requested')
+        ORDER BY s.started_at DESC
+    """)
+    live_candidates = [dict(r) for r in c_req.fetchall()]
     conn_req.close()
+
+    live_ongoing_count = sum(1 for c in live_candidates if c["status"] == "in_progress")
+    live_paused_count = sum(1 for c in live_candidates if c["status"] in ("paused", "pause_requested"))
 
     return render_template(
         "tutor_dashboard.html",
@@ -1037,7 +1052,10 @@ def tutor_dashboard():
         sec_critical_count=sec_critical_count,
         sec_high_count=sec_high_count,
         student_requests=student_requests,
-        pending_requests_count=pending_requests_count
+        pending_requests_count=pending_requests_count,
+        live_candidates=live_candidates,
+        live_ongoing_count=live_ongoing_count,
+        live_paused_count=live_paused_count
     )
 
 @app.route("/tutor/settings", methods=["GET", "POST"])
@@ -2932,14 +2950,15 @@ def api_save_exam():
     schedule_type = data.get("schedule_type", "anytime")  # "anytime", "scheduled"
     start_time = data.get("start_time", "").strip() or None
     end_time = data.get("end_time", "").strip() or None
+    subject = (data.get("subject") or "").strip() or "General"
 
     try:
         conn = get_connection()
         cursor = conn.cursor()
         cursor.execute("""
-            INSERT INTO exams (exam_code, title, description, duration_minutes, max_warnings, passing_percentage, enable_audio_detection, enable_video_detection, access_type, assigned_class, schedule_type, start_time, end_time)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-        """, (exam_code, title, description, duration, max_warnings, passing_percentage, enable_audio, enable_video, access_type, assigned_class, schedule_type, start_time, end_time))
+            INSERT INTO exams (exam_code, title, description, duration_minutes, max_warnings, passing_percentage, enable_audio_detection, enable_video_detection, access_type, assigned_class, schedule_type, start_time, end_time, subject)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        """, (exam_code, title, description, duration, max_warnings, passing_percentage, enable_audio, enable_video, access_type, assigned_class, schedule_type, start_time, end_time, subject))
         exam_id = cursor.lastrowid
 
         for q in questions_list:
@@ -4828,13 +4847,26 @@ def api_request_pause(submission_id):
         conn.close()
         return jsonify({"success": False, "error": "Submission not found."})
 
-    if sub["status"] not in ("in_progress",):
+    if sub["status"] not in ("in_progress", "paused"):
         conn.close()
-        return jsonify({"success": False, "error": f"Cannot pause an exam with status '{sub['status']}'."})
+        return jsonify({"success": False, "error": f"Cannot pause or request resume for exam with status '{sub['status']}'."})
 
     if session.get("user_role") == "student" and sub["user_id"] != session.get("user_id"):
         conn.close()
         return jsonify({"success": False, "error": "Access denied."})
+
+    # If already paused and requesting to resume:
+    if sub["status"] == "paused":
+        cursor.execute("""
+            UPDATE submissions
+            SET status = 'pause_requested',
+                pause_requested_at = CURRENT_TIMESTAMP,
+                pause_reason = ?
+            WHERE id = ?
+        """, (reason, submission_id))
+        conn.commit()
+        conn.close()
+        return jsonify({"success": True, "message": "Resume request sent to the tutor. Please wait for approval."})
 
     cursor.execute("""
         UPDATE submissions
@@ -5590,6 +5622,39 @@ def api_exam_live_proctor(exam_id):
     })
 
 
+@app.route("/api/tutor/live-active-candidates", methods=["GET"])
+@admin_required
+def api_tutor_live_active_candidates():
+    """
+    Returns real-time ongoing exam attempts across all examinations for the Tutor Dashboard.
+    """
+    conn = get_connection()
+    cursor = conn.cursor()
+    cursor.execute("""
+        SELECT s.id, s.exam_id, s.user_id, s.student_name, s.roll_number, s.status,
+               s.started_at, s.time_remaining_seconds, s.warnings_count,
+               e.title as exam_title, COALESCE(e.subject, 'General') as subject, e.duration_minutes
+        FROM submissions s
+        JOIN exams e ON s.exam_id = e.id
+        WHERE s.status IN ('in_progress', 'paused', 'pause_requested')
+        ORDER BY s.started_at DESC
+    """)
+    rows = cursor.fetchall()
+    conn.close()
+
+    candidates = [dict(r) for r in rows]
+    ongoing_count = sum(1 for c in candidates if c["status"] == "in_progress")
+    paused_count = sum(1 for c in candidates if c["status"] in ("paused", "pause_requested"))
+
+    return jsonify({
+        "success": True,
+        "candidates": candidates,
+        "total_active": len(candidates),
+        "ongoing_count": ongoing_count,
+        "paused_count": paused_count
+    })
+
+
 @app.route("/api/tutor/submission/<int:submission_id>/force-terminate", methods=["POST"])
 @admin_required
 def api_tutor_force_terminate(submission_id):
@@ -5880,12 +5945,6 @@ def api_tutor_extend_time(submission_id):
         },
         conn=conn
     )
-
-    # Insert security violation notice for proctor visibility
-    cursor.execute("""
-        INSERT INTO violations (submission_id, violation_type, details, severity, event_code)
-        VALUES (?, 'TIME_EXTENSION_GRANTED', ?, 'INFO', 'SEC-EXT-01')
-    """, (submission_id, f"Tutor #{tutor_id} extended exam time by {minutes_to_add} minute(s). Reason: {reason}"))
 
     conn.commit()
     conn.close()

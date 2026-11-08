@@ -54,7 +54,7 @@
         {% endwith %}
 
         {% if device_switch_blocked %}
-        <!-- Device Switch Request Panel -->
+        <!-- Device Switch Request Notice Card (Informational Only) -->
         <div class="mb-6 p-4 rounded-2xl bg-amber-500/10 border-2 border-amber-500/40 text-amber-900 dark:text-amber-200">
             <div class="flex items-start space-x-3">
                 <div class="w-8 h-8 rounded-lg bg-amber-500 text-white flex items-center justify-center flex-shrink-0 shadow-sm mt-0.5">
@@ -63,13 +63,8 @@
                 <div class="flex-1">
                     <h4 class="text-xs font-black uppercase tracking-wider text-amber-700 dark:text-amber-400">Device Switch Available</h4>
                     <p class="text-xs text-slate-600 dark:text-slate-300 mt-1 leading-relaxed">
-                        You have an active attempt for <strong>{{ active_exam_title or 'your examination' }}</strong>. Need to transfer to this device?
+                        You have an active attempt for <strong>{{ active_exam_title or 'your examination' }}</strong> on another device. To transfer your live attempt to this device, verify your password below and click <strong>Request Device Switch</strong>.
                     </p>
-                    <button type="button" id="btn-request-device-switch" onclick="initiateDeviceSwitchRequest()"
-                            class="mt-3 w-full py-2.5 px-4 bg-amber-600 hover:bg-amber-500 active:scale-[0.98] text-white font-bold text-xs rounded-xl shadow-md transition flex items-center justify-center space-x-2 cursor-pointer">
-                        <i data-lucide="refresh-cw" class="w-4 h-4"></i>
-                        <span>REQUEST DEVICE SWITCH</span>
-                    </button>
                 </div>
             </div>
         </div>
@@ -120,10 +115,17 @@
                 </div>
             </div>
 
+            {% if device_switch_blocked %}
+            <button type="button" id="btn-submit" onclick="initiateDeviceSwitchRequest()" class="w-full h-11 mt-5 rounded-xl font-bold text-sm text-white flex items-center justify-center gap-2 transition-all shadow-md bg-amber-600 hover:bg-amber-500 shadow-amber-600/30 cursor-pointer">
+                <i data-lucide="refresh-cw" class="w-4 h-4"></i>
+                <span id="btn-submit-text">Request Device Switch</span>
+            </button>
+            {% else %}
             <button type="submit" id="btn-submit" class="w-full h-11 mt-5 rounded-xl font-bold text-sm text-white flex items-center justify-center gap-2 transition-all shadow-md {% if role == 'admin' %}bg-slate-950 hover:bg-slate-900 border border-slate-800{% else %}bg-sky-600 hover:bg-sky-700 shadow-sky-600/30{% endif %}">
                 <span id="btn-submit-text">{% if role == 'admin' %}Sign in to Admin Dashboard{% else %}Sign in as Student{% endif %}</span>
                 <i data-lucide="arrow-right" class="w-4 h-4"></i>
             </button>
+            {% endif %}
         </form>
 
         <div class="mt-6 pt-5 border-t border-slate-100 dark:border-slate-800 text-center text-xs text-slate-500 space-y-2">
@@ -220,6 +222,10 @@
             if (data.success) {
                 activeRequestId = data.request_id;
                 startDeviceSwitchPolling(data.request_id);
+                // Also trigger immediate sync engine check if available
+                if (window.ExamGuardSync && typeof window.ExamGuardSync.pollNow === 'function') {
+                    window.ExamGuardSync.pollNow();
+                }
             } else {
                 if (modal) modal.classList.add('hidden');
                 Swal.fire({ icon: 'error', title: 'Request Failed', text: data.error || 'Unable to submit device switch request.' });

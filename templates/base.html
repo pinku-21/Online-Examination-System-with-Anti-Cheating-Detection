@@ -390,7 +390,7 @@
             </a>
 
             <nav class="flex items-center space-x-2 sm:space-x-3">
-                {% if session.get('user_id') %}
+                {% if session.get('user_id') and not device_switch_blocked %}
                     {% if session.get('user_role') == 'admin' %}
                         <a href="/tutor" class="inline-flex shadcn-btn shadcn-btn-outline h-8 sm:h-9 px-2 sm:px-3 text-xs font-semibold text-indigo-700 border-indigo-200 bg-indigo-50/50 hover:bg-indigo-100">
                             <i data-lucide="shield" class="w-3.5 h-3.5 text-indigo-600"></i>
@@ -472,7 +472,7 @@
 
         <div class="flex-1 overflow-y-auto px-5 py-5 space-y-4">
 
-            {% if session.get('user_id') %}
+            {% if session.get('user_id') and not device_switch_blocked %}
             <!-- 1. Gradient Profile Header Card (Matches Screenshot #1) -->
             <div class="relative overflow-hidden rounded-3xl bg-gradient-to-br from-sky-500 via-sky-600 to-indigo-600 text-white p-5 shadow-lg shadow-sky-500/20">
                 <div class="flex items-center justify-between">

@@ -5,6 +5,8 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <meta name="csrf-token" content="{{ csrf_token }}">
+    <meta name="user-role" content="{{ session.get('user_role', 'student') }}">
+    <meta name="user-id" content="{{ session.get('user_id', '') }}">
     <title>Exam Paused – Waiting for Tutor</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
@@ -99,6 +101,7 @@
         </div>
         <p class="text-center text-xs text-slate-600 mt-6">ExamGuard &middot; Submission #{{ submission.id }}</p>
     </div>
+    <script src="{{ url_for('static', filename='js/sync_engine.js') }}"></script>
     <script>
         const SUBMISSION_ID = {{ submission.id }};
         let pollTimer = null;
@@ -123,14 +126,52 @@
                 }
             } catch(e) { updatePollStatus('Network error - retrying...'); }
         }
+        // Global Fetch Interceptor: Automatically attaches X-CSRF-Token to all state-changing AJAX calls
+        (function() {
+            const originalFetch = window.fetch;
+            window.fetch = function(resource, init = {}) {
+                const method = (init.method || 'GET').toUpperCase();
+                if (['POST', 'PUT', 'DELETE', 'PATCH'].includes(method)) {
+                    const tokenMeta = document.querySelector('meta[name="csrf-token"]');
+                    const csrfToken = tokenMeta ? tokenMeta.getAttribute('content') : '';
+                    if (csrfToken) {
+                        if (init.headers instanceof Headers) {
+                            if (!init.headers.has('X-CSRF-Token')) {
+                                init.headers.set('X-CSRF-Token', csrfToken);
+                            }
+                        } else if (Array.isArray(init.headers)) {
+                            const hasCsrf = init.headers.some(([k]) => k.toLowerCase() === 'x-csrf-token');
+                            if (!hasCsrf) {
+                                init.headers.push(['X-CSRF-Token', csrfToken]);
+                            }
+                        } else {
+                            init.headers = {
+                                ...init.headers,
+                                'X-CSRF-Token': csrfToken
+                            };
+                        }
+                    }
+                }
+                return originalFetch(resource, init);
+            };
+        })();
+
         async function requestResume() {
             const btn = document.getElementById('btn-req-resume');
             if (btn) { btn.disabled = true; btn.textContent = 'Sending request...'; }
             try {
+                const csrfMeta = document.querySelector('meta[name="csrf-token"]');
+                const csrfToken = csrfMeta ? csrfMeta.getAttribute('content') : '';
                 const resp = await fetch('/api/submission/' + SUBMISSION_ID + '/request-pause', {
                     method: 'POST',
-                    headers: {'Content-Type': 'application/json'},
-                    body: JSON.stringify({ reason: 'Student requested to resume the paused exam.' })
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'X-CSRF-Token': csrfToken
+                    },
+                    body: JSON.stringify({
+                        reason: 'Student requested to resume the paused exam.',
+                        csrf_token: csrfToken
+                    })
                 });
                 const data = await resp.json();
                 if (data.success) {
