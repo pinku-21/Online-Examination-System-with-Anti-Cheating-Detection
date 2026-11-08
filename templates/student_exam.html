@@ -4804,6 +4804,69 @@
                 // Silently ignore background polling errors
             }
         }, 5000);
+        // ---------------------------------------------------------------------------
+        // Universal Sync & Live Examination Controls (Active Exam Shielding)
+        // ---------------------------------------------------------------------------
+        window.addEventListener('examguard:exam_time_extended', (e) => {
+            const ev = e.detail;
+            if (!ev) return;
+            const payload = ev.payload || {};
+            // Verify if targeted to this submission or user
+            if (ev.submission_id && String(ev.submission_id) !== String(SUBMISSION_ID)) {
+                return;
+            }
+
+            const minutesAdded = Number(payload.minutes_added || 0);
+            if (minutesAdded > 0) {
+                if (payload.new_time_remaining_seconds) {
+                    timeRemainingSeconds = Number(payload.new_time_remaining_seconds);
+                } else {
+                    timeRemainingSeconds += (minutesAdded * 60);
+                }
+                updateTimerDisplay();
+
+                // Non-disruptive Toast alert (NEVER reload, NEVER touch form answers)
+                if (window.Swal) {
+                    Swal.fire({
+                        toast: true,
+                        position: 'top-end',
+                        icon: 'success',
+                        title: '⏱️ Extra Time Granted!',
+                        text: `Your instructor added +${minutesAdded} minute(s) to your exam.`,
+                        showConfirmButton: false,
+                        timer: 5000,
+                        timerProgressBar: true
+                    });
+                }
+            }
+        });
+
+        window.addEventListener('examguard:exam_terminated', (e) => {
+            const ev = e.detail;
+            if (!ev) return;
+            if (ev.submission_id && String(ev.submission_id) !== String(SUBMISSION_ID)) {
+                return;
+            }
+            const reason = (ev.payload && ev.payload.reason) ? ev.payload.reason : 'Exam terminated by Proctor.';
+            isTerminated = true;
+            isExamActive = false;
+            if (window.Swal) {
+                Swal.fire({
+                    icon: 'error',
+                    title: 'Exam Terminated',
+                    text: reason,
+                    allowOutsideClick: false,
+                    confirmButtonText: 'View Incident Report',
+                    confirmButtonColor: '#e11d48'
+                }).then(() => {
+                    window.location.href = `/student/result/${SUBMISSION_ID}`;
+                });
+            } else {
+                alert(`Exam Terminated: ${reason}`);
+                window.location.href = `/student/result/${SUBMISSION_ID}`;
+            }
+        });
+
         // Global Fetch Interceptor for proctored exam room: Automatically attaches X-CSRF-Token
         (function() {
             const originalFetch = window.fetch;

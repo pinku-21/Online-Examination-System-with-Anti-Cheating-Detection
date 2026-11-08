@@ -706,12 +706,12 @@ async function launchPreFlightCheck(targetForm, examTitle) {
 }
 
 // ---------------------------------------------------------------------------
-// Real-Time Live Auto-Refresh: Detect when Tutor publishes questions or results
+// Real-Time Live Auto-Refresh: Universal Sync + Fallback Polling
 // ---------------------------------------------------------------------------
 (function initDashboardLiveSync() {
     let lastExamSnapshot = null;
 
-    async function checkDashboardUpdates() {
+    async function checkDashboardUpdates(isEventDriven = false) {
         try {
             const resp = await fetch('/api/student/active-exams', { cache: 'no-store' });
             if (!resp.ok) return;
@@ -721,15 +721,15 @@ async function launchPreFlightCheck(targetForm, examTitle) {
             // Generate unique fingerprint of active exams + publication statuses
             const currentSnapshot = data.exams.map(e => `${e.id}:${e.question_count}:${e.results_published}:${e.completed_sub_id}:${e.completed_is_published}:${e.time_status}`).sort().join('|');
 
-            if (lastExamSnapshot !== null && lastExamSnapshot !== currentSnapshot) {
+            if (lastExamSnapshot !== null && (lastExamSnapshot !== currentSnapshot || isEventDriven)) {
                 // Change detected! Show brief toast and refresh smoothly
                 if (window.Swal) {
                     Swal.fire({
                         toast: true,
                         position: 'top-end',
                         icon: 'info',
-                        title: '⚡ Update Published!',
-                        text: 'Tutor updated exams/results. Refreshing...',
+                        title: '⚡ Schedule or Exam Updated',
+                        text: 'Tutor updated exams or results. Updating view...',
                         showConfirmButton: false,
                         timer: 1500
                     });
@@ -744,9 +744,22 @@ async function launchPreFlightCheck(targetForm, examTitle) {
         }
     }
 
-    // Initialize baseline snapshot immediately, then poll every 4.5 seconds
+    // Initialize baseline snapshot immediately, then fallback poll every 8 seconds
     checkDashboardUpdates();
-    setInterval(checkDashboardUpdates, 4500);
+    setInterval(checkDashboardUpdates, 8000);
+
+    // Instant reaction to Universal Sync events
+    window.addEventListener('examguard:sync', (e) => {
+        const ev = e.detail;
+        if (!ev) return;
+        const relevantTypes = [
+            'exam_published', 'exam_unpublished', 'exam_updated', 'exam_deleted',
+            'schedule_updated', 'access_updated', 'result_published', 'result_unpublished'
+        ];
+        if (relevantTypes.includes(ev.event_type)) {
+            checkDashboardUpdates(true);
+        }
+    });
 })();
 </script>
 {% endblock %}

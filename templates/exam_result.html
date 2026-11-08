@@ -580,8 +580,19 @@
                     // Keep the pending screen visible and retry on the next poll.
                 });
         }
-        var pollInterval = setInterval(refreshEvaluationStatus, 3000);
+        var pollInterval = setInterval(refreshEvaluationStatus, 4000);
         refreshEvaluationStatus();
+
+        // Universal Sync Listener: Instant reload when tutor publishes results
+        window.addEventListener('examguard:result_published', function(e) {
+            var detail = e.detail;
+            if (!detail) return;
+            var targetSubId = detail.submission_id;
+            if (!targetSubId || String(targetSubId) === String(subId)) {
+                clearInterval(pollInterval);
+                window.location.reload();
+            }
+        });
     });
 </script>
 {% endif %}

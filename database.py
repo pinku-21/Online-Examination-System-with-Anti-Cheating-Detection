@@ -29,7 +29,7 @@ except ImportError:
 
 class PostgresCursor:
     """Small compatibility wrapper for the SQLite-style cursor API used by app.py."""
-    _ID_TABLES = {"users", "exams", "questions", "submissions", "violations"}
+    _ID_TABLES = {"users", "exams", "questions", "submissions", "violations", "student_sync_events", "exam_time_extensions"}
 
     def __init__(self, cursor):
         self._cursor = cursor
@@ -114,7 +114,7 @@ def get_connection():
 
 def run_pg_migrations(cursor, conn, migrations):
     """Executes a sequence of PostgreSQL migration statements.
-    
+
     Each migration runs in its own transaction commit/rollback boundary.
     Distinguishes benign idempotency conditions (already exists, duplicate column)
     from unexpected failures. Returns a list of (statement, error_message) for unexpected failures.
@@ -282,6 +282,30 @@ def init_db():
                 created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
                 resolved_at TIMESTAMP
             )""")
+            cursor.execute("""CREATE TABLE IF NOT EXISTS student_sync_events (
+                id SERIAL PRIMARY KEY,
+                event_type TEXT NOT NULL,
+                target_student_id INTEGER DEFAULT NULL,
+                target_class TEXT DEFAULT '',
+                exam_id INTEGER DEFAULT NULL,
+                submission_id INTEGER DEFAULT NULL,
+                payload_json TEXT DEFAULT '{}',
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            )""")
+            cursor.execute("""CREATE TABLE IF NOT EXISTS exam_time_extensions (
+                id SERIAL PRIMARY KEY,
+                exam_id INTEGER NOT NULL,
+                submission_id INTEGER NOT NULL,
+                student_id INTEGER NOT NULL,
+                tutor_id INTEGER NOT NULL,
+                previous_deadline_seconds INTEGER,
+                new_deadline_seconds INTEGER,
+                minutes_added INTEGER NOT NULL,
+                reason TEXT DEFAULT '',
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            )""")
+            cursor.execute("""CREATE INDEX IF NOT EXISTS idx_sync_events_target ON student_sync_events (target_student_id, id)""")
+            cursor.execute("""CREATE INDEX IF NOT EXISTS idx_time_ext_sub ON exam_time_extensions (submission_id, id)""")
             # Commit base table creation first so all required tables exist before running migrations
             conn.commit()
 
@@ -500,9 +524,35 @@ def init_db():
                     FOREIGN KEY (student_id) REFERENCES users(id) ON DELETE CASCADE,
                     FOREIGN KEY (exam_id) REFERENCES exams(id) ON DELETE CASCADE,
                     FOREIGN KEY (submission_id) REFERENCES submissions(id) ON DELETE CASCADE
+                )""",
+                """CREATE TABLE IF NOT EXISTS student_sync_events (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    event_type TEXT NOT NULL,
+                    target_student_id INTEGER DEFAULT NULL,
+                    target_class TEXT DEFAULT '',
+                    exam_id INTEGER DEFAULT NULL,
+                    submission_id INTEGER DEFAULT NULL,
+                    payload_json TEXT DEFAULT '{}',
+                    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+                )""",
+                """CREATE TABLE IF NOT EXISTS exam_time_extensions (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    exam_id INTEGER NOT NULL,
+                    submission_id INTEGER NOT NULL,
+                    student_id INTEGER NOT NULL,
+                    tutor_id INTEGER NOT NULL,
+                    previous_deadline_seconds INTEGER,
+                    new_deadline_seconds INTEGER,
+                    minutes_added INTEGER NOT NULL,
+                    reason TEXT DEFAULT '',
+                    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                    FOREIGN KEY (submission_id) REFERENCES submissions(id) ON DELETE CASCADE
                 )"""
             ]:
                 cursor.execute(table_sql)
+
+            cursor.execute("CREATE INDEX IF NOT EXISTS idx_sync_events_target ON student_sync_events (target_student_id, id)")
+            cursor.execute("CREATE INDEX IF NOT EXISTS idx_time_ext_sub ON exam_time_extensions (submission_id, id)")
 
             # Repair older SQLite databases using idempotent migration style.
             for table, column, definition in [
@@ -578,7 +628,7 @@ def init_db():
 
         # Seed initial admin(s) if provided via environment variables.
         from werkzeug.security import generate_password_hash
-    
+
         # Primary Admin
         initial_password = os.environ.get("ADMIN_INITIAL_PASSWORD", "").strip()
         if initial_password:
@@ -631,7 +681,7 @@ def create_user(username, email, password, full_name, role="student", roll_numbe
         clean_roll = roll_number.strip().upper() if roll_number else None
         clean_class = class_name.strip() if class_name else ""
         clean_photo = (profile_photo or "").strip()
-        
+
         cursor.execute("""
             INSERT INTO users (username, email, password_hash, full_name, role, roll_number, class_name, profile_photo)
             VALUES (?, ?, ?, ?, ?, ?, ?, ?)
@@ -680,7 +730,7 @@ def authenticate_user(identifier, password):
     cursor = conn.cursor()
     clean_id = identifier.strip().lower()
     cursor.execute("""
-        SELECT * FROM users 
+        SELECT * FROM users
         WHERE LOWER(username) = ? OR LOWER(email) = ?
     """, (clean_id, clean_id))
     user = cursor.fetchone()
@@ -877,3 +927,52 @@ def get_persistent_asset(asset_key):
 if __name__ == "__main__":
     init_db()
     print("Database initialized successfully!")
+
+
+def publish_student_sync_event(event_type, target_student_id=None, target_class='', exam_id=None, submission_id=None, payload=None, conn=None):
+    """
+    Publishes an incremental synchronization event to student_sync_events.
+    Can reuse an active database connection transaction (conn) or manage its own.
+    """
+    import json
+    payload_str = json.dumps(payload or {})
+    should_close = False
+    if conn is None:
+        conn = get_connection()
+        should_close = True
+
+    try:
+        cursor = conn.cursor()
+        cursor.execute("""
+            INSERT INTO student_sync_events (event_type, target_student_id, target_class, exam_id, submission_id, payload_json)
+            VALUES (?, ?, ?, ?, ?, ?)
+        """, (event_type, target_student_id, target_class or '', exam_id, submission_id, payload_str))
+        conn.commit()
+    except Exception as e:
+        print(f"[Sync] Error publishing event {event_type}: {e}")
+    finally:
+        if should_close:
+            conn.close()
+
+
+def record_exam_time_extension(exam_id, submission_id, student_id, tutor_id, prev_seconds, new_seconds, minutes_added, reason='', conn=None):
+    """
+    Inserts a row into exam_time_extensions audit log.
+    """
+    should_close = False
+    if conn is None:
+        conn = get_connection()
+        should_close = True
+
+    try:
+        cursor = conn.cursor()
+        cursor.execute("""
+            INSERT INTO exam_time_extensions (exam_id, submission_id, student_id, tutor_id, previous_deadline_seconds, new_deadline_seconds, minutes_added, reason)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+        """, (exam_id, submission_id, student_id, tutor_id, prev_seconds, new_seconds, minutes_added, reason or ''))
+        conn.commit()
+    except Exception as e:
+        print(f"[TimeExtension] Error recording extension: {e}")
+    finally:
+        if should_close:
+            conn.close()

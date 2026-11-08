@@ -233,7 +233,7 @@
     function startDeviceSwitchPolling(requestId) {
         if (deviceSwitchPollInterval) clearInterval(deviceSwitchPollInterval);
 
-        deviceSwitchPollInterval = setInterval(async () => {
+        async function pollDeviceSwitchStatus() {
             try {
                 const resp = await fetch(`/api/student/device-switch-status/${requestId}`);
                 const data = await resp.json();
@@ -247,13 +247,13 @@
                         const spinner = document.getElementById('modal-spinner');
 
                         if (spinner) {
-                            spinner.className = "w-16 h-16 rounded-2xl bg-emerald-50 text-emerald-600 mx-auto mb-4 flex items-center justify-center border border-emerald-200";
+                            spinner.className = 'w-16 h-16 rounded-2xl bg-emerald-50 text-emerald-600 mx-auto mb-4 flex items-center justify-center border border-emerald-200';
                             spinner.innerHTML = '<i data-lucide="check-circle" class="w-8 h-8"></i>';
                         }
-                        if (titleEl) titleEl.innerText = "Device Switch Approved!";
-                        if (descEl) descEl.innerText = "Your tutor approved your device switch. Signing you into your examination now...";
+                        if (titleEl) titleEl.innerText = 'Device Switch Approved!';
+                        if (descEl) descEl.innerText = 'Your tutor approved your device switch. Signing you into your examination now...';
                         if (badgeEl) {
-                            badgeEl.className = "mt-4 inline-flex items-center space-x-2 px-3 py-1.5 rounded-full text-xs font-semibold bg-emerald-100 text-emerald-800";
+                            badgeEl.className = 'mt-4 inline-flex items-center space-x-2 px-3 py-1.5 rounded-full text-xs font-semibold bg-emerald-100 text-emerald-800';
                             badgeEl.innerHTML = '<span class="w-2 h-2 rounded-full bg-emerald-500"></span><span>Authorized</span>';
                         }
                         lucide.createIcons();
@@ -276,9 +276,13 @@
                     }
                 }
             } catch (err) {
-                console.error("Polling error:", err);
+                console.error('Polling error:', err);
             }
-        }, 3000);
+        }
+
+        deviceSwitchPollInterval = setInterval(pollDeviceSwitchStatus, 3000);
+        window.addEventListener('examguard:device_switch_approved', pollDeviceSwitchStatus);
+        window.addEventListener('examguard:device_switch_rejected', pollDeviceSwitchStatus);
     }
 
     function cancelDeviceSwitchPolling() {
