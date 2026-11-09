@@ -99,11 +99,11 @@
             {% endif %}
             <p class="text-xs text-slate-600">If you are waiting too long, please contact your tutor directly.</p>
         </div>
-        <p class="text-center text-xs text-slate-600 mt-6">ExamGuard &middot; Submission #{{ submission.id }}</p>
+        <p id="submission-metadata" data-submission-id="{{ submission.id }}" class="text-center text-xs text-slate-600 mt-6">ExamGuard &middot; Submission #{{ submission.id }}</p>
     </div>
     <script src="{{ url_for('static', filename='js/sync_engine.js') }}"></script>
     <script>
-        const SUBMISSION_ID = {{ submission.id }};
+        const SUBMISSION_ID = parseInt(document.getElementById('submission-metadata')?.dataset?.submissionId || '0', 10);
         let pollTimer = null;
         function updatePollStatus(msg) { const el = document.getElementById('poll-status'); if (el) el.textContent = msg; }
         async function checkStatus() {
