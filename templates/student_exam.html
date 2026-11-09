@@ -4868,38 +4868,10 @@
                 window.location.href = `/student/result/${SUBMISSION_ID}`;
             }
         });
-
-        // Global Fetch Interceptor for proctored exam room: Automatically attaches X-CSRF-Token
-        (function() {
-            const originalFetch = window.fetch;
-            window.fetch = function(resource, init = {}) {
-                const method = (init.method || 'GET').toUpperCase();
-                if (['POST', 'PUT', 'DELETE', 'PATCH'].includes(method)) {
-                    const tokenMeta = document.querySelector('meta[name="csrf-token"]');
-                    const csrfToken = tokenMeta ? tokenMeta.getAttribute('content') : '';
-                    if (csrfToken) {
-                        if (init.headers instanceof Headers) {
-                            if (!init.headers.has('X-CSRF-Token')) {
-                                init.headers.set('X-CSRF-Token', csrfToken);
-                            }
-                        } else if (Array.isArray(init.headers)) {
-                            const hasCsrf = init.headers.some(([k]) => k.toLowerCase() === 'x-csrf-token');
-                            if (!hasCsrf) {
-                                init.headers.push(['X-CSRF-Token', csrfToken]);
-                            }
-                        } else {
-                            init.headers = {
-                                ...init.headers,
-                                'X-CSRF-Token': csrfToken
-                            };
-                        }
-                    }
-                }
-                return originalFetch(resource, init);
-            };
-        })();
     </script>
-    <script src="{{ url_for('static', filename='js/sync_engine.js') }}"></script>
+    <!-- Robust CSRF Interceptor & Session Recovery Engine -->
+    <script src="{{ url_for('static', filename='js/csrf_guard.js') }}?v=20261109"></script>
+    <script src="{{ url_for('static', filename='js/sync_engine.js') }}?v=20261109"></script>
 </body>
 
 </html>

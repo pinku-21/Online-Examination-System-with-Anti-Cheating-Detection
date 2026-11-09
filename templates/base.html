@@ -392,6 +392,10 @@
             <nav class="flex items-center space-x-2 sm:space-x-3">
                 {% if session.get('user_id') and not device_switch_blocked %}
                     {% if session.get('user_role') == 'admin' %}
+                        <a href="/admin/security/soc" class="inline-flex shadcn-btn shadcn-btn-outline h-8 sm:h-9 px-2 sm:px-3 text-xs font-semibold text-cyan-700 dark:text-cyan-400 border-cyan-200 dark:border-cyan-800 bg-cyan-50/50 dark:bg-cyan-950/40 hover:bg-cyan-100" title="Security Operations Centre">
+                            <i data-lucide="shield-alert" class="w-3.5 h-3.5 text-cyan-600 dark:text-cyan-400"></i>
+                            <span class="hidden md:inline">SOC Console</span>
+                        </a>
                         <a href="/tutor" class="inline-flex shadcn-btn shadcn-btn-outline h-8 sm:h-9 px-2 sm:px-3 text-xs font-semibold text-indigo-700 border-indigo-200 bg-indigo-50/50 hover:bg-indigo-100">
                             <i data-lucide="shield" class="w-3.5 h-3.5 text-indigo-600"></i>
                             <span class="hidden xs:inline sm:inline">Admin Portal</span>
@@ -561,6 +565,19 @@
                 <h4 class="text-xs font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400 mb-3">Assessment Hub</h4>
                 <div class="space-y-1.5">
                     {% if session.get('user_role') == 'admin' %}
+                        <a href="/admin/security/soc" class="flex items-center justify-between p-3 rounded-2xl hover:bg-slate-50 dark:hover:bg-slate-800/60 transition group border border-transparent hover:border-slate-200 dark:hover:border-slate-700">
+                            <div class="flex items-center gap-3">
+                                <div class="w-9 h-9 rounded-xl bg-cyan-50 dark:bg-cyan-900/30 text-cyan-600 dark:text-cyan-400 flex items-center justify-center">
+                                    <i data-lucide="shield-alert" class="w-4 h-4"></i>
+                                </div>
+                                <div>
+                                    <span class="text-xs font-bold text-slate-900 dark:text-slate-100 block">SOC Cyber Console</span>
+                                    <span class="text-[10px] text-slate-500">Threat telemetry, risks & recommendations</span>
+                                </div>
+                            </div>
+                            <i data-lucide="chevron-right" class="w-4 h-4 text-slate-400 group-hover:translate-x-1 transition-transform"></i>
+                        </a>
+
                         <a href="/tutor" class="flex items-center justify-between p-3 rounded-2xl hover:bg-slate-50 dark:hover:bg-slate-800/60 transition group border border-transparent hover:border-slate-200 dark:hover:border-slate-700">
                             <div class="flex items-center gap-3">
                                 <div class="w-9 h-9 rounded-xl bg-indigo-50 dark:bg-indigo-900/30 text-indigo-600 dark:text-indigo-400 flex items-center justify-center">
@@ -909,38 +926,10 @@
         }
         applyInitialTheme();
         lucide.createIcons();
-
-        // Global Fetch Interceptor: Automatically attaches X-CSRF-Token to all state-changing AJAX calls
-        (function() {
-            const originalFetch = window.fetch;
-            window.fetch = function(resource, init = {}) {
-                const method = (init.method || 'GET').toUpperCase();
-                if (['POST', 'PUT', 'DELETE', 'PATCH'].includes(method)) {
-                    const tokenMeta = document.querySelector('meta[name="csrf-token"]');
-                    const csrfToken = tokenMeta ? tokenMeta.getAttribute('content') : '';
-                    if (csrfToken) {
-                        if (init.headers instanceof Headers) {
-                            if (!init.headers.has('X-CSRF-Token')) {
-                                init.headers.set('X-CSRF-Token', csrfToken);
-                            }
-                        } else if (Array.isArray(init.headers)) {
-                            const hasCsrf = init.headers.some(([k]) => k.toLowerCase() === 'x-csrf-token');
-                            if (!hasCsrf) {
-                                init.headers.push(['X-CSRF-Token', csrfToken]);
-                            }
-                        } else {
-                            init.headers = {
-                                ...init.headers,
-                                'X-CSRF-Token': csrfToken
-                            };
-                        }
-                    }
-                }
-                return originalFetch(resource, init);
-            };
-        })();
     </script>
-    <script src="{{ url_for('static', filename='js/sync_engine.js') }}"></script>
+    <!-- Robust CSRF Interceptor & Session Recovery Engine -->
+    <script src="{{ url_for('static', filename='js/csrf_guard.js') }}?v=20261109"></script>
+    <script src="{{ url_for('static', filename='js/sync_engine.js') }}?v=20261109"></script>
     {% block scripts %}{% endblock %}
 </body>
 </html>

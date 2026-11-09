@@ -29,7 +29,12 @@ except ImportError:
 
 class PostgresCursor:
     """Small compatibility wrapper for the SQLite-style cursor API used by app.py."""
-    _ID_TABLES = {"users", "exams", "questions", "submissions", "violations", "student_sync_events", "exam_time_extensions"}
+    _ID_TABLES = {
+        "users", "exams", "questions", "submissions", "violations", "student_sync_events",
+        "exam_time_extensions", "security_events", "security_incidents", "incident_audit_trail",
+        "incident_notes", "device_switch_history", "security_policies", "security_recommendations",
+        "risk_audit_log"
+    }
 
     def __init__(self, cursor):
         self._cursor = cursor
@@ -304,8 +309,137 @@ def init_db():
                 reason TEXT DEFAULT '',
                 created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
             )""")
+            cursor.execute("""CREATE TABLE IF NOT EXISTS security_events (
+                id SERIAL PRIMARY KEY,
+                event_id VARCHAR(64) UNIQUE NOT NULL,
+                event_type VARCHAR(64) NOT NULL,
+                severity VARCHAR(16) NOT NULL,
+                actor_id INTEGER,
+                actor_role VARCHAR(32),
+                target_resource VARCHAR(64),
+                target_resource_id VARCHAR(64),
+                correlation_id VARCHAR(64),
+                source_ip VARCHAR(64),
+                user_agent TEXT,
+                endpoint VARCHAR(255),
+                event_category VARCHAR(32) DEFAULT 'general',
+                details_json TEXT DEFAULT '{}',
+                timestamp TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            )""")
+            cursor.execute("""CREATE TABLE IF NOT EXISTS security_incidents (
+                id SERIAL PRIMARY KEY,
+                incident_id VARCHAR(64) UNIQUE NOT NULL,
+                title VARCHAR(255) NOT NULL,
+                incident_type VARCHAR(64) NOT NULL,
+                severity VARCHAR(16) NOT NULL DEFAULT 'MEDIUM',
+                status VARCHAR(32) NOT NULL DEFAULT 'OPEN',
+                risk_score INTEGER NOT NULL DEFAULT 0,
+                primary_actor_id INTEGER,
+                primary_actor_role VARCHAR(32),
+                source_ip VARCHAR(64),
+                first_detected TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                last_activity TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                assigned_to INTEGER,
+                summary TEXT,
+                evidence_json TEXT DEFAULT '{}',
+                resolution_notes TEXT DEFAULT '',
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            )""")
+            cursor.execute("""CREATE TABLE IF NOT EXISTS incident_audit_trail (
+                id SERIAL PRIMARY KEY,
+                incident_id VARCHAR(64) NOT NULL,
+                action VARCHAR(64) NOT NULL,
+                actor_id INTEGER,
+                actor_name VARCHAR(128),
+                details TEXT,
+                timestamp TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            )""")
+            cursor.execute("""CREATE TABLE IF NOT EXISTS incident_notes (
+                id SERIAL PRIMARY KEY,
+                incident_id VARCHAR(64) NOT NULL,
+                author_id INTEGER NOT NULL,
+                author_name VARCHAR(128) NOT NULL,
+                note_text TEXT NOT NULL,
+                timestamp TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            )""")
+            cursor.execute("""CREATE TABLE IF NOT EXISTS device_switch_history (
+                id SERIAL PRIMARY KEY,
+                student_id INTEGER NOT NULL,
+                switch_type VARCHAR(32) NOT NULL,
+                had_active_exam INTEGER DEFAULT 0,
+                exam_id INTEGER,
+                submission_id INTEGER,
+                client_ip VARCHAR(64),
+                user_agent TEXT,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            )""")
+            cursor.execute("""CREATE TABLE IF NOT EXISTS security_policies (
+                id SERIAL PRIMARY KEY,
+                policy_key VARCHAR(64) UNIQUE NOT NULL,
+                name VARCHAR(128) NOT NULL,
+                description TEXT DEFAULT '',
+                min_risk_score INTEGER NOT NULL DEFAULT 40,
+                recommended_action VARCHAR(64) NOT NULL,
+                potential_impact TEXT DEFAULT '',
+                requires_admin_approval INTEGER DEFAULT 1,
+                is_enabled INTEGER DEFAULT 1,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            )""")
+            cursor.execute("""CREATE TABLE IF NOT EXISTS security_recommendations (
+                id SERIAL PRIMARY KEY,
+                recommendation_id VARCHAR(64) UNIQUE NOT NULL,
+                incident_id VARCHAR(64),
+                target_actor_id INTEGER,
+                target_resource VARCHAR(64),
+                target_resource_id VARCHAR(64),
+                risk_score INTEGER NOT NULL DEFAULT 0,
+                triggering_events_json TEXT DEFAULT '[]',
+                explanation TEXT NOT NULL,
+                recommended_action VARCHAR(64) NOT NULL,
+                potential_impact TEXT DEFAULT '',
+                required_role VARCHAR(32) DEFAULT 'admin',
+                status VARCHAR(32) NOT NULL DEFAULT 'PENDING_REVIEW',
+                reviewed_by INTEGER,
+                reviewed_at TIMESTAMP,
+                execution_notes TEXT DEFAULT '',
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            )""")
+            cursor.execute("""CREATE TABLE IF NOT EXISTS risk_audit_log (
+                id SERIAL PRIMARY KEY,
+                entity_type VARCHAR(32) NOT NULL,
+                entity_id VARCHAR(64) NOT NULL,
+                old_score INTEGER NOT NULL,
+                new_score INTEGER NOT NULL,
+                factors_json TEXT DEFAULT '[]',
+                trigger_event VARCHAR(64) DEFAULT '',
+                timestamp TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            )""")
             cursor.execute("""CREATE INDEX IF NOT EXISTS idx_sync_events_target ON student_sync_events (target_student_id, id)""")
             cursor.execute("""CREATE INDEX IF NOT EXISTS idx_time_ext_sub ON exam_time_extensions (submission_id, id)""")
+            cursor.execute("""CREATE INDEX IF NOT EXISTS idx_sec_events_type ON security_events (event_type)""")
+            cursor.execute("""CREATE INDEX IF NOT EXISTS idx_sec_events_sev ON security_events (severity)""")
+            cursor.execute("""CREATE INDEX IF NOT EXISTS idx_sec_events_actor ON security_events (actor_id, actor_role)""")
+            cursor.execute("""CREATE INDEX IF NOT EXISTS idx_sec_events_time ON security_events (timestamp)""")
+            cursor.execute("""CREATE INDEX IF NOT EXISTS idx_sec_events_corr ON security_events (correlation_id)""")
+            cursor.execute("""CREATE INDEX IF NOT EXISTS idx_sec_inc_id ON security_incidents (incident_id)""")
+            cursor.execute("""CREATE INDEX IF NOT EXISTS idx_sec_inc_status ON security_incidents (status)""")
+            cursor.execute("""CREATE INDEX IF NOT EXISTS idx_sec_inc_sev ON security_incidents (severity)""")
+            cursor.execute("""CREATE INDEX IF NOT EXISTS idx_sec_inc_actor ON security_incidents (primary_actor_id)""")
+            cursor.execute("""CREATE INDEX IF NOT EXISTS idx_sec_inc_ip ON security_incidents (source_ip)""")
+            cursor.execute("""CREATE INDEX IF NOT EXISTS idx_inc_audit ON incident_audit_trail (incident_id)""")
+            cursor.execute("""CREATE INDEX IF NOT EXISTS idx_inc_notes ON incident_notes (incident_id)""")
+            cursor.execute("""CREATE INDEX IF NOT EXISTS idx_dev_switch_hist_student ON device_switch_history (student_id)""")
+            cursor.execute("""CREATE INDEX IF NOT EXISTS idx_sec_policies_key ON security_policies (policy_key)""")
+            cursor.execute("""CREATE INDEX IF NOT EXISTS idx_sec_policies_enabled ON security_policies (is_enabled)""")
+            cursor.execute("""CREATE INDEX IF NOT EXISTS idx_sec_recs_incident ON security_recommendations (incident_id)""")
+            cursor.execute("""CREATE INDEX IF NOT EXISTS idx_sec_recs_status ON security_recommendations (status)""")
+            cursor.execute("""CREATE INDEX IF NOT EXISTS idx_sec_recs_actor ON security_recommendations (target_actor_id)""")
+            cursor.execute("""CREATE INDEX IF NOT EXISTS idx_sec_recs_dedup ON security_recommendations (target_resource, target_resource_id, recommended_action, status)""")
+            cursor.execute("""CREATE UNIQUE INDEX IF NOT EXISTS uq_sec_recs_active_dedup ON security_recommendations (target_resource, target_resource_id, recommended_action) WHERE status = 'PENDING_REVIEW'""")
+            cursor.execute("""CREATE INDEX IF NOT EXISTS idx_risk_audit_entity ON risk_audit_log (entity_type, entity_id)""")
+            cursor.execute("""CREATE INDEX IF NOT EXISTS idx_risk_audit_time ON risk_audit_log (timestamp)""")
             # Commit base table creation first so all required tables exist before running migrations
             conn.commit()
 
@@ -378,6 +512,12 @@ def init_db():
                 "ALTER TABLE device_switch_requests ADD COLUMN IF NOT EXISTS reason TEXT DEFAULT ''",
                 # Subject categorization
                 "ALTER TABLE exams ADD COLUMN IF NOT EXISTS subject TEXT DEFAULT 'General'",
+                # MFA columns for user authentication
+                "ALTER TABLE users ADD COLUMN IF NOT EXISTS mfa_enabled INTEGER DEFAULT 0",
+                "ALTER TABLE users ADD COLUMN IF NOT EXISTS mfa_secret TEXT DEFAULT ''",
+                "ALTER TABLE users ADD COLUMN IF NOT EXISTS mfa_recovery_codes_json TEXT DEFAULT '[]'",
+                "ALTER TABLE users ADD COLUMN IF NOT EXISTS mfa_enrolled_at TIMESTAMP",
+                "ALTER TABLE users ADD COLUMN IF NOT EXISTS password_changed_at TIMESTAMP",
             ]
             migration_errors = run_pg_migrations(cursor, conn, migrations)
         else:
@@ -549,12 +689,141 @@ def init_db():
                     reason TEXT DEFAULT '',
                     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
                     FOREIGN KEY (submission_id) REFERENCES submissions(id) ON DELETE CASCADE
+                )""",
+                """CREATE TABLE IF NOT EXISTS security_events (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    event_id TEXT UNIQUE NOT NULL,
+                    event_type TEXT NOT NULL,
+                    severity TEXT NOT NULL,
+                    actor_id INTEGER,
+                    actor_role TEXT,
+                    target_resource TEXT,
+                    target_resource_id TEXT,
+                    correlation_id TEXT,
+                    source_ip TEXT,
+                    user_agent TEXT,
+                    endpoint TEXT,
+                    event_category TEXT DEFAULT 'general',
+                    details_json TEXT DEFAULT '{}',
+                    timestamp TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+                )""",
+                """CREATE TABLE IF NOT EXISTS security_incidents (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    incident_id TEXT UNIQUE NOT NULL,
+                    title TEXT NOT NULL,
+                    incident_type TEXT NOT NULL,
+                    severity TEXT NOT NULL DEFAULT 'MEDIUM',
+                    status TEXT NOT NULL DEFAULT 'OPEN',
+                    risk_score INTEGER NOT NULL DEFAULT 0,
+                    primary_actor_id INTEGER,
+                    primary_actor_role TEXT,
+                    source_ip TEXT,
+                    first_detected TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                    last_activity TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                    assigned_to INTEGER,
+                    summary TEXT,
+                    evidence_json TEXT DEFAULT '{}',
+                    resolution_notes TEXT DEFAULT '',
+                    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+                )""",
+                """CREATE TABLE IF NOT EXISTS incident_audit_trail (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    incident_id TEXT NOT NULL,
+                    action TEXT NOT NULL,
+                    actor_id INTEGER,
+                    actor_name TEXT,
+                    details TEXT,
+                    timestamp TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+                )""",
+                """CREATE TABLE IF NOT EXISTS incident_notes (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    incident_id TEXT NOT NULL,
+                    author_id INTEGER NOT NULL,
+                    author_name TEXT NOT NULL,
+                    note_text TEXT NOT NULL,
+                    timestamp TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+                )""",
+                """CREATE TABLE IF NOT EXISTS device_switch_history (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    student_id INTEGER NOT NULL,
+                    switch_type TEXT NOT NULL,
+                    had_active_exam INTEGER DEFAULT 0,
+                    exam_id INTEGER,
+                    submission_id INTEGER,
+                    client_ip TEXT,
+                    user_agent TEXT,
+                    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+                )""",
+                """CREATE TABLE IF NOT EXISTS security_policies (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    policy_key TEXT UNIQUE NOT NULL,
+                    name TEXT NOT NULL,
+                    description TEXT DEFAULT '',
+                    min_risk_score INTEGER NOT NULL DEFAULT 40,
+                    recommended_action TEXT NOT NULL,
+                    potential_impact TEXT DEFAULT '',
+                    requires_admin_approval INTEGER DEFAULT 1,
+                    is_enabled INTEGER DEFAULT 1,
+                    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+                )""",
+                """CREATE TABLE IF NOT EXISTS security_recommendations (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    recommendation_id TEXT UNIQUE NOT NULL,
+                    incident_id TEXT,
+                    target_actor_id INTEGER,
+                    target_resource TEXT,
+                    target_resource_id TEXT,
+                    risk_score INTEGER NOT NULL DEFAULT 0,
+                    triggering_events_json TEXT DEFAULT '[]',
+                    explanation TEXT NOT NULL,
+                    recommended_action TEXT NOT NULL,
+                    potential_impact TEXT DEFAULT '',
+                    required_role TEXT DEFAULT 'admin',
+                    status TEXT NOT NULL DEFAULT 'PENDING_REVIEW',
+                    reviewed_by INTEGER,
+                    reviewed_at TIMESTAMP,
+                    execution_notes TEXT DEFAULT '',
+                    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+                )""",
+                """CREATE TABLE IF NOT EXISTS risk_audit_log (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    entity_type TEXT NOT NULL,
+                    entity_id TEXT NOT NULL,
+                    old_score INTEGER NOT NULL,
+                    new_score INTEGER NOT NULL,
+                    factors_json TEXT DEFAULT '[]',
+                    trigger_event TEXT DEFAULT '',
+                    timestamp TIMESTAMP DEFAULT CURRENT_TIMESTAMP
                 )"""
             ]:
                 cursor.execute(table_sql)
 
             cursor.execute("CREATE INDEX IF NOT EXISTS idx_sync_events_target ON student_sync_events (target_student_id, id)")
             cursor.execute("CREATE INDEX IF NOT EXISTS idx_time_ext_sub ON exam_time_extensions (submission_id, id)")
+            cursor.execute("CREATE INDEX IF NOT EXISTS idx_sqlite_sec_events_type ON security_events (event_type)")
+            cursor.execute("CREATE INDEX IF NOT EXISTS idx_sqlite_sec_events_sev ON security_events (severity)")
+            cursor.execute("CREATE INDEX IF NOT EXISTS idx_sqlite_sec_events_actor ON security_events (actor_id, actor_role)")
+            cursor.execute("CREATE INDEX IF NOT EXISTS idx_sqlite_sec_events_time ON security_events (timestamp)")
+            cursor.execute("CREATE INDEX IF NOT EXISTS idx_sqlite_sec_events_corr ON security_events (correlation_id)")
+            cursor.execute("CREATE INDEX IF NOT EXISTS idx_sqlite_sec_inc_id ON security_incidents (incident_id)")
+            cursor.execute("CREATE INDEX IF NOT EXISTS idx_sqlite_sec_inc_status ON security_incidents (status)")
+            cursor.execute("CREATE INDEX IF NOT EXISTS idx_sqlite_sec_inc_sev ON security_incidents (severity)")
+            cursor.execute("CREATE INDEX IF NOT EXISTS idx_sqlite_sec_inc_actor ON security_incidents (primary_actor_id)")
+            cursor.execute("CREATE INDEX IF NOT EXISTS idx_sqlite_sec_inc_ip ON security_incidents (source_ip)")
+            cursor.execute("CREATE INDEX IF NOT EXISTS idx_sqlite_inc_audit ON incident_audit_trail (incident_id)")
+            cursor.execute("CREATE INDEX IF NOT EXISTS idx_sqlite_inc_notes ON incident_notes (incident_id)")
+            cursor.execute("CREATE INDEX IF NOT EXISTS idx_sqlite_dev_switch_hist_student ON device_switch_history (student_id)")
+            cursor.execute("CREATE INDEX IF NOT EXISTS idx_sqlite_sec_policies_key ON security_policies (policy_key)")
+            cursor.execute("CREATE INDEX IF NOT EXISTS idx_sqlite_sec_policies_enabled ON security_policies (is_enabled)")
+            cursor.execute("CREATE INDEX IF NOT EXISTS idx_sqlite_sec_recs_incident ON security_recommendations (incident_id)")
+            cursor.execute("CREATE INDEX IF NOT EXISTS idx_sqlite_sec_recs_status ON security_recommendations (status)")
+            cursor.execute("CREATE INDEX IF NOT EXISTS idx_sqlite_sec_recs_actor ON security_recommendations (target_actor_id)")
+            cursor.execute("CREATE INDEX IF NOT EXISTS idx_sqlite_sec_recs_dedup ON security_recommendations (target_resource, target_resource_id, recommended_action, status)")
+            cursor.execute("CREATE UNIQUE INDEX IF NOT EXISTS uq_sqlite_sec_recs_active_dedup ON security_recommendations (target_resource, target_resource_id, recommended_action) WHERE status = 'PENDING_REVIEW'")
+            cursor.execute("CREATE INDEX IF NOT EXISTS idx_sqlite_risk_audit_entity ON risk_audit_log (entity_type, entity_id)")
+            cursor.execute("CREATE INDEX IF NOT EXISTS idx_sqlite_risk_audit_time ON risk_audit_log (timestamp)")
 
             # Repair older SQLite databases using idempotent migration style.
             for table, column, definition in [
@@ -624,6 +893,12 @@ def init_db():
                 ("device_switch_requests", "request_type", "TEXT DEFAULT 'device_switch'"),
                 ("device_switch_requests", "reason", "TEXT DEFAULT ''"),
                 ("exams", "subject", "TEXT DEFAULT 'General'"),
+                # MFA columns for user authentication
+                ("users", "mfa_enabled", "INTEGER DEFAULT 0"),
+                ("users", "mfa_secret", "TEXT DEFAULT ''"),
+                ("users", "mfa_recovery_codes_json", "TEXT DEFAULT '[]'"),
+                ("users", "mfa_enrolled_at", "TIMESTAMP"),
+                ("users", "password_changed_at", "TIMESTAMP"),
             ]:
                 columns = {row["name"] for row in cursor.execute(f"PRAGMA table_info({table})").fetchall()}
                 if column not in columns:
@@ -656,6 +931,67 @@ def init_db():
             else:
                 # If user already exists, ensure role is upgraded to admin
                 cursor.execute("UPDATE users SET role = 'admin' WHERE LOWER(username) = LOWER(?)", (sec_username,))
+
+        # Seed default security policies idempotently
+        default_security_policies = [
+            (
+                "auth_stepup_policy",
+                "Authentication Step-up Advisory",
+                "Recommends step-up verification when account authentication risk is elevated.",
+                40,
+                "recommend_mfa_stepup",
+                "Prompts user for step-up verification on next sensitive interaction; does not terminate session.",
+                1,
+                1
+            ),
+            (
+                "suspicious_session_review_policy",
+                "Suspicious Session Proctor Review",
+                "Flags suspicious concurrent or anomalous session behaviour for proctor/tutor inspection.",
+                50,
+                "flag_proctor_review",
+                "Highlights candidate session in live proctoring dashboard for visual and activity verification.",
+                1,
+                1
+            ),
+            (
+                "critical_session_containment_policy",
+                "Critical Session Containment Advisory",
+                "Recommends human tutor/admin containment review for sessions displaying critical threat signatures.",
+                75,
+                "recommend_session_termination",
+                "Generates an urgent recommendation requiring administrator or proctor approval before any session action.",
+                1,
+                1
+            ),
+            (
+                "exam_integrity_proctor_advisory_policy",
+                "Examination Integrity Proctor Advisory",
+                "Alerts proctoring staff when exam-level anomaly indicators correlate with high risk.",
+                45,
+                "dispatch_proctor_advisory",
+                "Dispatches real-time advisory note to proctor interface; exam continues without interruption.",
+                1,
+                1
+            )
+        ]
+
+        for p_key, p_name, p_desc, p_min_risk, p_action, p_impact, p_req_approval, p_enabled in default_security_policies:
+            cursor.execute("SELECT id FROM security_policies WHERE policy_key = ?", (p_key,))
+            if not cursor.fetchone():
+                cursor.execute("""
+                    INSERT INTO security_policies (
+                        policy_key, name, description, min_risk_score,
+                        recommended_action, potential_impact, requires_admin_approval, is_enabled
+                    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+                """, (p_key, p_name, p_desc, p_min_risk, p_action, p_impact, p_req_approval, p_enabled))
+
+        # Transparently and idempotently migrate any legacy unencrypted MFA secrets to AES-256-GCM
+        try:
+            from security.mfa_service import migrate_unencrypted_mfa_secrets
+            migrate_unencrypted_mfa_secrets(db_connection=conn)
+        except Exception:
+            pass
 
         conn.commit()
     finally:

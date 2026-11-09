@@ -143,3 +143,58 @@ def test_publish_on_result_toggle(client):
     sync_res = c.get("/api/student/sync-events?since=0")
     events = sync_res.get_json()["events"]
     assert any(e["event_type"] == "result_published" and e["exam_id"] == exam_id for e in events)
+
+
+def test_tutor_dashboard_receives_exam_deleted_sync(client):
+    """
+    Verify that when an exam is deleted by a tutor, another tutor session/tab
+    polling /api/student/sync-events receives the exam_deleted event with the correct exam_id.
+    """
+    c, db_path = client
+    tutor_a = create_user(db_path, "tutor_tab_a", "admin")
+    tutor_b = create_user(db_path, "tutor_tab_b", "admin")
+
+    conn = sqlite3.connect(db_path)
+    cur = conn.cursor()
+    cur.execute("INSERT INTO exams (exam_code, title, duration_minutes) VALUES ('SYNC99', 'Cross Tab Exam', 45)")
+    exam_id = cur.lastrowid
+    conn.commit()
+    conn.close()
+
+    # Tutor Tab A deletes the exam
+    with c.session_transaction() as sess:
+        sess["user_id"] = tutor_a
+        sess["user_role"] = "admin"
+        sess["username"] = "tutor_tab_a"
+        sess["csrf_token"] = "valid_csrf_token_a"
+
+    res = c.delete(
+        f"/api/admin/delete-exam/{exam_id}",
+        headers={"X-CSRF-Token": "valid_csrf_token_a"}
+    )
+    assert res.status_code == 200
+    assert res.get_json()["success"] is True
+
+    # Confirm database deletion
+    conn = sqlite3.connect(db_path)
+    cur = conn.cursor()
+    cur.execute("SELECT id FROM exams WHERE id = ?", (exam_id,))
+    assert cur.fetchone() is None
+    conn.close()
+
+    # Tutor Tab B polls for sync events
+    with c.session_transaction() as sess:
+        sess["user_id"] = tutor_b
+        sess["user_role"] = "admin"
+        sess["username"] = "tutor_tab_b"
+
+    sync_resp = c.get("/api/student/sync-events?since=0")
+    assert sync_resp.status_code == 200
+    data = sync_resp.get_json()
+    assert data["success"] is True
+
+    deleted_events = [e for e in data["events"] if e["event_type"] == "exam_deleted"]
+    assert len(deleted_events) == 1
+    assert deleted_events[0]["exam_id"] == exam_id
+    assert deleted_events[0]["payload"]["exam_id"] == exam_id
+    assert deleted_events[0]["payload"]["title"] == "Cross Tab Exam"

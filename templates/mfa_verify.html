@@ -1,0 +1,80 @@
+{% extends "base.html" %}
+
+{% block title %}Two-Factor Verification — ExamGuard AI{% endblock %}
+
+{% block content %}
+<div class="min-h-[80vh] flex items-center justify-center px-4 py-12">
+    <div class="max-w-md w-full bg-white dark:bg-slate-900 rounded-3xl p-8 border border-slate-200 dark:border-slate-800 shadow-xl">
+        <div class="text-center mb-6">
+            <div class="w-14 h-14 rounded-2xl bg-indigo-50 dark:bg-indigo-950/50 text-indigo-600 mx-auto mb-4 flex items-center justify-center border border-indigo-200 dark:border-indigo-800">
+                <i data-lucide="shield-check" class="w-8 h-8"></i>
+            </div>
+            <h1 class="text-xl font-bold text-slate-900 dark:text-white">Two-Factor Authentication</h1>
+            <p class="text-xs text-slate-500 dark:text-slate-400 mt-1">
+                Enter the 6-digit code from your authenticator app for <strong>{{ username }}</strong>.
+            </p>
+        </div>
+
+        {% with messages = get_flashed_messages(with_categories=true) %}
+            {% if messages %}
+                {% for category, message in messages %}
+                    <div class="mb-5 p-3 rounded-xl text-xs font-medium border {% if category == 'success' %}bg-emerald-50 text-emerald-800 border-emerald-200{% else %}bg-rose-50 text-rose-800 border-rose-200{% endif %}">
+                        {{ message }}
+                    </div>
+                {% endfor %}
+            {% endif %}
+        {% endwith %}
+
+        <form action="/mfa/verify" method="POST" class="space-y-4">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+
+            <div id="totp-input-group">
+                <label class="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1.5 text-center">
+                    6-Digit Security Code
+                </label>
+                <input type="text" name="mfa_code" maxlength="6" autofocus placeholder="000000" class="w-full h-12 text-center text-xl font-mono tracking-widest border border-slate-300 dark:border-slate-700 rounded-xl focus:outline-none focus:ring-2 focus:ring-indigo-500 bg-slate-50 dark:bg-slate-800 text-slate-900 dark:text-white">
+            </div>
+
+            <div id="recovery-input-group" class="hidden">
+                <label class="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1.5 text-center">
+                    One-Time Recovery Code (XXXX-XXXX)
+                </label>
+                <input type="text" name="recovery_code" placeholder="7F2A-9C4B" class="w-full h-12 text-center text-sm font-mono uppercase tracking-wider border border-slate-300 dark:border-slate-700 rounded-xl focus:outline-none focus:ring-2 focus:ring-indigo-500 bg-slate-50 dark:bg-slate-800 text-slate-900 dark:text-white">
+            </div>
+
+            <button type="submit" class="w-full h-11 mt-4 rounded-xl font-bold text-xs text-white bg-indigo-600 hover:bg-indigo-700 transition shadow-md shadow-indigo-600/30 cursor-pointer">
+                Verify and Continue &rarr;
+            </button>
+        </form>
+
+        <div class="mt-6 pt-4 border-t border-slate-100 dark:border-slate-800 text-center">
+            <button type="button" onclick="toggleRecoveryCodeInput()" id="toggle-recovery-btn" class="text-xs text-indigo-600 dark:text-indigo-400 font-semibold hover:underline">
+                Use a one-time recovery code instead
+            </button>
+        </div>
+    </div>
+</div>
+
+<script>
+    let showRecovery = false;
+    function toggleRecoveryCodeInput() {
+        showRecovery = !showRecovery;
+        const totpGroup = document.getElementById('totp-input-group');
+        const recoveryGroup = document.getElementById('recovery-input-group');
+        const toggleBtn = document.getElementById('toggle-recovery-btn');
+
+        if (showRecovery) {
+            totpGroup.classList.add('hidden');
+            recoveryGroup.classList.remove('hidden');
+            toggleBtn.innerText = 'Use 6-digit authenticator code instead';
+            document.querySelector('input[name="mfa_code"]').value = '';
+        } else {
+            totpGroup.classList.remove('hidden');
+            recoveryGroup.classList.add('hidden');
+            toggleBtn.innerText = 'Use a one-time recovery code instead';
+            document.querySelector('input[name="recovery_code"]').value = '';
+        }
+    }
+</script>
+{% endblock %}
+

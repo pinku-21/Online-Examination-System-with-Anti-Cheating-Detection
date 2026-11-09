@@ -1,0 +1,1309 @@
+{% extends "base.html" %}
+
+{% block title %}Security Operations Centre (SOC) - ExamGuard AI{% endblock %}
+
+{% block meta_robots %}<meta name="robots" content="noindex, nofollow">{% endblock %}
+{% block canonical_tag %}{% endblock %}
+
+{% block content %}
+<div class="min-h-screen bg-[#070b14] text-slate-100 font-sans antialiased pb-16 selection:bg-cyan-500 selection:text-white">
+
+    <!-- Top Command Navigation Bar -->
+    <header class="border-b border-cyan-950/60 bg-[#0b1220]/80 backdrop-blur-md sticky top-0 z-40 px-4 sm:px-6 lg:px-8 py-3.5">
+        <div class="max-w-7xl mx-auto flex flex-col md:flex-row md:items-center justify-between gap-4">
+            
+            <!-- Left: Title & Live Pulse -->
+            <div class="flex items-center space-x-3.5">
+                <div class="w-10 h-10 rounded-xl bg-gradient-to-br from-cyan-500 to-blue-600 flex items-center justify-center text-white shadow-lg shadow-cyan-500/25 ring-1 ring-cyan-400/40">
+                    <i data-lucide="shield-check" class="w-5 h-5"></i>
+                </div>
+                <div>
+                    <div class="flex items-center space-x-2">
+                        <h1 class="text-lg sm:text-xl font-bold tracking-tight text-white flex items-center gap-2">
+                            <span>Security Operations Centre</span>
+                            <span class="text-[10px] font-mono uppercase px-2 py-0.5 rounded-full bg-cyan-950/90 text-cyan-400 border border-cyan-800 tracking-wider">SIEM Core</span>
+                        </h1>
+                    </div>
+                    <p class="text-xs text-slate-400 flex items-center gap-2">
+                        <span class="w-2 h-2 rounded-full bg-emerald-400 animate-pulse"></span>
+                        <span id="soc-status-text">Adaptive Threat Intelligence Active</span>
+                        <span class="text-slate-600">•</span>
+                        <span id="soc-last-refresh" class="text-[11px] font-mono text-slate-500">Connecting...</span>
+                    </p>
+                </div>
+            </div>
+
+            <!-- Right: Action Controls & Navigation Return -->
+            <div class="flex flex-wrap items-center gap-2.5">
+                <button type="button" onclick="triggerManualRefresh()" id="btn-manual-refresh"
+                        class="px-3.5 py-2 rounded-xl text-xs font-semibold bg-cyan-950/50 hover:bg-cyan-900/60 text-cyan-300 border border-cyan-800/80 transition flex items-center gap-2 cursor-pointer shadow-xs active:scale-95"
+                        title="Refresh All Telemetry">
+                    <i data-lucide="refresh-cw" id="icon-refresh-spin" class="w-3.5 h-3.5 text-cyan-400"></i>
+                    <span>Refresh Feed</span>
+                </button>
+
+                <a href="/tutor" class="px-3.5 py-2 rounded-xl text-xs font-semibold bg-slate-800/60 hover:bg-slate-700/70 text-slate-300 border border-slate-700 transition flex items-center gap-2"
+                   title="Return to Tutor Dashboard">
+                    <i data-lucide="arrow-left" class="w-3.5 h-3.5 text-slate-400"></i>
+                    <span>Tutor Dashboard</span>
+                </a>
+            </div>
+        </div>
+    </header>
+
+    <!-- Main Content Workspace -->
+    <main class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6 space-y-6">
+
+        <!-- 1. Executive Telemetry Overview KPI Cards -->
+        <section aria-label="Executive Security KPI Cards" class="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3.5 sm:gap-4">
+            
+            <div class="p-4 rounded-2xl bg-[#0f172a]/90 border border-cyan-950/80 hover:border-cyan-800/80 transition shadow-lg shadow-black/40 relative overflow-hidden group">
+                <div class="absolute -right-3 -top-3 w-16 h-16 bg-cyan-500/5 rounded-full blur-xl group-hover:bg-cyan-500/10 transition"></div>
+                <div class="flex items-center justify-between text-slate-400 mb-2">
+                    <span class="text-[11px] uppercase tracking-wider font-semibold">Total Events</span>
+                    <i data-lucide="activity" class="w-4 h-4 text-cyan-400"></i>
+                </div>
+                <div id="stat-total-events" class="text-2xl sm:text-3xl font-extrabold text-white font-mono tracking-tight">--</div>
+                <div class="text-[10px] text-slate-500 mt-1">Ingested Telemetry</div>
+            </div>
+
+            <div class="p-4 rounded-2xl bg-[#0f172a]/90 border border-cyan-950/80 hover:border-cyan-800/80 transition shadow-lg shadow-black/40 relative overflow-hidden group">
+                <div class="flex items-center justify-between text-slate-400 mb-2">
+                    <span class="text-[11px] uppercase tracking-wider font-semibold">Open Incidents</span>
+                    <i data-lucide="alert-circle" class="w-4 h-4 text-amber-400"></i>
+                </div>
+                <div id="stat-open-incidents" class="text-2xl sm:text-3xl font-extrabold text-amber-300 font-mono tracking-tight">--</div>
+                <div class="text-[10px] text-slate-500 mt-1">Awaiting Triage</div>
+            </div>
+
+            <div class="p-4 rounded-2xl bg-[#0f172a]/90 border border-cyan-950/80 hover:border-cyan-800/80 transition shadow-lg shadow-black/40 relative overflow-hidden group">
+                <div class="flex items-center justify-between text-slate-400 mb-2">
+                    <span class="text-[11px] uppercase tracking-wider font-semibold">Investigating</span>
+                    <i data-lucide="search" class="w-4 h-4 text-sky-400"></i>
+                </div>
+                <div id="stat-investigating-incidents" class="text-2xl sm:text-3xl font-extrabold text-sky-300 font-mono tracking-tight">--</div>
+                <div class="text-[10px] text-slate-500 mt-1">Active Review</div>
+            </div>
+
+            <div class="p-4 rounded-2xl bg-[#0f172a]/90 border border-cyan-950/80 hover:border-rose-900/60 transition shadow-lg shadow-black/40 relative overflow-hidden group">
+                <div class="flex items-center justify-between text-slate-400 mb-2">
+                    <span class="text-[11px] uppercase tracking-wider font-semibold">Critical</span>
+                    <i data-lucide="flame" class="w-4 h-4 text-rose-500 animate-pulse"></i>
+                </div>
+                <div id="stat-critical-incidents" class="text-2xl sm:text-3xl font-extrabold text-rose-400 font-mono tracking-tight">--</div>
+                <div class="text-[10px] text-slate-500 mt-1">Severity CRITICAL</div>
+            </div>
+
+            <div class="p-4 rounded-2xl bg-[#0f172a]/90 border border-cyan-950/80 hover:border-cyan-800/80 transition shadow-lg shadow-black/40 relative overflow-hidden group">
+                <div class="flex items-center justify-between text-slate-400 mb-2">
+                    <span class="text-[11px] uppercase tracking-wider font-semibold">High Risk</span>
+                    <i data-lucide="shield-alert" class="w-4 h-4 text-orange-400"></i>
+                </div>
+                <div id="stat-high-incidents" class="text-2xl sm:text-3xl font-extrabold text-orange-400 font-mono tracking-tight">--</div>
+                <div class="text-[10px] text-slate-500 mt-1">Score 45–74</div>
+            </div>
+
+            <div class="p-4 rounded-2xl bg-[#0f172a]/90 border border-cyan-950/80 hover:border-cyan-800/80 transition shadow-lg shadow-black/40 relative overflow-hidden group">
+                <div class="flex items-center justify-between text-slate-400 mb-2">
+                    <span class="text-[11px] uppercase tracking-wider font-semibold">Pending Recs</span>
+                    <i data-lucide="bell-ring" class="w-4 h-4 text-cyan-400"></i>
+                </div>
+                <div id="stat-pending-recommendations" class="text-2xl sm:text-3xl font-extrabold text-cyan-400 font-mono tracking-tight">--</div>
+                <div class="text-[10px] text-slate-500 mt-1">Advisory Actions</div>
+            </div>
+        </section>
+
+        <!-- 2. Visual Intelligence Panels: Risk Distribution & Severity Breakdown -->
+        <section class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+            
+            <!-- Risk Distribution Visualizer -->
+            <div class="p-5 rounded-2xl bg-[#0d1527] border border-cyan-950/80 shadow-xl flex flex-col justify-between">
+                <div>
+                    <div class="flex items-center justify-between mb-3">
+                        <h2 class="text-sm font-bold text-white flex items-center gap-2">
+                            <i data-lucide="bar-chart-2" class="w-4 h-4 text-cyan-400"></i>
+                            <span>Active Risk Score Distribution</span>
+                        </h2>
+                        <span class="text-[10px] font-mono text-slate-400">Active Incidents</span>
+                    </div>
+                    <p class="text-xs text-slate-400 mb-4">Risk scoring dynamically classified across candidate sessions, accounts, and endpoints.</p>
+                </div>
+
+                <div class="space-y-3">
+                    <div>
+                        <div class="flex justify-between text-xs font-mono mb-1">
+                            <span class="text-rose-400 font-bold flex items-center gap-1.5"><span class="w-2 h-2 rounded-full bg-rose-500"></span>Critical (75–100)</span>
+                            <span id="dist-cnt-critical" class="text-white font-bold">0</span>
+                        </div>
+                        <div class="h-2 w-full bg-slate-800 rounded-full overflow-hidden">
+                            <div id="dist-bar-critical" class="h-full bg-rose-500 transition-all duration-500" style="width: 0%"></div>
+                        </div>
+                    </div>
+
+                    <div>
+                        <div class="flex justify-between text-xs font-mono mb-1">
+                            <span class="text-orange-400 font-bold flex items-center gap-1.5"><span class="w-2 h-2 rounded-full bg-orange-500"></span>High (45–74)</span>
+                            <span id="dist-cnt-high" class="text-white font-bold">0</span>
+                        </div>
+                        <div class="h-2 w-full bg-slate-800 rounded-full overflow-hidden">
+                            <div id="dist-bar-high" class="h-full bg-orange-500 transition-all duration-500" style="width: 0%"></div>
+                        </div>
+                    </div>
+
+                    <div>
+                        <div class="flex justify-between text-xs font-mono mb-1">
+                            <span class="text-amber-400 font-bold flex items-center gap-1.5"><span class="w-2 h-2 rounded-full bg-amber-500"></span>Medium (20–44)</span>
+                            <span id="dist-cnt-medium" class="text-white font-bold">0</span>
+                        </div>
+                        <div class="h-2 w-full bg-slate-800 rounded-full overflow-hidden">
+                            <div id="dist-bar-medium" class="h-full bg-amber-500 transition-all duration-500" style="width: 0%"></div>
+                        </div>
+                    </div>
+
+                    <div>
+                        <div class="flex justify-between text-xs font-mono mb-1">
+                            <span class="text-emerald-400 font-bold flex items-center gap-1.5"><span class="w-2 h-2 rounded-full bg-emerald-500"></span>Low (0–19)</span>
+                            <span id="dist-cnt-low" class="text-white font-bold">0</span>
+                        </div>
+                        <div class="h-2 w-full bg-slate-800 rounded-full overflow-hidden">
+                            <div id="dist-bar-low" class="h-full bg-emerald-500 transition-all duration-500" style="width: 0%"></div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="mt-4 pt-3 border-t border-cyan-950/60 flex items-center justify-between text-[11px] text-slate-500">
+                    <span>Non-punitive human review model</span>
+                    <span class="text-cyan-400 font-semibold">Zero Auto-Drop</span>
+                </div>
+            </div>
+
+            <!-- On-Demand Risk Assessment Tester -->
+            <div class="lg:col-span-2 p-5 rounded-2xl bg-[#0d1527] border border-cyan-950/80 shadow-xl flex flex-col justify-between">
+                <div>
+                    <div class="flex items-center justify-between mb-2">
+                        <h2 class="text-sm font-bold text-white flex items-center gap-2">
+                            <i data-lucide="cpu" class="w-4 h-4 text-cyan-400"></i>
+                            <span>On-Demand Explainable Risk Inspector</span>
+                        </h2>
+                        <span class="text-[10px] font-mono px-2 py-0.5 rounded bg-cyan-950 text-cyan-400 border border-cyan-800">Deterministic Engine</span>
+                    </div>
+                    <p class="text-xs text-slate-400 mb-4">Calculate real-time explainable risk scores without modifying active examination state or session credentials.</p>
+
+                    <!-- Input controls -->
+                    <form id="form-risk-inspector" onsubmit="handleInspectRisk(event)" class="grid grid-cols-1 sm:grid-cols-3 gap-2.5 mb-4">
+                        <div>
+                            <label for="inspect-scope" class="block text-[11px] font-semibold text-slate-300 mb-1">Evaluation Scope</label>
+                            <select id="inspect-scope" class="w-full bg-[#080d19] border border-cyan-950 rounded-xl px-3 py-2 text-xs text-white focus:outline-none focus:border-cyan-500">
+                                <option value="account">Account (user_id)</option>
+                                <option value="session">Session (Token / Ref)</option>
+                                <option value="device">Device (Fingerprint/UA)</option>
+                                <option value="ip">IP Context (Address)</option>
+                                <option value="examination">Examination (submission_id)</option>
+                            </select>
+                        </div>
+                        <div class="sm:col-span-2 flex gap-2 items-end">
+                            <div class="flex-1">
+                                <label for="inspect-target-id" class="block text-[11px] font-semibold text-slate-300 mb-1">Target Identifier</label>
+                                <input type="text" id="inspect-target-id" placeholder="e.g. 1, 192.168.1.1, or sub_42"
+                                       class="w-full bg-[#080d19] border border-cyan-950 rounded-xl px-3 py-2 text-xs text-white placeholder-slate-600 focus:outline-none focus:border-cyan-500 font-mono">
+                            </div>
+                            <button type="submit" id="btn-inspect-risk"
+                                    class="px-4 py-2 rounded-xl text-xs font-bold bg-cyan-600 hover:bg-cyan-500 text-white transition flex items-center gap-1.5 cursor-pointer shadow-sm active:scale-95">
+                                <i data-lucide="zap" class="w-3.5 h-3.5"></i>
+                                <span>Analyze</span>
+                            </button>
+                        </div>
+                    </form>
+                </div>
+
+                <!-- Analysis Result Card -->
+                <div id="risk-inspect-result" class="p-3.5 rounded-xl bg-[#080d19] border border-cyan-950 text-xs">
+                    <div class="flex items-center justify-between text-slate-400">
+                        <span>Status: Ready for query</span>
+                        <span class="text-slate-500 font-mono">Select a scope & identifier above</span>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <!-- 3. Navigation Tabs: Recommendations vs Incidents vs Telemetry Feed -->
+        <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-cyan-950/80 pb-3">
+            <div class="inline-flex p-1 bg-[#090f1d] rounded-2xl border border-cyan-950 flex-wrap">
+                <button type="button" id="tab-soc-recs" onclick="switchSocSection('recs')"
+                        class="px-4 py-2 rounded-xl text-xs font-bold flex items-center space-x-2 transition bg-cyan-600 text-white shadow-sm cursor-pointer">
+                    <i data-lucide="bell" class="w-3.5 h-3.5"></i>
+                    <span>Recommendations (<span id="tab-cnt-recs">0</span>)</span>
+                </button>
+                <button type="button" id="tab-soc-incidents" onclick="switchSocSection('incidents')"
+                        class="px-4 py-2 rounded-xl text-xs font-semibold flex items-center space-x-2 transition text-slate-400 hover:text-white cursor-pointer">
+                    <i data-lucide="shield-alert" class="w-3.5 h-3.5 text-orange-400"></i>
+                    <span>Incidents (<span id="tab-cnt-incidents">0</span>)</span>
+                </button>
+                <button type="button" id="tab-soc-events" onclick="switchSocSection('events')"
+                        class="px-4 py-2 rounded-xl text-xs font-semibold flex items-center space-x-2 transition text-slate-400 hover:text-white cursor-pointer">
+                    <i data-lucide="activity" class="w-3.5 h-3.5 text-cyan-400"></i>
+                    <span>Security Events Feed</span>
+                </button>
+            </div>
+
+            <!-- Search & Quick Filters -->
+            <div class="flex items-center gap-2">
+                <input type="text" id="soc-global-search" oninput="handleSearchDebounce()" placeholder="Filter records..."
+                       class="w-full sm:w-56 bg-[#090f1d] border border-cyan-950 rounded-xl px-3 py-1.5 text-xs text-slate-200 placeholder-slate-600 focus:outline-none focus:border-cyan-500">
+            </div>
+        </div>
+
+        <!-- SECTION A: Security Recommendations Console -->
+        <section id="section-soc-recs" class="space-y-4">
+            <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                <div class="flex flex-wrap items-center gap-2">
+                    <select id="filter-rec-status" onchange="loadRecommendations()" class="bg-[#090f1d] border border-cyan-950 rounded-xl px-3 py-1.5 text-xs text-slate-300">
+                        <option value="">Status: All Active & History</option>
+                        <option value="PENDING_REVIEW" selected>Pending Review</option>
+                        <option value="APPROVED">Approved</option>
+                        <option value="REJECTED">Rejected</option>
+                        <option value="DISMISSED">Dismissed</option>
+                    </select>
+
+                    <select id="filter-rec-risk" onchange="loadRecommendations()" class="bg-[#090f1d] border border-cyan-950 rounded-xl px-3 py-1.5 text-xs text-slate-300">
+                        <option value="">Risk Level: Any</option>
+                        <option value="CRITICAL">Critical (75–100)</option>
+                        <option value="HIGH">High (45–74)</option>
+                        <option value="MEDIUM">Medium (20–44)</option>
+                        <option value="LOW">Low (0–19)</option>
+                    </select>
+                </div>
+            </div>
+
+            <div id="recs-table-container" class="rounded-2xl bg-[#0d1527] border border-cyan-950/80 shadow-xl overflow-hidden">
+                <div class="p-8 text-center text-slate-500">
+                    <i data-lucide="loader-2" class="w-6 h-6 animate-spin mx-auto text-cyan-500 mb-2"></i>
+                    <p class="text-xs">Loading adaptive security recommendations...</p>
+                </div>
+            </div>
+        </section>
+
+        <!-- SECTION B: Incident Management Console -->
+        <section id="section-soc-incidents" class="space-y-4 hidden">
+            <div id="incidents-table-container" class="rounded-2xl bg-[#0d1527] border border-cyan-950/80 shadow-xl overflow-hidden">
+                <div class="p-8 text-center text-slate-500">
+                    <i data-lucide="loader-2" class="w-6 h-6 animate-spin mx-auto text-cyan-500 mb-2"></i>
+                    <p class="text-xs">Loading correlated security incidents...</p>
+                </div>
+            </div>
+        </section>
+
+        <!-- SECTION C: Threat Telemetry & Security Events Feed -->
+        <section id="section-soc-events" class="space-y-4 hidden">
+            <div class="flex flex-wrap items-center gap-2">
+                <select id="filter-event-severity" onchange="loadEventsFeed()" class="bg-[#090f1d] border border-cyan-950 rounded-xl px-3 py-1.5 text-xs text-slate-300">
+                    <option value="">Severity: All</option>
+                    <option value="CRITICAL">Critical</option>
+                    <option value="HIGH">High</option>
+                    <option value="MEDIUM">Medium</option>
+                    <option value="LOW">Low</option>
+                    <option value="INFO">Info</option>
+                </select>
+
+                <input type="text" id="filter-event-type" oninput="handleSearchDebounce()" placeholder="Filter by event_type..."
+                       class="bg-[#090f1d] border border-cyan-950 rounded-xl px-3 py-1.5 text-xs text-slate-300 placeholder-slate-600">
+            </div>
+
+            <div id="events-table-container" class="rounded-2xl bg-[#0d1527] border border-cyan-950/80 shadow-xl overflow-hidden">
+                <div class="p-8 text-center text-slate-500">
+                    <i data-lucide="loader-2" class="w-6 h-6 animate-spin mx-auto text-cyan-500 mb-2"></i>
+                    <p class="text-xs">Streaming real-time security events...</p>
+                </div>
+            </div>
+        </section>
+
+    </main>
+
+    <!-- Incident Detail & Triage Modal -->
+    <div id="modal-incident-detail" class="fixed inset-0 z-50 bg-black/80 backdrop-blur-sm hidden flex items-center justify-center p-4">
+        <div class="bg-[#0d1527] border border-cyan-950 rounded-3xl w-full max-w-4xl max-h-[92vh] flex flex-col shadow-2xl overflow-hidden text-slate-100">
+            <div class="px-6 py-4 border-b border-cyan-950/80 flex items-center justify-between bg-[#090f1d]">
+                <div class="flex items-center gap-2.5">
+                    <span id="modal-inc-badge" class="px-2 py-0.5 rounded text-[10px] font-bold uppercase font-mono">--</span>
+                    <h3 id="modal-inc-title" class="text-sm font-bold text-white truncate max-w-md">Incident Dossier</h3>
+                </div>
+                <button type="button" onclick="closeIncidentModal()" class="w-8 h-8 rounded-full hover:bg-slate-800 text-slate-400 hover:text-white flex items-center justify-center cursor-pointer">
+                    <i data-lucide="x" class="w-4 h-4"></i>
+                </button>
+            </div>
+            <div id="modal-inc-body" class="p-6 overflow-y-auto space-y-4 text-xs">
+                <!-- Injected via JavaScript -->
+            </div>
+        </div>
+    </div>
+
+    <!-- Recommendation Review Modal -->
+    <div id="modal-rec-review" class="fixed inset-0 z-50 bg-black/80 backdrop-blur-sm hidden flex items-center justify-center p-4">
+        <div class="bg-[#0d1527] border border-cyan-950 rounded-3xl w-full max-w-lg shadow-2xl overflow-hidden text-slate-100">
+            <div class="px-6 py-4 border-b border-cyan-950/80 flex items-center justify-between bg-[#090f1d]">
+                <div class="flex items-center gap-2">
+                    <i data-lucide="shield-alert" class="w-4 h-4 text-cyan-400"></i>
+                    <h3 class="text-sm font-bold text-white">Review Security Recommendation</h3>
+                </div>
+                <button type="button" onclick="closeRecReviewModal()" class="w-8 h-8 rounded-full hover:bg-slate-800 text-slate-400 hover:text-white flex items-center justify-center">
+                    <i data-lucide="x" class="w-4 h-4"></i>
+                </button>
+            </div>
+            <div class="p-6 space-y-4 text-xs">
+                <div class="p-3 bg-[#080d19] rounded-xl border border-cyan-950 space-y-1">
+                    <div class="flex justify-between text-slate-400">
+                        <span>ID: <strong id="review-rec-id" class="text-white font-mono">--</strong></span>
+                        <span id="review-rec-action" class="text-cyan-400 font-bold uppercase">--</span>
+                    </div>
+                    <p id="review-rec-explanation" class="text-slate-300 mt-1"></p>
+                </div>
+
+                <div class="p-3 bg-amber-950/30 border border-amber-900/60 rounded-xl text-amber-200 text-[11px] flex gap-2">
+                    <i data-lucide="info" class="w-4 h-4 flex-shrink-0 text-amber-400 mt-0.5"></i>
+                    <span>Human Approval Enforcement: Recording an approval records your administrative decision. It does <strong>not</strong> automatically drop exams or terminate sessions.</span>
+                </div>
+
+                <div>
+                    <label for="review-rec-notes" class="block font-semibold text-slate-300 mb-1">Administrative Review Notes</label>
+                    <textarea id="review-rec-notes" rows="3" placeholder="Enter rationale or containment verification..."
+                              class="w-full bg-[#080d19] border border-cyan-950 rounded-xl p-3 text-white placeholder-slate-600 focus:outline-none focus:border-cyan-500"></textarea>
+                </div>
+
+                <div class="flex items-center justify-end gap-2.5 pt-2">
+                    <button type="button" onclick="submitRecReview('DISMISSED')"
+                            class="px-3.5 py-2 rounded-xl text-slate-400 hover:text-white hover:bg-slate-800 transition cursor-pointer font-semibold">
+                        Dismiss
+                    </button>
+                    <button type="button" onclick="submitRecReview('REJECTED')"
+                            class="px-3.5 py-2 rounded-xl bg-rose-950 text-rose-300 hover:bg-rose-900 border border-rose-800 transition cursor-pointer font-bold">
+                        Reject
+                    </button>
+                    <button type="button" onclick="submitRecReview('APPROVED')"
+                            class="px-4 py-2 rounded-xl bg-cyan-600 hover:bg-cyan-500 text-white transition cursor-pointer font-bold shadow-sm">
+                        Approve Advisory
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+</div>
+
+<!-- SOC Frontend Controller Script -->
+<script>
+    let activeSocSection = 'recs';
+    let currentRecReviewId = null;
+    let eventsPage = 1;
+    let searchDebounceTimer = null;
+    let autoRefreshTimer = null;
+
+    // Concurrency guards to prevent overlapping in-flight calls
+    let isFetchingOverview = false;
+    let isFetchingRecs = false;
+    let isFetchingIncidents = false;
+    let isFetchingEvents = false;
+    let isSessionExpired = false;
+
+    document.addEventListener("DOMContentLoaded", function() {
+        initLucideIcons();
+        loadSocOverview();
+        loadRecommendations();
+        loadIncidents();
+        loadEventsFeed();
+
+        // Safe background polling management
+        startBackgroundPolling();
+        document.addEventListener("visibilitychange", handleVisibilityChange);
+    });
+
+    function startBackgroundPolling() {
+        if (autoRefreshTimer) clearInterval(autoRefreshTimer);
+        autoRefreshTimer = setInterval(function() {
+            if (!document.hidden && !isSessionExpired) {
+                loadSocOverview();
+                if (activeSocSection === 'recs') loadRecommendations();
+                else if (activeSocSection === 'incidents') loadIncidents();
+                else if (activeSocSection === 'events') loadEventsFeed();
+            }
+        }, 30000);
+    }
+
+    function handleVisibilityChange() {
+        if (document.hidden) {
+            if (autoRefreshTimer) {
+                clearInterval(autoRefreshTimer);
+                autoRefreshTimer = null;
+            }
+        } else {
+            if (!isSessionExpired) {
+                loadSocOverview();
+                if (activeSocSection === 'recs') loadRecommendations();
+                else if (activeSocSection === 'incidents') loadIncidents();
+                else if (activeSocSection === 'events') loadEventsFeed();
+                startBackgroundPolling();
+            }
+        }
+    }
+
+    function handleAuthExpiry(status) {
+        if (autoRefreshTimer) {
+            clearInterval(autoRefreshTimer);
+            autoRefreshTimer = null;
+        }
+        const refreshBadge = document.getElementById('soc-last-refresh');
+        if (status === 401) {
+            isSessionExpired = true;
+            if (refreshBadge) {
+                refreshBadge.innerText = 'Session Expired — Please Log In Again';
+                refreshBadge.className = 'text-rose-400 font-semibold';
+            }
+        } else if (status === 403) {
+            // Do not permanently set isSessionExpired if it's an action-level permission denial
+            if (refreshBadge) {
+                refreshBadge.innerText = 'Access Restricted: Administrative Privileges Required';
+                refreshBadge.className = 'text-amber-400 font-semibold';
+            }
+        }
+    }
+
+    function initLucideIcons() {
+        if (window.lucide) {
+            lucide.createIcons();
+        }
+    }
+
+    function switchSocSection(section) {
+        activeSocSection = section;
+        const sections = ['recs', 'incidents', 'events'];
+        sections.forEach(s => {
+            const secEl = document.getElementById(`section-soc-${s}`);
+            const tabEl = document.getElementById(`tab-soc-${s}`);
+            if (s === section) {
+                secEl.classList.remove('hidden');
+                tabEl.className = "px-4 py-2 rounded-xl text-xs font-bold flex items-center space-x-2 transition bg-cyan-600 text-white shadow-sm cursor-pointer";
+            } else {
+                secEl.classList.add('hidden');
+                tabEl.className = "px-4 py-2 rounded-xl text-xs font-semibold flex items-center space-x-2 transition text-slate-400 hover:text-white cursor-pointer";
+            }
+        });
+        initLucideIcons();
+    }
+
+    function triggerManualRefresh() {
+        if (isSessionExpired) return;
+        const spin = document.getElementById('icon-refresh-spin');
+        if (spin) spin.classList.add('animate-spin');
+        loadSocOverview();
+        if (activeSocSection === 'recs') loadRecommendations();
+        else if (activeSocSection === 'incidents') loadIncidents();
+        else if (activeSocSection === 'events') loadEventsFeed();
+        setTimeout(() => {
+            if (spin) spin.classList.remove('animate-spin');
+        }, 800);
+    }
+
+    // --- 1. OVERVIEW & VISUALIZATIONS ---
+    function loadSocOverview() {
+        if (isFetchingOverview || isSessionExpired) return;
+        isFetchingOverview = true;
+
+        fetch('/api/admin/security/overview')
+            .then(res => {
+                if (res.status === 401 || res.status === 403) {
+                    handleAuthExpiry(res.status);
+                    throw new Error("AUTH_EXPIRED");
+                }
+                return res.json();
+            })
+            .then(data => {
+                isFetchingOverview = false;
+                if (!data.success) return;
+                const ov = data.overview;
+                document.getElementById('stat-total-events').innerText = (ov.total_security_events || 0).toLocaleString();
+                document.getElementById('stat-open-incidents').innerText = ov.open_incidents || 0;
+                document.getElementById('stat-investigating-incidents').innerText = ov.investigating_incidents || 0;
+                document.getElementById('stat-critical-incidents').innerText = ov.critical_incidents || 0;
+                document.getElementById('stat-high-incidents').innerText = ov.high_risk_incidents || 0;
+                document.getElementById('stat-pending-recommendations').innerText = ov.pending_recommendations || 0;
+                document.getElementById('tab-cnt-recs').innerText = ov.pending_recommendations || 0;
+
+                // Update risk distribution visual bars
+                const rd = ov.risk_distribution || {};
+                const totalScored = (rd.critical || 0) + (rd.high || 0) + (rd.medium || 0) + (rd.low || 0);
+                const safePct = (val) => totalScored > 0 ? Math.round((val / totalScored) * 100) : 0;
+
+                document.getElementById('dist-cnt-critical').innerText = rd.critical || 0;
+                document.getElementById('dist-bar-critical').style.width = safePct(rd.critical) + '%';
+
+                document.getElementById('dist-cnt-high').innerText = rd.high || 0;
+                document.getElementById('dist-bar-high').style.width = safePct(rd.high) + '%';
+
+                document.getElementById('dist-cnt-medium').innerText = rd.medium || 0;
+                document.getElementById('dist-bar-medium').style.width = safePct(rd.medium) + '%';
+
+                document.getElementById('dist-cnt-low').innerText = rd.low || 0;
+                document.getElementById('dist-bar-low').style.width = safePct(rd.low) + '%';
+
+                const now = new Date();
+                const refreshBadge = document.getElementById('soc-last-refresh');
+                if (refreshBadge) {
+                    refreshBadge.innerText = `Updated ${now.toLocaleTimeString()}`;
+                    refreshBadge.className = 'text-slate-400';
+                }
+            })
+            .catch(err => {
+                isFetchingOverview = false;
+                if (err.message !== "AUTH_EXPIRED") {
+                    console.error("SOC Overview fetch failed:", err);
+                    const refreshBadge = document.getElementById('soc-last-refresh');
+                    if (refreshBadge) {
+                        refreshBadge.innerText = (err.status === 500)
+                            ? 'Server Error (HTTP 500) — Telemetry Cached'
+                            : 'Telemetry Sync Interrupted — Retaining Active View';
+                        refreshBadge.className = 'text-amber-400 font-semibold';
+                    }
+                }
+            });
+    }
+
+    // --- 2. RECOMMENDATIONS CONSOLE ---
+    function loadRecommendations() {
+        if (isFetchingRecs || isSessionExpired) return;
+        isFetchingRecs = true;
+
+        const status = document.getElementById('filter-rec-status').value;
+        const risk = document.getElementById('filter-rec-risk').value;
+        const search = document.getElementById('soc-global-search').value;
+
+        const params = new URLSearchParams();
+        if (status) params.append('status', status);
+        if (risk) params.append('risk_level', risk);
+        if (search) params.append('search', search);
+
+        fetch(`/api/admin/security/recommendations?${params.toString()}`)
+            .then(res => {
+                if (res.status === 401 || res.status === 403) {
+                    handleAuthExpiry(res.status);
+                    throw new Error("AUTH_EXPIRED");
+                }
+                return res.json();
+            })
+            .then(data => {
+                isFetchingRecs = false;
+                const container = document.getElementById('recs-table-container');
+                if (!data.success || !data.recommendations || data.recommendations.length === 0) {
+                    container.innerHTML = `
+                        <div class="p-8 text-center text-slate-500">
+                            <i data-lucide="check-circle" class="w-8 h-8 mx-auto text-emerald-500/60 mb-2"></i>
+                            <p class="text-xs font-semibold text-slate-300">No matching security recommendations found.</p>
+                            <p class="text-[11px] text-slate-500">Active threats are at baseline or all advisories are reviewed.</p>
+                        </div>
+                    `;
+                    initLucideIcons();
+                    return;
+                }
+
+                let html = `
+                    <div class="overflow-x-auto">
+                        <table class="w-full text-left text-xs text-slate-300">
+                            <thead class="bg-[#090f1d] text-[11px] font-mono uppercase text-slate-400 border-b border-cyan-950">
+                                <tr>
+                                    <th class="py-3 px-4">Recommendation ID</th>
+                                    <th class="py-3 px-4">Risk</th>
+                                    <th class="py-3 px-4">Action</th>
+                                    <th class="py-3 px-4">Target Resource</th>
+                                    <th class="py-3 px-4">Status</th>
+                                    <th class="py-3 px-4 text-right">Actions</th>
+                                </tr>
+                            </thead>
+                            <tbody class="divide-y divide-cyan-950/60 font-sans">
+                `;
+
+                data.recommendations.forEach(r => {
+                    const isPending = r.status === 'PENDING_REVIEW';
+                    const score = r.risk_score || 0;
+                    const scoreColor = score >= 75 ? 'text-rose-400 bg-rose-950/60 border-rose-800' :
+                                       score >= 45 ? 'text-orange-400 bg-orange-950/60 border-orange-800' :
+                                       score >= 20 ? 'text-amber-400 bg-amber-950/60 border-amber-800' :
+                                       'text-emerald-400 bg-emerald-950/60 border-emerald-800';
+
+                    const cleanAction = (r.recommended_action || '').replace(/_/g, ' ');
+
+                    html += `
+                        <tr class="hover:bg-cyan-950/20 transition">
+                            <td class="py-3 px-4 font-mono text-[11px] text-cyan-300 font-bold">${r.recommendation_id}</td>
+                            <td class="py-3 px-4">
+                                <span class="px-2 py-0.5 rounded border text-[10px] font-mono font-bold ${scoreColor}">${score}/100</span>
+                            </td>
+                            <td class="py-3 px-4">
+                                <span class="font-semibold text-white capitalize">${cleanAction}</span>
+                                <p class="text-[10px] text-slate-500 truncate max-w-xs">${r.explanation || ''}</p>
+                            </td>
+                            <td class="py-3 px-4 font-mono text-[11px] text-slate-400">
+                                <span class="text-slate-300 font-semibold uppercase">${r.target_resource}</span>: ${r.target_resource_id}
+                            </td>
+                            <td class="py-3 px-4">
+                                <span class="px-2 py-0.5 rounded text-[10px] font-mono ${isPending ? 'bg-cyan-950 text-cyan-300 border border-cyan-800 animate-pulse' : 'bg-slate-800 text-slate-400'}">
+                                    ${r.status}
+                                </span>
+                            </td>
+                            <td class="py-3 px-4 text-right">
+                                ${isPending ? `
+                                    <button type="button" onclick="openRecReviewModal('${r.recommendation_id}', '${r.recommended_action}', '${encodeURIComponent(r.explanation || '')}')"
+                                            class="px-2.5 py-1 rounded-lg bg-cyan-600 hover:bg-cyan-500 text-white text-[11px] font-bold transition cursor-pointer">
+                                        Review
+                                    </button>
+                                ` : `
+                                    <span class="text-[10px] text-slate-500">By ${r.reviewer_name || 'Admin'}</span>
+                                `}
+                            </td>
+                        </tr>
+                    `;
+                });
+
+                html += `</tbody></table></div>`;
+                container.innerHTML = html;
+                initLucideIcons();
+            })
+            .catch(err => {
+                isFetchingRecs = false;
+                if (err.message !== "AUTH_EXPIRED") {
+                    console.error("Recommendations fetch error:", err);
+                }
+            });
+    }
+
+    // Modal controls for recommendations
+    function openRecReviewModal(recId, action, explanationEncoded) {
+        currentRecReviewId = recId;
+        document.getElementById('review-rec-id').innerText = recId;
+        document.getElementById('review-rec-action').innerText = action.replace(/_/g, ' ');
+        document.getElementById('review-rec-explanation').innerText = decodeURIComponent(explanationEncoded);
+        document.getElementById('review-rec-notes').value = '';
+        document.getElementById('modal-rec-review').classList.remove('hidden');
+    }
+
+    function closeRecReviewModal() {
+        document.getElementById('modal-rec-review').classList.add('hidden');
+        currentRecReviewId = null;
+    }
+
+    function submitRecReview(decision) {
+        if (!currentRecReviewId) return;
+        const notes = document.getElementById('review-rec-notes').value.trim();
+
+        const actionVerbs = {
+            'APPROVED': 'APPROVE this advisory security recommendation',
+            'REJECTED': 'REJECT this recommendation',
+            'DISMISSED': 'DISMISS this recommendation'
+        };
+        const promptText = `Are you sure you want to ${actionVerbs[decision] || decision}? Human verification will be recorded in the audit trail.`;
+        if (!confirm(promptText)) {
+            return;
+        }
+
+        // Synchronizer token from base meta
+        const csrfToken = document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') || '';
+
+        fetch(`/api/admin/security/recommendation/${currentRecReviewId}/review`, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'X-CSRF-Token': csrfToken
+            },
+            body: JSON.stringify({
+                action: decision,
+                notes: notes
+            })
+        })
+        .then(res => {
+            if (res.status === 401 || res.status === 403) {
+                handleAuthExpiry(res.status);
+                throw new Error("AUTH_EXPIRED");
+            }
+            return res.json();
+        })
+        .then(data => {
+            if (data.success) {
+                closeRecReviewModal();
+                loadRecommendations();
+                loadSocOverview();
+            } else {
+                alert(data.error || "Review submission failed.");
+            }
+        })
+        .catch(err => {
+            if (err.message !== "AUTH_EXPIRED") {
+                console.error("Review submit error:", err);
+                alert("Network error processing review.");
+            }
+        });
+    }
+
+    // --- 3. INCIDENTS CONSOLE ---
+    function loadIncidents() {
+        if (isFetchingIncidents || isSessionExpired) return;
+        isFetchingIncidents = true;
+
+        fetch('/api/admin/security/incidents')
+            .then(res => {
+                if (res.status === 401 || res.status === 403) {
+                    handleAuthExpiry(res.status);
+                    throw new Error("AUTH_EXPIRED");
+                }
+                return res.json();
+            })
+            .then(data => {
+                isFetchingIncidents = false;
+                const container = document.getElementById('incidents-table-container');
+                if (!data.success || !data.incidents || data.incidents.length === 0) {
+                    container.innerHTML = `
+                        <div class="p-8 text-center text-slate-500">
+                            <i data-lucide="shield-check" class="w-8 h-8 mx-auto text-emerald-500/60 mb-2"></i>
+                            <p class="text-xs font-semibold text-slate-300">Zero active security incidents detected.</p>
+                            <p class="text-[11px] text-slate-500">All student activity is within authorized security parameters.</p>
+                        </div>
+                    `;
+                    initLucideIcons();
+                    return;
+                }
+
+                document.getElementById('tab-cnt-incidents').innerText = data.incidents.length;
+
+                let html = `
+                    <div class="overflow-x-auto">
+                        <table class="w-full text-left text-xs text-slate-300">
+                            <thead class="bg-[#090f1d] text-[11px] font-mono uppercase text-slate-400 border-b border-cyan-950">
+                                <tr>
+                                    <th class="py-3 px-4">Incident ID</th>
+                                    <th class="py-3 px-4">Severity</th>
+                                    <th class="py-3 px-4">Title & Type</th>
+                                    <th class="py-3 px-4">Primary Actor</th>
+                                    <th class="py-3 px-4">Status</th>
+                                    <th class="py-3 px-4 text-right">Details</th>
+                                </tr>
+                            </thead>
+                            <tbody class="divide-y divide-cyan-950/60 font-sans">
+                `;
+
+                data.incidents.forEach(inc => {
+                    const sev = (inc.severity || 'MEDIUM').toUpperCase();
+                    const sevBadge = sev === 'CRITICAL' ? 'bg-rose-950 text-rose-300 border-rose-800 animate-pulse' :
+                                     sev === 'HIGH' ? 'bg-orange-950 text-orange-300 border-orange-800' :
+                                     sev === 'MEDIUM' ? 'bg-amber-950 text-amber-300 border-amber-800' :
+                                     'bg-slate-800 text-slate-300 border-slate-700';
+
+                    html += `
+                        <tr class="hover:bg-cyan-950/20 transition">
+                            <td class="py-3 px-4 font-mono text-[11px] text-orange-300 font-bold">${inc.incident_id}</td>
+                            <td class="py-3 px-4">
+                                <span class="px-2 py-0.5 rounded border text-[10px] font-mono font-bold ${sevBadge}">${sev}</span>
+                            </td>
+                            <td class="py-3 px-4">
+                                <span class="font-bold text-white">${inc.title}</span>
+                                <p class="text-[10px] text-slate-500 font-mono">${inc.incident_type}</p>
+                            </td>
+                            <td class="py-3 px-4">
+                                <span class="text-slate-200">${inc.actor_name || 'System / Network'}</span>
+                                ${inc.actor_roll ? `<span class="text-[10px] font-mono text-slate-500 block">Roll: ${inc.actor_roll}</span>` : ''}
+                            </td>
+                            <td class="py-3 px-4">
+                                <span class="px-2 py-0.5 rounded text-[10px] font-mono bg-slate-800 text-slate-300">${inc.status}</span>
+                            </td>
+                            <td class="py-3 px-4 text-right">
+                                <button type="button" onclick="viewIncidentDetail('${inc.incident_id}')"
+                                        class="px-2.5 py-1 rounded-lg bg-slate-800 hover:bg-slate-700 text-cyan-300 text-[11px] font-semibold transition cursor-pointer">
+                                    Investigate
+                                </button>
+                            </td>
+                        </tr>
+                    `;
+                });
+
+                html += `</tbody></table></div>`;
+                container.innerHTML = html;
+                initLucideIcons();
+            })
+            .catch(err => {
+                isFetchingIncidents = false;
+                if (err.message !== "AUTH_EXPIRED") {
+                    console.error("Incidents fetch error:", err);
+                }
+            });
+    }
+
+    function viewIncidentDetail(incidentId) {
+        fetch(`/api/admin/security/incident/${incidentId}`)
+            .then(res => {
+                if (res.status === 401 || res.status === 403) {
+                    handleAuthExpiry(res.status);
+                    throw new Error("AUTH_EXPIRED");
+                }
+                return res.json();
+            })
+            .then(data => {
+                if (!data.success) return;
+                const inc = data.incident;
+                const rel = data.entity_relationships || {};
+                const actor = data.actor_info;
+                const relatedEvents = data.related_events || [];
+                const relatedRecs = data.related_recommendations || [];
+                const riskHistory = data.risk_history || [];
+                const timeline = data.timeline || [];
+
+                document.getElementById('modal-inc-title').innerText = `${inc.incident_id}: ${inc.title}`;
+                document.getElementById('modal-inc-badge').innerText = inc.severity;
+                document.getElementById('modal-inc-badge').className = `px-2 py-0.5 rounded text-[10px] font-bold uppercase font-mono ${inc.severity === 'CRITICAL' ? 'bg-rose-950 text-rose-300' : 'bg-orange-950 text-orange-300'}`;
+
+                // Safe text escaping helper for rendering
+                const escapeHtml = (str) => {
+                    if (!str) return '';
+                    return String(str).replace(/[&<>"']/g, function(m) {
+                        return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[m];
+                    });
+                };
+
+                let evidenceHtml = '<p class="text-slate-500 italic">No structured evidence payload.</p>';
+                if (inc.evidence && Object.keys(inc.evidence).length > 0) {
+                    try {
+                        const evObj = typeof inc.evidence === 'string' ? JSON.parse(inc.evidence) : inc.evidence;
+                        evidenceHtml = `<pre class="p-2.5 bg-[#080d19] rounded-xl border border-cyan-950 font-mono text-[10px] text-cyan-300 max-h-32 overflow-y-auto whitespace-pre-wrap">${escapeHtml(JSON.stringify(evObj, null, 2))}</pre>`;
+                    } catch(e) {
+                        evidenceHtml = `<p class="text-slate-400 font-mono text-[10px]">${escapeHtml(String(inc.evidence))}</p>`;
+                    }
+                }
+
+                let bodyHtml = `
+                    <div class="space-y-4">
+                        <!-- Top Summary & Relationships Banner -->
+                        <div class="grid grid-cols-1 md:grid-cols-3 gap-3">
+                            <div class="md:col-span-2 p-3 bg-[#080d19] rounded-xl border border-cyan-950 space-y-1.5">
+                                <p class="text-slate-300 text-xs">${escapeHtml(inc.summary || 'No summary provided.')}</p>
+                                <div class="text-[11px] font-mono text-slate-500 pt-1 flex flex-wrap gap-4 border-t border-cyan-950/60">
+                                    <span>Status: <strong class="text-white" id="modal-inc-current-status">${escapeHtml(inc.status)}</strong></span>
+                                    <span>Risk Score: <strong class="text-white">${inc.risk_score || 0}/100</strong></span>
+                                    <span>Type: <strong class="text-cyan-400">${escapeHtml(inc.incident_type)}</strong></span>
+                                </div>
+                            </div>
+
+                            <!-- Associated Entities Card -->
+                            <div class="p-3 bg-[#080d19] rounded-xl border border-cyan-950 text-[11px] space-y-1">
+                                <h4 class="font-bold text-slate-300 uppercase text-[10px] tracking-wider flex items-center gap-1.5 mb-1">
+                                    <i data-lucide="link" class="w-3.5 h-3.5 text-cyan-400"></i>
+                                    <span>Correlated Entities</span>
+                                </h4>
+                                <div>Account: <strong class="text-slate-200">${actor ? escapeHtml(actor.full_name) : (inc.actor_name || 'System / Unattributed')}</strong></div>
+                                <div>Sessions: <strong class="text-slate-400 font-mono text-[10px]">${rel.sessions && rel.sessions.length ? rel.sessions.join(', ') : 'None'}</strong></div>
+                                <div>Devices: <strong class="text-slate-400 font-mono text-[10px]">${rel.devices && rel.devices.length ? rel.devices.join(', ') : 'None'}</strong></div>
+                                <div>Exams: <strong class="text-slate-400 font-mono text-[10px]">${rel.examinations && rel.examinations.length ? rel.examinations.join(', ') : 'None'}</strong></div>
+                                <div>IPs: <strong class="text-slate-400 font-mono text-[10px]">${rel.ip_addresses && rel.ip_addresses.length ? rel.ip_addresses.join(', ') : (inc.source_ip || 'None')}</strong></div>
+                            </div>
+                        </div>
+
+                        <!-- Status Transition & Management -->
+                        <div class="p-3 bg-[#080d19] rounded-xl border border-cyan-950 space-y-2">
+                            <h4 class="font-bold text-slate-300 uppercase text-[10px] tracking-wider flex items-center gap-1.5">
+                                <i data-lucide="shuffle" class="w-3.5 h-3.5 text-cyan-400"></i>
+                                <span>Incident Status Management</span>
+                            </h4>
+                            <div class="flex flex-wrap items-center gap-2">
+                                <select id="select-incident-status" class="bg-[#0f172a] border border-cyan-950 rounded-lg px-2.5 py-1 text-xs text-white">
+                                    <option value="INVESTIGATING">INVESTIGATING</option>
+                                    <option value="CONTAINED">CONTAINED</option>
+                                    <option value="RESOLVED">RESOLVED</option>
+                                    <option value="FALSE_POSITIVE">FALSE_POSITIVE</option>
+                                    <option value="OPEN">OPEN</option>
+                                </select>
+                                <input type="text" id="input-incident-status-notes" placeholder="Transition rationale (required for closing)..."
+                                       class="flex-1 min-w-[200px] bg-[#0f172a] border border-cyan-950 rounded-lg px-2.5 py-1 text-xs text-white placeholder-slate-600">
+                                <button type="button" onclick="submitIncidentStatusUpdate('${inc.incident_id}')"
+                                        class="px-3 py-1 rounded-lg bg-cyan-600 hover:bg-cyan-500 text-white font-bold text-xs transition cursor-pointer">
+                                    Update Status
+                                </button>
+                            </div>
+                            <p id="incident-status-feedback" class="text-[10px] text-slate-400 hidden"></p>
+                        </div>
+
+                        <!-- 2-Column Tabs/Grids: Timeline vs Intelligence Panels -->
+                        <div class="grid grid-cols-1 lg:grid-cols-2 gap-4">
+                            <!-- Left: Unified Chronological Investigation Timeline -->
+                            <div class="p-3 bg-[#080d19] rounded-xl border border-cyan-950 space-y-2">
+                                <h4 class="font-bold text-slate-300 uppercase text-[10px] tracking-wider flex items-center gap-1.5 border-b border-cyan-950/60 pb-1.5">
+                                    <i data-lucide="clock" class="w-3.5 h-3.5 text-cyan-400"></i>
+                                    <span>Chronological Investigation Timeline</span>
+                                </h4>
+                                <div class="space-y-2 max-h-64 overflow-y-auto pr-1">
+                                    ${(timeline && timeline.length > 0) ? timeline.map(t => {
+                                        const typeColor = t.type === 'SECURITY_EVENT' ? 'text-amber-400 border-amber-900 bg-amber-950/30' :
+                                                          t.type === 'RISK_ASSESSMENT' ? 'text-cyan-400 border-cyan-900 bg-cyan-950/30' :
+                                                          t.type === 'INCIDENT_LIFECYCLE' ? 'text-orange-400 border-orange-900 bg-orange-950/30' :
+                                                          t.type === 'RECOMMENDATION' ? 'text-purple-400 border-purple-900 bg-purple-950/30' :
+                                                          'text-emerald-400 border-emerald-900 bg-emerald-950/30';
+                                        return `
+                                            <div class="p-2 rounded-lg border ${typeColor} text-[11px] space-y-0.5">
+                                                <div class="flex justify-between items-center font-bold">
+                                                    <span>${escapeHtml(t.title)}</span>
+                                                    <span class="text-[9px] font-mono text-slate-400">${escapeHtml(t.timestamp)}</span>
+                                                </div>
+                                                <p class="text-slate-300 text-[10px]">${escapeHtml(t.description || '')}</p>
+                                                ${t.actor ? `<span class="text-[9px] text-slate-500 font-mono block">Actor: ${escapeHtml(t.actor)}</span>` : ''}
+                                            </div>
+                                        `;
+                                    }).join('') : '<p class="text-slate-500 italic text-[11px]">Timeline empty.</p>'}
+                                </div>
+                            </div>
+
+                            <!-- Right: Historical Risk Transitions & Recommendations Traceability -->
+                            <div class="space-y-4">
+                                <!-- Historical Risk Transitions -->
+                                <div class="p-3 bg-[#080d19] rounded-xl border border-cyan-950 space-y-2">
+                                    <h4 class="font-bold text-slate-300 uppercase text-[10px] tracking-wider flex items-center gap-1.5 border-b border-cyan-950/60 pb-1.5">
+                                        <i data-lucide="trending-up" class="w-3.5 h-3.5 text-cyan-400"></i>
+                                        <span>Historical Risk Score Transitions</span>
+                                    </h4>
+                                    <div class="space-y-1.5 max-h-28 overflow-y-auto">
+                                        ${(riskHistory && riskHistory.length > 0) ? riskHistory.map(rh => `
+                                            <div class="p-1.5 bg-[#0a1122] rounded border border-cyan-950/60 flex justify-between items-center text-[10px]">
+                                                <div>
+                                                    <span class="font-bold text-white font-mono">${rh.old_score} → ${rh.new_score}/100</span>
+                                                    <span class="text-slate-400 ml-1.5 truncate max-w-[150px] inline-block align-bottom">${escapeHtml(rh.trigger_event || 'Audit')}</span>
+                                                </div>
+                                                <span class="text-slate-500 font-mono">${escapeHtml(rh.timestamp)}</span>
+                                            </div>
+                                        `).join('') : '<p class="text-slate-500 italic text-[11px]">No previous risk transitions recorded for this entity.</p>'}
+                                    </div>
+                                </div>
+
+                                <!-- Related Recommendations & Human Review -->
+                                <div class="p-3 bg-[#080d19] rounded-xl border border-cyan-950 space-y-2">
+                                    <h4 class="font-bold text-slate-300 uppercase text-[10px] tracking-wider flex items-center gap-1.5 border-b border-cyan-950/60 pb-1.5">
+                                        <i data-lucide="shield-check" class="w-3.5 h-3.5 text-cyan-400"></i>
+                                        <span>Associated Security Recommendations</span>
+                                    </h4>
+                                    <div class="space-y-1.5 max-h-28 overflow-y-auto">
+                                        ${(relatedRecs && relatedRecs.length > 0) ? relatedRecs.map(rec => `
+                                            <div class="p-1.5 bg-[#0a1122] rounded border border-cyan-950/60 text-[10px] space-y-0.5">
+                                                <div class="flex justify-between items-center">
+                                                    <span class="font-bold text-white capitalize font-mono">${escapeHtml((rec.recommended_action || '').replace(/_/g, ' '))}</span>
+                                                    <span class="px-1.5 py-0.2 rounded text-[9px] font-mono bg-cyan-950 text-cyan-300 border border-cyan-900">${escapeHtml(rec.status)}</span>
+                                                </div>
+                                                <p class="text-slate-400 truncate">${escapeHtml(rec.explanation || '')}</p>
+                                                ${rec.reviewed_by ? `<div class="text-[9px] text-slate-500 font-mono">Reviewed by: ${escapeHtml(rec.reviewer_name || 'Admin')} on ${escapeHtml(rec.reviewed_at || '')}</div>` : ''}
+                                            </div>
+                                        `).join('') : '<p class="text-slate-500 italic text-[11px]">Zero related recommendations.</p>'}
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Telemetry Evidence & Investigation Notes Footer -->
+                        <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                            <!-- Correlated Telemetry Evidence & Audit Trail -->
+                            <div class="space-y-3">
+                                <div>
+                                    <h4 class="font-bold text-slate-300 mb-1.5 uppercase text-[10px] tracking-wider flex items-center gap-1.5">
+                                        <i data-lucide="file-text" class="w-3.5 h-3.5 text-cyan-400"></i>
+                                        <span>Correlated Telemetry Evidence</span>
+                                    </h4>
+                                    ${evidenceHtml}
+                                </div>
+
+                                <!-- Incident Audit Trail -->
+                                <div>
+                                    <h4 class="font-bold text-slate-300 mb-1 uppercase text-[10px] tracking-wider flex items-center gap-1.5">
+                                        <i data-lucide="history" class="w-3.5 h-3.5 text-cyan-400"></i>
+                                        <span>Incident Audit Trail</span>
+                                    </h4>
+                                    <div class="space-y-1 max-h-24 overflow-y-auto font-mono text-[10px] text-slate-400">
+                                        ${(inc.audit_trail && inc.audit_trail.length > 0) ? inc.audit_trail.map(a => `
+                                            <div class="p-1 bg-[#080d19]/60 rounded flex justify-between">
+                                                <span>${escapeHtml(a.action)}: ${escapeHtml(a.details || '')}</span>
+                                                <span class="text-slate-600">${escapeHtml(a.timestamp)}</span>
+                                            </div>
+                                        `).join('') : '<p class="text-slate-500 italic">Zero audit transitions.</p>'}
+                                    </div>
+                                </div>
+                            </div>
+
+                            <!-- Investigation Notes -->
+                            <div>
+                                <h4 class="font-bold text-slate-300 mb-1.5 uppercase text-[10px] tracking-wider flex items-center gap-1.5">
+                                    <i data-lucide="message-square" class="w-3.5 h-3.5 text-cyan-400"></i>
+                                    <span>Investigation Notes</span>
+                                </h4>
+                                <div class="space-y-1 max-h-28 overflow-y-auto mb-2" id="modal-inc-notes-list">
+                                    ${(inc.notes && inc.notes.length > 0) ? inc.notes.map(n => `
+                                        <div class="p-1.5 bg-[#080d19] rounded-lg border border-cyan-950 text-[10px]">
+                                            <p class="text-slate-200">${escapeHtml(n.note_text)}</p>
+                                            <span class="text-[9px] text-slate-500 font-mono">${escapeHtml(n.author_name)} • ${escapeHtml(n.timestamp)}</span>
+                                        </div>
+                                    `).join('') : '<p class="text-slate-500 italic text-[10px]">No notes recorded yet.</p>'}
+                                </div>
+
+                                <!-- Add Note Form -->
+                                <div class="flex gap-2">
+                                    <input type="text" id="input-new-incident-note" placeholder="Add immutable note..."
+                                           class="flex-1 bg-[#080d19] border border-cyan-950 rounded-lg px-2.5 py-1 text-xs text-white placeholder-slate-600">
+                                    <button type="button" onclick="submitAddIncidentNote('${inc.incident_id}')"
+                                            class="px-3 py-1 rounded-lg bg-slate-800 hover:bg-slate-700 text-cyan-400 border border-cyan-900 text-xs font-semibold cursor-pointer">
+                                        Post Note
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+
+                    </div>
+                `;
+                document.getElementById('modal-inc-body').innerHTML = bodyHtml;
+                document.getElementById('modal-incident-detail').classList.remove('hidden');
+                initLucideIcons();
+            });
+    }
+
+    function submitIncidentStatusUpdate(incidentId) {
+        const selectStatus = document.getElementById('select-incident-status');
+        const notesInput = document.getElementById('input-incident-status-notes');
+        const feedback = document.getElementById('incident-status-feedback');
+        const newStatus = selectStatus.value;
+        const notes = notesInput.value.trim();
+
+        const csrfToken = document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') || '';
+
+        fetch(`/api/admin/security/incident/${incidentId}/status`, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'X-CSRF-Token': csrfToken
+            },
+            body: JSON.stringify({ status: newStatus, notes: notes })
+        })
+        .then(res => {
+            if (res.status === 401 || res.status === 403) {
+                handleAuthExpiry(res.status);
+                throw new Error("AUTH_EXPIRED");
+            }
+            return res.json();
+        })
+        .then(data => {
+            if (data.success) {
+                notesInput.value = '';
+                // Reload incident detail to reflect new status and audit trail
+                viewIncidentDetail(incidentId);
+                loadIncidents();
+                loadSocOverview();
+            } else {
+                if (feedback) {
+                    feedback.innerText = data.error || "Status transition rejected.";
+                    feedback.className = "text-[10px] text-rose-400 block";
+                } else {
+                    alert(data.error || "Status transition rejected.");
+                }
+            }
+        })
+        .catch(err => {
+            if (err.message !== "AUTH_EXPIRED") {
+                console.error("Error updating incident status:", err);
+            }
+        });
+    }
+
+    function submitAddIncidentNote(incidentId) {
+        const noteInput = document.getElementById('input-new-incident-note');
+        const noteText = noteInput.value.trim();
+        if (!noteText) return;
+
+        const csrfToken = document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') || '';
+
+        fetch(`/api/admin/security/incident/${incidentId}/note`, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'X-CSRF-Token': csrfToken
+            },
+            body: JSON.stringify({ note: noteText })
+        })
+        .then(res => {
+            if (res.status === 401 || res.status === 403) {
+                handleAuthExpiry(res.status);
+                throw new Error("AUTH_EXPIRED");
+            }
+            return res.json();
+        })
+        .then(data => {
+            if (data.success) {
+                noteInput.value = '';
+                viewIncidentDetail(incidentId);
+            } else {
+                alert(data.error || "Failed to record note.");
+            }
+        })
+        .catch(err => {
+            if (err.message !== "AUTH_EXPIRED") {
+                console.error("Error adding incident note:", err);
+            }
+        });
+    }
+
+    function closeIncidentModal() {
+        document.getElementById('modal-incident-detail').classList.add('hidden');
+    }
+
+    // --- 4. EVENTS FEED CONSOLE ---
+    function loadEventsFeed() {
+        if (isFetchingEvents || isSessionExpired) return;
+        isFetchingEvents = true;
+
+        const sev = document.getElementById('filter-event-severity').value;
+        const type = document.getElementById('filter-event-type').value;
+
+        const params = new URLSearchParams();
+        if (sev) params.append('severity', sev);
+        if (type) params.append('event_type', type);
+        params.append('page', eventsPage);
+        params.append('per_page', '25');
+
+        fetch(`/api/admin/security/events?${params.toString()}`)
+            .then(res => {
+                if (res.status === 401 || res.status === 403) {
+                    handleAuthExpiry(res.status);
+                    throw new Error("AUTH_EXPIRED");
+                }
+                return res.json();
+            })
+            .then(data => {
+                isFetchingEvents = false;
+                const container = document.getElementById('events-table-container');
+                if (!data.success || !data.events || data.events.length === 0) {
+                    container.innerHTML = `
+                        <div class="p-8 text-center text-slate-500">
+                            <i data-lucide="rss" class="w-8 h-8 mx-auto text-cyan-500/50 mb-2"></i>
+                            <p class="text-xs font-semibold text-slate-300">No events matched the criteria.</p>
+                        </div>
+                    `;
+                    initLucideIcons();
+                    return;
+                }
+
+                let html = `
+                    <div class="overflow-x-auto">
+                        <table class="w-full text-left text-xs text-slate-300">
+                            <thead class="bg-[#090f1d] text-[11px] font-mono uppercase text-slate-400 border-b border-cyan-950">
+                                <tr>
+                                    <th class="py-3 px-4">Event ID</th>
+                                    <th class="py-3 px-4">Severity</th>
+                                    <th class="py-3 px-4">Event Type</th>
+                                    <th class="py-3 px-4">Target Resource</th>
+                                    <th class="py-3 px-4">Source IP</th>
+                                    <th class="py-3 px-4 text-right">Timestamp</th>
+                                </tr>
+                            </thead>
+                            <tbody class="divide-y divide-cyan-950/60 font-sans">
+                `;
+
+                data.events.forEach(ev => {
+                    const sev = (ev.severity || 'LOW').toUpperCase();
+                    const sevColor = sev === 'CRITICAL' ? 'text-rose-400' :
+                                     sev === 'HIGH' ? 'text-orange-400' :
+                                     sev === 'MEDIUM' ? 'text-amber-400' :
+                                     'text-slate-400';
+
+                    html += `
+                        <tr class="hover:bg-cyan-950/20 transition font-mono text-[11px]">
+                            <td class="py-2.5 px-4 text-cyan-300">${ev.event_id}</td>
+                            <td class="py-2.5 px-4 font-bold ${sevColor}">${sev}</td>
+                            <td class="py-2.5 px-4 text-white font-sans font-semibold">${ev.event_type}</td>
+                            <td class="py-2.5 px-4 text-slate-400">${ev.target_resource ? `${ev.target_resource}: ${ev.target_resource_id}` : '--'}</td>
+                            <td class="py-2.5 px-4 text-slate-400">${ev.source_ip || '--'}</td>
+                            <td class="py-2.5 px-4 text-slate-500 text-right">${ev.timestamp || ''}</td>
+                        </tr>
+                    `;
+                });
+
+                html += `</tbody></table></div>`;
+                container.innerHTML = html;
+                initLucideIcons();
+            })
+            .catch(err => {
+                isFetchingEvents = false;
+                if (err.message !== "AUTH_EXPIRED") {
+                    console.error("Events feed error:", err);
+                }
+            });
+    }
+
+    // --- 5. ON-DEMAND RISK INSPECTOR ---
+    function handleInspectRisk(e) {
+        e.preventDefault();
+        const scope = document.getElementById('inspect-scope').value;
+        const targetId = document.getElementById('inspect-target-id').value.trim();
+
+        if (!targetId) {
+            alert("Please provide a target identifier.");
+            return;
+        }
+
+        const resultContainer = document.getElementById('risk-inspect-result');
+        resultContainer.innerHTML = `
+            <div class="text-center py-4 text-cyan-400">
+                <i data-lucide="loader-2" class="w-5 h-5 animate-spin mx-auto mb-1"></i>
+                <p class="text-[11px]">Computing deterministic risk score for ${scope}:${targetId}...</p>
+            </div>
+        `;
+        initLucideIcons();
+
+        fetch(`/api/admin/security/risks?scope=${encodeURIComponent(scope)}&target_id=${encodeURIComponent(targetId)}`)
+            .then(res => res.json())
+            .then(data => {
+                if (!data.success) {
+                    resultContainer.innerHTML = `
+                        <div class="p-2.5 bg-rose-950/50 border border-rose-900 rounded-lg text-rose-300 text-xs">
+                            ${data.error || "Risk assessment query failed."}
+                        </div>
+                    `;
+                    return;
+                }
+
+                const ass = data.assessment;
+                const score = ass.score || 0;
+                const lvlColor = score >= 75 ? 'text-rose-400 bg-rose-950 border-rose-800' :
+                                 score >= 45 ? 'text-orange-400 bg-orange-950 border-orange-800' :
+                                 score >= 20 ? 'text-amber-400 bg-amber-950 border-amber-800' :
+                                 'text-emerald-400 bg-emerald-950 border-emerald-800';
+
+                let factorsHtml = (ass.factors && ass.factors.length > 0) ?
+                    ass.factors.map(f => `
+                        <div class="p-1.5 bg-[#0f172a] rounded flex justify-between items-center text-[11px]">
+                            <span class="text-slate-300 font-semibold">${f.name}: <span class="text-slate-400 font-normal">${f.rationale}</span></span>
+                            <span class="font-mono text-cyan-400 font-bold">+${f.weight}</span>
+                        </div>
+                    `).join('') : '<p class="text-slate-500 italic">No risk-inflating factors detected.</p>';
+
+                resultContainer.innerHTML = `
+                    <div class="space-y-2">
+                        <div class="flex items-center justify-between border-b border-cyan-950 pb-2">
+                            <span class="font-bold text-white text-xs">Assessment for <span class="font-mono text-cyan-300">${scope}:${ass.target_id}</span></span>
+                            <span class="px-2 py-0.5 rounded border text-xs font-mono font-bold ${lvlColor}">Score: ${score}/100 (${ass.level})</span>
+                        </div>
+                        <p class="text-slate-300 text-xs">${ass.explanation}</p>
+                        <div class="pt-1">
+                            <h5 class="text-[10px] font-mono uppercase text-slate-400 mb-1 font-bold">Contributing Factors:</h5>
+                            <div class="space-y-1 max-h-28 overflow-y-auto">${factorsHtml}</div>
+                        </div>
+                    </div>
+                `;
+            })
+            .catch(err => {
+                resultContainer.innerHTML = `<div class="text-rose-400 text-xs">Error connecting to risk engine API.</div>`;
+            });
+    }
+
+    function handleSearchDebounce() {
+        clearTimeout(searchDebounceTimer);
+        searchDebounceTimer = setTimeout(() => {
+            if (activeSocSection === 'recs') loadRecommendations();
+            else if (activeSocSection === 'events') loadEventsFeed();
+        }, 300);
+    }
+</script>
+{% endblock %}
+

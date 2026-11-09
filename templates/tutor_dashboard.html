@@ -34,7 +34,7 @@
             </div>
             <div>
                 <p class="text-xs font-semibold text-slate-500 uppercase tracking-wider">Total Exams</p>
-                <h3 class="text-2xl font-bold text-slate-900 mt-0.5">{{ exams|length }}</h3>
+                <h3 id="stat-total-exams" class="text-2xl font-bold text-slate-900 mt-0.5">{{ exams|length }}</h3>
             </div>
         </div>
 
@@ -118,6 +118,11 @@
                     <span class="px-1.5 py-0.2 rounded-full text-[10px] font-black bg-rose-100 text-rose-700 border border-rose-200 ml-1">{{ sec_critical_count }}</span>
                 {% endif %}
             </button>
+            <a href="/admin/security/soc" class="px-4 py-2.5 rounded-xl text-xs sm:text-sm font-bold flex items-center space-x-1.5 transition-all text-cyan-600 dark:text-cyan-400 hover:text-cyan-700 dark:hover:text-cyan-300 hover:bg-cyan-50/50 dark:hover:bg-cyan-950/40" title="Launch Full SOC Cyber Console">
+                <i data-lucide="monitor" class="w-4 h-4 text-cyan-500"></i>
+                <span>SOC Console</span>
+                <i data-lucide="external-link" class="w-3 h-3 text-cyan-500 ml-0.5"></i>
+            </a>
             <button type="button" id="tab-btn-requests" onclick="switchDashboardView('requests')" class="px-5 py-2.5 rounded-xl text-xs sm:text-sm font-semibold flex items-center space-x-2 transition-all text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white cursor-pointer">
                 <i data-lucide="inbox" class="w-4 h-4 text-amber-500"></i>
                 <span>Student Requests</span>
@@ -613,11 +618,23 @@
                 <h2 class="text-lg font-bold text-slate-900">Student Accounts</h2>
                 <span class="ml-2 px-2 py-0.5 bg-indigo-100 text-indigo-700 rounded-full text-xs font-bold">{{ students|length }} registered</span>
             </div>
-            <button onclick="document.getElementById('add-student-modal').classList.remove('hidden')"
-                class="px-4 py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white text-sm font-semibold rounded-xl shadow-sm transition flex items-center space-x-2 self-start">
-                <i data-lucide="user-plus" class="w-4 h-4"></i>
-                <span>Add New Student</span>
-            </button>
+            <div class="flex items-center gap-2">
+                <button type="button" onclick="openDeviceSwitchHistoryModal()"
+                    class="px-3.5 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 border border-slate-300 text-xs font-semibold rounded-xl transition flex items-center space-x-1.5 cursor-pointer">
+                    <i data-lucide="history" class="w-3.5 h-3.5 text-slate-500"></i>
+                    <span>Device Switch History</span>
+                </button>
+                <button type="button" onclick="terminateAllStudentSessions()"
+                    class="px-3.5 py-2 bg-rose-50 hover:bg-rose-100 text-rose-700 border border-rose-200 text-xs font-semibold rounded-xl transition flex items-center space-x-1.5 cursor-pointer">
+                    <i data-lucide="power-off" class="w-3.5 h-3.5 text-rose-500"></i>
+                    <span>Terminate All Sessions</span>
+                </button>
+                <button onclick="document.getElementById('add-student-modal').classList.remove('hidden')"
+                    class="px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-semibold rounded-xl shadow-sm transition flex items-center space-x-2 self-start cursor-pointer">
+                    <i data-lucide="user-plus" class="w-4 h-4"></i>
+                    <span>Add New Student</span>
+                </button>
+            </div>
         </div>
 
         {% if students %}
@@ -625,21 +642,21 @@
             <table class="w-full text-sm">
                 <thead>
                     <tr class="bg-slate-50 text-xs font-semibold text-slate-500 uppercase tracking-wider">
-                        <th class="px-6 py-3 text-left">#</th>
-                        <th class="px-6 py-3 text-left">Full Name</th>
-                        <th class="px-6 py-3 text-left">Roll Number</th>
-                        <th class="px-6 py-3 text-left">Class / Batch</th>
-                        <th class="px-6 py-3 text-left">Username</th>
-                        <th class="px-6 py-3 text-left">Email</th>
-                        <th class="px-6 py-3 text-left">Registered</th>
-                        <th class="px-6 py-3 text-center">Actions</th>
+                        <th class="px-4 py-3 text-left">#</th>
+                        <th class="px-4 py-3 text-left">Full Name</th>
+                        <th class="px-4 py-3 text-left">Roll Number</th>
+                        <th class="px-4 py-3 text-left">Class / Batch</th>
+                        <th class="px-4 py-3 text-left">Session Status</th>
+                        <th class="px-4 py-3 text-left">Email</th>
+                        <th class="px-4 py-3 text-left">Registered</th>
+                        <th class="px-4 py-3 text-center">Actions</th>
                     </tr>
                 </thead>
                 <tbody class="divide-y divide-slate-100" id="students-table-body">
                     {% for s in students %}
                     <tr class="hover:bg-slate-50 transition" id="student-row-{{ s.id }}">
-                        <td class="px-6 py-4 text-slate-400 text-xs font-mono">{{ loop.index }}</td>
-                        <td class="px-6 py-4 font-semibold text-slate-900">
+                        <td class="px-4 py-4 text-slate-400 text-xs font-mono">{{ loop.index }}</td>
+                        <td class="px-4 py-4 font-semibold text-slate-900">
                             <div class="flex items-center gap-2.5">
                                 {% if s.profile_photo %}
                                     <img src="{{ s.profile_photo }}" alt="{{ s.full_name }}" class="w-8 h-8 rounded-full object-cover border border-indigo-200 shadow-xs flex-shrink-0" title="Biometric reference photo registered"
@@ -655,25 +672,51 @@
                                 <span>{{ s.full_name }}</span>
                             </div>
                         </td>
-                        <td class="px-6 py-4"><span class="px-2 py-0.5 bg-sky-100 text-sky-800 rounded-md font-mono text-xs font-bold">{{ s.roll_number }}</span></td>
-                        <td class="px-6 py-4">
+                        <td class="px-4 py-4"><span class="px-2 py-0.5 bg-sky-100 text-sky-800 rounded-md font-mono text-xs font-bold">{{ s.roll_number }}</span></td>
+                        <td class="px-4 py-4">
                             {% if s.class_name %}
                                 <span class="px-2 py-0.5 bg-purple-50 text-purple-700 border border-purple-200 rounded-md text-xs font-semibold">{{ s.class_name }}</span>
                             {% else %}
                                 <span class="text-slate-400 text-xs">&mdash;</span>
                             {% endif %}
                         </td>
-                        <td class="px-6 py-4 text-slate-600 font-mono text-xs">@{{ s.username }}</td>
-                        <td class="px-6 py-4 text-slate-500 text-xs">{{ s.email if s.email else '&mdash;' }}</td>
-                        <td class="px-6 py-4 text-slate-400 text-xs">{{ s.created_at | format_date }}</td>
-                        <td class="px-6 py-4">
-                            <div class="flex items-center justify-center gap-2">
+                        <td class="px-4 py-4">
+                            {% if s.active_session_token %}
+                                <div class="flex flex-col gap-1 items-start">
+                                    <span class="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full text-[11px] font-bold bg-emerald-100 text-emerald-800 border border-emerald-200">
+                                        <span class="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse"></span>
+                                        Active Device
+                                    </span>
+                                    {% if s.active_exam_title %}
+                                    <span class="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-semibold bg-amber-50 text-amber-800 border border-amber-200" title="Currently attempting examination">
+                                        <i data-lucide="file-text" class="w-3 h-3 text-amber-600"></i>
+                                        {{ s.active_exam_title | truncate(20) }}
+                                    </span>
+                                    {% endif %}
+                                </div>
+                            {% else %}
+                                <span class="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px] font-medium bg-slate-100 text-slate-500">
+                                    <span class="w-1.5 h-1.5 rounded-full bg-slate-400"></span>
+                                    Offline
+                                </span>
+                            {% endif %}
+                        </td>
+                        <td class="px-4 py-4 text-slate-500 text-xs">{{ s.email if s.email else '&mdash;' }}</td>
+                        <td class="px-4 py-4 text-slate-400 text-xs">{{ s.created_at | format_date }}</td>
+                        <td class="px-4 py-4">
+                            <div class="flex items-center justify-center gap-1.5">
+                                {% if s.active_session_token %}
+                                <button data-student-id="{{ s.id }}" data-student-name="{{ s.full_name }}" onclick="terminateStudentSession(this.dataset.studentId, this.dataset.studentName)"
+                                    class="px-2 py-1 text-xs font-semibold text-rose-700 bg-rose-50 hover:bg-rose-100 rounded-lg transition flex items-center gap-1 border border-rose-200 cursor-pointer" title="Terminate current active session">
+                                    <i data-lucide="log-out" class="w-3 h-3 text-rose-500"></i> Terminate
+                                </button>
+                                {% endif %}
                                 <button data-student-id="{{ s.id }}" data-student-name="{{ s.full_name }}" onclick="openResetPassword(this.dataset.studentId, this.dataset.studentName)"
-                                    class="px-2.5 py-1.5 text-xs font-semibold text-amber-700 bg-amber-50 hover:bg-amber-100 rounded-lg transition flex items-center gap-1 border border-amber-200">
+                                    class="px-2 py-1 text-xs font-semibold text-amber-700 bg-amber-50 hover:bg-amber-100 rounded-lg transition flex items-center gap-1 border border-amber-200 cursor-pointer">
                                     <i data-lucide="key" class="w-3 h-3"></i> Reset PW
                                 </button>
                                 <button data-student-id="{{ s.id }}" data-student-name="{{ s.full_name }}" onclick="deleteStudent(this.dataset.studentId, this.dataset.studentName)"
-                                    class="px-2.5 py-1.5 text-xs font-semibold text-rose-700 bg-rose-50 hover:bg-rose-100 rounded-lg transition flex items-center gap-1 border border-rose-200">
+                                    class="px-2 py-1 text-xs font-semibold text-rose-700 bg-rose-50 hover:bg-rose-100 rounded-lg transition flex items-center gap-1 border border-rose-200 cursor-pointer">
                                     <i data-lucide="trash-2" class="w-3 h-3"></i> Delete
                                 </button>
                             </div>
@@ -699,124 +742,306 @@
     </div>
 
     <!-- SIEM Security Operations Center (SOC) & Incident Response Telemetry -->
-    <div id="section-view-soc" class="hidden bg-white rounded-2xl border border-slate-200/80 shadow-sm overflow-hidden mb-8">
-        <div class="p-6 border-b border-slate-200 flex flex-col sm:flex-row sm:items-center justify-between gap-3 bg-gradient-to-r from-slate-900 via-slate-850 to-slate-800 text-white">
-            <div class="flex items-center space-x-3">
-                <div class="w-10 h-10 rounded-xl bg-violet-500/20 text-violet-400 flex items-center justify-center border border-violet-500/30">
-                    <i data-lucide="shield-alert" class="w-5 h-5"></i>
-                </div>
-                <div>
-                    <div class="flex items-center gap-2">
-                        <h2 class="text-base sm:text-lg font-bold">Cyber Security Operations Center (SOC)</h2>
-                        <span class="px-2 py-0.5 rounded text-[10px] font-extrabold bg-violet-500/30 text-violet-200 border border-violet-400/30 uppercase tracking-wider">SIEM Incident Log</span>
+    <div id="section-view-soc" class="hidden space-y-6 mb-8">
+        <!-- SOC Overview Cockpit Header -->
+        <div class="bg-gradient-to-r from-slate-950 via-slate-900 to-indigo-950 rounded-2xl p-6 border border-slate-800 shadow-xl text-white">
+            <div class="flex flex-col lg:flex-row lg:items-center justify-between gap-4 mb-6 pb-6 border-b border-slate-800/80">
+                <div class="flex items-center space-x-3.5">
+                    <div class="w-12 h-12 rounded-2xl bg-indigo-500/20 text-indigo-400 flex items-center justify-center border border-indigo-500/30 shadow-inner">
+                        <i data-lucide="shield-alert" class="w-6 h-6"></i>
                     </div>
-                    <p class="text-xs text-slate-300">Live security event auditing, threat classifications, device spoofing, and client tampering telemetry</p>
+                    <div>
+                        <div class="flex items-center gap-2">
+                            <h2 class="text-xl font-bold tracking-tight">Security Operations Centre (SOC)</h2>
+                            <span class="px-2 py-0.5 rounded text-[10px] font-extrabold bg-indigo-500/30 text-indigo-200 border border-indigo-400/30 uppercase tracking-wider">SIEM Incident Intelligence</span>
+                        </div>
+                        <p class="text-xs text-slate-400 mt-0.5">Automated event correlation, brute-force containment, and forensic threat analysis</p>
+                    </div>
+                </div>
+                <div class="flex items-center gap-2">
+                    <button type="button" onclick="refreshSocDashboard()" class="px-3 py-1.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-xs font-semibold text-slate-200 flex items-center gap-1.5 border border-slate-700 transition cursor-pointer">
+                        <i data-lucide="refresh-cw" class="w-3.5 h-3.5" id="soc-refresh-icon"></i>
+                        <span>Refresh SOC</span>
+                    </button>
                 </div>
             </div>
-            <div class="flex items-center gap-2">
-                <span class="text-xs px-3 py-1 rounded-full bg-slate-800 border border-slate-700 text-slate-300 font-mono">
-                    {{ security_incidents|length }} Recent Incidents
-                </span>
+
+            <!-- Metric Cards -->
+            <div class="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3 text-xs">
+                <div class="p-4 bg-slate-900/80 border border-slate-800 rounded-xl">
+                    <span class="text-slate-400 text-[10px] uppercase font-bold tracking-wider block">Total Incidents</span>
+                    <strong class="text-xl font-black text-white mt-1 block" id="soc-metric-total">{{ security_incidents|length }}</strong>
+                </div>
+                <div class="p-4 bg-rose-950/40 border border-rose-900/60 rounded-xl">
+                    <span class="text-rose-400 text-[10px] uppercase font-bold tracking-wider block">Critical Severity</span>
+                    <strong class="text-xl font-black text-rose-300 mt-1 block" id="soc-metric-crit">{{ sec_critical_count }}</strong>
+                </div>
+                <div class="p-4 bg-amber-950/40 border border-amber-900/60 rounded-xl">
+                    <span class="text-amber-400 text-[10px] uppercase font-bold tracking-wider block">High Severity</span>
+                    <strong class="text-xl font-black text-amber-300 mt-1 block" id="soc-metric-high">{{ sec_high_count }}</strong>
+                </div>
+                <div class="p-4 bg-indigo-950/40 border border-indigo-900/60 rounded-xl">
+                    <span class="text-indigo-400 text-[10px] uppercase font-bold tracking-wider block">Open / Active</span>
+                    <strong class="text-xl font-black text-indigo-300 mt-1 block" id="soc-metric-open">{{ sec_open_count }}</strong>
+                </div>
+                <div class="p-4 bg-emerald-950/40 border border-emerald-900/60 rounded-xl">
+                    <span class="text-emerald-400 text-[10px] uppercase font-bold tracking-wider block">Resolved / Clean</span>
+                    <strong class="text-xl font-black text-emerald-300 mt-1 block" id="soc-metric-res">{{ sec_resolved_count }}</strong>
+                </div>
             </div>
         </div>
 
-        <!-- SOC Filter Bar (Severity & Category) -->
-        <div class="p-4 bg-slate-50 border-b border-slate-200 flex flex-wrap items-center justify-between gap-3 text-xs">
-            <div class="flex items-center flex-wrap gap-1.5">
-                <span class="text-[11px] font-bold text-slate-500 uppercase mr-1">Severity:</span>
-                <button type="button" onclick="filterSocIncidents('all', 'sev')" class="soc-sev-btn px-2.5 py-1 rounded-lg font-bold bg-slate-900 text-white transition cursor-pointer" data-sev="all">ALL</button>
-                <button type="button" onclick="filterSocIncidents('CRITICAL', 'sev')" class="soc-sev-btn px-2.5 py-1 rounded-lg font-semibold bg-white border border-slate-200 text-rose-700 hover:bg-rose-50 transition cursor-pointer" data-sev="CRITICAL">CRITICAL</button>
-                <button type="button" onclick="filterSocIncidents('WARNING', 'sev')" class="soc-sev-btn px-2.5 py-1 rounded-lg font-semibold bg-white border border-slate-200 text-amber-700 hover:bg-amber-50 transition cursor-pointer" data-sev="WARNING">WARNING</button>
-                <button type="button" onclick="filterSocIncidents('INFO', 'sev')" class="soc-sev-btn px-2.5 py-1 rounded-lg font-semibold bg-white border border-slate-200 text-slate-700 hover:bg-slate-100 transition cursor-pointer" data-sev="INFO">INFO</button>
+        <!-- Incidents Management Table Card -->
+        <div class="bg-white rounded-2xl border border-slate-200/80 shadow-sm overflow-hidden">
+            <div class="p-4 bg-slate-50 border-b border-slate-200 flex flex-wrap items-center justify-between gap-3 text-xs">
+                <div class="flex items-center space-x-2">
+                    <i data-lucide="alert-triangle" class="w-4 h-4 text-slate-700"></i>
+                    <h3 class="font-bold text-slate-800 text-sm">Security Incidents</h3>
+                </div>
+                <div class="flex items-center gap-2">
+                    <input type="text" id="soc-search-input" onkeyup="filterSocTable()" placeholder="Search Incident ID, type, IP..." class="px-3 py-1.5 border border-slate-300 rounded-lg text-xs w-56 focus:outline-none focus:ring-2 focus:ring-indigo-500">
+                    <select id="soc-status-filter" onchange="filterSocTable()" class="px-2.5 py-1.5 border border-slate-300 rounded-lg text-xs font-semibold">
+                        <option value="all">All Statuses</option>
+                        <option value="OPEN">Open</option>
+                        <option value="INVESTIGATING">Investigating</option>
+                        <option value="CONTAINED">Contained</option>
+                        <option value="RESOLVED">Resolved</option>
+                        <option value="FALSE_POSITIVE">False Positive</option>
+                    </select>
+                </div>
             </div>
-            <div class="flex items-center flex-wrap gap-1.5">
-                <span class="text-[11px] font-bold text-slate-500 uppercase mr-1">Category:</span>
-                <button type="button" onclick="filterSocIncidents('all', 'cat')" class="soc-cat-btn px-2.5 py-1 rounded-lg font-bold bg-indigo-600 text-white transition cursor-pointer" data-cat="all">ALL</button>
-                <button type="button" onclick="filterSocIncidents('clipboard', 'cat')" class="soc-cat-btn px-2.5 py-1 rounded-lg font-semibold bg-white border border-slate-200 text-slate-700 hover:bg-slate-100 transition cursor-pointer" data-cat="clipboard">Clipboard</button>
-                <button type="button" onclick="filterSocIncidents('dom_integrity', 'cat')" class="soc-cat-btn px-2.5 py-1 rounded-lg font-semibold bg-white border border-slate-200 text-slate-700 hover:bg-slate-100 transition cursor-pointer" data-cat="dom_integrity">DOM Integrity</button>
-                <button type="button" onclick="filterSocIncidents('browser_focus', 'cat')" class="soc-cat-btn px-2.5 py-1 rounded-lg font-semibold bg-white border border-slate-200 text-slate-700 hover:bg-slate-100 transition cursor-pointer" data-cat="browser_focus">Focus / Tab</button>
-                <button type="button" onclick="filterSocIncidents('fullscreen', 'cat')" class="soc-cat-btn px-2.5 py-1 rounded-lg font-semibold bg-white border border-slate-200 text-slate-700 hover:bg-slate-100 transition cursor-pointer" data-cat="fullscreen">Fullscreen</button>
-                <button type="button" onclick="filterSocIncidents('ai_vision', 'cat')" class="soc-cat-btn px-2.5 py-1 rounded-lg font-semibold bg-white border border-slate-200 text-slate-700 hover:bg-slate-100 transition cursor-pointer" data-cat="ai_vision">Vision / Audio</button>
+
+            <div class="overflow-x-auto">
+                <table class="w-full text-xs" id="soc-incidents-table">
+                    <thead>
+                        <tr class="bg-slate-50 text-[11px] font-bold text-slate-500 uppercase tracking-wider border-b border-slate-200">
+                            <th class="px-5 py-3 text-left">Incident ID</th>
+                            <th class="px-5 py-3 text-left">Severity</th>
+                            <th class="px-5 py-3 text-left">Incident Title & Type</th>
+                            <th class="px-5 py-3 text-left">Risk Score</th>
+                            <th class="px-5 py-3 text-left">Status</th>
+                            <th class="px-5 py-3 text-left">Actor / IP</th>
+                            <th class="px-5 py-3 text-left">Detected</th>
+                            <th class="px-5 py-3 text-right">Actions</th>
+                        </tr>
+                    </thead>
+                    <tbody class="divide-y divide-slate-100 font-sans" id="soc-incidents-tbody">
+                        {% for inc in security_incidents %}
+                        {% set sev = (inc.severity or 'MEDIUM') | upper %}
+                        {% set st = (inc.status or 'OPEN') | upper %}
+                        <tr class="soc-row hover:bg-slate-50/80 transition" data-id="{{ inc.incident_id }}" data-status="{{ st }}" data-type="{{ inc.incident_type }}">
+                            <td class="px-5 py-3.5 font-mono font-bold text-indigo-600">
+                                {{ inc.incident_id }}
+                            </td>
+                            <td class="px-5 py-3.5">
+                                {% if sev == 'CRITICAL' %}
+                                    <span class="px-2 py-0.5 rounded-full text-[10px] font-extrabold bg-rose-100 text-rose-800 border border-rose-200 flex items-center w-max gap-1">
+                                        <span class="w-1.5 h-1.5 rounded-full bg-rose-600 animate-pulse"></span> CRITICAL
+                                    </span>
+                                {% elif sev == 'HIGH' %}
+                                    <span class="px-2 py-0.5 rounded-full text-[10px] font-extrabold bg-amber-100 text-amber-800 border border-amber-200 flex items-center w-max gap-1">
+                                        <span class="w-1.5 h-1.5 rounded-full bg-amber-600"></span> HIGH
+                                    </span>
+                                {% else %}
+                                    <span class="px-2 py-0.5 rounded-full text-[10px] font-extrabold bg-sky-100 text-sky-800 border border-sky-200 flex items-center w-max gap-1">
+                                        <span class="w-1.5 h-1.5 rounded-full bg-sky-600"></span> {{ sev }}
+                                    </span>
+                                {% endif %}
+                            </td>
+                            <td class="px-5 py-3.5">
+                                <span class="font-bold text-slate-900 block text-xs">{{ inc.title }}</span>
+                                <span class="font-mono text-[10px] text-slate-400 block">{{ inc.incident_type }}</span>
+                            </td>
+                            <td class="px-5 py-3.5 font-bold font-mono">
+                                <span class="{% if inc.risk_score >= 70 %}text-rose-600{% elif inc.risk_score >= 40 %}text-amber-600{% else %}text-slate-700{% endif %}">
+                                    {{ inc.risk_score }}/100
+                                </span>
+                            </td>
+                            <td class="px-5 py-3.5">
+                                <span class="px-2 py-0.5 rounded-md text-[10px] font-bold uppercase tracking-wider
+                                    {% if st == 'OPEN' %}bg-rose-50 text-rose-700 border border-rose-200
+                                    {% elif st == 'INVESTIGATING' %}bg-amber-50 text-amber-700 border border-amber-200
+                                    {% elif st == 'CONTAINED' %}bg-indigo-50 text-indigo-700 border border-indigo-200
+                                    {% elif st == 'RESOLVED' %}bg-emerald-50 text-emerald-700 border border-emerald-200
+                                    {% else %}bg-slate-100 text-slate-600 border border-slate-200{% endif %}">
+                                    {{ st }}
+                                </span>
+                            </td>
+                            <td class="px-5 py-3.5 text-[11px]">
+                                {% if inc.actor_name %}
+                                <strong class="text-slate-800 block">{{ inc.actor_name }}</strong>
+                                {% endif %}
+                                <span class="font-mono text-slate-500 text-[10px]">{{ inc.source_ip or 'Local / Unknown' }}</span>
+                            </td>
+                            <td class="px-5 py-3.5 font-mono text-slate-400 text-[10px]">
+                                {{ inc.first_detected | format_datetime_12h }}
+                            </td>
+                            <td class="px-5 py-3.5 text-right">
+                                <button type="button" onclick="openIncidentDetailsModal('{{ inc.incident_id }}')" class="px-3 py-1 rounded-lg bg-indigo-50 hover:bg-indigo-100 text-indigo-700 font-bold text-xs transition border border-indigo-200 cursor-pointer">
+                                    Investigate &rarr;
+                                </button>
+                            </td>
+                        </tr>
+                        {% else %}
+                        <tr>
+                            <td colspan="8" class="p-8 text-center text-slate-400">
+                                <i data-lucide="shield-check" class="w-8 h-8 text-emerald-500 mx-auto mb-2"></i>
+                                <p class="font-semibold text-slate-700 text-sm">No Security Incidents</p>
+                                <p class="text-xs text-slate-400 mt-0.5">Automated correlation has not detected any multi-event threat patterns.</p>
+                            </td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
             </div>
         </div>
 
-        {% if security_incidents %}
-        <div class="overflow-x-auto">
-            <table class="w-full text-xs">
-                <thead>
-                    <tr class="bg-slate-50 text-[11px] font-bold text-slate-500 uppercase tracking-wider border-b border-slate-200">
-                        <th class="px-5 py-3 text-left">Event ID</th>
-                        <th class="px-5 py-3 text-left">Threat Level</th>
-                        <th class="px-5 py-3 text-left">Classification & Details</th>
-                        <th class="px-5 py-3 text-left">Candidate & Roll</th>
-                        <th class="px-5 py-3 text-left">Client IP / Origin</th>
-                        <th class="px-5 py-3 text-left">Exam</th>
-                        <th class="px-5 py-3 text-right">Timestamp</th>
-                    </tr>
-                </thead>
-                <tbody class="divide-y divide-slate-100 font-sans">
-                    {% for inc in security_incidents %}
-                    {% set sev_norm = (inc.severity or 'INFO') | upper %}
-                    {% set cat_norm = inc.category or 'general' %}
-                    <tr class="soc-incident-row hover:bg-slate-50/80 transition" data-severity="{{ sev_norm }}" data-category="{{ cat_norm }}">
-                        <td class="px-5 py-3 font-mono font-bold text-slate-600">
-                            {{ inc.event_code or 'SEC-001' }}
-                        </td>
-                        <td class="px-5 py-3">
-                            {% set sev = (inc.severity or 'HIGH') | upper %}
-                            {% if sev == 'CRITICAL' %}
-                                <span class="px-2 py-0.5 rounded-full text-[10px] font-extrabold bg-rose-100 text-rose-800 border border-rose-200 flex items-center w-max gap-1">
-                                    <span class="w-1.5 h-1.5 rounded-full bg-rose-600 animate-pulse"></span> CRITICAL
+        <!-- Live Raw Security Telemetry Feed -->
+        <div class="bg-white rounded-2xl border border-slate-200/80 shadow-sm overflow-hidden">
+            <div class="p-4 bg-slate-50 border-b border-slate-200 flex items-center justify-between">
+                <div class="flex items-center space-x-2">
+                    <i data-lucide="activity" class="w-4 h-4 text-slate-700"></i>
+                    <h3 class="font-bold text-slate-800 text-sm">Live Security Event Telemetry</h3>
+                </div>
+                <span class="text-xs text-slate-400">Raw normalized stream</span>
+            </div>
+            <div class="overflow-x-auto max-h-72 overflow-y-auto">
+                <table class="w-full text-xs">
+                    <thead class="sticky top-0 bg-slate-50 border-b border-slate-200">
+                        <tr class="text-[10px] font-bold text-slate-500 uppercase tracking-wider">
+                            <th class="px-4 py-2.5 text-left">Event ID</th>
+                            <th class="px-4 py-2.5 text-left">Event Type</th>
+                            <th class="px-4 py-2.5 text-left">Severity</th>
+                            <th class="px-4 py-2.5 text-left">Category</th>
+                            <th class="px-4 py-2.5 text-left">Actor / Origin IP</th>
+                            <th class="px-4 py-2.5 text-left">Endpoint</th>
+                            <th class="px-4 py-2.5 text-right">Timestamp</th>
+                        </tr>
+                    </thead>
+                    <tbody class="divide-y divide-slate-100 font-mono text-[11px]" id="soc-events-tbody">
+                        {% for ev in security_events_list %}
+                        <tr class="hover:bg-slate-50">
+                            <td class="px-4 py-2 text-indigo-600 font-bold">{{ ev.event_id }}</td>
+                            <td class="px-4 py-2 font-sans font-semibold text-slate-800">{{ ev.event_type }}</td>
+                            <td class="px-4 py-2">
+                                <span class="px-1.5 py-0.5 rounded text-[9px] font-bold
+                                    {% if ev.severity == 'HIGH' or ev.severity == 'CRITICAL' %}bg-rose-100 text-rose-800
+                                    {% elif ev.severity == 'MEDIUM' %}bg-amber-100 text-amber-800
+                                    {% else %}bg-slate-100 text-slate-600{% endif %}">
+                                    {{ ev.severity }}
                                 </span>
-                            {% elif sev == 'HIGH' %}
-                                <span class="px-2 py-0.5 rounded-full text-[10px] font-extrabold bg-amber-100 text-amber-800 border border-amber-200 flex items-center w-max gap-1">
-                                    <span class="w-1.5 h-1.5 rounded-full bg-amber-600"></span> HIGH
-                                </span>
-                            {% elif sev == 'MEDIUM' %}
-                                <span class="px-2 py-0.5 rounded-full text-[10px] font-extrabold bg-sky-100 text-sky-800 border border-sky-200 flex items-center w-max gap-1">
-                                    <span class="w-1.5 h-1.5 rounded-full bg-sky-600"></span> MEDIUM
-                                </span>
-                            {% else %}
-                                <span class="px-2 py-0.5 rounded-full text-[10px] font-extrabold bg-slate-100 text-slate-700 border border-slate-200 flex items-center w-max gap-1">
-                                    <span class="w-1.5 h-1.5 rounded-full bg-slate-500"></span> LOW
-                                </span>
-                            {% endif %}
-                        </td>
-                        <td class="px-5 py-3">
-                            <span class="font-bold text-slate-900 uppercase block tracking-wide text-[11px]">
-                                {{ inc.violation_type.replace('_', ' ') }}
-                            </span>
-                            <span class="text-slate-500 text-[11px] block mt-0.5 max-w-sm truncate" title="{{ inc.details }}">
-                                {{ inc.details or 'Security boundary violation detected.' }}
-                            </span>
-                        </td>
-                        <td class="px-5 py-3">
-                            <strong class="text-slate-800 block">{{ inc.student_name }}</strong>
-                            <span class="font-mono text-[10px] text-slate-500">{{ inc.roll_number }}</span>
-                        </td>
-                        <td class="px-5 py-3 font-mono text-[11px] text-slate-600">
-                            {{ inc.client_ip or '127.0.0.1 (Local)' }}
-                        </td>
-                        <td class="px-5 py-3 text-slate-600">
-                            <a href="/tutor/exam/{{ inc.exam_id }}" class="hover:text-sky-600 font-medium truncate block max-w-xs">
-                                {{ inc.exam_title }}
-                            </a>
-                        </td>
-                        <td class="px-5 py-3 text-right font-mono text-slate-400 text-[10px]">
-                            {{ inc.timestamp | format_datetime_12h }}
-                        </td>
-                    </tr>
-                    {% endfor %}
-                </tbody>
-            </table>
+                            </td>
+                            <td class="px-4 py-2 font-sans text-slate-500">{{ ev.event_category }}</td>
+                            <td class="px-4 py-2 text-slate-600">{{ ev.actor_name or ev.actor_id or '—' }} ({{ ev.source_ip or '—' }})</td>
+                            <td class="px-4 py-2 text-slate-500 truncate max-w-xs">{{ ev.endpoint or '—' }}</td>
+                            <td class="px-4 py-2 text-right text-slate-400 text-[10px] font-sans">{{ ev.timestamp | format_datetime_12h }}</td>
+                        </tr>
+                        {% else %}
+                        <tr><td colspan="7" class="p-6 text-center text-slate-400 font-sans">No security events logged yet.</td></tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
         </div>
-        {% else %}
-        <div class="p-8 text-center text-slate-500">
-            <i data-lucide="shield-check" class="w-8 h-8 text-emerald-500 mx-auto mb-2"></i>
-            <p class="font-semibold text-slate-700 text-sm">Security Perimeter Clean</p>
-            <p class="text-xs text-slate-400 mt-0.5">No cyber anomalies or anti-tamper security alerts recorded yet.</p>
+    </div>
+
+    <!-- ===== INCIDENT INVESTIGATION MODAL ===== -->
+    <div id="incident-investigation-modal" class="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-50 flex items-center justify-center p-4 hidden">
+        <div class="bg-white rounded-3xl max-w-3xl w-full p-6 shadow-2xl border border-slate-200 max-h-[92vh] overflow-y-auto">
+            <div class="flex items-center justify-between pb-4 mb-4 border-b border-slate-200">
+                <div class="flex items-center space-x-3">
+                    <div class="w-10 h-10 rounded-xl bg-indigo-100 text-indigo-600 flex items-center justify-center font-bold">
+                        <i data-lucide="shield-alert" class="w-5 h-5"></i>
+                    </div>
+                    <div>
+                        <h3 class="font-bold text-slate-900 text-base" id="modal-inc-title">Incident Details</h3>
+                        <p class="text-xs text-slate-500 font-mono" id="modal-inc-id">INC-...</p>
+                    </div>
+                </div>
+                <button onclick="closeIncidentDetailsModal()" class="text-slate-400 hover:text-slate-600 p-1">
+                    <i data-lucide="x" class="w-5 h-5"></i>
+                </button>
+            </div>
+
+            <!-- Incident Overview Badges -->
+            <div class="grid grid-cols-2 sm:grid-cols-4 gap-3 mb-5 text-xs">
+                <div class="p-3 bg-slate-50 rounded-xl border border-slate-200">
+                    <span class="text-slate-400 text-[10px] font-bold uppercase block">Severity</span>
+                    <strong class="text-slate-900 font-bold mt-0.5 block" id="modal-inc-sev">—</strong>
+                </div>
+                <div class="p-3 bg-slate-50 rounded-xl border border-slate-200">
+                    <span class="text-slate-400 text-[10px] font-bold uppercase block">Current Status</span>
+                    <strong class="text-slate-900 font-bold mt-0.5 block" id="modal-inc-status">—</strong>
+                </div>
+                <div class="p-3 bg-slate-50 rounded-xl border border-slate-200">
+                    <span class="text-slate-400 text-[10px] font-bold uppercase block">Risk Score</span>
+                    <strong class="text-slate-900 font-bold mt-0.5 block font-mono" id="modal-inc-risk">—</strong>
+                </div>
+                <div class="p-3 bg-slate-50 rounded-xl border border-slate-200">
+                    <span class="text-slate-400 text-[10px] font-bold uppercase block">Source IP</span>
+                    <strong class="text-slate-900 font-bold mt-0.5 block font-mono" id="modal-inc-ip">—</strong>
+                </div>
+            </div>
+
+            <!-- Investigation Summary & Evidence -->
+            <div class="mb-5 space-y-3">
+                <div class="p-4 bg-slate-50 rounded-xl border border-slate-200 text-xs">
+                    <h4 class="font-bold text-slate-800 uppercase tracking-wider text-[10px] mb-1">Correlation Summary</h4>
+                    <p class="text-slate-600" id="modal-inc-summary">Loading...</p>
+                </div>
+
+                <div class="p-4 bg-indigo-50/50 rounded-xl border border-indigo-100 text-xs">
+                    <h4 class="font-bold text-indigo-950 uppercase tracking-wider text-[10px] mb-2">Contributing Risk Factors</h4>
+                    <ul class="list-disc list-inside space-y-1 text-slate-700 font-mono text-[11px]" id="modal-inc-factors">
+                    </ul>
+                </div>
+            </div>
+
+            <!-- Status Transition & Containment Form -->
+            <div class="p-4 bg-slate-50 rounded-2xl border border-slate-200 mb-5 space-y-3">
+                <h4 class="font-bold text-slate-800 text-xs">Update Incident Status & Containment</h4>
+                <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                    <div>
+                        <label class="block text-[11px] font-bold text-slate-600 mb-1">Target Status</label>
+                        <select id="modal-target-status" class="w-full px-3 py-2 border border-slate-300 rounded-lg text-xs font-semibold">
+                            <option value="INVESTIGATING">INVESTIGATING (Under active analysis)</option>
+                            <option value="CONTAINED">CONTAINED (Mitigation documented)</option>
+                            <option value="RESOLVED">RESOLVED (Threat closed)</option>
+                            <option value="FALSE_POSITIVE">FALSE_POSITIVE (Benign activity verified)</option>
+                        </select>
+                    </div>
+                    <div>
+                        <label class="block text-[11px] font-bold text-slate-600 mb-1">Status Rationale / Containment Notes</label>
+                        <input type="text" id="modal-status-notes" placeholder="e.g. Verified student Wi-Fi issue..." class="w-full px-3 py-2 border border-slate-300 rounded-lg text-xs">
+                    </div>
+                </div>
+                <button type="button" onclick="submitIncidentStatusChange()" class="px-4 py-2 rounded-xl bg-slate-900 hover:bg-slate-800 text-white font-bold text-xs transition cursor-pointer">
+                    Apply Status Transition
+                </button>
+            </div>
+
+            <!-- Investigation Notes (Append-Only) -->
+            <div class="mb-5">
+                <h4 class="font-bold text-slate-800 text-xs mb-2">Investigation Notes (Audit-Protected)</h4>
+                <div class="space-y-2 mb-3 max-h-40 overflow-y-auto" id="modal-notes-list">
+                    <p class="text-xs text-slate-400">No notes recorded yet.</p>
+                </div>
+                <div class="flex gap-2">
+                    <input type="text" id="modal-new-note" placeholder="Add immutable note..." class="flex-1 px-3 py-2 border border-slate-300 rounded-lg text-xs">
+                    <button type="button" onclick="submitIncidentNote()" class="px-4 py-2 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-xs transition cursor-pointer">
+                        Add Note
+                    </button>
+                </div>
+            </div>
+
+            <!-- Incident Audit Trail -->
+            <div>
+                <h4 class="font-bold text-slate-800 text-xs mb-2">Audit History</h4>
+                <div class="p-3 bg-slate-900 text-slate-200 rounded-xl font-mono text-[10px] space-y-1.5 max-h-36 overflow-y-auto" id="modal-audit-trail">
+                    <p class="text-slate-400">Loading audit history...</p>
+                </div>
+            </div>
         </div>
-        {% endif %}
     </div>
 
 <!-- ===== ADD STUDENT MODAL ===== -->
@@ -1038,6 +1263,37 @@
                 </div>
                 <p class="text-[10px] text-slate-500 mb-2">Automatically sends scorecards & published result links to candidate email addresses.</p>
                 <input type="password" name="resend_api_key" placeholder="re_123456789..." class="w-full px-3 py-1.5 border border-slate-300 rounded-lg text-xs font-mono">
+            </div>
+
+            <!-- Multi-Factor Authentication (MFA / 2FA) -->
+            <div class="p-3.5 bg-slate-50 border border-slate-200 rounded-xl space-y-2">
+                <div class="flex items-center justify-between">
+                    <label class="text-xs font-bold text-slate-800 flex items-center space-x-1.5">
+                        <i data-lucide="shield-check" class="w-4 h-4 text-indigo-600"></i>
+                        <span>Two-Factor Authentication (TOTP MFA)</span>
+                    </label>
+                    {% if admin_mfa_enabled %}
+                    <span class="px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-100 text-emerald-800 border border-emerald-200">
+                        Active & Protected
+                    </span>
+                    {% else %}
+                    <span class="px-2 py-0.5 rounded-full text-[10px] font-bold bg-amber-100 text-amber-800 border border-amber-200">
+                        Not Enrolled
+                    </span>
+                    {% endif %}
+                </div>
+                <p class="text-[11px] text-slate-500">Protect administrator access with Google Authenticator, Microsoft Authenticator, or 1Password.</p>
+                <div class="pt-1 flex gap-2">
+                    {% if admin_mfa_enabled %}
+                    <button type="button" onclick="disableMfaPrompt()" class="px-3 py-1.5 rounded-lg bg-rose-50 hover:bg-rose-100 text-rose-700 font-bold text-xs border border-rose-200 cursor-pointer transition">
+                        Disable MFA
+                    </button>
+                    {% else %}
+                    <button type="button" onclick="startMfaEnrollment()" class="px-3 py-1.5 rounded-lg bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-xs cursor-pointer transition shadow-sm">
+                        Enroll in Two-Factor Auth &rarr;
+                    </button>
+                    {% endif %}
+                </div>
             </div>
 
             <div class="flex items-center justify-end space-x-2 pt-2">
@@ -1704,39 +1960,274 @@
         }
     }
 
-    // Client-side SOC Incident Filtering (Severity & Category)
-    let currentSocSev = 'all';
-    let currentSocCat = 'all';
+    async function startMfaEnrollment() {
+        try {
+            const resp = await fetch('/api/admin/mfa/setup');
+            const data = await resp.json();
+            if (!data.success) {
+                Swal.fire({ icon: 'error', title: 'Setup Failed', text: data.error || 'Could not initiate MFA enrollment.' });
+                return;
+            }
 
-    function filterSocIncidents(val, type) {
-        if (type === 'sev') {
-            currentSocSev = val;
-            document.querySelectorAll('.soc-sev-btn').forEach(btn => {
-                const match = btn.getAttribute('data-sev') === val;
-                btn.className = match
-                    ? 'soc-sev-btn px-2.5 py-1 rounded-lg font-bold bg-slate-900 text-white transition cursor-pointer'
-                    : 'soc-sev-btn px-2.5 py-1 rounded-lg font-semibold bg-white border border-slate-200 text-slate-700 hover:bg-slate-100 transition cursor-pointer';
+            const recoveryListHtml = data.recovery_codes.map(c => `<code class="px-2 py-1 bg-slate-100 rounded text-slate-800 font-mono text-xs">${c}</code>`).join(' ');
+
+            const { value: formValues } = await Swal.fire({
+                title: 'Enroll in Two-Factor Auth',
+                html: `
+                    <div class="text-left text-xs space-y-3">
+                        <p class="text-slate-600">Scan this setup key in Google Authenticator or enter it manually:</p>
+                        <div class="p-2.5 bg-slate-900 text-amber-300 font-mono text-xs rounded-xl break-all text-center select-all">
+                            ${data.secret}
+                        </div>
+                        <div class="p-3 bg-amber-50 border border-amber-200 rounded-xl text-amber-900 space-y-1.5">
+                            <strong class="block text-[11px] uppercase tracking-wider text-amber-800">One-Time Recovery Codes:</strong>
+                            <p class="text-[10px] text-amber-700">Save these codes safely! If you lose your phone, each code can be used once to log in:</p>
+                            <div class="grid grid-cols-2 gap-1.5 pt-1">
+                                ${recoveryListHtml}
+                            </div>
+                        </div>
+                        <div>
+                            <label class="block font-bold text-slate-700 mb-1">Enter 6-Digit Authenticator Code to Confirm:</label>
+                            <input id="swal-mfa-confirm-code" maxlength="6" placeholder="000000" class="w-full px-3 py-2 border border-slate-300 rounded-lg text-center font-mono text-lg tracking-widest">
+                        </div>
+                    </div>
+                `,
+                showCancelButton: true,
+                confirmButtonText: 'Confirm & Activate',
+                confirmButtonColor: '#4f46e5',
+                preConfirm: () => {
+                    const code = document.getElementById('swal-mfa-confirm-code')?.value?.trim();
+                    if (!code || code.length !== 6) {
+                        Swal.showValidationMessage('Please enter the 6-digit code shown on your authenticator app.');
+                        return false;
+                    }
+                    return code;
+                }
             });
-        } else if (type === 'cat') {
-            currentSocCat = val;
-            document.querySelectorAll('.soc-cat-btn').forEach(btn => {
-                const match = btn.getAttribute('data-cat') === val;
-                btn.className = match
-                    ? 'soc-cat-btn px-2.5 py-1 rounded-lg font-bold bg-indigo-600 text-white transition cursor-pointer'
-                    : 'soc-cat-btn px-2.5 py-1 rounded-lg font-semibold bg-white border border-slate-200 text-slate-700 hover:bg-slate-100 transition cursor-pointer';
-            });
+
+            if (formValues) {
+                const csrfToken = document.querySelector('input[name="csrf_token"]')?.value;
+                const confResp = await fetch('/api/admin/mfa/confirm', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json', 'X-CSRF-Token': csrfToken },
+                    body: JSON.stringify({ code: formValues })
+                });
+                const confData = await confResp.json();
+                if (confData.success) {
+                    await Swal.fire({ icon: 'success', title: 'MFA Activated!', text: confData.message });
+                    location.reload();
+                } else {
+                    Swal.fire({ icon: 'error', title: 'Activation Failed', text: confData.error });
+                }
+            }
+        } catch (e) {
+            Swal.fire({ icon: 'error', title: 'Error', text: 'Network connection failed during MFA enrollment.' });
         }
+    }
 
-        const rows = document.querySelectorAll('.soc-incident-row');
-        rows.forEach(row => {
-            const rowSev = (row.getAttribute('data-severity') || '').toUpperCase();
-            const rowCat = (row.getAttribute('data-category') || '').toLowerCase();
-
-            const matchSev = (currentSocSev === 'all') || (rowSev === currentSocSev) || (currentSocSev === 'WARNING' && rowSev === 'HIGH') || (currentSocSev === 'INFO' && (rowSev === 'LOW' || rowSev === 'INFO'));
-            const matchCat = (currentSocCat === 'all') || (rowCat === currentSocCat) || (currentSocCat === 'ai_vision' && (rowCat === 'ai_vision' || rowCat === 'audio_proctoring' || rowCat === 'hardware_device'));
-
-            row.style.display = (matchSev && matchCat) ? '' : 'none';
+    async function disableMfaPrompt() {
+        const { value: password } = await Swal.fire({
+            title: 'Disable Two-Factor Authentication',
+            text: 'Please confirm your current account password to disable MFA protection:',
+            input: 'password',
+            inputPlaceholder: '••••••••',
+            showCancelButton: true,
+            confirmButtonText: 'Disable MFA',
+            confirmButtonColor: '#e11d48'
         });
+
+        if (password) {
+            const csrfToken = document.querySelector('input[name="csrf_token"]')?.value;
+            const resp = await fetch('/api/admin/mfa/disable', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json', 'X-CSRF-Token': csrfToken },
+                body: JSON.stringify({ password: password })
+            });
+            const data = await resp.json();
+            if (data.success) {
+                await Swal.fire({ icon: 'success', title: 'Disabled', text: data.message });
+                location.reload();
+            } else {
+                Swal.fire({ icon: 'error', title: 'Failed', text: data.error });
+            }
+        }
+    }
+
+    // Client-side SOC Table Filtering (Search & Status)
+    function filterSocTable() {
+        const query = (document.getElementById('soc-search-input')?.value || '').toLowerCase().trim();
+        const status = (document.getElementById('soc-status-filter')?.value || 'all').toUpperCase();
+
+        document.querySelectorAll('.soc-row').forEach(row => {
+            const id = (row.getAttribute('data-id') || '').toLowerCase();
+            const type = (row.getAttribute('data-type') || '').toLowerCase();
+            const st = (row.getAttribute('data-status') || '').toUpperCase();
+            const text = row.innerText.toLowerCase();
+
+            const matchQuery = !query || id.includes(query) || type.includes(query) || text.includes(query);
+            const matchStatus = (status === 'ALL') || (st === status);
+
+            row.style.display = (matchQuery && matchStatus) ? '' : 'none';
+        });
+    }
+
+    let activeIncidentId = null;
+
+    async function openIncidentDetailsModal(incidentId) {
+        activeIncidentId = incidentId;
+        const modal = document.getElementById('incident-investigation-modal');
+        if (!modal) return;
+        modal.classList.remove('hidden');
+
+        try {
+            const resp = await fetch(`/api/admin/security/incident/${incidentId}`);
+            const data = await resp.json();
+            if (!data.success || !data.incident) {
+                Swal.fire({ icon: 'error', title: 'Error', text: data.error || 'Failed to load incident.' });
+                return;
+            }
+
+            const inc = data.incident;
+            document.getElementById('modal-inc-id').innerText = inc.incident_id;
+            document.getElementById('modal-inc-title').innerText = inc.title;
+            document.getElementById('modal-inc-sev').innerText = inc.severity;
+            document.getElementById('modal-inc-status').innerText = inc.status;
+            document.getElementById('modal-inc-risk').innerText = `${inc.risk_score} / 100`;
+            document.getElementById('modal-inc-ip').innerText = inc.source_ip || 'Local / Internal';
+            document.getElementById('modal-inc-summary').innerText = inc.summary || 'Cluster of correlated security telemetry.';
+
+            // Render contributing factors
+            const factorsEl = document.getElementById('modal-inc-factors');
+            factorsEl.innerHTML = '';
+            const factors = (inc.evidence && inc.evidence.risk_factors) || [];
+            if (factors.length === 0) {
+                factorsEl.innerHTML = '<li>Single-source anomaly pattern detected.</li>';
+            } else {
+                factors.forEach(f => {
+                    const li = document.createElement('li');
+                    li.innerText = f;
+                    factorsEl.appendChild(li);
+                });
+            }
+
+            // Render notes
+            renderIncidentNotes(inc.notes || []);
+
+            // Render audit trail
+            renderIncidentAuditTrail(inc.audit_trail || []);
+        } catch (e) {
+            Swal.fire({ icon: 'error', title: 'Error', text: 'Network failure loading incident details.' });
+        }
+    }
+
+    function closeIncidentDetailsModal() {
+        const modal = document.getElementById('incident-investigation-modal');
+        if (modal) modal.classList.add('hidden');
+        activeIncidentId = null;
+    }
+
+    function renderIncidentNotes(notes) {
+        const list = document.getElementById('modal-notes-list');
+        if (!list) return;
+        if (!notes || notes.length === 0) {
+            list.innerHTML = '<p class="text-xs text-slate-400">No notes recorded yet.</p>';
+            return;
+        }
+        list.innerHTML = '';
+        notes.forEach(n => {
+            const div = document.createElement('div');
+            div.className = 'p-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs';
+            div.innerHTML = `<div class="flex justify-between text-[10px] text-slate-400 mb-1">
+                <strong>${n.author_name}</strong><span>${n.timestamp || ''}</span>
+            </div><p class="text-slate-700">${n.note_text}</p>`;
+            list.appendChild(div);
+        });
+    }
+
+    function renderIncidentAuditTrail(trail) {
+        const el = document.getElementById('modal-audit-trail');
+        if (!el) return;
+        if (!trail || trail.length === 0) {
+            el.innerHTML = '<p class="text-slate-400">No audit trail records.</p>';
+            return;
+        }
+        el.innerHTML = '';
+        trail.forEach(t => {
+            const p = document.createElement('p');
+            p.innerHTML = `<span class="text-indigo-400">[${t.timestamp || ''}]</span> <span class="text-amber-400">${t.action}</span> by ${t.actor_name}: ${t.details}`;
+            el.appendChild(p);
+        });
+    }
+
+    async function submitIncidentStatusChange() {
+        if (!activeIncidentId) return;
+        const targetStatus = document.getElementById('modal-target-status')?.value;
+        const notes = document.getElementById('modal-status-notes')?.value?.trim();
+        const csrfToken = document.querySelector('input[name="csrf_token"]')?.value;
+
+        try {
+            const resp = await fetch(`/api/admin/security/incident/${activeIncidentId}/status`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json', 'X-CSRF-Token': csrfToken },
+                body: JSON.stringify({ status: targetStatus, notes: notes })
+            });
+            const data = await resp.json();
+            if (data.success) {
+                Swal.fire({ icon: 'success', title: 'Status Updated', text: data.message, timer: 1200, showConfirmButton: false });
+                openIncidentDetailsModal(activeIncidentId);
+                refreshSocDashboard();
+            } else {
+                Swal.fire({ icon: 'error', title: 'Transition Failed', text: data.error || 'Failed to update status.' });
+            }
+        } catch (e) {
+            Swal.fire({ icon: 'error', title: 'Error', text: 'Network failure updating incident status.' });
+        }
+    }
+
+    async function submitIncidentNote() {
+        if (!activeIncidentId) return;
+        const noteInput = document.getElementById('modal-new-note');
+        const noteText = noteInput?.value?.trim();
+        if (!noteText) return;
+        const csrfToken = document.querySelector('input[name="csrf_token"]')?.value;
+
+        try {
+            const resp = await fetch(`/api/admin/security/incident/${activeIncidentId}/note`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json', 'X-CSRF-Token': csrfToken },
+                body: JSON.stringify({ note: noteText })
+            });
+            const data = await resp.json();
+            if (data.success) {
+                if (noteInput) noteInput.value = '';
+                openIncidentDetailsModal(activeIncidentId);
+            } else {
+                Swal.fire({ icon: 'error', title: 'Note Failed', text: data.error || 'Failed to record note.' });
+            }
+        } catch (e) {
+            Swal.fire({ icon: 'error', title: 'Error', text: 'Network error recording investigation note.' });
+        }
+    }
+
+    async function refreshSocDashboard() {
+        const icon = document.getElementById('soc-refresh-icon');
+        if (icon) icon.classList.add('animate-spin');
+
+        try {
+            const resp = await fetch('/api/admin/security/incidents');
+            const data = await resp.json();
+            if (data.success) {
+                if (document.getElementById('soc-metric-total')) document.getElementById('soc-metric-total').innerText = data.stats.total_incidents;
+                if (document.getElementById('soc-metric-crit')) document.getElementById('soc-metric-crit').innerText = data.stats.critical_count;
+                if (document.getElementById('soc-metric-high')) document.getElementById('soc-metric-high').innerText = data.stats.high_count;
+                if (document.getElementById('soc-metric-open')) document.getElementById('soc-metric-open').innerText = data.stats.open_count;
+                if (document.getElementById('soc-metric-res')) document.getElementById('soc-metric-res').innerText = data.stats.resolved_count;
+            }
+        } catch (e) {
+            console.error('SOC refresh error:', e);
+        } finally {
+            if (icon) icon.classList.remove('animate-spin');
+        }
     }
 
     // Segmented Dashboard View Switcher (Created Exams vs Live Ongoing vs Student Accounts vs SOC Telemetry vs Requests)
@@ -2156,6 +2647,194 @@
                 refreshLiveCandidates(false);
             }
         }, 5000);
+
+        // Universal Sync Listener: Instant reaction to exam deletion across all tabs
+        function handleExamDeletedSync(e) {
+            const ev = e.detail;
+            if (!ev) return;
+            const payload = ev.payload || {};
+            const deletedExamId = ev.exam_id || payload.exam_id;
+            if (!deletedExamId) return;
+
+            const card = document.getElementById(`exam-card-${deletedExamId}`);
+            if (card) {
+                const group = card.closest('.subject-accordion-group');
+                card.style.transition = 'all 0.3s ease';
+                card.style.opacity = '0';
+                card.style.transform = 'scale(0.95)';
+                setTimeout(() => {
+                    card.remove();
+                    // Update group count badge if accordion group exists
+                    if (group) {
+                        const remaining = group.querySelectorAll('.exam-card-item').length;
+                        const badge = group.querySelector('.subject-accordion-btn span.rounded-full');
+                        if (badge) {
+                            badge.textContent = `${remaining} Exam${remaining !== 1 ? 's' : ''}`;
+                        }
+                        if (remaining === 0) {
+                            group.remove();
+                        }
+                    }
+                    // Update total exams stat badge
+                    const totalStat = document.getElementById('stat-total-exams');
+                    if (totalStat) {
+                        const totalRemaining = document.querySelectorAll('.exam-card-item').length;
+                        totalStat.textContent = String(totalRemaining);
+                    }
+                }, 300);
+            }
+        }
+
+        window.addEventListener('examguard:exam_deleted', handleExamDeletedSync);
+        window.addEventListener('examguard:sync', function(e) {
+            if (e.detail && e.detail.event_type === 'exam_deleted') {
+                handleExamDeletedSync(e);
+            }
+        });
     });
+
+    async function terminateStudentSession(studentId, studentName) {
+        const confirmResult = await Swal.fire({
+            title: `Terminate Active Session?`,
+            text: `This will immediately disconnect student "${studentName}". If an examination is in progress, the session will be interrupted.`,
+            icon: 'warning',
+            showCancelButton: true,
+            confirmButtonText: 'Yes, Terminate Session',
+            cancelButtonText: 'Cancel',
+            confirmButtonColor: '#e11d48'
+        });
+
+        if (!confirmResult.isConfirmed) return;
+
+        try {
+            const resp = await fetch(`/api/admin/student/${studentId}/terminate-session`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'X-CSRF-Token': document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') || ''
+                }
+            });
+            const data = await resp.json();
+            if (data.success) {
+                Swal.fire({
+                    title: 'Session Terminated',
+                    text: data.message,
+                    icon: 'success',
+                    timer: 1500,
+                    showConfirmButton: false
+                });
+                setTimeout(() => window.location.reload(), 1200);
+            } else {
+                Swal.fire('Error', data.error || 'Failed to terminate session.', 'error');
+            }
+        } catch (err) {
+            Swal.fire('Error', 'Network communication error.', 'error');
+        }
+    }
+
+    async function terminateAllStudentSessions() {
+        const confirmResult = await Swal.fire({
+            title: 'Terminate All Student Sessions?',
+            text: 'This will forcibly sign out all students currently logged into ExamGuard AI across all devices.',
+            icon: 'warning',
+            showCancelButton: true,
+            confirmButtonText: 'Yes, Terminate All',
+            cancelButtonText: 'Cancel',
+            confirmButtonColor: '#e11d48'
+        });
+
+        if (!confirmResult.isConfirmed) return;
+
+        try {
+            const resp = await fetch('/api/admin/students/terminate-all-sessions', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'X-CSRF-Token': document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') || ''
+                }
+            });
+            const data = await resp.json();
+            if (data.success) {
+                Swal.fire({
+                    title: 'Sessions Terminated',
+                    text: data.message,
+                    icon: 'success',
+                    timer: 1800,
+                    showConfirmButton: false
+                });
+                setTimeout(() => window.location.reload(), 1500);
+            } else {
+                Swal.fire('Error', data.error || 'Failed to terminate sessions.', 'error');
+            }
+        } catch (err) {
+            Swal.fire('Error', 'Network communication error.', 'error');
+        }
+    }
+
+    async function openDeviceSwitchHistoryModal(studentId = null) {
+        try {
+            const url = studentId ? `/api/admin/device-switch-history?student_id=${studentId}` : '/api/admin/device-switch-history';
+            const resp = await fetch(url);
+            const data = await resp.json();
+            if (!data.success) {
+                Swal.fire('Error', data.error || 'Failed to load history.', 'error');
+                return;
+            }
+
+            const history = data.history || [];
+            let html = `
+                <div class="max-h-96 overflow-y-auto text-left text-xs p-1">
+                    <table class="w-full text-left">
+                        <thead>
+                            <tr class="border-b border-slate-200 text-slate-500 uppercase text-[10px]">
+                                <th class="p-2">Time</th>
+                                <th class="p-2">Student</th>
+                                <th class="p-2">Type</th>
+                                <th class="p-2">Exam</th>
+                                <th class="p-2">IP Address</th>
+                            </tr>
+                        </thead>
+                        <tbody class="divide-y divide-slate-100">
+            `;
+
+            if (history.length === 0) {
+                html += `<tr><td colspan="5" class="p-4 text-center text-slate-400">No device switches or session terminations recorded yet.</td></tr>`;
+            } else {
+                history.forEach(h => {
+                    const typeBadge = h.switch_type === 'automatic'
+                        ? '<span class="px-1.5 py-0.5 rounded text-[10px] bg-sky-100 text-sky-800 font-semibold">Automatic Switch</span>'
+                        : '<span class="px-1.5 py-0.5 rounded text-[10px] bg-rose-100 text-rose-800 font-semibold">Terminated</span>';
+                    const examBadge = h.had_active_exam
+                        ? `<span class="text-amber-700 font-semibold">⚠️ ${h.exam_title || 'Active Exam'}</span>`
+                        : '<span class="text-slate-400">None</span>';
+                    html += `
+                        <tr class="hover:bg-slate-50">
+                            <td class="p-2 text-slate-400 font-mono text-[10px]">${h.created_at || ''}</td>
+                            <td class="p-2 font-semibold text-slate-900">${h.full_name} <span class="text-slate-400 font-normal">(@${h.username})</span></td>
+                            <td class="p-2">${typeBadge}</td>
+                            <td class="p-2">${examBadge}</td>
+                            <td class="p-2 font-mono text-slate-600">${h.client_ip || '&mdash;'}</td>
+                        </tr>
+                    `;
+                });
+            }
+
+            html += `
+                        </tbody>
+                    </table>
+                </div>
+            `;
+
+            Swal.fire({
+                title: 'Device Switch & Session History',
+                html: html,
+                width: '750px',
+                confirmButtonText: 'Close',
+                confirmButtonColor: '#475569'
+            });
+        } catch (err) {
+            Swal.fire('Error', 'Unable to retrieve history records.', 'error');
+        }
+    }
 </script>
 {% endblock %}

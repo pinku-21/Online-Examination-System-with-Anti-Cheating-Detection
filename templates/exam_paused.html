@@ -101,7 +101,7 @@
         </div>
         <p id="submission-metadata" data-submission-id="{{ submission.id }}" class="text-center text-xs text-slate-600 mt-6">ExamGuard &middot; Submission #{{ submission.id }}</p>
     </div>
-    <script src="{{ url_for('static', filename='js/sync_engine.js') }}"></script>
+    <script src="{{ url_for('static', filename='js/sync_engine.js') }}?v=20261109"></script>
     <script>
         const SUBMISSION_ID = parseInt(document.getElementById('submission-metadata')?.dataset?.submissionId || '0', 10);
         let pollTimer = null;
@@ -126,35 +126,6 @@
                 }
             } catch(e) { updatePollStatus('Network error - retrying...'); }
         }
-        // Global Fetch Interceptor: Automatically attaches X-CSRF-Token to all state-changing AJAX calls
-        (function() {
-            const originalFetch = window.fetch;
-            window.fetch = function(resource, init = {}) {
-                const method = (init.method || 'GET').toUpperCase();
-                if (['POST', 'PUT', 'DELETE', 'PATCH'].includes(method)) {
-                    const tokenMeta = document.querySelector('meta[name="csrf-token"]');
-                    const csrfToken = tokenMeta ? tokenMeta.getAttribute('content') : '';
-                    if (csrfToken) {
-                        if (init.headers instanceof Headers) {
-                            if (!init.headers.has('X-CSRF-Token')) {
-                                init.headers.set('X-CSRF-Token', csrfToken);
-                            }
-                        } else if (Array.isArray(init.headers)) {
-                            const hasCsrf = init.headers.some(([k]) => k.toLowerCase() === 'x-csrf-token');
-                            if (!hasCsrf) {
-                                init.headers.push(['X-CSRF-Token', csrfToken]);
-                            }
-                        } else {
-                            init.headers = {
-                                ...init.headers,
-                                'X-CSRF-Token': csrfToken
-                            };
-                        }
-                    }
-                }
-                return originalFetch(resource, init);
-            };
-        })();
 
         async function requestResume() {
             const btn = document.getElementById('btn-req-resume');
@@ -205,5 +176,7 @@
             }
         });
     </script>
+    <!-- Robust CSRF Interceptor & Session Recovery Engine -->
+    <script src="{{ url_for('static', filename='js/csrf_guard.js') }}"></script>
 </body>
 </html>

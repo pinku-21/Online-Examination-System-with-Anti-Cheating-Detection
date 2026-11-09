@@ -9,13 +9,14 @@
     const userRoleMeta = document.querySelector('meta[name="user-role"]');
     const userRole = userRoleMeta ? userRoleMeta.getAttribute('content') : (window.USER_ROLE || '');
 
-    // Check if session has student role or if we are on student pages
-    const isStudentPage = window.location.pathname.startsWith('/student') ||
-                          window.location.pathname.startsWith('/exam/') ||
-                          document.getElementById('device-switch-modal') !== null ||
-                          userRole === 'student';
+    // Check if session has student role, admin role, or if we are on student/tutor pages
+    const isSyncPage = window.location.pathname.startsWith('/student') ||
+                       window.location.pathname.startsWith('/tutor') ||
+                       window.location.pathname.startsWith('/exam/') ||
+                       document.getElementById('device-switch-modal') !== null ||
+                       ['student', 'admin'].includes(userRole);
 
-    if (!isStudentPage) {
+    if (!isSyncPage) {
         return;
     }
 
@@ -92,7 +93,35 @@
             if (eventType) {
                 window.dispatchEvent(new CustomEvent(`examguard:${eventType}`, { detail: ev }));
             }
+
+            // Universal session termination handler for students
+            if (eventType === 'session_replaced' || eventType === 'session_terminated') {
+                handleSessionRevoked(ev);
+            }
         });
+    }
+
+    function handleSessionRevoked(ev) {
+        stopPolling();
+        const payload = ev.payload || {};
+        const reason = payload.reason || 'Your account was signed into from another device or terminated by an administrator.';
+
+        if (typeof Swal !== 'undefined') {
+            Swal.fire({
+                title: 'Session Terminated',
+                text: reason,
+                icon: 'warning',
+                allowOutsideClick: false,
+                allowEscapeKey: false,
+                confirmButtonText: 'Return to Login',
+                confirmButtonColor: '#0284c7'
+            }).then(() => {
+                window.location.href = '/login';
+            });
+        } else {
+            alert('Session Terminated: ' + reason);
+            window.location.href = '/login';
+        }
     }
 
     function scheduleNextPoll() {

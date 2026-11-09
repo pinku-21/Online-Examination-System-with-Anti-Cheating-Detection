@@ -9,11 +9,14 @@ import time
 import secrets
 import hashlib
 import hmac
+import logging
 from functools import wraps
 from datetime import datetime, timezone, timedelta
 from flask import Flask, render_template, render_template_string, request, jsonify, redirect, url_for, flash, session, send_from_directory
 from werkzeug.utils import secure_filename
 from werkzeug.middleware.proxy_fix import ProxyFix
+
+logger = logging.getLogger("examguard.app")
 
 try:
     from dotenv import load_dotenv
@@ -42,6 +45,30 @@ from cloud_services import (
     upload_image_to_cloud,
     send_transactional_email
 )
+from security import (
+    record_security_event,
+    get_incident_details,
+    transition_incident_status,
+    add_incident_note,
+    generate_mfa_secret,
+    get_totp_uri,
+    verify_totp_code,
+    generate_recovery_codes,
+    verify_and_consume_recovery_code,
+    encrypt_mfa_secret,
+    decrypt_mfa_secret,
+    rotate_session,
+    check_session_validity,
+    review_security_recommendation,
+    get_recommendation_details,
+    assess_account_risk,
+    assess_session_risk,
+    assess_device_risk,
+    assess_ip_context_risk,
+    assess_examination_risk,
+    sanitize_security_details,
+    anonymize_session_identifier,
+)
 import base64
 from ai_service import (
     extract_text_from_pdf,
@@ -63,6 +90,10 @@ def get_current_time():
     return datetime.now(IST).replace(tzinfo=None)
 
 app = Flask(__name__, static_url_path=None)
+# Session Security: Enforce HttpOnly, SameSite=Lax, and Secure flags
+app.config["SESSION_COOKIE_HTTPONLY"] = True
+app.config["SESSION_COOKIE_SAMESITE"] = "Lax"
+app.config["SESSION_COOKIE_SECURE"] = bool(os.environ.get("FLASK_ENV") == "production" or os.environ.get("RENDER"))
 # Apply Werkzeug ProxyFix to correctly resolve X-Forwarded-For, X-Forwarded-Proto, and X-Forwarded-Host behind Render / Cloudflare reverse proxies
 app.wsgi_app = ProxyFix(app.wsgi_app, x_for=1, x_proto=1, x_host=1, x_port=1, x_prefix=1)
 # Ensure strong secret key in production (prevent default key session hijacking)
@@ -484,9 +515,15 @@ def login_required(f):
                 cursor.execute("SELECT active_session_token FROM users WHERE id = ?", (user_id,))
                 urow = cursor.fetchone()
                 conn.close()
-                if urow and urow["active_session_token"] and urow["active_session_token"] != my_token:
+                # If active_session_token was cleared (terminated by tutor) or rotated (device replaced):
+                if urow and (urow["active_session_token"] != my_token or not urow["active_session_token"]):
                     session.clear()
-                    flash("You have been signed out because your account was logged in from another device. Multiple simultaneous logins are not permitted.", "danger")
+                    if request.path.startswith("/api/") or request.is_json:
+                        return jsonify({
+                            "success": False,
+                            "error": "You have been signed out because your account was logged in from another device or your session was terminated by an administrator."
+                        }), 401
+                    flash("You have been signed out because your account was logged in from another device or your session was terminated by an administrator.", "danger")
                     return redirect(url_for("login"))
         return f(*args, **kwargs)
     return decorated_function
@@ -523,6 +560,18 @@ def csrf_protect_check():
                     allowed_hosts.add(pub_netloc)
 
             if origin_host and origin_host not in allowed_hosts:
+                client_ip = request.headers.get("X-Forwarded-For", request.remote_addr or "127.0.0.1").split(",")[0].strip()
+                record_security_event(
+                    event_type="csrf.origin_mismatch",
+                    severity="HIGH",
+                    event_category="csrf",
+                    actor_id=session.get("user_id"),
+                    actor_role=session.get("user_role"),
+                    source_ip=client_ip,
+                    user_agent=request.user_agent.string if request.user_agent else None,
+                    endpoint=request.path,
+                    details={"origin": origin_host, "allowed_hosts": list(allowed_hosts)}
+                )
                 return jsonify({
                     "success": False,
                     "error": "Cross-Site Request Blocked (CSRF Security Violation): Origin mismatch."
@@ -539,10 +588,24 @@ def csrf_protect_check():
                 request_token = json_data.get("csrf_token")
 
         if not request_token or not secrets.compare_digest(request_token, session_token):
+            client_ip = request.headers.get("X-Forwarded-For", request.remote_addr or "127.0.0.1").split(",")[0].strip()
+            record_security_event(
+                event_type="csrf.validation_failed",
+                severity="HIGH",
+                event_category="csrf",
+                actor_id=session.get("user_id"),
+                actor_role=session.get("user_role"),
+                source_ip=client_ip,
+                user_agent=request.user_agent.string if request.user_agent else None,
+                endpoint=request.path,
+                details={"reason": "Missing or mismatched synchronizer token", "method": request.method}
+            )
             if request.is_json or request.path.startswith("/api/"):
                 return jsonify({
                     "success": False,
-                    "error": "CSRF Token Missing or Invalid (Security Violation SEC-016). Request rejected."
+                    "code": "SEC-016",
+                    "error": "CSRF token missing or invalid",
+                    "reauthentication_required": False
                 }), 403
             flash("Your security token expired or was invalid. Please try again.", "warning")
             return redirect(request.referrer or url_for("login"))
@@ -556,6 +619,62 @@ def get_csrf_token():
 def inject_csrf_token():
     return dict(csrf_token=get_csrf_token())
 
+@app.route("/api/csrf-token", methods=["GET"])
+def api_get_csrf_token():
+    """
+    Dedicated endpoint to acquire or refresh the CSRF synchronizer token for the current session.
+    Requirements:
+    - Never exposes session cookies, hashes or auth secrets.
+    - If an authenticated session has expired (idle timeout or max lifetime), returns 401 with reauthentication_required.
+    - Prevents cross-origin reading via Origin check and No-Store Cache headers.
+    - Does not invalidate/regenerate an active authenticated session.
+    """
+    # 1. Enforce Same-Origin policy
+    origin = request.headers.get("Origin") or request.headers.get("Referer")
+    if origin:
+        from urllib.parse import urlparse
+        origin_host = urlparse(origin).netloc.lower()
+        forwarded_host = request.headers.get("X-Forwarded-Host", "").split(",")[0].strip().lower()
+        current_host = request.host.lower()
+        allowed_hosts = {h for h in (current_host, forwarded_host) if h}
+        pub_url = get_setting("public_url", "")
+        if pub_url:
+            pub_netloc = urlparse(pub_url).netloc.lower()
+            if pub_netloc:
+                allowed_hosts.add(pub_netloc)
+        if origin_host and origin_host not in allowed_hosts:
+            return jsonify({
+                "success": False,
+                "error": "Cross-origin token retrieval prohibited."
+            }), 403
+
+    # 2. Check session validity if a user was previously logged in
+    user_id = session.get("user_id")
+    if user_id:
+        valid, timeout_msg = check_session_validity()
+        if not valid:
+            session.clear()
+            resp = jsonify({
+                "success": False,
+                "error": timeout_msg or "Session expired. Please sign in again.",
+                "reauthentication_required": True
+            })
+            resp.status_code = 401
+            resp.headers["Cache-Control"] = "no-store, no-cache, must-revalidate, max-age=0"
+            resp.headers["Pragma"] = "no-cache"
+            return resp
+
+    # 3. Retrieve or create synchronizer token
+    token = get_csrf_token()
+    resp = jsonify({
+        "success": True,
+        "csrf_token": token,
+        "authenticated": bool(user_id)
+    })
+    resp.headers["Cache-Control"] = "no-store, no-cache, must-revalidate, max-age=0"
+    resp.headers["Pragma"] = "no-cache"
+    return resp
+
 def admin_required(f):
     @wraps(f)
     def decorated_function(*args, **kwargs):
@@ -564,7 +683,29 @@ def admin_required(f):
                 return jsonify({"success": False, "error": "Admin authentication required. Please sign in."}), 401
             flash("Please sign in with your Admin ID and password to access the Tutor area.", "warning")
             return redirect(url_for("login", next=request.path, role="admin"))
+
+        # Verify session validity (idle timeout and max lifetime)
+        valid, timeout_msg = check_session_validity()
+        if not valid:
+            session.clear()
+            if request.path.startswith("/api/") or request.is_json:
+                return jsonify({"success": False, "error": timeout_msg or "Session expired."}), 401
+            flash(timeout_msg or "Your session has expired. Please sign in again.", "warning")
+            return redirect(url_for("login", next=request.path, role="admin"))
+
         if session.get("user_role") != "admin":
+            client_ip = request.headers.get("X-Forwarded-For", request.remote_addr or "127.0.0.1").split(",")[0].strip()
+            record_security_event(
+                event_type="authorization.unauthorized_access",
+                severity="MEDIUM",
+                event_category="authorization",
+                actor_id=session.get("user_id"),
+                actor_role=session.get("user_role"),
+                source_ip=client_ip,
+                user_agent=request.user_agent.string if request.user_agent else None,
+                endpoint=request.path,
+                details={"target_role": "admin", "reason": "Non-admin attempted admin area access"}
+            )
             if request.path.startswith("/api/") or request.is_json:
                 return jsonify({"success": False, "error": "Access Restricted: Only Admin / Tutor accounts can access this endpoint."}), 403
             flash("Access Restricted: Only Admin / Tutor accounts can access this section.", "danger")
@@ -586,12 +727,38 @@ def login():
         client_ip = request.headers.get("X-Forwarded-For", request.remote_addr or "127.0.0.1").split(",")[0].strip()
         locked, rem_secs = is_ip_locked_out(client_ip)
         if locked:
+            record_security_event(
+                event_type="auth.repeated_failed_login",
+                severity="HIGH",
+                event_category="auth",
+                source_ip=client_ip,
+                user_agent=request.user_agent.string if request.user_agent else None,
+                endpoint="/login",
+                details={"remaining_seconds": rem_secs, "identifier_masked": identifier[:3] + "***" if len(identifier) > 3 else "***"}
+            )
             flash(f"Security Lockout: Too many failed login attempts from this network. Access suspended for {rem_secs // 60 + 1} more minutes.", "danger")
             return render_template("login.html", role=role, prefill=identifier, next_url=next_url)
 
         user = authenticate_user(identifier, password)
         if user:
             reset_login_attempts(client_ip)
+            record_security_event(
+                event_type="auth.login_success",
+                severity="INFO",
+                event_category="auth",
+                actor_id=user["id"],
+                actor_role=user["role"],
+                source_ip=client_ip,
+                user_agent=request.user_agent.string if request.user_agent else None,
+                endpoint="/login",
+                details={"role": user["role"]}
+            )
+            # Check Multi-Factor Authentication requirement for Admins/Tutors
+            if user["role"] == "admin" and user.get("mfa_enabled"):
+                session["pending_mfa_user_id"] = user["id"]
+                session["pending_mfa_next"] = next_url
+                return redirect(url_for("mfa_verify_view"))
+
             # Check single-device & active-exam security rules for student accounts
             if user["role"] == "student":
                 conn = get_connection()
@@ -609,39 +776,101 @@ def login():
                 active_exam = cursor.fetchone()
 
                 existing_token = user.get("active_session_token")
-                # If student is already attempting an exam and attempts to login from a new session without permission
-                if active_exam and existing_token and not active_exam["device_switch_approved"]:
-                    # Check if there is already a pending request for this submission
-                    cursor.execute("""
-                        SELECT id FROM device_switch_requests
-                        WHERE student_id = ? AND submission_id = ? AND status = 'pending'
-                        ORDER BY created_at DESC LIMIT 1
-                    """, (user["id"], active_exam["id"]))
-                    existing_pending_req = cursor.fetchone()
-                    pending_req_id = existing_pending_req["id"] if existing_pending_req else None
+                confirm_device_switch = request.form.get("confirm_device_switch", "").strip()
 
+                # If student already has an active session on another device and hasn't confirmed replacement yet
+                if existing_token and confirm_device_switch != "1":
+                    record_security_event(
+                        event_type="auth.concurrent_session_attempt",
+                        severity="MEDIUM",
+                        event_category="session",
+                        actor_id=user["id"],
+                        actor_role="student",
+                        target_resource="exam" if active_exam else "account",
+                        target_resource_id=str(active_exam["exam_id"]) if active_exam else str(user["id"]),
+                        source_ip=client_ip,
+                        user_agent=request.user_agent.string if request.user_agent else None,
+                        endpoint="/login",
+                        details={
+                            "submission_id": active_exam["id"] if active_exam else None,
+                            "exam_title": active_exam["exam_title"] if active_exam else None,
+                            "has_active_exam": bool(active_exam)
+                        }
+                    )
                     conn.close()
-                    flash(f"⚠️ Exam In Progress: You are already taking '{active_exam['exam_title']}' on another device! Simultaneous logins are blocked. To switch devices during an exam, you can request your tutor to approve a Device Switch.", "danger")
+
+                    if request.is_json or request.headers.get("X-Requested-With") == "XMLHttpRequest":
+                        return jsonify({
+                            "success": False,
+                            "requires_device_switch_confirmation": True,
+                            "has_active_exam": bool(active_exam),
+                            "active_exam_title": active_exam["exam_title"] if active_exam else "",
+                            "message": "Your account is currently active on another device. Continuing will automatically sign out your previous session."
+                        })
+
                     return render_template(
                         "login.html",
                         role=role,
                         prefill=identifier,
                         next_url=next_url,
-                        device_switch_blocked=True,
+                        prompt_device_switch=True,
                         student_identifier=identifier,
-                        active_exam_id=active_exam["exam_id"],
-                        active_submission_id=active_exam["id"],
-                        active_exam_title=active_exam["exam_title"],
-                        pending_request_id=pending_req_id
+                        has_active_exam=bool(active_exam),
+                        active_exam_title=active_exam["exam_title"] if active_exam else ""
                     )
 
-                # Reset device_switch_approved flag once student uses it to log in
-                if active_exam and active_exam["device_switch_approved"]:
-                    cursor.execute("UPDATE submissions SET device_switch_approved = 0 WHERE id = ?", (active_exam["id"],))
+                # Student confirmed device switch (or this is a fresh login without prior active session)
+                had_active_exam = 1 if active_exam else 0
+                exam_id_val = active_exam["exam_id"] if active_exam else None
+                sub_id_val = active_exam["id"] if active_exam else None
 
-                # Generate new single-device session token and record in user profile
+                # Generate new single-device session token and atomically update user row
                 new_session_token = secrets.token_hex(20)
                 cursor.execute("UPDATE users SET active_session_token = ? WHERE id = ?", (new_session_token, user["id"]))
+
+                if existing_token and confirm_device_switch == "1":
+                    # Record in device_switch_history
+                    cursor.execute("""
+                        INSERT INTO device_switch_history (student_id, switch_type, had_active_exam, exam_id, submission_id, client_ip, user_agent)
+                        VALUES (?, 'automatic', ?, ?, ?, ?, ?)
+                    """, (user["id"], had_active_exam, exam_id_val, sub_id_val, client_ip, request.user_agent.string if request.user_agent else ""))
+
+                    # Publish sync event so the old device receives instant notification and shuts down
+                    publish_student_sync_event(
+                        event_type="session_replaced",
+                        target_student_id=user["id"],
+                        exam_id=exam_id_val,
+                        submission_id=sub_id_val,
+                        payload={
+                            "reason": "Signed in from a new device.",
+                            "had_active_exam": bool(had_active_exam),
+                            "exam_title": active_exam["exam_title"] if active_exam else ""
+                        },
+                        conn=conn
+                    )
+
+                    record_security_event(
+                        event_type="auth.device_switch_completed",
+                        severity="INFO",
+                        event_category="session",
+                        actor_id=user["id"],
+                        actor_role="student",
+                        target_resource="exam" if active_exam else "account",
+                        target_resource_id=str(exam_id_val) if exam_id_val else str(user["id"]),
+                        source_ip=client_ip,
+                        user_agent=request.user_agent.string if request.user_agent else None,
+                        endpoint="/login",
+                        details={
+                            "switch_type": "automatic",
+                            "had_active_exam": bool(had_active_exam),
+                            "submission_id": sub_id_val
+                        }
+                    )
+
+                # Reset device_switch_approved flag if present
+                if active_exam and row_get(active_exam, "device_switch_approved"):
+                    cursor.execute("UPDATE submissions SET device_switch_approved = 0 WHERE id = ?", (active_exam["id"],))
+
                 conn.commit()
                 conn.close()
                 session["session_token"] = new_session_token
@@ -657,6 +886,17 @@ def login():
             session["class_name"] = user.get("class_name") or ""
             session["profile_photo"] = user.get("profile_photo") or ""
 
+            # Rotate session upon successful authentication
+            rotate_session()
+
+            # Ensure student active_session_token in users table matches the rotated session_token
+            if user["role"] == "student":
+                conn_rot = get_connection()
+                cur_rot = conn_rot.cursor()
+                cur_rot.execute("UPDATE users SET active_session_token = ? WHERE id = ?", (session["session_token"], user["id"]))
+                conn_rot.commit()
+                conn_rot.close()
+
             flash(f"Signed in successfully as {user['full_name']}!", "success")
             if next_url and next_url.startswith("/") and not next_url.startswith("//"):
                 return redirect(next_url)
@@ -666,6 +906,15 @@ def login():
                 return redirect(url_for("student_dashboard"))
         else:
             record_failed_login(client_ip)
+            record_security_event(
+                event_type="auth.failed_login",
+                severity="LOW",
+                event_category="auth",
+                source_ip=client_ip,
+                user_agent=request.user_agent.string if request.user_agent else None,
+                endpoint="/login",
+                details={"identifier_masked": identifier[:3] + "***" if len(identifier) > 3 else "***"}
+            )
             flash("Invalid username/email or password.", "danger")
             return render_template("login.html", role=role, prefill=identifier, next_url=next_url)
 
@@ -946,6 +1195,21 @@ def student_change_password():
 
 @app.route("/logout")
 def logout():
+    uid = session.get("user_id")
+    urole = session.get("user_role")
+    client_ip = request.headers.get("X-Forwarded-For", request.remote_addr or "127.0.0.1").split(",")[0].strip()
+    if uid:
+        record_security_event(
+            event_type="auth.logout",
+            severity="INFO",
+            event_category="session",
+            actor_id=uid,
+            actor_role=urole,
+            source_ip=client_ip,
+            user_agent=request.user_agent.string if request.user_agent else None,
+            endpoint="/logout",
+            details={"action": "User initiated session logout"}
+        )
     session.clear()
     flash("You have been signed out successfully.", "info")
     return redirect(url_for("login"))
@@ -1002,26 +1266,52 @@ def tutor_dashboard():
 
     conn2 = get_connection()
     cursor2 = conn2.cursor()
-    cursor2.execute("SELECT id, full_name, username, roll_number, email, class_name, profile_photo, created_at FROM users WHERE role = 'student' ORDER BY created_at DESC")
+    cursor2.execute("""
+        SELECT u.id, u.full_name, u.username, u.roll_number, u.email, u.class_name, u.profile_photo, u.created_at,
+               u.active_session_token,
+               sub.id as active_sub_id, sub.exam_id as active_exam_id, sub.status as active_sub_status,
+               ex.title as active_exam_title
+        FROM users u
+        LEFT JOIN submissions sub ON (sub.user_id = u.id AND sub.status IN ('in_progress', 'paused', 'pause_requested'))
+        LEFT JOIN exams ex ON sub.exam_id = ex.id
+        WHERE u.role = 'student'
+        ORDER BY u.created_at DESC
+    """)
     students = [dict(r) for r in cursor2.fetchall()]
     distinct_classes = sorted(list(set(s['class_name'] for s in students if s.get('class_name'))))
 
-    # Query active/unresolved security incidents across all exams for the SIEM Security Operations Center
+    # Query current admin user MFA status
+    cursor2.execute("SELECT mfa_enabled, mfa_enrolled_at FROM users WHERE id = ?", (session.get("user_id"),))
+    current_admin_row = cursor2.fetchone()
+    admin_mfa_enabled = bool(current_admin_row and current_admin_row["mfa_enabled"])
+    admin_mfa_enrolled_at = current_admin_row["mfa_enrolled_at"] if current_admin_row else None
+
+    # Query active/unresolved security incidents from security_incidents
     cursor2.execute("""
-        SELECT v.*, s.student_name, s.roll_number, s.client_ip, s.exam_id, e.title as exam_title
-        FROM violations v
-        JOIN submissions s ON v.submission_id = s.id
-        JOIN exams e ON s.exam_id = e.id
-        WHERE COALESCE(v.is_resolved, 0) = 0
-        ORDER BY v.timestamp DESC
-        LIMIT 25
+        SELECT i.*, u.full_name as actor_name, u.roll_number as actor_roll
+        FROM security_incidents i
+        LEFT JOIN users u ON i.primary_actor_id = u.id
+        ORDER BY i.created_at DESC
+        LIMIT 50
     """)
     security_incidents = [dict(r) for r in cursor2.fetchall()]
+
+    # Query recent security events for the Live Telemetry stream
+    cursor2.execute("""
+        SELECT e.*, u.full_name as actor_name, u.roll_number as actor_roll
+        FROM security_events e
+        LEFT JOIN users u ON e.actor_id = u.id
+        ORDER BY e.timestamp DESC
+        LIMIT 50
+    """)
+    security_events_list = [dict(r) for r in cursor2.fetchall()]
     conn2.close()
 
     # Calculate SOC stats
     sec_critical_count = sum(1 for inc in security_incidents if (inc.get('severity') or '').upper() == 'CRITICAL')
     sec_high_count = sum(1 for inc in security_incidents if (inc.get('severity') or '').upper() == 'HIGH')
+    sec_open_count = sum(1 for inc in security_incidents if (inc.get('status') or '').upper() in ('OPEN', 'INVESTIGATING'))
+    sec_resolved_count = sum(1 for inc in security_incidents if (inc.get('status') or '').upper() in ('RESOLVED', 'FALSE_POSITIVE'))
 
     # Query student requests (device switch, exam assistance, special permission, etc.)
     conn_req = get_connection()
@@ -1069,16 +1359,33 @@ def tutor_dashboard():
         gemini_key_mask=(f"{len([k for k in gemini_key.split(',') if k.strip()])} Keys Active" if "," in gemini_key else ((gemini_key[:4] + "..." + gemini_key[-4:]) if len(gemini_key) > 8 else "")),
         groq_key_mask=(f"{len([k for k in groq_key.split(',') if k.strip()])} Keys Active" if "," in groq_key else ((groq_key[:4] + "..." + groq_key[-4:]) if len(groq_key) > 8 else "")),
         openrouter_key_mask=(f"{len([k for k in openrouter_key.split(',') if k.strip()])} Keys Active" if "," in openrouter_key else ((openrouter_key[:6] + "..." + openrouter_key[-4:]) if len(openrouter_key) > 10 else "")),
+        admin_mfa_enabled=admin_mfa_enabled,
+        admin_mfa_enrolled_at=admin_mfa_enrolled_at,
         public_url=public_url,
         security_incidents=security_incidents,
+        security_events_list=security_events_list,
         sec_critical_count=sec_critical_count,
         sec_high_count=sec_high_count,
+        sec_open_count=sec_open_count,
+        sec_resolved_count=sec_resolved_count,
         student_requests=student_requests,
         pending_requests_count=pending_requests_count,
         live_candidates=live_candidates,
         live_ongoing_count=live_ongoing_count,
         live_paused_count=live_paused_count
     )
+
+
+@app.route("/admin/security/soc", methods=["GET"])
+@admin_required
+def admin_soc_dashboard():
+    """
+    Dedicated Security Operations Centre (SOC) Frontend View.
+    Enforces administrator authentication and renders the specialized
+    cybersecurity monitoring, risk intelligence, and incident management console.
+    """
+    return render_template("soc_dashboard.html")
+
 
 @app.route("/tutor/settings", methods=["GET", "POST"])
 @admin_required
@@ -4410,6 +4717,20 @@ def student_exam_room(submission_id):
         curr_roll = session.get("roll_number")
         if (sub_uid and sub_uid != curr_uid) or (not sub_uid and sub_roll != curr_roll):
             conn.close()
+            client_ip = request.headers.get("X-Forwarded-For", request.remote_addr or "127.0.0.1").split(",")[0].strip()
+            record_security_event(
+                event_type="authorization.idor_attempt",
+                severity="HIGH",
+                event_category="authorization",
+                actor_id=curr_uid,
+                actor_role="student",
+                target_resource="submission",
+                target_resource_id=str(submission_id),
+                source_ip=client_ip,
+                user_agent=request.user_agent.string if request.user_agent else None,
+                endpoint=request.path,
+                details={"target_owner_uid": sub_uid, "reason": "Student attempted to access another candidate's exam session"}
+            )
             flash("Access Restricted: You can only access your own exam session.", "danger")
             return redirect(url_for("student_dashboard"))
 
@@ -5123,6 +5444,1042 @@ def api_tutor_get_student_requests():
     })
 
 
+@app.route("/api/admin/security/incidents", methods=["GET"])
+@admin_required
+def api_admin_get_security_incidents():
+    """Returns recent security incidents and live metrics for the SOC dashboard."""
+    conn = get_connection()
+    cursor = conn.cursor()
+    cursor.execute("""
+        SELECT i.*, u.full_name as actor_name, u.roll_number as actor_roll
+        FROM security_incidents i
+        LEFT JOIN users u ON i.primary_actor_id = u.id
+        ORDER BY i.created_at DESC
+        LIMIT 50
+    """)
+    incidents = [dict(r) for r in cursor.fetchall()]
+
+    cursor.execute("""
+        SELECT e.*, u.full_name as actor_name, u.roll_number as actor_roll
+        FROM security_events e
+        LEFT JOIN users u ON e.actor_id = u.id
+        ORDER BY e.timestamp DESC
+        LIMIT 50
+    """)
+    events = [dict(r) for r in cursor.fetchall()]
+    conn.close()
+
+    crit_cnt = sum(1 for inc in incidents if (inc.get("severity") or "").upper() == "CRITICAL")
+    high_cnt = sum(1 for inc in incidents if (inc.get("severity") or "").upper() == "HIGH")
+    open_cnt = sum(1 for inc in incidents if (inc.get("status") or "").upper() in ("OPEN", "INVESTIGATING"))
+    res_cnt = sum(1 for inc in incidents if (inc.get("status") or "").upper() in ("RESOLVED", "FALSE_POSITIVE"))
+
+    return jsonify({
+        "success": True,
+        "incidents": incidents,
+        "events": events,
+        "stats": {
+            "total_incidents": len(incidents),
+            "critical_count": crit_cnt,
+            "high_count": high_cnt,
+            "open_count": open_cnt,
+            "resolved_count": res_cnt,
+            "total_events": len(events)
+        }
+    })
+
+
+@app.route("/api/admin/security/incident/<incident_id>", methods=["GET"])
+@admin_required
+def api_admin_get_incident_detail(incident_id):
+    """
+    Retrieves full unified incident investigation dossier:
+    - Incident details, notes, and audit history.
+    - Correlated security events and entity relationships.
+    - Related security recommendations and review decisions.
+    - Historical risk transitions from risk_audit_log.
+    - Unified chronological investigation timeline.
+    """
+    try:
+        from security import get_unified_incident_intelligence
+        intel = get_unified_incident_intelligence(incident_id)
+        if not intel:
+            return jsonify({"success": False, "error": f"Incident '{incident_id}' not found."}), 404
+        return jsonify(intel)
+    except Exception as e:
+        logger.error("Error in api_admin_get_incident_detail for %s: %s", incident_id, e)
+        return jsonify({"success": False, "error": "Failed to assemble unified incident intelligence."}), 500
+
+
+@app.route("/api/admin/security/incident/<incident_id>/status", methods=["POST"])
+@admin_required
+def api_admin_update_incident_status(incident_id):
+    """Updates incident status with validation and audit logging."""
+    data = request.get_json(silent=True) or request.form
+    new_status = data.get("status")
+    notes = data.get("notes") or ""
+
+    if not new_status:
+        return jsonify({"success": False, "error": "Target status is required."}), 400
+
+    actor_id = session.get("user_id")
+    actor_name = session.get("user_name") or session.get("username") or "Admin"
+
+    ok, msg = transition_incident_status(
+        incident_id=incident_id,
+        new_status=new_status,
+        actor_id=actor_id,
+        actor_name=actor_name,
+        notes=notes
+    )
+    if not ok:
+        return jsonify({"success": False, "error": msg}), 400
+    return jsonify({"success": True, "message": msg})
+
+
+@app.route("/api/admin/security/incident/<incident_id>/note", methods=["POST"])
+@admin_required
+def api_admin_add_incident_note(incident_id):
+    """Appends an immutable investigation note to a security incident."""
+    data = request.get_json(silent=True) or request.form
+    note_text = (data.get("note") or "").strip()
+
+    if not note_text:
+        return jsonify({"success": False, "error": "Note text cannot be empty."}), 400
+
+    actor_id = session.get("user_id") or 0
+    actor_name = session.get("user_name") or session.get("username") or "Admin"
+
+    ok = add_incident_note(
+        incident_id=incident_id,
+        author_id=actor_id,
+        author_name=actor_name,
+        note_text=note_text
+    )
+    if not ok:
+        return jsonify({"success": False, "error": "Failed to add investigation note."}), 500
+    return jsonify({"success": True, "message": "Investigation note recorded."})
+
+
+@app.route("/api/admin/security/recommendation/<recommendation_id>/review", methods=["POST"])
+@admin_required
+def api_admin_review_security_recommendation(recommendation_id):
+    """
+    Authorized Administrator Review endpoint for Adaptive Security Recommendations.
+    Enforces:
+    - @admin_required authentication & role gating.
+    - CSRF protection via synchronizer token.
+    - Server-side derived reviewer identity from session (cannot be spoofed in payload).
+    - Status transitions exclusively to APPROVED, REJECTED, or DISMISSED.
+    - Execution notes sanitization.
+    """
+    data = request.get_json(silent=True) or request.form
+    action = (data.get("action") or "").strip().upper()
+    notes = (data.get("notes") or "").strip()
+
+    if not action:
+        return jsonify({"success": False, "error": "Review action ('APPROVED', 'REJECTED', 'DISMISSED') is required."}), 400
+
+    if action not in ("APPROVED", "REJECTED", "DISMISSED"):
+        return jsonify({"success": False, "error": f"Invalid review action '{action}'. Must be APPROVED, REJECTED, or DISMISSED."}), 400
+
+    reviewer_id = session.get("user_id")
+    reviewer_role = session.get("user_role")
+
+    if not reviewer_id or reviewer_role != "admin":
+        return jsonify({"success": False, "error": "Unauthorized: Only authenticated administrators can review recommendations."}), 403
+
+    ok, msg = review_security_recommendation(
+        recommendation_id=recommendation_id,
+        action=action,
+        reviewer_id=reviewer_id,
+        reviewer_role=reviewer_role,
+        notes=notes
+    )
+
+    if not ok:
+        return jsonify({"success": False, "error": msg}), 400
+
+    return jsonify({"success": True, "message": msg})
+
+
+# --- PHASE 4 STEP 4.1: SOC DASHBOARD BACKEND APIS ---
+
+@app.route("/api/admin/security/overview", methods=["GET"])
+@admin_required
+def api_admin_security_overview():
+    """
+    SOC Overview Metrics:
+    Returns high-level statistics across security events, incidents, recommendations,
+    and risk distribution without loading all event details into memory.
+    """
+    try:
+        conn = get_connection()
+        cursor = conn.cursor()
+
+        # 1. Total security events count
+        cursor.execute("SELECT COUNT(*) as cnt FROM security_events")
+        row = cursor.fetchone()
+        total_events = row["cnt"] if row else 0
+
+        # 2. Incident status and severity breakdowns
+        cursor.execute("""
+            SELECT status, severity, COUNT(*) as cnt
+            FROM security_incidents
+            GROUP BY status, severity
+        """)
+        inc_rows = cursor.fetchall()
+
+        open_incidents = 0
+        investigating_incidents = 0
+        critical_incidents = 0
+        high_risk_incidents = 0
+        resolved_incidents = 0
+
+        for r in inc_rows:
+            st = (r["status"] or "").upper()
+            sev = (r["severity"] or "").upper()
+            cnt = r["cnt"]
+
+            if st == "OPEN":
+                open_incidents += cnt
+            elif st == "INVESTIGATING":
+                investigating_incidents += cnt
+            elif st in ("RESOLVED", "FALSE_POSITIVE"):
+                resolved_incidents += cnt
+
+            if sev == "CRITICAL" and st not in ("RESOLVED", "FALSE_POSITIVE"):
+                critical_incidents += cnt
+            elif sev == "HIGH" and st not in ("RESOLVED", "FALSE_POSITIVE"):
+                high_risk_incidents += cnt
+
+        # 3. Pending recommendations count and distribution
+        cursor.execute("""
+            SELECT recommended_action, COUNT(*) as cnt
+            FROM security_recommendations
+            WHERE status = 'PENDING_REVIEW'
+            GROUP BY recommended_action
+        """)
+        rec_rows = cursor.fetchall()
+        pending_recommendations = sum(r["cnt"] for r in rec_rows)
+        pending_by_action = {r["recommended_action"]: r["cnt"] for r in rec_rows}
+
+        # 4. Canonical Risk distribution based on active incidents (LOW: 0-19, MEDIUM: 20-44, HIGH: 45-74, CRITICAL: 75-100)
+        cursor.execute("""
+            SELECT
+                SUM(CASE WHEN risk_score < 20 THEN 1 ELSE 0 END) as low_cnt,
+                SUM(CASE WHEN risk_score >= 20 AND risk_score < 45 THEN 1 ELSE 0 END) as med_cnt,
+                SUM(CASE WHEN risk_score >= 45 AND risk_score < 75 THEN 1 ELSE 0 END) as high_cnt,
+                SUM(CASE WHEN risk_score >= 75 THEN 1 ELSE 0 END) as crit_cnt
+            FROM security_incidents
+            WHERE status IN ('OPEN', 'INVESTIGATING')
+        """)
+        dist_row = cursor.fetchone()
+        risk_distribution = {
+            "low": (dist_row["low_cnt"] or 0) if dist_row else 0,
+            "medium": (dist_row["med_cnt"] or 0) if dist_row else 0,
+            "high": (dist_row["high_cnt"] or 0) if dist_row else 0,
+            "critical": (dist_row["crit_cnt"] or 0) if dist_row else 0,
+        }
+
+        # 5. Recent security activity (last 10 events, sensitive data sanitized and session tokens anonymized)
+        cursor.execute("""
+            SELECT id, event_id, event_type, severity, actor_id, actor_role,
+                   target_resource, target_resource_id, timestamp
+            FROM security_events
+            ORDER BY timestamp DESC, id DESC
+            LIMIT 10
+        """)
+        raw_recent = [dict(r) for r in cursor.fetchall()]
+        recent_activity = []
+        for act in raw_recent:
+            if (act.get("target_resource") or "").lower() == "session":
+                act["target_resource_id"] = anonymize_session_identifier(act.get("target_resource_id"))
+            recent_activity.append(act)
+
+        conn.close()
+
+        return jsonify({
+            "success": True,
+            "overview": {
+                "total_security_events": total_events,
+                "open_incidents": open_incidents,
+                "investigating_incidents": investigating_incidents,
+                "critical_incidents": critical_incidents,
+                "high_risk_incidents": high_risk_incidents,
+                "resolved_incidents": resolved_incidents,
+                "pending_recommendations": pending_recommendations,
+                "pending_recommendations_by_action": pending_by_action,
+                "risk_distribution": risk_distribution,
+                "recent_activity": recent_activity,
+            }
+        })
+    except Exception as e:
+        logger.error("Error in api_admin_security_overview: %s", e)
+        return jsonify({"success": False, "error": "Failed to retrieve security overview metrics."}), 500
+
+
+@app.route("/api/admin/security/events", methods=["GET"])
+@admin_required
+def api_admin_security_events():
+    """
+    Paginated & Filterable Security Events API.
+    Supports:
+    - page, per_page (capped at 100)
+    - severity (INFO, LOW, MEDIUM, HIGH, CRITICAL)
+    - event_type
+    - actor_id
+    - start_date, end_date (ISO format YYYY-MM-DD or full timestamp)
+    - search (matches event_type, endpoint, source_ip)
+    Data Minimization:
+    - Redacts passwords, tokens, cookies, and clipboard contents.
+    """
+    try:
+        page = max(1, int(request.args.get("page", 1)))
+        per_page = min(100, max(1, int(request.args.get("per_page", 25))))
+        offset = (page - 1) * per_page
+
+        severity = (request.args.get("severity") or "").strip().upper()
+        event_type = (request.args.get("event_type") or "").strip()
+        actor_id_param = (request.args.get("actor_id") or "").strip()
+        start_date = (request.args.get("start_date") or "").strip()
+        end_date = (request.args.get("end_date") or "").strip()
+        search = (request.args.get("search") or "").strip()
+
+        where_clauses = []
+        params = []
+
+        if severity:
+            where_clauses.append("severity = ?")
+            params.append(severity[:16])
+
+        if event_type:
+            where_clauses.append("event_type = ?")
+            params.append(event_type[:64])
+
+        if actor_id_param:
+            try:
+                where_clauses.append("actor_id = ?")
+                params.append(int(actor_id_param))
+            except ValueError:
+                return jsonify({"success": False, "error": "Invalid actor_id parameter."}), 400
+
+        if start_date:
+            where_clauses.append("timestamp >= ?")
+            params.append(start_date[:32])
+
+        if end_date:
+            where_clauses.append("timestamp <= ?")
+            params.append(end_date[:32])
+
+        if search:
+            where_clauses.append("(event_type LIKE ? OR endpoint LIKE ? OR source_ip LIKE ?)")
+            wildcard = f"%{search[:64]}%"
+            params.extend([wildcard, wildcard, wildcard])
+
+        where_sql = ("WHERE " + " AND ".join(where_clauses)) if where_clauses else ""
+
+        conn = get_connection()
+        cursor = conn.cursor()
+
+        # Total count query
+        cursor.execute(f"SELECT COUNT(*) as cnt FROM security_events {where_sql}", params)
+        total_count = cursor.fetchone()["cnt"]
+
+        # Paginated fetch
+        fetch_params = list(params)
+        fetch_params.extend([per_page, offset])
+        cursor.execute(f"""
+            SELECT e.id, e.event_id, e.event_type, e.severity, e.actor_id, e.actor_role,
+                   e.target_resource, e.target_resource_id, e.correlation_id,
+                   e.source_ip, e.endpoint, e.event_category, e.details_json, e.timestamp,
+                   u.full_name as actor_name, u.roll_number as actor_roll
+            FROM security_events e
+            LEFT JOIN users u ON e.actor_id = u.id
+            {where_sql}
+            ORDER BY e.timestamp DESC, e.id DESC
+            LIMIT ? OFFSET ?
+        """, fetch_params)
+
+        raw_events = [dict(r) for r in cursor.fetchall()]
+        conn.close()
+
+        # Sanitize details_json and mask any sensitive fields; anonymize session identifiers
+        sanitized_events = []
+        for ev in raw_events:
+            try:
+                details = json.loads(ev.get("details_json") or "{}")
+            except Exception:
+                details = {}
+            ev["details"] = sanitize_security_details(details)
+            ev.pop("details_json", None)
+
+            # Anonymize session identifier if target_resource is session
+            if (ev.get("target_resource") or "").lower() == "session":
+                ev["target_resource_id"] = anonymize_session_identifier(ev.get("target_resource_id"))
+
+            sanitized_events.append(ev)
+
+        total_pages = (total_count + per_page - 1) // per_page
+
+        return jsonify({
+            "success": True,
+            "events": sanitized_events,
+            "pagination": {
+                "page": page,
+                "per_page": per_page,
+                "total_items": total_count,
+                "total_pages": total_pages,
+            }
+        })
+    except Exception as e:
+        logger.error("Error in api_admin_security_events: %s", e)
+        return jsonify({"success": False, "error": "Failed to retrieve security events."}), 500
+
+
+@app.route("/api/admin/security/risks", methods=["GET"])
+@admin_required
+def api_admin_security_risks():
+    """
+    On-Demand & Historical Security Risk Assessment API.
+    Supports query parameters:
+    - scope: 'account', 'session', 'device', 'ip', 'examination'
+    - target_id: ID of the account, device fingerprint, IP address, or submission_id
+    If scope & target_id are provided:
+      Evaluates and returns real-time explainable risk assessment for that target.
+    If scope & target_id are omitted:
+      Returns the most recent risk assessments recorded in `risk_audit_log` with pagination.
+    Data Minimization:
+    - Raw session tokens are never exposed.
+    """
+    try:
+        scope = (request.args.get("scope") or "").strip().lower()
+        target_id = (request.args.get("target_id") or "").strip()
+
+        if scope and target_id:
+            # Bound and validate target_id length to prevent abuse or log bloating
+            if len(target_id) > 255:
+                return jsonify({"success": False, "error": "target_id exceeds maximum permitted length (255 characters)."}), 400
+
+            # Real-time explainable assessment for specific target
+            if scope == "account":
+                try:
+                    actor_id = int(target_id)
+                    if actor_id <= 0:
+                        raise ValueError()
+                except ValueError:
+                    return jsonify({"success": False, "error": "Invalid target_id for account scope. Expected positive integer user_id."}), 400
+                assessment = assess_account_risk(user_id=actor_id)
+            elif scope == "session":
+                assessment = assess_session_risk(session_token=target_id)
+            elif scope == "device":
+                assessment = assess_device_risk(device_fingerprint_or_ua=target_id)
+            elif scope == "ip":
+                # Validate IP address format safely without crashing
+                clean_ip = target_id.strip()
+                if not re.match(r"^[0-9a-fA-F.:]{3,45}$", clean_ip):
+                    return jsonify({"success": False, "error": "Invalid IP address format."}), 400
+                assessment = assess_ip_context_risk(ip_address=clean_ip)
+            elif scope in ("examination", "submission"):
+                try:
+                    sub_id = int(target_id)
+                    if sub_id <= 0:
+                        raise ValueError()
+                except ValueError:
+                    return jsonify({"success": False, "error": "Invalid target_id for examination scope. Expected positive integer submission_id."}), 400
+                assessment = assess_examination_risk(submission_id=sub_id)
+            else:
+                return jsonify({"success": False, "error": f"Invalid scope '{scope}'. Must be account, session, device, ip, or examination."}), 400
+
+            return jsonify({
+                "success": True,
+                "assessment": assessment.to_dict()
+            })
+
+        # Default mode: return latest transitions from risk_audit_log
+        page = max(1, int(request.args.get("page", 1)))
+        per_page = min(100, max(1, int(request.args.get("per_page", 25))))
+        offset = (page - 1) * per_page
+
+        conn = get_connection()
+        cursor = conn.cursor()
+
+        cursor.execute("SELECT COUNT(*) as cnt FROM risk_audit_log")
+        total_count = cursor.fetchone()["cnt"]
+
+        cursor.execute("""
+            SELECT id, entity_type, entity_id, old_score, new_score, factors_json, trigger_event, timestamp
+            FROM risk_audit_log
+            ORDER BY timestamp DESC, id DESC
+            LIMIT ? OFFSET ?
+        """, (per_page, offset))
+        rows = [dict(r) for r in cursor.fetchall()]
+        conn.close()
+
+        # Parse factors_json and sanitize
+        audit_entries = []
+        for r in rows:
+            try:
+                factors = json.loads(r.get("factors_json") or "[]")
+            except Exception:
+                factors = []
+            r["factors"] = factors
+            r.pop("factors_json", None)
+
+            # Anonymize session tokens into non-reversible surrogate references if entity_type is session
+            if (r.get("entity_type") or "").lower() == "session":
+                r["entity_id"] = anonymize_session_identifier(r.get("entity_id"))
+
+            audit_entries.append(r)
+
+        total_pages = (total_count + per_page - 1) // per_page
+
+        return jsonify({
+            "success": True,
+            "risk_audits": audit_entries,
+            "pagination": {
+                "page": page,
+                "per_page": per_page,
+                "total_items": total_count,
+                "total_pages": total_pages,
+            }
+        })
+    except Exception as e:
+        logger.error("Error in api_admin_security_risks: %s", e)
+        return jsonify({"success": False, "error": "Failed to calculate or retrieve risk assessment data."}), 500
+
+
+@app.route("/api/admin/security/recommendation/<recommendation_id>", methods=["GET"])
+@admin_required
+def api_admin_get_recommendation_detail(recommendation_id):
+    """
+    Retrieves full recommendation traceability:
+    - Target actor & resource.
+    - Risk score and policy evaluation.
+    - Triggering events list.
+    - Linked incident metadata.
+    - Review decision and execution notes.
+    """
+    try:
+        from security.policy_engine import get_recommendation_details
+        detail = get_recommendation_details(recommendation_id)
+        if not detail:
+            return jsonify({"success": False, "error": f"Recommendation '{recommendation_id}' not found."}), 404
+        return jsonify({"success": True, "recommendation": detail})
+    except Exception as e:
+        logger.error("Error in api_admin_get_recommendation_detail: %s", e)
+        return jsonify({"success": False, "error": "Failed to retrieve recommendation details."}), 500
+
+
+@app.route("/api/admin/security/incident/<incident_id>/timeline", methods=["GET"])
+@admin_required
+def api_admin_get_incident_timeline(incident_id):
+    """
+    Retrieves unified chronological investigation timeline for a given incident.
+    """
+    try:
+        from security import get_unified_incident_intelligence
+        intel = get_unified_incident_intelligence(incident_id)
+        if not intel:
+            return jsonify({"success": False, "error": f"Incident '{incident_id}' not found."}), 404
+        return jsonify({
+            "success": True,
+            "incident_id": incident_id,
+            "timeline": intel.get("timeline", [])
+        })
+    except Exception as e:
+        logger.error("Error in api_admin_get_incident_timeline: %s", e)
+        return jsonify({"success": False, "error": "Failed to assemble investigation timeline."}), 500
+
+
+@app.route("/api/admin/security/recommendations", methods=["GET"])
+
+@admin_required
+def api_admin_security_recommendations():
+    """
+    Paginated & Filterable Security Recommendations API.
+    Supports:
+    - status ('PENDING_REVIEW', 'APPROVED', 'REJECTED', 'DISMISSED', 'SUPERSEDED')
+    - risk_level ('LOW', 'MEDIUM', 'HIGH', 'CRITICAL')
+    - action (e.g. 'recommend_mfa_stepup', 'flag_proctor_review', etc.)
+    - page, per_page
+    - search (matches explanation, recommendation_id, target_resource_id)
+    """
+    try:
+        page = max(1, int(request.args.get("page", 1)))
+        per_page = min(100, max(1, int(request.args.get("per_page", 25))))
+        offset = (page - 1) * per_page
+
+        status = (request.args.get("status") or "").strip().upper()
+        risk_level = (request.args.get("risk_level") or "").strip().upper()
+        action = (request.args.get("action") or "").strip()
+        search = (request.args.get("search") or "").strip()
+
+        where_clauses = []
+        params = []
+
+        if status:
+            where_clauses.append("r.status = ?")
+            params.append(status[:32])
+
+        if action:
+            where_clauses.append("r.recommended_action = ?")
+            params.append(action[:64])
+
+        if risk_level:
+            if risk_level == "LOW":
+                where_clauses.append("r.risk_score < 20")
+            elif risk_level == "MEDIUM":
+                where_clauses.append("(r.risk_score >= 20 AND r.risk_score < 45)")
+            elif risk_level == "HIGH":
+                where_clauses.append("(r.risk_score >= 45 AND r.risk_score < 75)")
+            elif risk_level == "CRITICAL":
+                where_clauses.append("r.risk_score >= 75")
+
+        if search:
+            where_clauses.append("(r.explanation LIKE ? OR r.recommendation_id LIKE ? OR r.target_resource_id LIKE ?)")
+            wildcard = f"%{search[:64]}%"
+            params.extend([wildcard, wildcard, wildcard])
+
+        where_sql = ("WHERE " + " AND ".join(where_clauses)) if where_clauses else ""
+
+        conn = get_connection()
+        cursor = conn.cursor()
+
+        # Count total
+        cursor.execute(f"SELECT COUNT(*) as cnt FROM security_recommendations r {where_sql}", params)
+        total_count = cursor.fetchone()["cnt"]
+
+        # Fetch records
+        fetch_params = list(params)
+        fetch_params.extend([per_page, offset])
+        cursor.execute(f"""
+            SELECT r.id, r.recommendation_id, r.incident_id, r.target_actor_id,
+                   r.target_resource, r.target_resource_id, r.risk_score,
+                   r.triggering_events_json, r.explanation, r.recommended_action,
+                   r.potential_impact, r.required_role, r.status, r.reviewed_by,
+                   r.reviewed_at, r.execution_notes, r.created_at,
+                   u.full_name as target_actor_name, u.roll_number as target_actor_roll,
+                   rev.full_name as reviewer_name
+            FROM security_recommendations r
+            LEFT JOIN users u ON r.target_actor_id = u.id
+            LEFT JOIN users rev ON r.reviewed_by = rev.id
+            {where_sql}
+            ORDER BY
+                CASE WHEN r.status = 'PENDING_REVIEW' THEN 0 ELSE 1 END ASC,
+                r.risk_score DESC,
+                r.created_at DESC
+            LIMIT ? OFFSET ?
+        """, fetch_params)
+
+        rows = [dict(row) for row in cursor.fetchall()]
+        conn.close()
+
+        recommendations = []
+        for r in rows:
+            try:
+                r["triggering_events"] = json.loads(r.get("triggering_events_json") or "[]")
+            except Exception:
+                r["triggering_events"] = []
+            r.pop("triggering_events_json", None)
+
+            # Anonymize session token into non-reversible surrogate reference if target_resource is session
+            if (r.get("target_resource") or "").lower() == "session":
+                r["target_resource_id"] = anonymize_session_identifier(r.get("target_resource_id"))
+
+            recommendations.append(r)
+
+        total_pages = (total_count + per_page - 1) // per_page
+
+        return jsonify({
+            "success": True,
+            "recommendations": recommendations,
+            "pagination": {
+                "page": page,
+                "per_page": per_page,
+                "total_items": total_count,
+                "total_pages": total_pages,
+            }
+        })
+    except Exception as e:
+        logger.error("Error in api_admin_security_recommendations: %s", e)
+        return jsonify({"success": False, "error": "Failed to retrieve security recommendations."}), 500
+
+
+
+
+# --- PHASE 3: MFA & ADVANCED AUTHENTICATION ROUTES ---
+
+@app.route("/mfa/verify", methods=["GET", "POST"])
+def mfa_verify_view():
+    """Two-factor verification challenge for accounts with MFA enabled."""
+    user_id = session.get("pending_mfa_user_id")
+    if not user_id:
+        return redirect(url_for("login"))
+
+    conn = get_connection()
+    c = conn.cursor()
+    c.execute("SELECT id, username, full_name, role, mfa_secret, mfa_recovery_codes_json FROM users WHERE id = ?", (user_id,))
+    user = c.fetchone()
+    conn.close()
+
+    if not user:
+        session.pop("pending_mfa_user_id", None)
+        return redirect(url_for("login"))
+
+    if request.method == "POST":
+        token = request.form.get("mfa_code", "").strip()
+        recovery_code = request.form.get("recovery_code", "").strip()
+        client_ip = request.headers.get("X-Forwarded-For", request.remote_addr or "127.0.0.1").split(",")[0].strip()
+
+        verified = False
+        used_recovery = False
+
+        if token:
+            verified = verify_totp_code(user["mfa_secret"], token)
+        elif recovery_code:
+            ok, updated_codes = verify_and_consume_recovery_code(recovery_code, user["mfa_recovery_codes_json"] or "[]")
+            if ok:
+                verified = True
+                used_recovery = True
+                conn = get_connection()
+                c = conn.cursor()
+                c.execute("UPDATE users SET mfa_recovery_codes_json = ? WHERE id = ?", (updated_codes, user["id"]))
+                conn.commit()
+                conn.close()
+
+        if verified:
+            session.pop("pending_mfa_user_id", None)
+            next_url = session.pop("pending_mfa_next", None)
+
+            session["user_id"] = user["id"]
+            session["username"] = user["username"]
+            session["user_name"] = user["full_name"]
+            session["user_role"] = user["role"]
+            rotate_session()
+
+            record_security_event(
+                event_type="auth.mfa_success",
+                severity="INFO",
+                event_category="auth",
+                actor_id=user["id"],
+                actor_role=user["role"],
+                source_ip=client_ip,
+                endpoint="/mfa/verify",
+                details={"method": "recovery_code" if used_recovery else "totp"}
+            )
+            flash("Multi-Factor Authentication successful!", "success")
+            if next_url and next_url.startswith("/") and not next_url.startswith("//"):
+                return redirect(next_url)
+            return redirect(url_for("tutor_dashboard"))
+        else:
+            record_security_event(
+                event_type="auth.mfa_failure",
+                severity="HIGH",
+                event_category="auth",
+                actor_id=user["id"],
+                actor_role=user["role"],
+                source_ip=client_ip,
+                endpoint="/mfa/verify",
+                details={"reason": "Invalid TOTP or recovery code"}
+            )
+            flash("Invalid authentication code or recovery code. Please try again.", "danger")
+
+    return render_template("mfa_verify.html", username=user["username"])
+
+
+@app.route("/api/admin/mfa/setup", methods=["GET"])
+@admin_required
+def api_admin_mfa_setup():
+    """Generates an ephemeral MFA secret and OTP URI for authenticator QR enrollment."""
+    user_id = session.get("user_id")
+    secret = generate_mfa_secret()
+    username = session.get("username", "admin")
+    otp_uri = get_totp_uri(secret, username)
+    plain_codes, hashed_codes = generate_recovery_codes()
+
+    # Store ephemeral secret in session pending verification
+    session["pending_mfa_enroll_secret"] = secret
+    session["pending_mfa_recovery_hashes"] = hashed_codes
+
+    return jsonify({
+        "success": True,
+        "secret": secret,
+        "otp_uri": otp_uri,
+        "recovery_codes": plain_codes
+    })
+
+
+@app.route("/api/admin/mfa/confirm", methods=["POST"])
+@admin_required
+def api_admin_mfa_confirm():
+    """Confirms TOTP enrollment by verifying a live 6-digit code before activating MFA on user profile."""
+    data = request.get_json(silent=True) or request.form
+    token = (data.get("code") or "").strip()
+    secret = session.get("pending_mfa_enroll_secret")
+    recovery_hashes = session.get("pending_mfa_recovery_hashes") or []
+    user_id = session.get("user_id")
+
+    if not secret:
+        return jsonify({"success": False, "error": "No pending MFA enrollment session found. Please click Setup MFA again."}), 400
+
+    if not verify_totp_code(secret, token):
+        record_security_event(
+            event_type="auth.mfa_enroll_failed",
+            severity="MEDIUM",
+            event_category="auth",
+            actor_id=user_id,
+            actor_role="admin",
+            endpoint="/api/admin/mfa/confirm",
+            details={"reason": "Incorrect code during MFA enrollment activation"}
+        )
+        return jsonify({"success": False, "error": "Invalid verification code. Please check your authenticator clock."}), 400
+
+    encrypted_secret = encrypt_mfa_secret(secret)
+    conn = get_connection()
+    c = conn.cursor()
+    c.execute(
+        """
+        UPDATE users
+        SET mfa_enabled = 1, mfa_secret = ?, mfa_recovery_codes_json = ?, mfa_enrolled_at = CURRENT_TIMESTAMP
+        WHERE id = ?
+        """,
+        (encrypted_secret, json.dumps(recovery_hashes), user_id),
+    )
+    conn.commit()
+    conn.close()
+
+    session.pop("pending_mfa_enroll_secret", None)
+    session.pop("pending_mfa_recovery_hashes", None)
+
+    record_security_event(
+        event_type="auth.mfa_enabled",
+        severity="INFO",
+        event_category="auth",
+        actor_id=user_id,
+        actor_role="admin",
+        endpoint="/api/admin/mfa/confirm",
+        details={"status": "MFA successfully activated"}
+    )
+
+    return jsonify({"success": True, "message": "Two-factor authentication has been successfully activated for your account!"})
+
+
+@app.route("/api/admin/mfa/disable", methods=["POST"])
+@admin_required
+def api_admin_mfa_disable():
+    """Allows an administrator to disable MFA after re-verifying current password."""
+    data = request.get_json(silent=True) or request.form
+    password = (data.get("password") or "").strip()
+    user_id = session.get("user_id")
+
+    if not password:
+        return jsonify({"success": False, "error": "Current account password is required to disable MFA."}), 400
+
+    conn = get_connection()
+    c = conn.cursor()
+    c.execute("SELECT password_hash FROM users WHERE id = ?", (user_id,))
+    row = c.fetchone()
+    if not row:
+        conn.close()
+        return jsonify({"success": False, "error": "Account not found."}), 404
+
+    from werkzeug.security import check_password_hash
+    if not check_password_hash(row["password_hash"], password):
+        conn.close()
+        record_security_event(
+            event_type="auth.mfa_disable_failed",
+            severity="HIGH",
+            event_category="auth",
+            actor_id=user_id,
+            actor_role="admin",
+            endpoint="/api/admin/mfa/disable",
+            details={"reason": "Incorrect password during MFA disable request"}
+        )
+        return jsonify({"success": False, "error": "Incorrect password."}), 401
+
+    c.execute(
+        "UPDATE users SET mfa_enabled = 0, mfa_secret = '', mfa_recovery_codes_json = '[]' WHERE id = ?",
+        (user_id,),
+    )
+    conn.commit()
+    conn.close()
+
+    record_security_event(
+        event_type="auth.mfa_disabled",
+        severity="MEDIUM",
+        event_category="auth",
+        actor_id=user_id,
+        actor_role="admin",
+        endpoint="/api/admin/mfa/disable",
+        details={"status": "MFA disabled by user"}
+    )
+    return jsonify({"success": True, "message": "Two-factor authentication has been disabled."})
+
+
+@app.route("/api/admin/student/<int:student_id>/terminate-session", methods=["POST"])
+@admin_required
+def api_admin_terminate_student_session(student_id):
+    """Tutor or Administrator manually terminates an active student session."""
+    conn = get_connection()
+    cursor = conn.cursor()
+    cursor.execute("SELECT id, username, full_name, active_session_token FROM users WHERE id = ? AND role = 'student'", (student_id,))
+    student = cursor.fetchone()
+    if not student:
+        conn.close()
+        return jsonify({"success": False, "error": "Student account not found."}), 404
+
+    # Check for active exam
+    cursor.execute("""
+        SELECT s.id, s.exam_id, e.title as exam_title
+        FROM submissions s
+        JOIN exams e ON s.exam_id = e.id
+        WHERE s.user_id = ? AND s.status IN ('in_progress', 'paused', 'pause_requested')
+        ORDER BY s.started_at DESC LIMIT 1
+    """, (student_id,))
+    active_exam = cursor.fetchone()
+    had_active_exam = 1 if active_exam else 0
+    exam_id_val = active_exam["exam_id"] if active_exam else None
+    sub_id_val = active_exam["id"] if active_exam else None
+
+    # Clear active session token
+    cursor.execute("UPDATE users SET active_session_token = '' WHERE id = ?", (student_id,))
+
+    client_ip = request.headers.get("X-Forwarded-For", request.remote_addr or "127.0.0.1").split(",")[0].strip()
+    cursor.execute("""
+        INSERT INTO device_switch_history (student_id, switch_type, had_active_exam, exam_id, submission_id, client_ip, user_agent)
+        VALUES (?, 'tutor_terminated', ?, ?, ?, ?, ?)
+    """, (student_id, had_active_exam, exam_id_val, sub_id_val, client_ip, f"Terminated by Tutor #{session.get('user_id')}"))
+
+    # Broadcast session_terminated event to disconnect student device in real-time
+    publish_student_sync_event(
+        event_type="session_terminated",
+        target_student_id=student_id,
+        exam_id=exam_id_val,
+        submission_id=sub_id_val,
+        payload={
+            "reason": "Your active session was terminated by an administrator.",
+            "had_active_exam": bool(had_active_exam),
+            "exam_title": active_exam["exam_title"] if active_exam else ""
+        },
+        conn=conn
+    )
+
+    record_security_event(
+        event_type="auth.session_terminated_by_admin",
+        severity="MEDIUM",
+        event_category="session",
+        actor_id=session.get("user_id"),
+        actor_role="admin",
+        target_resource="student",
+        target_resource_id=str(student_id),
+        source_ip=client_ip,
+        user_agent=request.user_agent.string if request.user_agent else None,
+        endpoint=f"/api/admin/student/{student_id}/terminate-session",
+        details={"student_username": student["username"], "had_active_exam": bool(had_active_exam)}
+    )
+
+    conn.commit()
+    conn.close()
+    return jsonify({
+        "success": True,
+        "message": f"Session terminated for student '{student['full_name']}' ({student['username']})."
+    })
+
+
+@app.route("/api/admin/students/terminate-all-sessions", methods=["POST"])
+@admin_required
+def api_admin_terminate_all_sessions():
+    """Tutor or Administrator terminates all currently active student sessions."""
+    conn = get_connection()
+    cursor = conn.cursor()
+    cursor.execute("SELECT id, username, full_name FROM users WHERE role = 'student' AND active_session_token != '' AND active_session_token IS NOT NULL")
+    active_students = cursor.fetchall()
+
+    if not active_students:
+        conn.close()
+        return jsonify({"success": True, "count": 0, "message": "No active student sessions found."})
+
+    client_ip = request.headers.get("X-Forwarded-For", request.remote_addr or "127.0.0.1").split(",")[0].strip()
+    terminated_count = 0
+
+    for st in active_students:
+        st_id = st["id"]
+        cursor.execute("UPDATE users SET active_session_token = '' WHERE id = ?", (st_id,))
+        cursor.execute("""
+            INSERT INTO device_switch_history (student_id, switch_type, had_active_exam, client_ip, user_agent)
+            VALUES (?, 'tutor_terminated_all', 0, ?, ?)
+        """, (st_id, client_ip, f"Bulk Terminated by Tutor #{session.get('user_id')}"))
+
+        publish_student_sync_event(
+            event_type="session_terminated",
+            target_student_id=st_id,
+            payload={"reason": "All active student sessions were reset by an administrator."},
+            conn=conn
+        )
+        terminated_count += 1
+
+    record_security_event(
+        event_type="auth.all_sessions_terminated_by_admin",
+        severity="HIGH",
+        event_category="session",
+        actor_id=session.get("user_id"),
+        actor_role="admin",
+        target_resource="users",
+        source_ip=client_ip,
+        user_agent=request.user_agent.string if request.user_agent else None,
+        endpoint="/api/admin/students/terminate-all-sessions",
+        details={"terminated_count": terminated_count}
+    )
+
+    conn.commit()
+    conn.close()
+    return jsonify({
+        "success": True,
+        "count": terminated_count,
+        "message": f"Successfully terminated {terminated_count} active student session(s)."
+    })
+
+
+@app.route("/api/admin/device-switch-history", methods=["GET"])
+@admin_required
+def api_admin_device_switch_history():
+    """Tutors view history of device switches and session terminations."""
+    student_id = request.args.get("student_id", type=int)
+    limit = min(request.args.get("limit", default=50, type=int), 200)
+
+    conn = get_connection()
+    cursor = conn.cursor()
+    if student_id:
+        cursor.execute("""
+            SELECT h.id, h.student_id, h.switch_type, h.had_active_exam, h.exam_id, h.submission_id,
+                   h.client_ip, h.user_agent, h.created_at,
+                   u.username, u.full_name, e.title as exam_title
+            FROM device_switch_history h
+            JOIN users u ON h.student_id = u.id
+            LEFT JOIN exams e ON h.exam_id = e.id
+            WHERE h.student_id = ?
+            ORDER BY h.created_at DESC
+            LIMIT ?
+        """, (student_id, limit))
+    else:
+        cursor.execute("""
+            SELECT h.id, h.student_id, h.switch_type, h.had_active_exam, h.exam_id, h.submission_id,
+                   h.client_ip, h.user_agent, h.created_at,
+                   u.username, u.full_name, e.title as exam_title
+            FROM device_switch_history h
+            JOIN users u ON h.student_id = u.id
+            LEFT JOIN exams e ON h.exam_id = e.id
+            ORDER BY h.created_at DESC
+            LIMIT ?
+        """, (limit,))
+    rows = cursor.fetchall()
+    conn.close()
+
+    history = [dict(r) for r in rows]
+    return jsonify({"success": True, "history": history})
+
+
 @app.route("/api/student/request-device-switch", methods=["POST"])
 def api_student_request_device_switch():
     """Candidate creates a backend request to switch devices during an active exam attempt."""
@@ -5193,6 +6550,20 @@ def api_student_request_device_switch():
 
     conn.commit()
     conn.close()
+
+    record_security_event(
+        event_type="auth.unusual_device_switch",
+        severity="MEDIUM",
+        event_category="session",
+        actor_id=user["id"],
+        actor_role="student",
+        target_resource="submission",
+        target_resource_id=str(sub["id"]),
+        source_ip=client_ip,
+        user_agent=user_agent,
+        endpoint="/api/student/request-device-switch",
+        details={"exam_id": sub["exam_id"], "exam_title": sub["exam_title"], "request_id": req_id}
+    )
 
     return jsonify({
         "success": True,
@@ -6005,6 +7376,20 @@ def exam_result(submission_id):
         curr_roll = session.get("roll_number")
         if (sub_uid and sub_uid != curr_uid) or (not sub_uid and sub_roll != curr_roll):
             conn.close()
+            client_ip = request.headers.get("X-Forwarded-For", request.remote_addr or "127.0.0.1").split(",")[0].strip()
+            record_security_event(
+                event_type="authorization.idor_attempt",
+                severity="HIGH",
+                event_category="authorization",
+                actor_id=curr_uid,
+                actor_role="student",
+                target_resource="result",
+                target_resource_id=str(submission_id),
+                source_ip=client_ip,
+                user_agent=request.user_agent.string if request.user_agent else None,
+                endpoint=request.path,
+                details={"target_owner_uid": sub_uid, "reason": "Student attempted to view another candidate's results"}
+            )
             flash("Access Restricted: You can only view your own examination results.", "danger")
             return redirect(url_for("student_dashboard"))
 

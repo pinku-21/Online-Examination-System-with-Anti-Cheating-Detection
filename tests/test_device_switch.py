@@ -17,24 +17,27 @@ def get_auth_csrf(client):
     with client.session_transaction() as sess:
         return sess.get("csrf_token")
 
-def test_device_switch_workflow_approval(client):
+
+def test_automatic_device_replacement_workflow(client):
     """
-    Test complete device-switch workflow:
-    1. Student in active exam blocked on 2nd device.
-    2. Student submits device-switch request.
-    3. Pending badge count increases on tutor requests endpoint.
-    4. Tutor approves device-switch request.
-    5. Old device session token is invalidated.
-    6. Student can now log in from new device and resume active exam with answers and remaining time.
+    Test new automatic device session replacement workflow:
+    1. Student is logged in on Device A (has active_session_token).
+    2. Student attempts login on Device B:
+       - First attempt (confirm_device_switch != '1'): Prompted with confirmation dialog (prompt_device_switch=True).
+       - Old session remains completely untouched on Device A.
+    3. Student confirms device switch on Device B (confirm_device_switch = '1'):
+       - Login succeeds.
+       - A new active_session_token is generated in database.
+       - Device switch history is logged.
+       - Device A's session is now rejected on protected endpoints.
     """
     conn = get_connection()
     c = conn.cursor()
-    # Create clean test student and tutor
-    c.execute("DELETE FROM device_switch_requests WHERE student_id = 99999")
+    c.execute("DELETE FROM device_switch_history WHERE student_id = 99999")
     c.execute("DELETE FROM submissions WHERE user_id = 99999")
     c.execute("DELETE FROM exams WHERE id = 77777")
-    c.execute("DELETE FROM users WHERE id IN (99999, 88888)")
-    
+    c.execute("DELETE FROM users WHERE id = 99999")
+
     from werkzeug.security import generate_password_hash
     pwd = generate_password_hash("StudentPass123!")
     c.execute("""
@@ -42,13 +45,7 @@ def test_device_switch_workflow_approval(client):
         VALUES (99999, 'dev_student', ?, 'student', 'Device Test Student', 'ROLL-999', 'old-device-token-111')
     """, (pwd,))
 
-    tutor_pwd = generate_password_hash("TutorPass123!")
-    c.execute("""
-        INSERT INTO users (id, username, password_hash, role, full_name)
-        VALUES (88888, 'dev_tutor', ?, 'admin', 'Device Test Tutor')
-    """, (tutor_pwd,))
-
-    # Create exam and active submission
+    # Active exam attempt in progress
     c.execute("INSERT INTO exams (id, exam_code, title, duration_minutes) VALUES (77777, 'CODE-77777', 'Device Test Exam', 60)")
     c.execute("""
         INSERT INTO submissions (id, exam_id, user_id, student_name, roll_number, status, device_switch_approved, time_remaining_seconds, progress_answers_json)
@@ -59,180 +56,197 @@ def test_device_switch_workflow_approval(client):
 
     csrf = get_auth_csrf(client)
 
-    # Step 1: Second device attempts login and receives device_switch_blocked
-    res_login = client.post("/login", data={
+    # Step 1: Login attempt without confirmation flag triggers device switch prompt
+    res_first = client.post("/login", data={
         "identifier": "dev_student",
         "password": "StudentPass123!",
         "role": "student",
         "csrf_token": csrf
     }, headers={"Origin": "http://localhost"}, follow_redirects=True)
-    assert res_login.status_code == 200
-    assert "Simultaneous logins are blocked" in res_login.get_data(as_text=True)
 
-    # Step 2: Student submits device switch request
-    res_req = client.post("/api/student/request-device-switch", json={
-        "identifier": "dev_student",
-        "password": "StudentPass123!",
-        "exam_id": 77777,
-        "submission_id": 66666
-    }, headers={"X-CSRF-Token": csrf, "Origin": "http://localhost"})
-    assert res_req.status_code == 200
-    data_req = res_req.get_json()
-    assert data_req["success"] is True
-    assert data_req["status"] == "pending"
-    req_id = data_req["request_id"]
+    assert res_first.status_code == 200
+    html_first = res_first.get_data(as_text=True)
+    assert "New Device Login Detected" in html_first
+    assert "Live Examination Warning" in html_first or "Device Test Exam" in html_first
 
-    # Step 3: Tutor inspects pending requests
-    with client.session_transaction() as sess:
-        sess["user_id"] = 88888
-        sess["user_role"] = "admin"
-        sess["username"] = "dev_tutor"
-
-    res_tutor_list = client.get("/api/tutor/student-requests")
-    assert res_tutor_list.status_code == 200
-    tutor_data = res_tutor_list.get_json()
-    assert tutor_data["success"] is True
-    assert tutor_data["pending_count"] >= 1
-    found = any(r["id"] == req_id and r["request_type"] == "device_switch" for r in tutor_data["requests"])
-    assert found is True
-
-    # Step 4: Tutor approves the request
-    res_resolve = client.post(f"/api/tutor/device-switch/{req_id}/resolve", json={
-        "action": "approve"
-    }, headers={"X-CSRF-Token": csrf, "Origin": "http://localhost"})
-    assert res_resolve.status_code == 200
-    assert res_resolve.get_json()["status"] == "approved"
-
-    # Step 5: Check database state: old token cleared, device_switch_approved = 1
+    # Verify old session token was NOT modified when unconfirmed
     conn = get_connection()
     c = conn.cursor()
     c.execute("SELECT active_session_token FROM users WHERE id = 99999")
-    u_row = c.fetchone()
-    assert u_row["active_session_token"] == ""  # old device invalidated
-
-    c.execute("SELECT device_switch_approved, status, progress_answers_json, time_remaining_seconds FROM submissions WHERE id = 66666")
-    sub_row = c.fetchone()
-    assert sub_row["device_switch_approved"] == 1
-    assert sub_row["status"] == "in_progress"
-    assert sub_row["time_remaining_seconds"] == 1800
-    assert sub_row["progress_answers_json"] == '{"1": "A"}'
+    assert c.fetchone()["active_session_token"] == "old-device-token-111"
     conn.close()
 
-    # Step 6: Polling from student side reflects approved
-    res_poll = client.get(f"/api/student/device-switch-status/{req_id}")
-    assert res_poll.status_code == 200
-    poll_data = res_poll.get_json()
-    assert poll_data["status"] == "approved"
-    assert poll_data["device_switch_approved"] is True
-
-    # Step 7: Student can now successfully log in from new device
-    with client.session_transaction() as sess:
-        sess.clear()
-
-    csrf2 = get_auth_csrf(client)
-    res_new_login = client.post("/login", data={
+    # Step 2: Student confirms replacement by submitting with confirm_device_switch = 1
+    res_confirm = client.post("/login", data={
         "identifier": "dev_student",
         "password": "StudentPass123!",
         "role": "student",
-        "csrf_token": csrf2
+        "confirm_device_switch": "1",
+        "csrf_token": csrf
     }, headers={"Origin": "http://localhost"}, follow_redirects=True)
-    assert res_new_login.status_code == 200
-    assert "Simultaneous logins are blocked" not in res_new_login.get_data(as_text=True)
+
+    assert res_confirm.status_code == 200
+    assert "Signed in successfully" in res_confirm.get_data(as_text=True)
+
+    # Step 3: Check database: new active_session_token exists and is different from old token
+    conn = get_connection()
+    c = conn.cursor()
+    c.execute("SELECT active_session_token FROM users WHERE id = 99999")
+    new_token = c.fetchone()["active_session_token"]
+    assert new_token != ""
+    assert new_token != "old-device-token-111"
+
+    # Step 4: Verify device_switch_history record
+    c.execute("SELECT * FROM device_switch_history WHERE student_id = 99999 ORDER BY id DESC LIMIT 1")
+    hist = c.fetchone()
+    assert hist is not None
+    assert hist["switch_type"] == "automatic"
+    assert hist["had_active_exam"] == 1
+    assert hist["exam_id"] == 77777
+    assert hist["submission_id"] == 66666
+
+    # Step 5: Verify exam answers and time remaining remain preserved
+    c.execute("SELECT status, time_remaining_seconds, progress_answers_json FROM submissions WHERE id = 66666")
+    sub = c.fetchone()
+    assert sub["status"] == "in_progress"
+    assert sub["time_remaining_seconds"] == 1800
+    assert sub["progress_answers_json"] == '{"1": "A"}'
+    conn.close()
+
+    # Step 6: Old device with old_token tries to access protected endpoint -> immediately rejected
+    with client.session_transaction() as sess:
+        sess["user_id"] = 99999
+        sess["user_role"] = "student"
+        sess["session_token"] = "old-device-token-111"
+
+    res_old_device = client.get("/student/dashboard", follow_redirects=True)
+    assert res_old_device.status_code == 200
+    assert "logged in from another device" in res_old_device.get_data(as_text=True)
 
     # Cleanup
     conn = get_connection()
     c = conn.cursor()
-    c.execute("DELETE FROM device_switch_requests WHERE student_id = 99999")
+    c.execute("DELETE FROM device_switch_history WHERE student_id = 99999")
     c.execute("DELETE FROM submissions WHERE user_id = 99999")
     c.execute("DELETE FROM exams WHERE id = 77777")
-    c.execute("DELETE FROM users WHERE id IN (99999, 88888)")
+    c.execute("DELETE FROM users WHERE id = 99999")
     conn.commit()
     conn.close()
 
 
-def test_device_switch_workflow_rejection(client):
+def test_tutor_terminate_student_session(client):
     """
-    Test device-switch rejection workflow:
-    1. Student submits request.
-    2. Tutor rejects with reason.
-    3. Old session token remains intact.
-    4. Student gets rejected notification with tutor's reason.
+    Test tutor manual session termination endpoint:
+    1. Student has active session.
+    2. Tutor calls POST /api/admin/student/<id>/terminate-session.
+    3. Student active_session_token is wiped out.
+    4. Record added to device_switch_history.
+    5. Student next request is immediately blocked.
     """
     conn = get_connection()
     c = conn.cursor()
-    c.execute("DELETE FROM device_switch_requests WHERE student_id = 99998")
-    c.execute("DELETE FROM submissions WHERE user_id = 99998")
-    c.execute("DELETE FROM exams WHERE id = 77776")
+    c.execute("DELETE FROM device_switch_history WHERE student_id = 99998")
     c.execute("DELETE FROM users WHERE id IN (99998, 88888)")
 
     from werkzeug.security import generate_password_hash
-    pwd = generate_password_hash("StudentPass123!")
     c.execute("""
         INSERT INTO users (id, username, password_hash, role, full_name, roll_number, active_session_token)
-        VALUES (99998, 'dev_student2', ?, 'student', 'Device Student 2', 'ROLL-998', 'initial-token-222')
-    """, (pwd,))
+        VALUES (99998, 'dev_student2', ?, 'student', 'Device Student 2', 'ROLL-998', 'active-token-998')
+    """, (generate_password_hash("StudentPass123!"),))
 
-    tutor_pwd = generate_password_hash("TutorPass123!")
     c.execute("""
         INSERT INTO users (id, username, password_hash, role, full_name)
         VALUES (88888, 'dev_tutor', ?, 'admin', 'Device Test Tutor')
-    """, (tutor_pwd,))
-    c.execute("INSERT INTO exams (id, exam_code, title, duration_minutes) VALUES (77776, 'CODE-77776', 'Device Test Exam 2', 60)")
-    c.execute("""
-        INSERT INTO submissions (id, exam_id, user_id, student_name, roll_number, status, device_switch_approved)
-        VALUES (66665, 77776, 99998, 'Device Student 2', 'ROLL-998', 'in_progress', 0)
-    """)
+    """, (generate_password_hash("TutorPass123!"),))
     conn.commit()
     conn.close()
 
     csrf = get_auth_csrf(client)
 
-    # Submit request
-    res_req = client.post("/api/student/request-device-switch", json={
-        "identifier": "dev_student2",
-        "password": "StudentPass123!",
-        "exam_id": 77776,
-        "submission_id": 66665
-    }, headers={"X-CSRF-Token": csrf, "Origin": "http://localhost"})
-    assert res_req.status_code == 200
-    req_id = res_req.get_json()["request_id"]
-
-    # Tutor rejects
+    # Login as admin
     with client.session_transaction() as sess:
         sess["user_id"] = 88888
         sess["user_role"] = "admin"
+        sess["username"] = "dev_tutor"
 
-    res_resolve = client.post(f"/api/tutor/device-switch/{req_id}/resolve", json={
-        "action": "reject",
-        "reason": "Device transfer disallowed during final exam hour."
-    }, headers={"X-CSRF-Token": csrf, "Origin": "http://localhost"})
-    assert res_resolve.status_code == 200
-    assert res_resolve.get_json()["status"] == "rejected"
+    # Terminate student session
+    res_term = client.post("/api/admin/student/99998/terminate-session", headers={
+        "X-CSRF-Token": csrf,
+        "Origin": "http://localhost"
+    })
+    assert res_term.status_code == 200
+    assert res_term.get_json()["success"] is True
 
-    # Poll status
-    res_poll = client.get(f"/api/student/device-switch-status/{req_id}")
-    poll_data = res_poll.get_json()
-    assert poll_data["status"] == "rejected"
-    assert "Device transfer disallowed" in poll_data["rejection_reason"]
-    assert poll_data["device_switch_approved"] is False
-
-    # Submission remains unauthorized for device switch and original token remains
+    # Database verification
     conn = get_connection()
     c = conn.cursor()
-    c.execute("SELECT device_switch_approved FROM submissions WHERE id = 66665")
-    assert c.fetchone()["device_switch_approved"] == 0
     c.execute("SELECT active_session_token FROM users WHERE id = 99998")
-    assert c.fetchone()["active_session_token"] == "initial-token-222"
-    c.execute("DELETE FROM device_switch_requests WHERE student_id = 99998")
-    c.execute("DELETE FROM submissions WHERE user_id = 99998")
-    c.execute("DELETE FROM exams WHERE id = 77776")
+    assert c.fetchone()["active_session_token"] == ""
+
+    c.execute("SELECT * FROM device_switch_history WHERE student_id = 99998")
+    hist = c.fetchone()
+    assert hist is not None
+    assert hist["switch_type"] == "tutor_terminated"
+    conn.close()
+
+    # Query device switch history endpoint
+    res_hist = client.get("/api/admin/device-switch-history?student_id=99998")
+    assert res_hist.status_code == 200
+    assert len(res_hist.get_json()["history"]) >= 1
+
+    # Cleanup
+    conn = get_connection()
+    c = conn.cursor()
+    c.execute("DELETE FROM device_switch_history WHERE student_id = 99998")
     c.execute("DELETE FROM users WHERE id IN (99998, 88888)")
     conn.commit()
     conn.close()
 
 
-def test_other_request_types_continue_working(client):
-    """Verify general assistance and special permission requests operate seamlessly in same system."""
+def test_tutor_terminate_all_sessions(client):
+    """Test bulk session termination across all active students."""
+    conn = get_connection()
+    c = conn.cursor()
+    c.execute("DELETE FROM device_switch_history WHERE student_id IN (99995, 99996)")
+    c.execute("DELETE FROM users WHERE id IN (99995, 99996, 88888)")
+
+    from werkzeug.security import generate_password_hash
+    pwd = generate_password_hash("Pass123!")
+    c.execute("INSERT INTO users (id, username, password_hash, role, full_name, active_session_token) VALUES (99995, 's1', ?, 'student', 'S1', 'token-1')", (pwd,))
+    c.execute("INSERT INTO users (id, username, password_hash, role, full_name, active_session_token) VALUES (99996, 's2', ?, 'student', 'S2', 'token-2')", (pwd,))
+    c.execute("INSERT INTO users (id, username, password_hash, role, full_name) VALUES (88888, 'dev_tutor', ?, 'admin', 'Device Test Tutor')", (pwd,))
+    conn.commit()
+    conn.close()
+
+    csrf = get_auth_csrf(client)
+
+    with client.session_transaction() as sess:
+        sess["user_id"] = 88888
+        sess["user_role"] = "admin"
+
+    res = client.post("/api/admin/students/terminate-all-sessions", headers={
+        "X-CSRF-Token": csrf,
+        "Origin": "http://localhost"
+    })
+    assert res.status_code == 200
+    data = res.get_json()
+    assert data["success"] is True
+    assert data["count"] >= 2
+
+    # Check database
+    conn = get_connection()
+    c = conn.cursor()
+    c.execute("SELECT active_session_token FROM users WHERE id IN (99995, 99996)")
+    for row in c.fetchall():
+        assert row["active_session_token"] == ""
+    c.execute("DELETE FROM device_switch_history WHERE student_id IN (99995, 99996)")
+    c.execute("DELETE FROM users WHERE id IN (99995, 99996, 88888)")
+    conn.commit()
+    conn.close()
+
+
+def test_general_student_requests_preserved(client):
+    """Verify general student assistance requests continue operating seamlessly."""
     conn = get_connection()
     c = conn.cursor()
     c.execute("DELETE FROM device_switch_requests WHERE student_id = 99997")
@@ -244,11 +258,10 @@ def test_other_request_types_continue_working(client):
         VALUES (99997, 'general_student', ?, 'student', 'General Student', 'ROLL-997')
     """, (generate_password_hash("StudentPass123!"),))
 
-    tutor_pwd = generate_password_hash("TutorPass123!")
     c.execute("""
         INSERT INTO users (id, username, password_hash, role, full_name)
         VALUES (88888, 'dev_tutor', ?, 'admin', 'Device Test Tutor')
-    """, (tutor_pwd,))
+    """, (generate_password_hash("TutorPass123!"),))
     conn.commit()
     conn.close()
 
@@ -258,7 +271,7 @@ def test_other_request_types_continue_working(client):
         sess["user_id"] = 99997
         sess["user_role"] = "student"
 
-    # Student submits general assistance request
+    # Submit general assistance request
     res = client.post("/api/student/submit-request", json={
         "request_type": "exam_assistance",
         "reason": "Need technical assistance with diagram render."
@@ -277,13 +290,6 @@ def test_other_request_types_continue_working(client):
     matching = [r for r in reqs if r["id"] == req_id]
     assert len(matching) == 1
     assert matching[0]["request_type"] == "exam_assistance"
-    assert matching[0]["reason"] == "Need technical assistance with diagram render."
-
-    # Admin approves
-    res_appr = client.post(f"/api/tutor/device-switch/{req_id}/resolve", json={
-        "action": "approve"
-    }, headers={"X-CSRF-Token": csrf, "Origin": "http://localhost"})
-    assert res_appr.status_code == 200
 
     conn = get_connection()
     c = conn.cursor()
