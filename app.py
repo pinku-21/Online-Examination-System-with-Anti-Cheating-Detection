@@ -884,6 +884,10 @@ def login():
             conn_rot = get_connection()
             cur_rot = conn_rot.cursor()
             cur_rot.execute("UPDATE users SET active_session_token = ? WHERE id = ? AND active_session_token = ?", (session["session_token"], user["id"], new_session_token))
+            # Reset student sync cursor to latest event so previously broadcast termination events are never replayed upon new login
+            cur_rot.execute("SELECT COALESCE(MAX(id), 0) AS max_id FROM student_sync_events")
+            max_ev_row = cur_rot.fetchone()
+            session["sync_cursor_seed"] = (max_ev_row["max_id"] if max_ev_row else 0) or 0
             conn_rot.commit()
             conn_rot.close()
 
@@ -1044,6 +1048,10 @@ def login():
                 conn_rot = get_connection()
                 cur_rot = conn_rot.cursor()
                 cur_rot.execute("UPDATE users SET active_session_token = ? WHERE id = ?", (session["session_token"], user["id"]))
+                # Reset student sync cursor to latest event so previously broadcast termination events are never replayed upon new login
+                cur_rot.execute("SELECT COALESCE(MAX(id), 0) AS max_id FROM student_sync_events")
+                max_ev_row = cur_rot.fetchone()
+                session["sync_cursor_seed"] = (max_ev_row["max_id"] if max_ev_row else 0) or 0
                 conn_rot.commit()
                 conn_rot.close()
 

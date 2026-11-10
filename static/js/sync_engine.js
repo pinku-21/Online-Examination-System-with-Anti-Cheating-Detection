@@ -13,7 +13,6 @@
     const isSyncPage = window.location.pathname.startsWith('/student') ||
                        window.location.pathname.startsWith('/tutor') ||
                        window.location.pathname.startsWith('/exam/') ||
-                       document.getElementById('device-switch-modal') !== null ||
                        ['student', 'admin'].includes(userRole);
 
     if (!isSyncPage) {
@@ -25,6 +24,20 @@
     let pollTimer = null;
     let isPolling = false;
     let consecutiveFailures = 0;
+
+    // Seed initial cursor from server session if freshly authenticated
+    const seedMeta = document.querySelector('meta[name="sync-cursor-seed"]');
+    if (seedMeta && seedMeta.getAttribute('content')) {
+        const seedVal = parseInt(seedMeta.getAttribute('content'), 10);
+        if (!isNaN(seedVal) && seedVal > 0) {
+            try {
+                const currentStored = parseInt(sessionStorage.getItem(STORAGE_KEY) || '0', 10) || 0;
+                if (seedVal > currentStored) {
+                    sessionStorage.setItem(STORAGE_KEY, String(seedVal));
+                }
+            } catch (e) {}
+        }
+    }
 
     function getCursor() {
         try {
