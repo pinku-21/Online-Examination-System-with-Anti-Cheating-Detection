@@ -390,7 +390,7 @@
             </a>
 
             <nav class="flex items-center space-x-2 sm:space-x-3">
-                {% if session.get('user_id') and not device_switch_blocked %}
+                {% if session.get('user_id') and not device_switch_blocked and not hide_user_nav %}
                     {% if session.get('user_role') == 'admin' %}
                         <a href="/admin/security/soc" class="inline-flex shadcn-btn shadcn-btn-outline h-8 sm:h-9 px-2 sm:px-3 text-xs font-semibold text-cyan-700 dark:text-cyan-400 border-cyan-200 dark:border-cyan-800 bg-cyan-50/50 dark:bg-cyan-950/40 hover:bg-cyan-100" title="Security Operations Centre">
                             <i data-lucide="shield-alert" class="w-3.5 h-3.5 text-cyan-600 dark:text-cyan-400"></i>
@@ -476,7 +476,7 @@
 
         <div class="flex-1 overflow-y-auto px-5 py-5 space-y-4">
 
-            {% if session.get('user_id') and not device_switch_blocked %}
+            {% if session.get('user_id') and not device_switch_blocked and not hide_user_nav %}
             <!-- 1. Gradient Profile Header Card (Matches Screenshot #1) -->
             <div class="relative overflow-hidden rounded-3xl bg-gradient-to-br from-sky-500 via-sky-600 to-indigo-600 text-white p-5 shadow-lg shadow-sky-500/20">
                 <div class="flex items-center justify-between">

@@ -116,11 +116,11 @@
                 confirmButtonText: 'Return to Login',
                 confirmButtonColor: '#0284c7'
             }).then(() => {
-                window.location.href = '/login';
+                window.location.href = '/logout';
             });
         } else {
             alert('Session Terminated: ' + reason);
-            window.location.href = '/login';
+            window.location.href = '/logout';
         }
     }
 
