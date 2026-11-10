@@ -67,8 +67,16 @@
 
             if (!resp.ok) {
                 if (resp.status === 401 || resp.status === 403) {
-                    // Not authenticated or logged out
+                    // Not authenticated or session replaced by new device
                     stopPolling();
+                    let errMsg = 'Your account was signed into from another device or terminated by an administrator.';
+                    try {
+                        const errData = await resp.json();
+                        if (errData && errData.error) {
+                            errMsg = errData.error;
+                        }
+                    } catch (e) {}
+                    handleSessionRevoked({ payload: { reason: errMsg } });
                     return;
                 }
                 consecutiveFailures++;
