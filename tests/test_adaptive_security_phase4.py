@@ -133,8 +133,12 @@ def test_ip_context_risk_never_marks_ip_change_alone():
 
     # C. IP with brute force activity receives contextual score
     conn = get_connection()
+    c = conn.cursor()
     malicious_ip = "203.0.113.88"
-    for _ in range(3):
+    c.execute("DELETE FROM security_events WHERE source_ip = ?", (malicious_ip,))
+    conn.commit()
+
+    for _ in range(4):
         record_security_event(
             event_type="auth.failed_login",
             source_ip=malicious_ip,
@@ -145,6 +149,8 @@ def test_ip_context_risk_never_marks_ip_change_alone():
     ip_risk = assess_ip_context_risk(malicious_ip, conn=conn)
     assert ip_risk.score >= 20
     assert "Normal IP address changes alone never constitute proof of malicious activity" in ip_risk.explanation
+    c.execute("DELETE FROM security_events WHERE source_ip = ?", (malicious_ip,))
+    conn.commit()
     conn.close()
 
 

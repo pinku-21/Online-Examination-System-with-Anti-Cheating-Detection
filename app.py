@@ -718,13 +718,185 @@ def admin_required(f):
 @app.route("/login", methods=["GET", "POST"])
 def login():
     if request.method == "POST":
-        identifier = request.form.get("identifier", "").strip()
-        password = request.form.get("password", "").strip()
+        confirm_device_switch = request.form.get("confirm_device_switch", "").strip()
         role = request.form.get("role", "student").strip()
         next_url = request.form.get("next", "").strip()
+        client_ip = request.headers.get("X-Forwarded-For", request.remote_addr or "127.0.0.1").split(",")[0].strip()
+
+        # Handle pending device-switch confirmation (when student confirms replacing existing device session)
+        if confirm_device_switch == "1":
+            form_switch_token = request.form.get("device_switch_token", "").strip()
+            session_switch_token = session.get("pending_device_switch_token", "").strip()
+            pending_user_id = session.get("pending_device_switch_user_id")
+            pending_expires_at = session.get("pending_device_switch_expires_at", 0)
+            now_ts = int(time.time())
+
+            token_to_verify = form_switch_token or session_switch_token
+
+            # Clean session tracking state immediately to prevent re-use
+            session.pop("pending_device_switch_user_id", None)
+            session.pop("pending_device_switch_token", None)
+            session.pop("pending_device_switch_expires_at", None)
+
+            if not pending_user_id or not token_to_verify or now_ts > pending_expires_at:
+                session.pop("pending_device_switch_next", None)
+                flash("Device switch confirmation expired or invalid. Please sign in again.", "warning")
+                return render_template("login.html", role=role, next_url=next_url)
+
+            user = get_user_by_id(pending_user_id)
+            if not user or user.get("role") != "student":
+                session.pop("pending_device_switch_next", None)
+                flash("Student account could not be validated. Please log in again.", "danger")
+                return render_template("login.html", role=role, next_url=next_url)
+
+            conn = get_connection()
+            cursor = conn.cursor()
+
+            # 1. Acquire row lock on user record FIRST to ensure consistent lock hierarchy:
+            # (Lock Order: users row -> pending_device_switches rows).
+            # This completely eliminates lock-order inversion deadlocks with administrator termination.
+            cursor.execute("SELECT id, active_session_token FROM users WHERE id = ? /* FOR UPDATE */", (user["id"],))
+            locked_user = cursor.fetchone()
+            current_active_token = (locked_user["active_session_token"] if locked_user else "") or ""
+
+            if not locked_user or not current_active_token:
+                conn.rollback()
+                conn.close()
+                session.pop("pending_device_switch_next", None)
+                flash("Session was terminated or modified by administrator. Please sign in again.", "warning")
+                return render_template("login.html", role=role, next_url=next_url)
+
+            # 2. Acquire lock and atomically consume the pending confirmation record SECOND.
+            # Conditional update guarantees:
+            # 1. status must currently be 'PENDING'
+            # 2. expires_at must be strictly greater than current timestamp
+            # 3. current_session_token must match the user's active_session_token locked above
+            #    (so a stale pending confirmation cannot overwrite a newer session or an admin termination)
+            # 4. Exactly one simultaneous request will have rowcount == 1
+            cursor.execute("""
+                UPDATE pending_device_switches
+                SET status = 'CONSUMED', consumed_at = CURRENT_TIMESTAMP
+                WHERE student_id = ?
+                  AND confirmation_token = ?
+                  AND status = 'PENDING'
+                  AND expires_at > ?
+                  AND current_session_token = ?
+            """, (user["id"], token_to_verify, now_ts, current_active_token))
+
+            if cursor.rowcount != 1:
+                conn.rollback()
+                conn.close()
+                session.pop("pending_device_switch_next", None)
+                flash("Device switch confirmation expired, already used, or invalid. Please sign in again.", "warning")
+                return render_template("login.html", role=role, next_url=next_url)
+
+            # Consume redirect target
+            next_url = session.pop("pending_device_switch_next", None) or next_url
+
+            # Check for active in_progress or paused exam
+            cursor.execute("""
+                SELECT s.id, s.exam_id, s.status, s.device_switch_approved, e.title as exam_title
+                FROM submissions s
+                JOIN exams e ON s.exam_id = e.id
+                WHERE (s.user_id = ? OR (s.user_id IS NULL AND s.roll_number = ?))
+                  AND s.status IN ('in_progress', 'paused', 'pause_requested')
+                ORDER BY s.started_at DESC LIMIT 1
+            """, (user["id"], user.get("roll_number") or ""))
+            active_exam = cursor.fetchone()
+
+            had_active_exam = 1 if active_exam else 0
+            exam_id_val = active_exam["exam_id"] if active_exam else None
+            sub_id_val = active_exam["id"] if active_exam else None
+
+            # 3. Atomically update user active_session_token with the locked token check
+            new_session_token = secrets.token_hex(20)
+            cursor.execute("""
+                UPDATE users
+                SET active_session_token = ?
+                WHERE id = ?
+                  AND active_session_token = ?
+            """, (new_session_token, user["id"], current_active_token))
+
+            if cursor.rowcount != 1:
+                conn.rollback()
+                conn.close()
+                flash("Session was terminated or modified by administrator. Please sign in again.", "warning")
+                return render_template("login.html", role=role, next_url=next_url)
+
+            # Record in device_switch_history
+            cursor.execute("""
+                INSERT INTO device_switch_history (student_id, switch_type, had_active_exam, exam_id, submission_id, client_ip, user_agent)
+                VALUES (?, 'automatic', ?, ?, ?, ?, ?)
+            """, (user["id"], had_active_exam, exam_id_val, sub_id_val, client_ip, request.user_agent.string if request.user_agent else ""))
+
+            # Publish sync event so the old device receives instant notification and shuts down
+            publish_student_sync_event(
+                event_type="session_replaced",
+                target_student_id=user["id"],
+                exam_id=exam_id_val,
+                submission_id=sub_id_val,
+                payload={
+                    "reason": "Signed in from a new device.",
+                    "had_active_exam": bool(had_active_exam),
+                    "exam_title": active_exam["exam_title"] if active_exam else ""
+                },
+                conn=conn
+            )
+
+            record_security_event(
+                event_type="auth.device_switch_completed",
+                severity="INFO",
+                event_category="session",
+                actor_id=user["id"],
+                actor_role="student",
+                target_resource="exam" if active_exam else "account",
+                target_resource_id=str(exam_id_val) if exam_id_val else str(user["id"]),
+                source_ip=client_ip,
+                user_agent=request.user_agent.string if request.user_agent else None,
+                endpoint="/login",
+                details={
+                    "switch_type": "automatic",
+                    "had_active_exam": bool(had_active_exam),
+                    "submission_id": sub_id_val
+                }
+            )
+
+            if active_exam and row_get(active_exam, "device_switch_approved"):
+                cursor.execute("UPDATE submissions SET device_switch_approved = 0 WHERE id = ?", (active_exam["id"],))
+
+            conn.commit()
+            conn.close()
+
+            # Set session attributes
+            session["session_token"] = new_session_token
+            session["user_id"] = user["id"]
+            session["username"] = user["username"]
+            session["user_name"] = user["full_name"]
+            session["user_role"] = user["role"]
+            session["roll_number"] = user.get("roll_number") or ""
+            session["class_name"] = user.get("class_name") or ""
+            session["profile_photo"] = user.get("profile_photo") or ""
+
+            # Rotate session upon successful authentication
+            rotate_session()
+
+            # Sync rotated session token to database in a conditional update matching new_session_token
+            conn_rot = get_connection()
+            cur_rot = conn_rot.cursor()
+            cur_rot.execute("UPDATE users SET active_session_token = ? WHERE id = ? AND active_session_token = ?", (session["session_token"], user["id"], new_session_token))
+            conn_rot.commit()
+            conn_rot.close()
+
+            flash(f"Signed in successfully as {user['full_name']}! Your previous session was signed out.", "success")
+            if next_url and next_url.startswith("/") and not next_url.startswith("//"):
+                return redirect(next_url)
+            return redirect(url_for("student_dashboard"))
+
+        # Standard login flow
+        identifier = request.form.get("identifier", "").strip()
+        password = request.form.get("password", "").strip()
 
         # Brute-force credential stuffing check (IP-based sliding lockout)
-        client_ip = request.headers.get("X-Forwarded-For", request.remote_addr or "127.0.0.1").split(",")[0].strip()
         locked, rem_secs = is_ip_locked_out(client_ip)
         if locked:
             record_security_event(
@@ -775,11 +947,27 @@ def login():
                 """, (user["id"], user.get("roll_number") or ""))
                 active_exam = cursor.fetchone()
 
-                existing_token = user.get("active_session_token")
-                confirm_device_switch = request.form.get("confirm_device_switch", "").strip()
+                existing_token = (user.get("active_session_token") or "").strip()
 
-                # If student already has an active session on another device and hasn't confirmed replacement yet
-                if existing_token and confirm_device_switch != "1":
+                # If student already has an active session on another device:
+                # Create a database-backed one-time pending device-switch confirmation record (5-minute expiry)
+                if existing_token:
+                    confirmation_token = secrets.token_urlsafe(32)
+                    expires_at_ts = int(time.time()) + 300
+
+                    # Invalidate any older PENDING records for this student
+                    cursor.execute("UPDATE pending_device_switches SET status = 'SUPERSEDED' WHERE student_id = ? AND status = 'PENDING'", (user["id"],))
+                    cursor.execute("""
+                        INSERT INTO pending_device_switches (student_id, confirmation_token, current_session_token, status, expires_at)
+                        VALUES (?, ?, ?, 'PENDING', ?)
+                    """, (user["id"], confirmation_token, existing_token, expires_at_ts))
+                    conn.commit()
+
+                    session["pending_device_switch_user_id"] = user["id"]
+                    session["pending_device_switch_token"] = confirmation_token
+                    session["pending_device_switch_expires_at"] = expires_at_ts
+                    session["pending_device_switch_next"] = next_url
+
                     record_security_event(
                         event_type="auth.concurrent_session_attempt",
                         severity="MEDIUM",
@@ -803,6 +991,7 @@ def login():
                         return jsonify({
                             "success": False,
                             "requires_device_switch_confirmation": True,
+                            "device_switch_token": confirmation_token,
                             "has_active_exam": bool(active_exam),
                             "active_exam_title": active_exam["exam_title"] if active_exam else "",
                             "message": "Your account is currently active on another device. Continuing will automatically sign out your previous session."
@@ -815,11 +1004,12 @@ def login():
                         next_url=next_url,
                         prompt_device_switch=True,
                         student_identifier=identifier,
+                        device_switch_token=confirmation_token,
                         has_active_exam=bool(active_exam),
                         active_exam_title=active_exam["exam_title"] if active_exam else ""
                     )
 
-                # Student confirmed device switch (or this is a fresh login without prior active session)
+                # Fresh login without prior active session
                 had_active_exam = 1 if active_exam else 0
                 exam_id_val = active_exam["exam_id"] if active_exam else None
                 sub_id_val = active_exam["id"] if active_exam else None
@@ -828,46 +1018,6 @@ def login():
                 new_session_token = secrets.token_hex(20)
                 cursor.execute("UPDATE users SET active_session_token = ? WHERE id = ?", (new_session_token, user["id"]))
 
-                if existing_token and confirm_device_switch == "1":
-                    # Record in device_switch_history
-                    cursor.execute("""
-                        INSERT INTO device_switch_history (student_id, switch_type, had_active_exam, exam_id, submission_id, client_ip, user_agent)
-                        VALUES (?, 'automatic', ?, ?, ?, ?, ?)
-                    """, (user["id"], had_active_exam, exam_id_val, sub_id_val, client_ip, request.user_agent.string if request.user_agent else ""))
-
-                    # Publish sync event so the old device receives instant notification and shuts down
-                    publish_student_sync_event(
-                        event_type="session_replaced",
-                        target_student_id=user["id"],
-                        exam_id=exam_id_val,
-                        submission_id=sub_id_val,
-                        payload={
-                            "reason": "Signed in from a new device.",
-                            "had_active_exam": bool(had_active_exam),
-                            "exam_title": active_exam["exam_title"] if active_exam else ""
-                        },
-                        conn=conn
-                    )
-
-                    record_security_event(
-                        event_type="auth.device_switch_completed",
-                        severity="INFO",
-                        event_category="session",
-                        actor_id=user["id"],
-                        actor_role="student",
-                        target_resource="exam" if active_exam else "account",
-                        target_resource_id=str(exam_id_val) if exam_id_val else str(user["id"]),
-                        source_ip=client_ip,
-                        user_agent=request.user_agent.string if request.user_agent else None,
-                        endpoint="/login",
-                        details={
-                            "switch_type": "automatic",
-                            "had_active_exam": bool(had_active_exam),
-                            "submission_id": sub_id_val
-                        }
-                    )
-
-                # Reset device_switch_approved flag if present
                 if active_exam and row_get(active_exam, "device_switch_approved"):
                     cursor.execute("UPDATE submissions SET device_switch_approved = 0 WHERE id = ?", (active_exam["id"],))
 
@@ -6323,7 +6473,8 @@ def api_admin_terminate_student_session(student_id):
     """Tutor or Administrator manually terminates an active student session."""
     conn = get_connection()
     cursor = conn.cursor()
-    cursor.execute("SELECT id, username, full_name, active_session_token FROM users WHERE id = ? AND role = 'student'", (student_id,))
+    # Lock the student row FIRST in consistent lock order
+    cursor.execute("SELECT id, username, full_name, active_session_token FROM users WHERE id = ? AND role = 'student' /* FOR UPDATE */", (student_id,))
     student = cursor.fetchone()
     if not student:
         conn.close()
@@ -6342,8 +6493,12 @@ def api_admin_terminate_student_session(student_id):
     exam_id_val = active_exam["exam_id"] if active_exam else None
     sub_id_val = active_exam["id"] if active_exam else None
 
-    # Clear active session token
+    # Clear active session token and any pending switch authorizations atomically
     cursor.execute("UPDATE users SET active_session_token = '' WHERE id = ?", (student_id,))
+    cursor.execute("UPDATE pending_device_switches SET status = 'CANCELLED' WHERE student_id = ? AND status = 'PENDING'", (student_id,))
+    cursor.execute("UPDATE device_switch_requests SET status = 'rejected', rejection_reason = 'Terminated by administrator' WHERE student_id = ? AND status = 'pending'", (student_id,))
+    if active_exam:
+        cursor.execute("UPDATE submissions SET device_switch_approved = 0 WHERE id = ?", (sub_id_val,))
 
     client_ip = request.headers.get("X-Forwarded-For", request.remote_addr or "127.0.0.1").split(",")[0].strip()
     cursor.execute("""
@@ -6393,7 +6548,7 @@ def api_admin_terminate_all_sessions():
     """Tutor or Administrator terminates all currently active student sessions."""
     conn = get_connection()
     cursor = conn.cursor()
-    cursor.execute("SELECT id, username, full_name FROM users WHERE role = 'student' AND active_session_token != '' AND active_session_token IS NOT NULL")
+    cursor.execute("SELECT id, username, full_name FROM users WHERE role = 'student' AND active_session_token != '' AND active_session_token IS NOT NULL ORDER BY id /* FOR UPDATE */")
     active_students = cursor.fetchall()
 
     if not active_students:
@@ -6406,6 +6561,9 @@ def api_admin_terminate_all_sessions():
     for st in active_students:
         st_id = st["id"]
         cursor.execute("UPDATE users SET active_session_token = '' WHERE id = ?", (st_id,))
+        cursor.execute("UPDATE pending_device_switches SET status = 'CANCELLED' WHERE student_id = ? AND status = 'PENDING'", (st_id,))
+        cursor.execute("UPDATE device_switch_requests SET status = 'rejected', rejection_reason = 'Bulk terminated by administrator' WHERE student_id = ? AND status = 'pending'", (st_id,))
+        cursor.execute("UPDATE submissions SET device_switch_approved = 0 WHERE user_id = ? AND status IN ('in_progress', 'paused', 'pause_requested')", (st_id,))
         cursor.execute("""
             INSERT INTO device_switch_history (student_id, switch_type, had_active_exam, client_ip, user_agent)
             VALUES (?, 'tutor_terminated_all', 0, ?, ?)

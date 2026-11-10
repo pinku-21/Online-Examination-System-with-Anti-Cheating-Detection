@@ -33,7 +33,7 @@ class PostgresCursor:
         "users", "exams", "questions", "submissions", "violations", "student_sync_events",
         "exam_time_extensions", "security_events", "security_incidents", "incident_audit_trail",
         "incident_notes", "device_switch_history", "security_policies", "security_recommendations",
-        "risk_audit_log"
+        "risk_audit_log", "pending_device_switches"
     }
 
     def __init__(self, cursor):
@@ -42,6 +42,9 @@ class PostgresCursor:
 
     @staticmethod
     def _translate(sql):
+        # Translate SQLite-compatible locking comment to PostgreSQL FOR UPDATE
+        if "/* FOR UPDATE */" in sql:
+            sql = sql.replace("/* FOR UPDATE */", "FOR UPDATE")
         # Convert the SQLite qmark placeholders to psycopg placeholders.
         sql = sql.replace("?", "%s")
         # Translate SQLite conflict helpers before changing their prefixes.
@@ -416,6 +419,16 @@ def init_db():
                 trigger_event VARCHAR(64) DEFAULT '',
                 timestamp TIMESTAMP DEFAULT CURRENT_TIMESTAMP
             )""")
+            cursor.execute("""CREATE TABLE IF NOT EXISTS pending_device_switches (
+                id SERIAL PRIMARY KEY,
+                student_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+                confirmation_token VARCHAR(64) UNIQUE NOT NULL,
+                current_session_token TEXT NOT NULL,
+                status VARCHAR(32) NOT NULL DEFAULT 'PENDING',
+                expires_at INTEGER NOT NULL,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                consumed_at TIMESTAMP
+            )""")
             cursor.execute("""CREATE INDEX IF NOT EXISTS idx_sync_events_target ON student_sync_events (target_student_id, id)""")
             cursor.execute("""CREATE INDEX IF NOT EXISTS idx_time_ext_sub ON exam_time_extensions (submission_id, id)""")
             cursor.execute("""CREATE INDEX IF NOT EXISTS idx_sec_events_type ON security_events (event_type)""")
@@ -440,6 +453,8 @@ def init_db():
             cursor.execute("""CREATE UNIQUE INDEX IF NOT EXISTS uq_sec_recs_active_dedup ON security_recommendations (target_resource, target_resource_id, recommended_action) WHERE status = 'PENDING_REVIEW'""")
             cursor.execute("""CREATE INDEX IF NOT EXISTS idx_risk_audit_entity ON risk_audit_log (entity_type, entity_id)""")
             cursor.execute("""CREATE INDEX IF NOT EXISTS idx_risk_audit_time ON risk_audit_log (timestamp)""")
+            cursor.execute("""CREATE INDEX IF NOT EXISTS idx_pending_switches_token ON pending_device_switches (confirmation_token)""")
+            cursor.execute("""CREATE INDEX IF NOT EXISTS idx_pending_switches_student ON pending_device_switches (student_id, status)""")
             # Commit base table creation first so all required tables exist before running migrations
             conn.commit()
 
@@ -796,6 +811,17 @@ def init_db():
                     factors_json TEXT DEFAULT '[]',
                     trigger_event TEXT DEFAULT '',
                     timestamp TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+                )""",
+                """CREATE TABLE IF NOT EXISTS pending_device_switches (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    student_id INTEGER NOT NULL,
+                    confirmation_token TEXT UNIQUE NOT NULL,
+                    current_session_token TEXT NOT NULL,
+                    status TEXT NOT NULL DEFAULT 'PENDING',
+                    expires_at INTEGER NOT NULL,
+                    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                    consumed_at TIMESTAMP,
+                    FOREIGN KEY (student_id) REFERENCES users(id) ON DELETE CASCADE
                 )"""
             ]:
                 cursor.execute(table_sql)
@@ -824,6 +850,8 @@ def init_db():
             cursor.execute("CREATE UNIQUE INDEX IF NOT EXISTS uq_sqlite_sec_recs_active_dedup ON security_recommendations (target_resource, target_resource_id, recommended_action) WHERE status = 'PENDING_REVIEW'")
             cursor.execute("CREATE INDEX IF NOT EXISTS idx_sqlite_risk_audit_entity ON risk_audit_log (entity_type, entity_id)")
             cursor.execute("CREATE INDEX IF NOT EXISTS idx_sqlite_risk_audit_time ON risk_audit_log (timestamp)")
+            cursor.execute("CREATE INDEX IF NOT EXISTS idx_sqlite_pending_switches_token ON pending_device_switches (confirmation_token)")
+            cursor.execute("CREATE INDEX IF NOT EXISTS idx_sqlite_pending_switches_student ON pending_device_switches (student_id, status)")
 
             # Repair older SQLite databases using idempotent migration style.
             for table, column, definition in [

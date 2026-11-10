@@ -61,6 +61,7 @@
             <input type="hidden" name="role" id="login-role-input" value="{{ role or 'student' }}">
             <input type="hidden" name="next" value="{{ next_url or '' }}">
             <input type="hidden" name="confirm_device_switch" id="confirm_device_switch_input" value="0">
+            <input type="hidden" name="device_switch_token" id="device_switch_token_input" value="{{ device_switch_token or '' }}">
 
             <div>
                 <label class="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1.5" id="label-identifier">
@@ -164,6 +165,8 @@
             cancelButtonText: 'Cancel',
             confirmButtonColor: '#0284c7',
             cancelButtonColor: '#64748b',
+            allowOutsideClick: false,
+            allowEscapeKey: false,
             didOpen: () => {
                 lucide.createIcons();
             }
@@ -172,6 +175,22 @@
                 const form = document.getElementById('login-form');
                 const confirmInput = document.getElementById('confirm_device_switch_input');
                 if (confirmInput) confirmInput.value = '1';
+
+                // Disable submit button and show loading state
+                const submitBtn = document.getElementById('btn-submit');
+                const submitBtnText = document.getElementById('btn-submit-text');
+                if (submitBtn) {
+                    submitBtn.disabled = true;
+                    submitBtn.classList.add('opacity-75', 'cursor-not-allowed');
+                }
+                if (submitBtnText) {
+                    submitBtnText.innerHTML = '<span class="inline-block animate-spin mr-1">↻</span> Switching Device...';
+                }
+
+                // Remove HTML5 required attribute from password field for confirmation POST
+                const pwInput = form.querySelector('input[name="password"]');
+                if (pwInput) pwInput.removeAttribute('required');
+
                 if (form) form.submit();
             }
         });
@@ -179,10 +198,25 @@
 
     document.addEventListener('DOMContentLoaded', () => {
         const form = document.getElementById('login-form');
-        if (form && form.dataset.promptSwitch === 'true') {
-            const hasExam = form.dataset.hasActiveExam === 'true';
-            const title = form.dataset.activeExamTitle || '';
-            triggerDeviceSwitchConfirmation(title, hasExam);
+        if (form) {
+            // Prevent duplicate login submissions (double-click / double-tap)
+            form.addEventListener('submit', (e) => {
+                const submitBtn = document.getElementById('btn-submit');
+                const submitBtnText = document.getElementById('btn-submit-text');
+                if (submitBtn && !submitBtn.disabled) {
+                    submitBtn.disabled = true;
+                    submitBtn.classList.add('opacity-75', 'cursor-not-allowed');
+                    if (submitBtnText) {
+                        submitBtnText.innerHTML = '<span class="inline-block animate-spin mr-1">↻</span> Signing in...';
+                    }
+                }
+            });
+
+            if (form.dataset.promptSwitch === 'true') {
+                const hasExam = form.dataset.hasActiveExam === 'true';
+                const title = form.dataset.activeExamTitle || '';
+                triggerDeviceSwitchConfirmation(title, hasExam);
+            }
         }
     });
 </script>

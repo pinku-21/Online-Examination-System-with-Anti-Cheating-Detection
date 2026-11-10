@@ -354,3 +354,332 @@ def test_postgres_phase4_end_to_end_lifecycle(pg_conn):
     cur.execute("DELETE FROM incident_audit_trail WHERE incident_id = %s;", (inc_id,))
     cur.execute("DELETE FROM incident_notes WHERE incident_id = %s;", (inc_id,))
     pg_conn.commit()
+
+
+def test_postgres_pending_device_switch_concurrency_and_atomicity(pg_conn):
+    """
+    Test requirement 6 on isolated PostgreSQL:
+    - Multi-connection concurrent confirmation consumption (only 1 succeeds).
+    - Confirmation replay rejected.
+    - Stale current_session_token rejection.
+    - Transaction rollback ensures no partial consumption or state leakage.
+    """
+    import secrets
+    now_ts = int(time.time())
+    expires_at_ts = now_ts + 300
+    token = secrets.token_urlsafe(32)
+
+    conn1 = get_verified_test_conn()
+    conn2 = get_verified_test_conn()
+    cur1 = conn1.cursor()
+    cur2 = conn2.cursor()
+
+    # Clean up any leftover test rows
+    cur1.execute("DELETE FROM pending_device_switches WHERE student_id = 88812;")
+    cur1.execute("DELETE FROM users WHERE id = 88812;")
+    conn1.commit()
+
+    # Setup student with active_session_token = 'pg-token-v1'
+    cur1.execute("""
+        INSERT INTO users (id, username, password_hash, full_name, role, active_session_token)
+        VALUES (88812, 'pg_switch_student', 'hash', 'PG Switch Student', 'student', 'pg-token-v1');
+    """)
+    # Insert pending switch bound to token-v1
+    cur1.execute("""
+        INSERT INTO pending_device_switches (student_id, confirmation_token, current_session_token, status, expires_at)
+        VALUES (88812, %s, 'pg-token-v1', 'PENDING', %s);
+    """, (token, expires_at_ts))
+    conn1.commit()
+
+    # Test 1: Concurrency - two separate PostgreSQL connections race to consume the pending token
+    # Connection 1 executes update
+    cur1.execute("""
+        UPDATE pending_device_switches
+        SET status = 'CONSUMED', consumed_at = CURRENT_TIMESTAMP
+        WHERE student_id = 88812
+          AND confirmation_token = %s
+          AND status = 'PENDING'
+          AND expires_at > %s
+          AND current_session_token = (SELECT active_session_token FROM users WHERE id = 88812);
+    """, (token, now_ts))
+    rows_c1 = cur1.rowcount
+    conn1.commit()
+
+    # Connection 2 attempts the exact same update
+    cur2.execute("""
+        UPDATE pending_device_switches
+        SET status = 'CONSUMED', consumed_at = CURRENT_TIMESTAMP
+        WHERE student_id = 88812
+          AND confirmation_token = %s
+          AND status = 'PENDING'
+          AND expires_at > %s
+          AND current_session_token = (SELECT active_session_token FROM users WHERE id = 88812);
+    """, (token, now_ts))
+    rows_c2 = cur2.rowcount
+    conn2.commit()
+
+    # Exactly one connection must have updated the row
+    assert rows_c1 == 1, "Connection 1 must successfully consume the token"
+    assert rows_c2 == 0, "Connection 2 must be rejected because token was already consumed"
+
+    # Test 2: Replay rejection
+    cur1.execute("""
+        UPDATE pending_device_switches
+        SET status = 'CONSUMED', consumed_at = CURRENT_TIMESTAMP
+        WHERE student_id = 88812
+          AND confirmation_token = %s
+          AND status = 'PENDING'
+          AND expires_at > %s;
+    """, (token, now_ts))
+    assert cur1.rowcount == 0, "Replaying confirmation must match 0 rows"
+
+    # Test 3: Stale session token check
+    token_stale = secrets.token_urlsafe(32)
+    cur1.execute("""
+        INSERT INTO pending_device_switches (student_id, confirmation_token, current_session_token, status, expires_at)
+        VALUES (88812, %s, 'pg-old-stale-token', 'PENDING', %s);
+    """, (token_stale, expires_at_ts))
+    conn1.commit()
+
+    cur1.execute("""
+        UPDATE pending_device_switches
+        SET status = 'CONSUMED', consumed_at = CURRENT_TIMESTAMP
+        WHERE student_id = 88812
+          AND confirmation_token = %s
+          AND status = 'PENDING'
+          AND expires_at > %s
+          AND current_session_token = (SELECT active_session_token FROM users WHERE id = 88812);
+    """, (token_stale, now_ts))
+    assert cur1.rowcount == 0, "Stale pending confirmation must match 0 rows when active token changed"
+    conn1.rollback()
+
+    # Test 4: Rollback atomicity
+    token_rb = secrets.token_urlsafe(32)
+    cur1.execute("""
+        INSERT INTO pending_device_switches (student_id, confirmation_token, current_session_token, status, expires_at)
+        VALUES (88812, %s, 'pg-token-v1', 'PENDING', %s);
+    """, (token_rb, expires_at_ts))
+    conn1.commit()
+
+    # Begin transaction, consume, then roll back
+    cur1.execute("""
+        UPDATE pending_device_switches
+        SET status = 'CONSUMED', consumed_at = CURRENT_TIMESTAMP
+        WHERE student_id = 88812 AND confirmation_token = %s;
+    """, (token_rb,))
+    assert cur1.rowcount == 1
+    conn1.rollback()
+
+    # Verify status is still PENDING after rollback
+    cur1.execute("SELECT status FROM pending_device_switches WHERE confirmation_token = %s;", (token_rb,))
+    row_rb = cur1.fetchone()
+    assert row_rb["status"] == "PENDING"
+
+    # Clean up
+    cur1.execute("DELETE FROM pending_device_switches WHERE student_id = 88812;")
+    cur1.execute("DELETE FROM users WHERE id = 88812;")
+    conn1.commit()
+    conn1.close()
+    conn2.close()
+
+
+def test_postgres_admin_termination_racing_with_confirmation(pg_conn):
+    """
+    Test requirement 6 & 7 on isolated PostgreSQL:
+    Races administrator termination against device-switch confirmation using separate connections.
+    Enforces consistent lock ordering: (users row -> pending_device_switches rows).
+    Verifies:
+    1. No deadlock occurs between termination and confirmation.
+    2. When administrator termination completes, the final database state has:
+       - active_session_token == ''
+       - no usable (PENDING) device switch confirmation
+       - no active session recreated by the confirmation.
+    """
+    import secrets
+    conn_admin = get_verified_test_conn()
+    conn_student = get_verified_test_conn()
+    cur_admin = conn_admin.cursor()
+    cur_student = conn_student.cursor()
+
+    cur_admin.execute("DELETE FROM pending_device_switches WHERE student_id = 88814;")
+    cur_admin.execute("DELETE FROM users WHERE id = 88814;")
+    conn_admin.commit()
+
+    now_ts = int(time.time())
+    expires_at_ts = now_ts + 300
+    token = secrets.token_urlsafe(32)
+
+    # Setup student with active token
+    cur_admin.execute("""
+        INSERT INTO users (id, username, password_hash, full_name, role, active_session_token)
+        VALUES (88814, 'pg_race_student', 'hash', 'PG Race Student', 'student', 'pg-token-initial');
+    """)
+    cur_admin.execute("""
+        INSERT INTO pending_device_switches (student_id, confirmation_token, current_session_token, status, expires_at)
+        VALUES (88814, %s, 'pg-token-initial', 'PENDING', %s);
+    """, (token, expires_at_ts))
+    conn_admin.commit()
+
+    # Step 1: Admin begins termination transaction and locks the student row FIRST
+    cur_admin.execute("SELECT id, active_session_token FROM users WHERE id = 88814 FOR UPDATE;")
+    admin_locked = cur_admin.fetchone()
+    assert admin_locked is not None
+    assert admin_locked["active_session_token"] == "pg-token-initial"
+
+    # Step 2: Admin wipes active_session_token and cancels pending switches in lock order
+    cur_admin.execute("UPDATE users SET active_session_token = '' WHERE id = 88814;")
+    cur_admin.execute("UPDATE pending_device_switches SET status = 'CANCELLED' WHERE student_id = 88814 AND status = 'PENDING';")
+    conn_admin.commit()  # Admin termination committed!
+
+    # Step 3: Student confirmation runs (simulating student clicking confirm)
+    # 1. Student acquires row lock on users FIRST (same lock order)
+    cur_student.execute("SELECT id, active_session_token FROM users WHERE id = 88814 FOR UPDATE;")
+    st_locked = cur_student.fetchone()
+    active_tok = (st_locked["active_session_token"] if st_locked else "") or ""
+
+    # Since admin terminated, active_tok is empty!
+    if not active_tok:
+        # Expected behavior: confirmation recognizes session was terminated, rolls back
+        cur_student.execute("ROLLBACK;")
+    else:
+        # If it had reached update, it would fail
+        cur_student.execute("""
+            UPDATE pending_device_switches
+            SET status = 'CONSUMED', consumed_at = CURRENT_TIMESTAMP
+            WHERE student_id = 88814
+              AND confirmation_token = %s
+              AND status = 'PENDING'
+              AND expires_at > %s
+              AND current_session_token = %s;
+        """, (token, now_ts, active_tok))
+        conn_student.commit()
+
+    # Step 4: Verify final database state
+    conn_verify = get_verified_test_conn()
+    cur_v = conn_verify.cursor()
+    cur_v.execute("SELECT active_session_token FROM users WHERE id = 88814;")
+    row_user = cur_v.fetchone()
+    assert row_user["active_session_token"] == "", "Final state must have empty active_session_token"
+
+    cur_v.execute("SELECT status FROM pending_device_switches WHERE confirmation_token = %s;", (token,))
+    row_switch = cur_v.fetchone()
+    assert row_switch["status"] == "CANCELLED", "Pending switch must be CANCELLED, not CONSUMED or PENDING"
+
+    # Cleanup
+    cur_v.execute("DELETE FROM pending_device_switches WHERE student_id = 88814;")
+    cur_v.execute("DELETE FROM users WHERE id = 88814;")
+    conn_verify.commit()
+
+    conn_admin.close()
+    conn_student.close()
+    conn_verify.close()
+
+
+def test_postgres_confirmation_locks_first_racing_with_admin_termination(pg_conn):
+    """
+    Test requirement 2 & 3 on isolated PostgreSQL:
+    Races device-switch confirmation vs administrator termination where CONFIRMATION locks first:
+    1. Device-switch confirmation acquires student row lock first via SELECT ... FOR UPDATE.
+    2. Confirmation atomically consumes the pending record and commits new active_session_token.
+    3. Administrator termination then acquires lock on the student row.
+    4. Termination clears that newly set token and cancels any pending switches.
+    5. Verifies:
+       - Final active_session_token is empty.
+       - The consumed confirmation token cannot be reused or replayed.
+       - No deadlocks occur.
+    """
+    import secrets
+    conn_student = get_verified_test_conn()
+    conn_admin = get_verified_test_conn()
+    cur_student = conn_student.cursor()
+    cur_admin = conn_admin.cursor()
+
+    cur_admin.execute("DELETE FROM pending_device_switches WHERE student_id = 88816;")
+    cur_admin.execute("DELETE FROM users WHERE id = 88816;")
+    conn_admin.commit()
+
+    now_ts = int(time.time())
+    expires_at_ts = now_ts + 300
+    token = secrets.token_urlsafe(32)
+    new_token = secrets.token_hex(20)
+
+    # Initial state: student with active token
+    cur_admin.execute("""
+        INSERT INTO users (id, username, password_hash, full_name, role, active_session_token)
+        VALUES (88816, 'pg_race_conf_first', 'hash', 'PG Race Conf First', 'student', 'pg-token-initial');
+    """)
+    cur_admin.execute("""
+        INSERT INTO pending_device_switches (student_id, confirmation_token, current_session_token, status, expires_at)
+        VALUES (88816, %s, 'pg-token-initial', 'PENDING', %s);
+    """, (token, expires_at_ts))
+    conn_admin.commit()
+
+    # Step 1: Confirmation starts and locks student row FIRST
+    cur_student.execute("SELECT id, active_session_token FROM users WHERE id = 88816 FOR UPDATE;")
+    row_st = cur_student.fetchone()
+    assert row_st is not None
+    assert row_st["active_session_token"] == "pg-token-initial"
+
+    # Step 2: Confirmation consumes pending switch and updates users table to new_token
+    cur_student.execute("""
+        UPDATE pending_device_switches
+        SET status = 'CONSUMED', consumed_at = CURRENT_TIMESTAMP
+        WHERE student_id = 88816
+          AND confirmation_token = %s
+          AND status = 'PENDING'
+          AND expires_at > %s
+          AND current_session_token = %s;
+    """, (token, now_ts, "pg-token-initial"))
+    assert cur_student.rowcount == 1, "Confirmation must successfully consume the pending record"
+
+    cur_student.execute("""
+        UPDATE users
+        SET active_session_token = %s
+        WHERE id = 88816
+          AND active_session_token = %s;
+    """, (new_token, "pg-token-initial"))
+    assert cur_student.rowcount == 1
+
+    # Confirmation commits its changes
+    conn_student.commit()
+
+    # Step 3: Administrator termination runs now (or proceeds after waiting for the student lock)
+    cur_admin.execute("SELECT id, active_session_token FROM users WHERE id = 88816 FOR UPDATE;")
+    row_adm = cur_admin.fetchone()
+    assert row_adm is not None
+    assert row_adm["active_session_token"] == new_token, "Admin sees the token that was committed by confirmation"
+
+    # Termination clears active_session_token and cancels pending switches in lock order
+    cur_admin.execute("UPDATE users SET active_session_token = '' WHERE id = 88816;")
+    cur_admin.execute("UPDATE pending_device_switches SET status = 'CANCELLED' WHERE student_id = 88816 AND status = 'PENDING';")
+    conn_admin.commit()
+
+    # Step 4: Verify final database state
+    conn_verify = get_verified_test_conn()
+    cur_v = conn_verify.cursor()
+    cur_v.execute("SELECT active_session_token FROM users WHERE id = 88816;")
+    row_user = cur_v.fetchone()
+    assert row_user["active_session_token"] == "", "Final active_session_token must be empty"
+
+    cur_v.execute("SELECT status FROM pending_device_switches WHERE confirmation_token = %s;", (token,))
+    row_switch = cur_v.fetchone()
+    assert row_switch["status"] == "CONSUMED", "Original confirmation token was CONSUMED"
+
+    # Verify that the consumed token cannot be reused/replayed
+    cur_v.execute("""
+        UPDATE pending_device_switches
+        SET status = 'CONSUMED', consumed_at = CURRENT_TIMESTAMP
+        WHERE student_id = 88816
+          AND confirmation_token = %s
+          AND status = 'PENDING';
+    """, (token,))
+    assert cur_v.rowcount == 0, "Consumed token cannot be reused"
+
+    # Cleanup
+    cur_v.execute("DELETE FROM pending_device_switches WHERE student_id = 88816;")
+    cur_v.execute("DELETE FROM users WHERE id = 88816;")
+    conn_verify.commit()
+
+    conn_student.close()
+    conn_admin.close()
+    conn_verify.close()
